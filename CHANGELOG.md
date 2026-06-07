@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.2
+
+Patch release for public repository audit fixes.
+
+- Added UTF-8 BOM to all zh-CN documentation files
+- Documented `new-project-control` command in tools/README
+- Aligned Codex adapter README with Claude Code and OpenCode structure
+- Fixed zh-CN BILINGUAL_DOCS content drift from EN version
+- Unified "sub-agents" hyphenation across all files
+- Replaced hardcoded version with `<MALTS_VERSION>` placeholder in template
+- Added Long-Task Mode, Model Policy, Safety sections to Codex and Claude Code templates
+
 ## 0.1.1
 
 Patch release for public repository hygiene.
