@@ -90,6 +90,7 @@ docs/                    Design, install, usage, handoff, security, and maintena
 - [Agent Install](docs/AGENT_INSTALL.md): rules for Agent-assisted installation.
 - [Handoff](docs/HANDOFF.md): handoff file behavior and release boundary.
 - [Security](docs/SECURITY.md): release hygiene and secret-handling rules.
+- [Maintainer Guide](docs/MAINTAINER_GUIDE.md): public-safe maintenance, CI, versioning, and handoff boundaries.
 
 ## Acknowledgements
 

@@ -153,6 +153,16 @@ def check_doc_sync(output_root: Path, manifest: Path | None, require_ch: bool) -
             findings.append(Finding("ERROR", f"Missing EN doc: {en_path}"))
         if require_ch and not ch_path.exists():
             findings.append(Finding("ERROR", f"Missing CH doc: {ch_path}"))
+        if en_path.exists() and ch_path.exists() and require_ch:
+            en_levels = heading_levels(read_text(en_path))
+            ch_levels = heading_levels(read_text(ch_path))
+            if en_levels != ch_levels:
+                findings.append(
+                    Finding(
+                        "ERROR",
+                        f"CH doc heading structure differs from EN doc: {pair['en']} -> {pair['ch']}",
+                    )
+                )
 
     return emit(findings)
 
@@ -162,6 +172,15 @@ def load_doc_pairs(manifest: Path | None) -> list[dict[str, str]]:
         return []
     data = json.loads(read_text(manifest))
     return list(data.get("pairs", []))
+
+
+def heading_levels(text: str) -> list[int]:
+    levels: list[int] = []
+    for line in text.splitlines():
+        match = re.match(r"^(#{1,6})\s+\S+", line)
+        if match:
+            levels.append(len(match.group(1)))
+    return levels
 
 
 PROJECT_CONTROL_TEMPLATE = """# PROJECT_CONTROL
@@ -382,11 +401,22 @@ def check_semantic_freshness(malts_root: Path, version: str | None) -> int:
         "docs/zh-CN/INSTALL.md",
         "adapters/codex/AGENTS.example.md",
         "adapters/claude-code/CLAUDE.example.md",
+        "adapters/claude-code/.claude/agents/explorer.md",
+        "adapters/claude-code/.claude/agents/memory-curator.md",
         "adapters/claude-code/.claude/agents/planner.md",
+        "adapters/claude-code/.claude/agents/verifier.md",
+        "adapters/claude-code/.claude/agents/worker.md",
+        "adapters/claude-code/.claude/commands/retrospective.md",
+        "adapters/claude-code/.claude/commands/smoke-test.md",
         "adapters/claude-code/.claude/commands/start-long-task.md",
+        "adapters/claude-code/.claude/commands/verify-round.md",
         "adapters/opencode/AGENTS.example.md",
         "adapters/opencode/opencode.json",
+        "adapters/opencode/.opencode/agents/explorer.md",
+        "adapters/opencode/.opencode/agents/memory-curator.md",
         "adapters/opencode/.opencode/agents/planner.md",
+        "adapters/opencode/.opencode/agents/verifier.md",
+        "adapters/opencode/.opencode/agents/worker.md",
         "skills/grill-me-preflight/SKILL.md",
         "skills/malts-project-init/SKILL.md",
         "skills/multi-agent-long-task-scheduling/SKILL.md",
@@ -447,6 +477,11 @@ def check_semantic_freshness(malts_root: Path, version: str | None) -> int:
         "0.1.0-" + "private",
         "private release-" + "preparation",
         "private " + "preparation",
+        "\u0418\u00b7\u0418\u041f\u0424\u041b\u0420\u0420",
+        "\u040e\u044a",
+        "\u7ead",
+        "\u922b",
+        "\ufffd",
     ]
     for path in malts_root.rglob("*"):
         relative_parts = path.relative_to(malts_root).parts

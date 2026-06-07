@@ -10,8 +10,8 @@ Pre-check: PROJECT_CONTROL must exist. If not, suggest `/init` or `/start-long-t
 4. Dispatch Explorer: read project structure, list key files, report architecture in SUB_AGENT_REPORT format.
 5. Dispatch Verifier: check Explorer's report for consistency (file existence, path correctness, structural completeness).
 6. Recycle both reports. Reconcile Agent Dispatch Log.
-7. If both returned structured reports and log agrees → PASS.
-8. If any step failed → report which step and why → FAIL.
+7. If both returned structured reports and log agrees, report PASS.
+8. If any step failed, report which step failed and why, then report FAIL.
 
 No Worker dispatch. No file modifications. Explorer and Verifier default to read-only.
 

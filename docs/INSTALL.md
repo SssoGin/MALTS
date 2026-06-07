@@ -2,6 +2,8 @@
 
 MALTS is installed by choosing one or more Agent tool adapters and copying reviewed scaffold files into the matching tool configuration area. Shared MALTS skills are maintained once under the repository root `skills/` directory and are installed into each target tool's local `skills/` directory.
 
+## Recommended Flow
+
 The recommended first step is dry-run:
 
 ```powershell

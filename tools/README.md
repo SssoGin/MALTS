@@ -14,4 +14,4 @@ python tools/agent_system_lint.py check-semantic-freshness --malts-root .
 
 Chinese doc sync is optional. Use the repository manifest when checking public bilingual docs with `--require-ch`.
 
-`check-doc-sync` is a structural check. It verifies configured document pairs and required paths; it does not validate translation quality, semantic equivalence, or whether a Chinese review copy is ready for release. Critical protocol wording still needs human or main-controller review.
+`check-doc-sync` is a structural check. With `--require-ch` and a manifest, it verifies configured document pairs and requires each Chinese document to match the English heading count and heading-level sequence. It does not validate translation quality, semantic equivalence, or whether a Chinese review copy is ready for release. Critical protocol wording still needs human or main-controller review.

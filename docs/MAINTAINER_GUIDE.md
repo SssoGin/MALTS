@@ -1,6 +1,14 @@
 # Maintainer Guide
 
-This guide describes public-safe release maintenance rules.
+This guide describes public-safe maintenance rules for MALTS. It is for humans and coding agents that need to update the public repository without depending on private local state.
+
+## Maintenance Goals
+
+- Keep `main` public-safe and installable.
+- Preserve English runtime docs as the source of truth.
+- Keep Simplified Chinese public docs synchronized when public docs change.
+- Keep Codex, Claude Code, and OpenCode adapters aligned when adapter behavior changes.
+- Prefer review-first changes: run dry-runs and checks before applying or releasing.
 
 ## Release Boundary
 
@@ -32,6 +40,24 @@ Never sync:
 
 Short rule: local archives, generated migration packages, or non-public companion project references do not enter the public package.
 
+Use placeholders in public docs:
+
+```text
+<PROJECT_ROOT>
+<MALTS_ROOT>
+<USER_HOME>
+<HANDOFF_ARCHIVE_ROOT>
+```
+
+Local maintainers may keep private maintenance state in ignored paths such as:
+
+```text
+.release-control/
+Handoff/
+```
+
+Those files are useful for Agent continuity, but they are not part of the public release package.
+
 ## Update Policy
 
 Agents should default to dry-run:
@@ -45,6 +71,48 @@ do not push
 
 Only update files after explicit confirmation.
 
+## Normal Update Flow
+
+1. Make the smallest change that solves the maintenance task.
+2. Update related public docs, templates, checklists, and adapters together.
+3. Run the local checks listed below.
+4. Commit the change with a focused message.
+5. Push to GitHub and wait for CI to pass.
+6. Release only after the checked commit is the intended public snapshot.
+
+## Local Checks
+
+Run these before pushing a public change:
+
+```powershell
+$version = (Get-Content -Raw VERSION).Trim()
+python tools\agent_system_lint.py check-semantic-freshness --malts-root . --version $version
+python tools\agent_system_lint.py check-doc-sync --output-root . --manifest tools\doc_pairs.json --require-ch
+python tools\agent_system_lint.py check-doc-sync --output-root .\runtime
+```
+
+Run install previews for supported tools:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-MALTS.ps1 -Tool Codex
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-MALTS.ps1 -Tool ClaudeCode
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-MALTS.ps1 -Tool OpenCode
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-MALTS.ps1 -Tool AllIncluded
+```
+
+The install script defaults to dry-run mode. Do not use `-Apply` as a release check.
+
+## Continuous Integration
+
+The repository uses GitHub Actions to run release hygiene checks on:
+
+- pushes to `main`
+- pull requests targeting `main`
+- published releases
+- manual workflow dispatches
+
+CI runs on Windows because the install script is PowerShell-based and Windows execution-policy behavior is part of the supported install path.
+
 ## Skill Source Policy
 
 MALTS public releases maintain one canonical skill source:
@@ -54,6 +122,22 @@ skills/
 ```
 
 The installer distributes that directory to supported Agent tools. Keep public skills in this root directory, and keep adapter directories limited to tool-specific instruction templates, commands, agents, and configuration. Tool-local skill directories are installation targets, not release-package facts.
+
+## Versioning
+
+Use semantic versioning:
+
+- Patch releases such as `v0.1.1`: documentation fixes, small script fixes, or compatibility fixes.
+- Minor releases such as `v0.2.0`: new adapters, new skills, new public workflows, or behavior additions.
+- Major releases such as `v1.0.0`: stable public contracts and intentional breaking changes after the project matures.
+
+Before creating a new release:
+
+1. Update `VERSION`.
+2. Update `CHANGELOG.md`.
+3. Run the local checks.
+4. Push and confirm CI passes.
+5. Create a GitHub Release from the checked commit.
 
 ## Before Public Release
 
@@ -66,3 +150,18 @@ The installer distributes that directory to supported Agent tools. Keep public s
   - `.github/PULL_REQUEST_TEMPLATE.md`
   - `.github/ISSUE_TEMPLATE/`
 - Confirm repository visibility change intentionally.
+
+## Agent Handoff For Maintainers
+
+When a future Agent needs to continue MALTS maintenance, provide private handoff context outside the public release package. The handoff should include:
+
+- generated time
+- repository root
+- source context reviewed
+- completed work
+- pending work
+- known risks
+- verification already performed
+- next recommended steps
+
+Keep real handoff files in ignored local paths or a private archive. Public examples must use placeholder content only.

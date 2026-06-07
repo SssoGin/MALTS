@@ -31,7 +31,7 @@ Costs:
 ## Tooling
 
 `tools/agent_system_lint.py check-doc-sync` does not require CH docs by default.
-It checks document structure and configured pairs only; it does not prove translation quality or semantic parity.
+With `--require-ch` and a manifest, it checks configured document pairs and requires each Chinese document to match the English heading count and heading-level sequence. It does not prove translation quality or semantic parity.
 
 The default runtime check stays English-only:
 

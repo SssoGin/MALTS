@@ -42,4 +42,4 @@ python tools\agent_system_lint.py check-doc-sync --output-root runtime
 python tools\agent_system_lint.py check-doc-sync --output-root . --manifest tools\doc_pairs.json --require-ch
 ```
 
-该检查确认配置的文档对存在，不证明翻译质量或语义完全等价。
+使用 `--require-ch` 和 manifest 时，该检查会确认配置的文档对存在，并要求每份中文文档与对应英文文档的标题数量和标题层级顺序一致。它不证明翻译质量或语义完全等价。

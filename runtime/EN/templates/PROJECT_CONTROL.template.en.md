@@ -1,6 +1,6 @@
 # PROJECT_CONTROL
 
-> Purpose: single source of truth for the current project state when MALTS is enabled.  
+> Purpose: single source of truth for the current project state when MALTS is enabled.
 > Do not create MALTS control files for every trivial task by default. Create or reuse this file when the user enables MALTS, long-task scheduling is active, or a normal task grows complex enough to require recoverable state.
 
 ## Metadata
