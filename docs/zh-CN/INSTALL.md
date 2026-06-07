@@ -1,4 +1,4 @@
-# MALTS 安装说明
+﻿# MALTS 安装说明
 
 语言：[English](../INSTALL.md) | [简体中文](INSTALL.md)
 

@@ -1,8 +1,8 @@
-# 可选双语文档同步
+﻿# 可选双语文档同步
 
 语言：[English](../BILINGUAL_DOCS.md) | [简体中文](BILINGUAL_DOCS.md)
 
-MALTS 默认以英文文档和根级 `skills/` 作为 Agent 执行事实源。中文文档是公开入口、用户审阅材料和可选译本。
+MALTS 默认以英文 runtime 文档作为 Agent 执行事实源。中文文档同步是可选项，默认关闭。
 
 ## 为什么是可选项
 

@@ -6,7 +6,7 @@
 ## Metadata
 
 - Project:
-- Control version: v0.1
+- Control version: <MALTS_VERSION>
 - Current round:
 - Last updated:
 - Maintainer: Main Controller

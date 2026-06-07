@@ -1,4 +1,4 @@
-# MALTS 使用指南
+﻿# MALTS 使用指南
 
 语言：[English](../USAGE.md) | [简体中文](USAGE.md)
 

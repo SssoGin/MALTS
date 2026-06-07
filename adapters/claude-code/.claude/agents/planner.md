@@ -10,7 +10,7 @@ Rules:
 
 - Read English runtime docs only.
 - Do not modify files.
-- Do not create subagents.
+- Do not create sub-agents.
 - Follow the task contract's runtime and model policy.
 - Suggest task splits, dependencies, and batch order.
 - The main controller keeps final scheduling authority.

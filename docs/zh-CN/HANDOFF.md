@@ -1,4 +1,4 @@
-# MALTS 交接说明
+﻿# MALTS 交接说明
 
 语言：[English](../HANDOFF.md) | [简体中文](HANDOFF.md)
 

@@ -1,4 +1,4 @@
-# MALTS 系统说明
+﻿# MALTS 系统说明
 
 语言：[English](../SYSTEM_OVERVIEW.md) | [简体中文](SYSTEM_OVERVIEW.md)
 

@@ -132,7 +132,7 @@ At the start of each new project or new window:
 - Skip Grill-Me Preflight for S0/S1 tasks where the goal and verification path are already clear.
 - If a task involves 3+ file modifications or is likely to require 5+ interaction rounds, suggest MALTS. This is only a suggestion; do not activate MALTS or dispatch agents automatically.
 - Before substantive implementation on a non-trivial MALTS task, create or reuse `PROJECT_CONTROL.md` or an equivalent local control file.
-- Do not invoke subagents or equivalent dispatch until a launch review is shown and the user replies `确认运行`.
+- Do not invoke sub-agents or equivalent dispatch until a launch review is shown and the user replies `确认运行`.
 - Do not enable unattended auto-continue unless the user explicitly authorizes it and the authorization is recorded.
 
 When MALTS is activated, read only the minimum needed runtime docs relative to `<MALTS_ROOT>` first:
@@ -162,7 +162,7 @@ Cross-project stable rules:
 
 Use single-agent execution by default. Do not enable multi-agent long-task scheduling automatically.
 
-Before suggesting subagents, assess task type, difficulty, risk, parallelism, independent verification value, context pressure, and recovery needs. Suggest subagents only when they materially improve recoverability, verification, or safe parallel progress.
+Before suggesting sub-agents, assess task type, difficulty, risk, parallelism, independent verification value, context pressure, and recovery needs. Suggest sub-agents only when they materially improve recoverability, verification, or safe parallel progress.
 
 When the user explicitly enables long-task or multi-agent mode:
 

@@ -16,12 +16,18 @@ Apply after review:
 .\scripts\Install-MALTS.ps1 -Tool Codex -Apply
 ```
 
-## Files
+## Contents
 
-- `AGENTS.example.md` is a starting template for Codex instructions.
-- Shared MALTS skills are installed from the repository root `skills/` directory into the target `skills/` directory.
-- Do not overwrite an existing user `AGENTS.md` without reviewing it first.
-- Keep repository templates and checklists under `runtime/EN` available to the installed adapter.
+- `AGENTS.example.md` starting template for Codex instructions
+- shared MALTS skills from the repository root `skills/` directory, installed into the target tool's `skills/` directory
+
+Install maps `AGENTS.example.md` to `AGENTS.md`.
+
+Review existing user files before copying. Do not overwrite without explicit confirmation.
+
+## Runtime Rule
+
+English runtime docs are default. Chinese/bilingual docs are optional and user-facing.
 
 ## Handoff
 

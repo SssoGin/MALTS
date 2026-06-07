@@ -1,4 +1,4 @@
-# MALTS 核心设计
+﻿# MALTS 核心设计
 
 语言：[English](../CORE_DESIGN.md) | [简体中文](CORE_DESIGN.md)
 

@@ -1,4 +1,4 @@
-# 安全与发布卫生
+﻿# 安全与发布卫生
 
 语言：[English](../SECURITY.md) | [简体中文](SECURITY.md)
 

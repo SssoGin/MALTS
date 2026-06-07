@@ -1,4 +1,4 @@
-# 更新 MALTS Release Repository
+﻿# 更新 MALTS Release Repository
 
 语言：[English](../UPDATE.md) | [简体中文](UPDATE.md)
 

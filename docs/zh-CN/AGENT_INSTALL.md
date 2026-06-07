@@ -1,4 +1,4 @@
-# Agent-Assisted 安装协议
+﻿# Agent-Assisted 安装协议
 
 语言：[English](../AGENT_INSTALL.md) | [简体中文](AGENT_INSTALL.md)
 

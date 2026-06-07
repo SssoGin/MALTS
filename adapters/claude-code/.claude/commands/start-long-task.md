@@ -11,7 +11,7 @@ Instructions:
 3. Capture the user original goal.
 4. Define completion and acceptance criteria.
 5. Build the initial task queue.
-6. Assess task type, difficulty, risk, parallelism, independent verification value, context pressure, and recovery needs before recommending subagents.
+6. Assess task type, difficulty, risk, parallelism, independent verification value, context pressure, and recovery needs before recommending sub-agents.
 7. If multi-agent is only a recommendation, explain why and stop before dispatch until the user confirms.
 8. Ask whether the user wants to specify sub-agent models and show the accepted format: `Role=model-id; Role=inherit; default=inherit`.
 9. Show the launch review packet with the overall goal, total plan, planned agents, model names or policies, each agent's task, and each agent's short plan.

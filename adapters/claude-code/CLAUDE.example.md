@@ -132,7 +132,7 @@ At the start of each new project or new window:
 - Skip Grill-Me Preflight for S0/S1 tasks where the goal and verification path are already clear.
 - If a task involves 3+ file modifications or is likely to require 5+ interaction rounds, suggest MALTS. This is only a suggestion; do not activate MALTS or dispatch agents automatically.
 - Before substantive implementation on a non-trivial MALTS task, create or reuse `PROJECT_CONTROL.md` or an equivalent local control file.
-- Do not invoke subagents until a launch review is shown and the user replies `确认运行`.
+- Do not invoke sub-agents until a launch review is shown and the user replies `确认运行`.
 - Do not enable unattended auto-continue unless the user explicitly authorizes it and the authorization is recorded.
 
 When MALTS is activated, read only the minimum needed runtime docs relative to `<MALTS_ROOT>` first:
@@ -157,6 +157,36 @@ Cross-project stable rules:
 4. **Sync adapter/doc patches across tools.** When modifying adapter READMEs, templates, checklists, or protocol docs, check Codex, Claude Code, and OpenCode together. If one tool is skipped, record why.
 5. **Keep ordinary documentation sync cost-aware.** Use scripts or structured checks first. Candidate translations or gap fills can be low-cost, but critical protocol, safety, permission, memory, unattended, dispatch, and final-merge semantics require main-controller or high-confidence review.
 6. **Grill-Me Preflight is MALTS-native.** It is a clarification gate, not sub-agent dispatch, and does not require `确认运行`.
+
+## Claude Code Long-Task Mode
+
+Use single-agent execution by default. Do not enable multi-agent long-task scheduling automatically.
+
+Before suggesting sub-agents, assess task type, difficulty, risk, parallelism, independent verification value, context pressure, and recovery needs. Suggest sub-agents only when they materially improve recoverability, verification, or safe parallel progress.
+
+When the user explicitly enables long-task or multi-agent mode:
+
+1. Create or update `PROJECT_CONTROL.md`.
+2. Capture the user's original goal.
+3. Define completion and acceptance criteria.
+4. Build a task queue.
+5. Use task contracts for delegated work.
+6. Ask whether the user wants to specify sub-agent models and show the format: `Role=model-id; Role=inherit; default=inherit`.
+7. Before any sub-agent dispatch, show the launch review packet: overall goal, total plan, agent list, model names or model policies, each agent's task, and each agent's short plan.
+8. Wait for the user's explicit `确认运行`.
+9. Before each sub-agent dispatch, expose or record the task contract.
+10. Record visible dispatch evidence, runtime agent ID when available, model policy, and recycled feedback in `PROJECT_CONTROL.md`.
+11. Reconcile dispatch evidence, task contracts, reports, dispatch log, and feedback log before claiming multi-agent validation.
+12. Verify before marking tasks `DONE`.
+13. Update state after each round.
+14. If unattended continuation needs a new sub-agent batch that was not pre-confirmed, stop and ask for the normal launch review confirmation.
+
+Do not promise a fixed one-shot runtime. Design long work as bounded rounds with recovery points.
+
+## Model Policy
+
+- If the user specifies a sub-agent model and the target runtime supports it, use that model.
+- If explicit model selection is unsupported or unconfirmed, record the limitation and the effective default or inheritance behavior.
 
 ## Handoff Document Rule
 
@@ -194,3 +224,9 @@ When the user asks to rebuild, refresh, generate, or package an Agent tool migra
 - `runtime/EN/checklists/DELIVERY_CHECKLIST.en.md`
 - `runtime/EN/checklists/MEMORY_WRITE_CHECKLIST.en.md`
 
+## Safety
+
+- Main controller keeps final responsibility.
+- Do not claim completion without verification.
+- Do not delete files, change permissions, change dependencies, change build configuration, or modify long-term rules without confirmation or a safety mechanism.
+- Treat Git as optional unless the user explicitly asks for Git operations.
