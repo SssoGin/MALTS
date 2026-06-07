@@ -139,7 +139,7 @@ The public repository defaults to English source documents. A Simplified Chinese
 Current release version:
 
 ```text
-0.1.0
+0.1.1
 ```
 
 ## License

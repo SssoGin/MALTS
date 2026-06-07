@@ -149,7 +149,7 @@ Without that confirmation, MALTS remains single-agent.
 Useful checks:
 
 ```powershell
-python tools\agent_system_lint.py check-semantic-freshness --malts-root . --version 0.1.0
+python tools\agent_system_lint.py check-semantic-freshness --malts-root . --version 0.1.1
 python tools\agent_system_lint.py check-doc-sync --output-root runtime
 .\scripts\Install-MALTS.ps1 -Tool Codex
 ```

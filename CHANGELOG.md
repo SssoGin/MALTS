@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.1
+
+Patch release for public repository hygiene.
+
+- Added CI release hygiene checks
+- Expanded bilingual document structure validation
+- Fixed Claude Code smoke-test scaffold wording
+- Covered hidden adapter scaffold files in release checks
+- Synchronized VERSION, README, README.zh-CN, CHANGELOG, and release verification examples
+- Confirmed public release excludes private handoff and release-control state
+
 ## 0.1.0
 
 - Initial public release.
