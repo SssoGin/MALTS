@@ -1,0 +1,52 @@
+{
+  "pairs": [
+    {
+      "en": "README.md",
+      "ch": "README.zh-CN.md"
+    },
+    {
+      "en": "docs/GETTING_STARTED.md",
+      "ch": "docs/zh-CN/GETTING_STARTED.md"
+    },
+    {
+      "en": "docs/SYSTEM_OVERVIEW.md",
+      "ch": "docs/zh-CN/SYSTEM_OVERVIEW.md"
+    },
+    {
+      "en": "docs/INSTALL.md",
+      "ch": "docs/zh-CN/INSTALL.md"
+    },
+    {
+      "en": "docs/USAGE.md",
+      "ch": "docs/zh-CN/USAGE.md"
+    },
+    {
+      "en": "docs/HANDOFF.md",
+      "ch": "docs/zh-CN/HANDOFF.md"
+    },
+    {
+      "en": "docs/CORE_DESIGN.md",
+      "ch": "docs/zh-CN/CORE_DESIGN.md"
+    },
+    {
+      "en": "docs/AGENT_INSTALL.md",
+      "ch": "docs/zh-CN/AGENT_INSTALL.md"
+    },
+    {
+      "en": "docs/BILINGUAL_DOCS.md",
+      "ch": "docs/zh-CN/BILINGUAL_DOCS.md"
+    },
+    {
+      "en": "docs/SECURITY.md",
+      "ch": "docs/zh-CN/SECURITY.md"
+    },
+    {
+      "en": "docs/UPDATE.md",
+      "ch": "docs/zh-CN/UPDATE.md"
+    },
+    {
+      "en": "docs/MAINTAINER_GUIDE.md",
+      "ch": "docs/zh-CN/MAINTAINER_GUIDE.md"
+    }
+  ]
+}

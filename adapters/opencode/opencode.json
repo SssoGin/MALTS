@@ -1,0 +1,50 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "planner": {
+      "description": "Read-only planner for task splitting, dependencies, and batch suggestions.",
+      "mode": "subagent",
+      "prompt": "{file:./.opencode/agents/planner.md}",
+      "permission": {
+        "edit": "deny",
+        "bash": "deny"
+      }
+    },
+    "explorer": {
+      "description": "Read-only explorer for codebase, logs, configuration, and root-cause discovery.",
+      "mode": "subagent",
+      "prompt": "{file:./.opencode/agents/explorer.md}",
+      "permission": {
+        "edit": "deny",
+        "bash": "deny"
+      }
+    },
+    "worker": {
+      "description": "Bounded implementation agent. Use only with explicit task contract and file scope.",
+      "mode": "subagent",
+      "prompt": "{file:./.opencode/agents/worker.md}",
+      "permission": {
+        "edit": "ask",
+        "bash": "ask"
+      }
+    },
+    "verifier": {
+      "description": "Independent verifier for requirements, evidence, deliverables, and risks.",
+      "mode": "subagent",
+      "prompt": "{file:./.opencode/agents/verifier.md}",
+      "permission": {
+        "edit": "deny",
+        "bash": "ask"
+      }
+    },
+    "memory-curator": {
+      "description": "Retrospective and memory hygiene agent. Proposes filtered growth candidates.",
+      "mode": "subagent",
+      "prompt": "{file:./.opencode/agents/memory-curator.md}",
+      "permission": {
+        "edit": "deny",
+        "bash": "deny"
+      }
+    }
+  }
+}
