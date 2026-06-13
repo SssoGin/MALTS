@@ -1,6 +1,6 @@
 # Maintainer Guide
 
-This guide describes public-safe maintenance rules for MALTS. It is for humans and coding agents that need to update the public repository without depending on private local state.
+This guide describes public-safe maintenance rules for MALTS. It is for humans and coding agents that need to update the public repository without depending on user-specific generated state.
 
 ## Maintenance Goals
 
@@ -23,9 +23,9 @@ Allowed:
 
 Never sync:
 
-- local release-control files
-- local handoff outputs
-- old private design notes
+- release-control files
+- handoff outputs
+- project-specific design notes
 - trial-run logs
 - real user tool configuration
 - sessions
@@ -33,12 +33,12 @@ Never sync:
 - caches
 - secrets
 - machine-specific paths
-- local archives
+- user-specific archives
 - generated migration packages
-- non-public companion project references
+- unrelated project references
 - extra public skill trees outside root `skills/`
 
-Short rule: local archives, generated migration packages, or non-public companion project references do not enter the public package.
+Short rule: user-specific archives, generated migration packages, and unrelated project references do not enter the public package.
 
 Use placeholders in public docs:
 
@@ -49,14 +49,7 @@ Use placeholders in public docs:
 <HANDOFF_ARCHIVE_ROOT>
 ```
 
-Local maintainers may keep private maintenance state in ignored paths such as:
-
-```text
-.release-control/
-Handoff/
-```
-
-Those files are useful for Agent continuity, but they are not part of the public release package.
+Ignored paths may contain generated maintenance state. Those files are not part of the public release package.
 
 ## Update Policy
 
@@ -88,7 +81,10 @@ Run these before pushing a public change:
 $version = (Get-Content -Raw VERSION).Trim()
 python tools\agent_system_lint.py check-semantic-freshness --malts-root . --version $version
 python tools\agent_system_lint.py check-doc-sync --output-root . --manifest tools\doc_pairs.json --require-ch
-python tools\agent_system_lint.py check-doc-sync --output-root .\runtime
+python tools\agent_system_lint.py check-doc-sync --output-root .\runtime --require-ch
+python tools\agent_system_lint.py check-adapter-parity --malts-root .
+python tools\agent_system_lint.py check-encoding --malts-root . --require-ch-bom
+python tools\agent_system_lint.py check-public-safety --malts-root .
 ```
 
 Run install previews for supported tools:
@@ -101,6 +97,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-MALTS.ps1 
 ```
 
 The install script defaults to dry-run mode. Do not use `-Apply` as a release check.
+
+Run a real temporary install smoke test before publishing installer or runtime changes:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Test-MALTSInstall.ps1 -Tool AllIncluded
+```
+
+The smoke test writes only to a guarded temporary directory and removes it after validating the installed layout.
 
 ## Continuous Integration
 
@@ -121,7 +125,7 @@ MALTS public releases maintain one canonical skill source:
 skills/
 ```
 
-The installer distributes that directory to supported Agent tools. Keep public skills in this root directory, and keep adapter directories limited to tool-specific instruction templates, commands, agents, and configuration. Tool-local skill directories are installation targets, not release-package facts.
+The installer distributes that directory to supported Agent tools. Keep public skills in this root directory, and keep adapter directories limited to tool-specific instruction templates, commands, agents, and configuration. Target tool skill directories are installation targets, not release-package facts.
 
 ## Versioning
 
@@ -153,7 +157,7 @@ Before creating a new release:
 
 ## Agent Handoff For Maintainers
 
-When a future Agent needs to continue MALTS maintenance, provide private handoff context outside the public release package. The handoff should include:
+When a future Agent needs to continue MALTS maintenance, provide continuation context outside the public release package. The handoff should include:
 
 - generated time
 - repository root
@@ -164,4 +168,4 @@ When a future Agent needs to continue MALTS maintenance, provide private handoff
 - verification already performed
 - next recommended steps
 
-Keep real handoff files in ignored local paths or a private archive. Public examples must use placeholder content only.
+Keep real handoff files outside release artifacts. Public examples must use placeholder content only.

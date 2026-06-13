@@ -2,7 +2,7 @@
 
 语言：[English](../MAINTAINER_GUIDE.md) | [简体中文](MAINTAINER_GUIDE.md)
 
-本文说明 MALTS 的 public-safe maintenance rules，面向需要在不依赖私有本地状态的情况下维护公开仓库的人类维护者和 coding agents。
+本文说明 MALTS 的 public-safe maintenance rules，面向需要在不依赖用户特定生成状态的情况下维护公开仓库的人类维护者和 coding agents。
 
 ## 维护目标
 
@@ -25,9 +25,9 @@
 
 不得同步：
 
-- local release-control files
-- local handoff outputs
-- old private design notes
+- release-control files
+- handoff outputs
+- project-specific design notes
 - trial-run logs
 - real user tool configuration
 - sessions
@@ -35,12 +35,12 @@
 - caches
 - secrets
 - machine-specific paths
-- local archives
+- user-specific archives
 - generated migration packages
-- non-public companion project references
+- unrelated project references
 - 根级 `skills/` 之外的额外公开 skill tree
 
-简短规则：local archives、generated migration packages 和 non-public companion project references 不进入公开包。
+简短规则：user-specific archives、generated migration packages 和 unrelated project references 不进入公开包。
 
 公开文档中使用占位符：
 
@@ -51,14 +51,7 @@
 <HANDOFF_ARCHIVE_ROOT>
 ```
 
-本地维护者可以把私有维护状态保存在已忽略路径中，例如：
-
-```text
-.release-control/
-Handoff/
-```
-
-这些文件有助于 Agent 延续上下文，但不是公开 release package 的一部分。
+已忽略路径中可能存在生成的维护状态。这些文件不是公开 release package 的一部分。
 
 ## 更新策略
 
@@ -90,7 +83,10 @@ push 公开改动前运行：
 $version = (Get-Content -Raw VERSION).Trim()
 python tools\agent_system_lint.py check-semantic-freshness --malts-root . --version $version
 python tools\agent_system_lint.py check-doc-sync --output-root . --manifest tools\doc_pairs.json --require-ch
-python tools\agent_system_lint.py check-doc-sync --output-root .\runtime
+python tools\agent_system_lint.py check-doc-sync --output-root .\runtime --require-ch
+python tools\agent_system_lint.py check-adapter-parity --malts-root .
+python tools\agent_system_lint.py check-encoding --malts-root . --require-ch-bom
+python tools\agent_system_lint.py check-public-safety --malts-root .
 ```
 
 对受支持工具运行安装预览：
@@ -103,6 +99,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-MALTS.ps1 
 ```
 
 安装脚本默认是 dry-run。不要把 `-Apply` 作为 release 检查。
+
+发布 installer 或 runtime 改动前，运行一次真实临时安装 smoke test：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Test-MALTSInstall.ps1 -Tool AllIncluded
+```
+
+该 smoke test 只写入受保护的临时目录，验证安装布局后会删除临时目录。
 
 ## Continuous Integration
 
@@ -123,7 +127,7 @@ MALTS public releases 维护一个 canonical skill source：
 skills/
 ```
 
-安装脚本会把该目录分发到受支持 Agent 工具。Public skills 保持在这个根级目录中；adapter 目录只保存工具特定的指令模板、commands、agents 和配置。工具本地 skill 目录是安装目标，不是 release-package facts。
+安装脚本会把该目录分发到受支持 Agent 工具。Public skills 保持在这个根级目录中；adapter 目录只保存工具特定的指令模板、commands、agents 和配置。目标工具 skill 目录是安装目标，不是 release-package facts。
 
 ## 版本规则
 
@@ -155,7 +159,7 @@ skills/
 
 ## 维护者 Agent Handoff
 
-当未来 Agent 需要继续维护 MALTS 时，应在公开发布包之外提供私有 handoff context。handoff 应包含：
+当未来 Agent 需要继续维护 MALTS 时，应在公开发布包之外提供 continuation context。handoff 应包含：
 
 - generated time
 - repository root
@@ -166,4 +170,4 @@ skills/
 - verification already performed
 - next recommended steps
 
-真实 handoff 文件应保存在已忽略的本地路径或私有归档中。公开示例只能使用占位符内容。
+真实 handoff 文件应放在 release artifacts 之外。公开示例只能使用占位符内容。

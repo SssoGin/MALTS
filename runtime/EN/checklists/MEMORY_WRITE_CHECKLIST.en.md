@@ -47,8 +47,8 @@ Passing this checklist means a long-term memory write may proceed or be proposed
 
 ## Safety
 
-- [ ] No secrets, tokens, private accounts, or sensitive local details are written.
-- [ ] User-specific private information is not promoted into global memory.
+- [ ] No secrets, tokens, account identifiers, or sensitive machine-specific details are written.
+- [ ] User-specific sensitive information is not promoted into global memory.
 - [ ] The rule will not cause unsafe future automation.
 - [ ] High-risk rule changes require user confirmation.
 

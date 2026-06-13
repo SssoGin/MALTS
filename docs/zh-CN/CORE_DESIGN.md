@@ -117,7 +117,7 @@ MALTS 的核心职责：
 - 提供 task contracts 和 sub-agent report templates。
 - 提供 delivery、quality 和 memory-write checklists。
 - 通过 `PROJECT_HANDOFF.md` 提供 Agent-facing handoff。
-- 通过 `WORK_TASK_REPORT.md` 提供 user-facing work reports。
+- 通过 `WORK_TASK_REPORT.md` 提供 work reports；中文用户可读输出或双语模式在范围内时，同步维护 `工作任务报告.md`。
 - 为 Codex、Claude Code 和 OpenCode 提供可选 adapters。
 - 提供低开销 linting 和 document-structure checks。
 
@@ -162,7 +162,7 @@ MALTS
 
 Core layer 存储通用操作模型和持久 project artifacts。Runtime layer 通过根级 `skills/`、execution modes、recovery、verification、templates、checklists 和 memory pipeline 把模型变成可执行 Agent workflows。Adapter layer 把同一模型映射到每个受支持 agent tool，而不让 tool-specific details 污染核心设计。
 
-公开包只有一个 canonical skill source：`skills/`。Tool-local skill directories 是安装目标，不是独立来源。`runtime/EN` 包含 MALTS workflows 使用的 templates 和 checklists。
+公开包只有一个 canonical skill source：`skills/`。目标工具 skill directories 是安装目标，不是独立来源。`runtime/EN` 包含 MALTS workflows 使用的 Agent-facing templates 和 checklists。`runtime/CH` 包含简体中文运行镜像，用于用户可读审阅和双语产物生成。
 
 ## 激活模型
 
@@ -238,12 +238,16 @@ Recovery Notes
 | Artifact | 默认位置 | 受众 | 目的 |
 |---|---|---|---|
 | `PROJECT_CONTROL.md` | Project root | Agent-facing | 当前目标、队列、决策、ownership、verification、risks、recovery state |
-| `WORK_TASK_REPORT.md` | Project root | User-facing | 阶段或最终交付报告，使用用户或项目语言 |
+| `项目控制.md` | Project root | 中文用户可读镜像 | 中文用户可读状态在范围内时，作为 `PROJECT_CONTROL.md` 的实质镜像 |
+| `WORK_TASK_REPORT.md` | Project root | Agent-facing structure and report source | 阶段或最终交付报告结构与证据记录 |
+| `工作任务报告.md` | Project root | 中文用户可读镜像 | 中文输出或双语模式在范围内时，作为 `WORK_TASK_REPORT.md` 的实质镜像 |
 | `PROJECT_HANDOFF.md` | Project root | Agent-facing | 面向未来窗口、工具或 Agents 的 continuation source |
+| `项目交接.md` | Project root | 中文用户可读镜像 | 用户请求或项目语言要求时的 handoff mirror |
 | `TASK_CONTRACT.template.en.md` | `runtime/EN/templates/` | Agent-facing | 真实 sub-agent task 的 contract |
 | `SUB_AGENT_REPORT.template.en.md` | `runtime/EN/templates/` | Agent-facing | sub-agent 返回的结构化结果 |
 | `PROJECT_HANDOFF.template.en.md` | `runtime/EN/templates/` | Agent-facing | 固定 recovery handoff 模板 |
 | `WORK_TASK_REPORT.template.en.md` | `runtime/EN/templates/` | Agent-facing structure, user-facing output | 可用用户语言撰写的 report 结构 |
+| `WORK_TASK_REPORT.template.zh-CN.md` | `runtime/CH/templates/` | 中文用户可读镜像 | `工作任务报告.md` 的结构 |
 | `DELIVERY_CHECKLIST.en.md` | `runtime/EN/checklists/` | Agent-facing | Final 或 phase delivery self-check |
 | `MEMORY_WRITE_CHECKLIST.en.md` | `runtime/EN/checklists/` | Agent-facing | durable memory 或 rule writes 前的过滤 |
 | `QUALITY_GATE.en.md` | `runtime/EN/checklists/` | Agent-facing | 通用 completion gate |
@@ -261,7 +265,7 @@ Release templates 是起点。真实 project artifacts 属于用户项目 worksp
 5. 对非琐碎或不清楚的开始提供 MALTS-native Grill-Me Preflight，除非明显 N/A。
 6. 执行下一轮 bounded round。
 7. 标记任务完成前先验证。
-8. 每个 MALTS phase 或最终交付后写入或追加 `WORK_TASK_REPORT.md`。
+8. 每个 MALTS phase 或最终交付后写入或追加 `WORK_TASK_REPORT.md`；中文输出或双语模式在范围内时，同步写入或追加 `工作任务报告.md`。
 9. 进入 handoff、context-risk handling 或 cross-window continuation 时，更新 `PROJECT_HANDOFF.md`。
 10. 将 reusable lessons 送入 MALTS Memory Pipeline。
 
@@ -475,6 +479,8 @@ MALTS 保持 core portable，并把 tool-specific details 放入 adapters。
 Codex：
 
 - 使用 `AGENTS.md` 作为 instruction entry。
+- 安装时使用 Codex project-scoped `.codex/config.toml` 和 `.codex/agents/*.toml` 提供 Codex-native custom subagent scaffold。
+- 除非 Codex 官方文档明确支持，否则不得声称 Codex 支持 Claude Code 或 OpenCode 风格的文件式自定义 slash commands。
 - 使用 `PROJECT_CONTROL.md` 作为 recoverable state。
 - 实际使用 sub-agents 时，使用 visible tool calls 或 thread tools 作为 dispatch evidence。
 - 可用时记录 agent IDs、roles、task IDs、model policy 和 report summaries。

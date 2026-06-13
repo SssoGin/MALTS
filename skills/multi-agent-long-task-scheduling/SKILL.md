@@ -107,7 +107,7 @@ This preflight is not multi-agent dispatch and does not require `确认运行`. 
 19. At long-task start, ask whether the user wants to enable unattended auto-continue. It requires explicit authorization recorded in `PROJECT_CONTROL.md`; without that authorization, unattended auto-running is forbidden and the system must stop at user checkpoints.
 20. If unattended continuation needs a new multi-agent batch that was not already reviewed and confirmed, stop and ask for the normal launch review confirmation.
 21. Standalone task or tool artifacts must keep their boundary explicit. Do not register a one-off artifact as a system entry, shared tool, or index item unless the user asks for that scope.
-22. Cross-window or cross-project continuation starts from external state: project instructions, latest `PROJECT_CONTROL`, latest `WORK_TASK_REPORT` or handoff, and current files. If that state is missing or stale, update it before continuing.
+22. Cross-window or cross-project continuation starts from external state: project instructions, latest `PROJECT_CONTROL`, latest `WORK_TASK_REPORT` / `工作任务报告` or handoff, and current files. If that state is missing or stale, update it before continuing.
 
 ## Role Model
 
@@ -147,7 +147,7 @@ This preflight is not multi-agent dispatch and does not require `确认运行`. 
 23. Route filtered decisions and growth results through the MALTS Memory Pipeline.
 24. If a long-term memory target or optional external memory tool is unavailable, preserve the candidate locally in project state or the work task report and do not claim a completed long-term write.
 25. For protocol, template, checklist, adapter, or documentation gap-filling tasks, verify whether the same fix must be applied to Codex, Claude Code, and OpenCode.
-26. Provide a user-facing work task report. Use `WORK_TASK_REPORT.template.en.md` as the Agent-facing structure source; the actual report should follow the user's language preference or project language.
+26. Provide a work task report. Use `WORK_TASK_REPORT.template.en.md` as the Agent-facing structure source. When Chinese user-facing output or bilingual mode is in scope, also create or update `工作任务报告.md` from `runtime/CH/templates/WORK_TASK_REPORT.template.zh-CN.md`.
 27. If unattended auto-continue is authorized, check round caps and stop conditions before starting another round.
 28. Continue the next round or deliver with verified risks.
 
@@ -291,7 +291,7 @@ Require confirmation or a safety mechanism before:
 ## Artifact And Directory Boundary
 
 - When a task creates, deletes, moves, renames, or changes the purpose of a folder, record whether the folder is a project/system entry, a trial-run workspace, a user-facing deliverable, or a standalone task artifact.
-- Standalone task artifacts stay in their own directory and are documented locally. They are not added to global `README`, handoff indexes, `output/tools`, or adapter docs unless the user explicitly asks to promote them.
+- Standalone task artifacts stay in their own directory and are documented locally. They are not added to global `README`, handoff indexes, `tools/`, or adapter docs unless the user explicitly asks to promote them.
 - If a directory becomes a system entry, shared tool, adapter asset, or documented workflow location, update the relevant index and usage docs before delivery.
 - If a project workspace accidentally contains global skills or tool install copies, first verify the correct Agent global paths, promote or copy missing items there if appropriate, then remove or document the project copies. Do not leave unexplained agent-style skill folders in a task workspace.
 - At recovery time, a new window or another project folder should first read the project instruction entry, the latest `PROJECT_CONTROL`, the latest work task report or handoff, and the directory guide when one exists. Continue only from facts recorded there, not from memory alone.
@@ -327,7 +327,7 @@ Allowed unattended work:
 - Read approved project documents and files.
 - Continue approved edits inside scope.
 - Run approved verification commands.
-- Update `PROJECT_CONTROL`, task contracts, reports, recovery notes, and work task reports.
+- Update `PROJECT_CONTROL`, `项目控制` when required, task contracts, reports, recovery notes, `WORK_TASK_REPORT.md`, and `工作任务报告.md` when required.
 
 Stop and ask the user when:
 
@@ -338,7 +338,7 @@ Stop and ask the user when:
 - The goal conflicts with later user input or cannot map to acceptance criteria.
 - Recovery state is missing or inconsistent.
 
-Each unattended round must re-read `PROJECT_CONTROL`, do only the next approved bounded step, verify, update state and reports, then check stop conditions before another round.
+Each unattended round must re-read `PROJECT_CONTROL`, do only the next approved bounded step, verify, update state and reports, update the Chinese mirrors when required, then check stop conditions before another round.
 
 ## Output
 

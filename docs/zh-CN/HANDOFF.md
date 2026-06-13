@@ -22,7 +22,7 @@ PROJECT_HANDOFF.md
 
 - 先生成 Agent-facing handoff。
 - 中文镜像是可选用户-facing 文档。
-- handoff 文件中不得写入 secrets、tokens、cookies、passwords、credentials、private memory dumps 或 raw session logs。
+- handoff 文件中不得写入 secrets、tokens、cookies、passwords、credentials、sensitive memory dumps 或 raw session logs。
 - 公开示例使用占位符。
 - 真实 handoff 文件属于用户项目工作区，不属于 MALTS release repository。
 

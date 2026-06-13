@@ -38,5 +38,5 @@
 
 ## Privacy Check
 
-- [ ] No secrets, tokens, cookies, credentials, private memory dumps, or raw session logs are included.
+- [ ] No secrets, tokens, cookies, credentials, sensitive memory dumps, or raw session logs are included.
 - [ ] Public examples use placeholders instead of machine-specific paths.

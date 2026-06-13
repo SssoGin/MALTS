@@ -1,12 +1,14 @@
 # WORK_TASK_REPORT
 
-> Purpose: user-facing report after each completed MALTS task or phase. This English template is the Agent-facing structure source; the actual report should follow the user's language preference or project language.
+> Purpose: Agent-facing structure and evidence report after each completed MALTS task or phase. When Chinese user-facing output or bilingual mode is in scope, maintain the paired `工作任务报告.md` mirror from `runtime/CH/templates/WORK_TASK_REPORT.template.zh-CN.md`.
 
 ## Result
 
 - Status: Completed / Partially Completed / Blocked / Failed
 - Plain-language conclusion:
 - User original goal addressed:
+- Paired Chinese report required: Yes / No; reason:
+- Paired Chinese report path: `工作任务报告.md` / N/A
 
 ## What Was Done
 
@@ -56,6 +58,8 @@
 ## Continuity And Recovery
 
 - Was `PROJECT_CONTROL` or equivalent state updated: Yes / No / N/A
+- Was `项目控制.md` updated when required: Yes / No / N/A
+- Was `工作任务报告.md` updated when required: Yes / No / N/A
 - Round completed:
 - Runtime duration note: no fixed one-shot runtime guarantee / N/A
 - Recovery point:

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.3
+
+Patch release for public install, update, and adapter reliability.
+
+- Added one-script update support with dry-run defaults, pull/install modes, and safe merge behavior
+- Added temporary install smoke tests and installed-layout validation
+- Strengthened public package safety checks for machine-specific path literals and high-confidence secret values
+- Added Codex-native scaffold, runtime Chinese mirrors, and bilingual public documentation updates
+
 ## 0.1.2
 
 Patch release for public repository audit fixes.
@@ -21,7 +30,7 @@ Patch release for public repository hygiene.
 - Fixed Claude Code smoke-test scaffold wording
 - Covered hidden adapter scaffold files in release checks
 - Synchronized VERSION, README, README.zh-CN, CHANGELOG, and release verification examples
-- Confirmed public release excludes private handoff and release-control state
+- Confirmed public release excludes user-specific generated state
 
 ## 0.1.0
 

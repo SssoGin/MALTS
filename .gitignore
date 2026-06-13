@@ -17,14 +17,13 @@ caches/
 sessions/
 session-logs/
 
-# Local/private MALTS maintenance state
+# Generated MALTS maintenance state
 .release-control/
 Handoff/
-output/CH/
 runtime/EN/trial-runs/
 .md/
 
-# Tool-local state at the repository root only
+# Tool-generated state at the repository root only
 /.codex/
 /.claude/
 /.config/

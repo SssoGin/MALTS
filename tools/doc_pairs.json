@@ -47,6 +47,18 @@
     {
       "en": "docs/MAINTAINER_GUIDE.md",
       "ch": "docs/zh-CN/MAINTAINER_GUIDE.md"
+    },
+    {
+      "en": "adapters/codex/README.md",
+      "ch": "adapters/codex/README.zh-CN.md"
+    },
+    {
+      "en": "adapters/claude-code/README.md",
+      "ch": "adapters/claude-code/README.zh-CN.md"
+    },
+    {
+      "en": "adapters/opencode/README.md",
+      "ch": "adapters/opencode/README.zh-CN.md"
     }
   ]
 }

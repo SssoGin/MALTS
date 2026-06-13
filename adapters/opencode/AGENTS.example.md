@@ -58,6 +58,15 @@ This rule overrides the behavior, goal-driven execution, and skill recommendatio
 - Keep code, commands, file paths, variable names, model names, and proper nouns unchanged.
 - Use Simplified Chinese for explanations, summaries, plans, and reasoning unless instructed otherwise.
 
+## Project And Source Boundaries
+
+- Default write scope is the workspace that contains this instruction file, plus any file or directory the user explicitly authorized in the latest execution scope.
+- If this workspace is a control workspace for a separate source project, do not write to the source project unless the user explicitly authorizes that source-project path and action.
+- Before writing to any source project path or any path outside the default write scope, re-read the source project root instructions and the nearest applicable instruction files for the exact target path. Check files such as `AGENTS.md`, `CLAUDE.md`, `.claude/CLAUDE.md`, nested `AGENTS.md` / `CLAUDE.md`, `.cursorrules`, `.windsurfrules`, `.devin/rules/`, and tool-specific config.
+- A summary copied into `PROJECT_CONTROL.md`, `WORK_TASK_REPORT.md`, or this file does not replace the source project's own layered instructions.
+- Apply the stricter and more local instruction when rules conflict, and record the instruction files checked before making source-project changes.
+- For Chinese user-facing projects, render the top-priority execution gate and source-boundary rules in Simplified Chinese in generated or merged project instructions. A short English-only summary is not sufficient for those highest-priority rules.
+
 ## 1. Think Before Coding
 
 - State assumptions explicitly before implementing.
@@ -118,6 +127,7 @@ The user may have a reusable Multi-Agent Long-Task Scheduling and Growth System.
 
 Portable discovery rules:
 
+- If `MALTS_BOOT.md` exists next to this tool-level instruction file, read it first and resolve `MALTS_ROOT` from its `MALTS_ROOT:` line.
 - If a global boot file is configured, read it first. Example placeholder: `<GLOBAL_BOOT>`.
 - Resolve the current `MALTS_ROOT` from that boot file. Do not treat copied absolute paths in examples, wrappers, handoffs, or reports as authoritative.
 - If no global boot file is configured, use the installed MALTS repository root as `<MALTS_ROOT>` after verifying that it contains `README.md`, this adapter, and `skills`.
@@ -153,10 +163,11 @@ Cross-project stable rules:
 
 1. **Read runtime docs before initialization.** When initializing MALTS for a new project, read the relevant runtime docs, templates, and checklists before writing project-level `AGENTS.md`.
 2. **Create bilingual control files together when required.** If the project uses both `PROJECT_CONTROL.md` and `项目控制.md`, create and update them together. Do not defer the Chinese mirror after substantive work begins.
-3. **Write growth candidates down.** Durable lessons must be recorded in project control files or reports before being promoted to global rules or memory.
-4. **Sync adapter/doc patches across tools.** When modifying adapter READMEs, templates, checklists, or protocol docs, check Codex, Claude Code, and OpenCode together. If one tool is skipped, record why.
-5. **Keep ordinary documentation sync cost-aware.** Use scripts or structured checks first. Candidate translations or gap fills can be low-cost, but critical protocol, safety, permission, memory, unattended, dispatch, and final-merge semantics require main-controller or high-confidence review.
-6. **Grill-Me Preflight is MALTS-native.** It is a clarification gate, not sub-agent dispatch, and does not require `确认运行`.
+3. **Create bilingual work reports together when Chinese users or bilingual mode are in scope.** `WORK_TASK_REPORT.md` is Agent-facing structure; `工作任务报告.md` is the Simplified Chinese user-facing mirror. Do not treat the Chinese report as optional polish when the project is operating for a Chinese user.
+4. **Write growth candidates down.** Durable lessons must be recorded in project control files or reports before being promoted to global rules or memory.
+5. **Sync adapter/doc patches across tools.** When modifying adapter READMEs, templates, checklists, or protocol docs, check Codex, Claude Code, and OpenCode together. If one tool is skipped, record why.
+6. **Keep ordinary documentation sync cost-aware.** Use scripts or structured checks first. Candidate translations or gap fills can be low-cost, but critical protocol, safety, permission, memory, unattended, dispatch, and final-merge semantics require main-controller or high-confidence review.
+7. **Grill-Me Preflight is MALTS-native.** It is a clarification gate, not sub-agent dispatch, and does not require `确认运行`.
 
 ## OpenCode Long-Task Mode
 
@@ -197,7 +208,7 @@ When the user asks for a handoff, project handoff, session summary for the next 
 - Write `项目交接.md` only when the user explicitly asks for Chinese handoff output or a Chinese mirror.
 - For the canonical MALTS system workspace, write the fixed Agent-facing handoff to `<MALTS_ROOT>/Handoff/PROJECT_HANDOFF.md`; use `<MALTS_ROOT>/Handoff/项目交接.md` only as the Chinese mirror.
 - If a centralized archive is configured, update `<HANDOFF_ARCHIVE_ROOT>` after writing the current handoff.
-- Keep local handoff archives, session logs, caches, and project-control files out of public release repositories.
+- Keep handoff archives, session logs, caches, and project-control files out of public release repositories.
 
 ## Migration Package Rule
 
@@ -219,6 +230,7 @@ When the user asks to rebuild, refresh, generate, or package an Agent tool migra
 - `skills/session-handoff/SKILL.md`
 - `runtime/EN/templates/PROJECT_CONTROL.template.en.md`
 - `runtime/EN/templates/WORK_TASK_REPORT.template.en.md`
+- `runtime/CH/templates/WORK_TASK_REPORT.template.zh-CN.md` when Chinese user-facing reports are required
 - `runtime/EN/templates/PROJECT_HANDOFF.template.en.md`
 - `runtime/EN/checklists/QUALITY_GATE.en.md`
 - `runtime/EN/checklists/DELIVERY_CHECKLIST.en.md`
@@ -230,4 +242,3 @@ When the user asks to rebuild, refresh, generate, or package an Agent tool migra
 - Do not claim completion without verification.
 - Do not delete files, change permissions, change dependencies, change build configuration, or modify long-term rules without confirmation or a safety mechanism.
 - Treat Git as optional unless the user explicitly asks for Git operations.
-

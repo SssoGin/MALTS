@@ -1,0 +1,22 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{cmd,ps1}]
+end_of_line = crlf
+
+[*.{md,txt}]
+trim_trailing_whitespace = false
+
+[docs/zh-CN/**/*.md]
+charset = utf-8-bom
+
+[runtime/CH/**/*.md]
+charset = utf-8-bom
+
+[adapters/**/README.zh-CN.md]
+charset = utf-8-bom

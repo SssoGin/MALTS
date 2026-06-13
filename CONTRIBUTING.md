@@ -13,7 +13,7 @@ Do not submit:
 - local session logs or memory dumps
 - real project handoff records
 - machine-specific absolute paths
-- cache files, compiled files, or generated private archives
+- cache files, compiled files, or generated user-specific archives
 
 Use placeholders in documentation:
 
@@ -33,7 +33,7 @@ Use placeholders in documentation:
 
 ## Pull Request Checklist
 
-- [ ] The change does not include secrets or private local data.
+- [ ] The change does not include secrets, user-specific data, or machine-specific paths.
 - [ ] Runtime behavior is documented when changed.
 - [ ] Relevant templates/checklists/adapters were updated when needed.
 - [ ] `tools/agent_system_lint.py` checks were run or the reason for skipping is stated.

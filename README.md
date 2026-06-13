@@ -36,10 +36,10 @@ MALTS responds by externalizing important state into files, defining completion 
 - Optional multi-agent launch review and role-based task dispatch
 - Verification checklists for delivery, memory writes, and quality gates
 - Agent-facing project handoffs through `PROJECT_HANDOFF.md`
-- Phase and final delivery reporting through `WORK_TASK_REPORT.md`
+- Phase and final delivery reporting through `WORK_TASK_REPORT.md`; when Chinese user-facing output or bilingual mode is in scope, maintain the paired `工作任务报告.md`
 - Growth review and durable candidate handling through the MALTS Memory Pipeline
 - Canonical `SKILL.md` packages under `skills/`, installed to each supported Agent tool's local skill directory
-- Optional bilingual documentation synchronization
+- Bilingual runtime templates under `runtime/EN` and `runtime/CH`
 - Optional adapters for Codex, Claude Code, and OpenCode
 - Lightweight linting and project-control generation tools
 
@@ -49,7 +49,7 @@ MALTS responds by externalizing important state into files, defining completion 
 |---|---|---|
 | Single-agent execution | On | Keep small and clear tasks low-overhead. |
 | `PROJECT_CONTROL.md` | Created when MALTS is enabled or recovery is needed | Preserve goal, queue, decisions, risks, ownership, and verification state. |
-| `WORK_TASK_REPORT.md` | Used after MALTS phases or final delivery | Report result, checks, risks, and next steps. |
+| `WORK_TASK_REPORT.md` / `工作任务报告.md` | Used after MALTS phases or final delivery | Report result, checks, risks, and next steps. Keep both files when Chinese user-facing reports or bilingual mode are in scope. |
 | `PROJECT_HANDOFF.md` | Used for continuation or context-risk handoff | Provide Agent-facing recovery context. |
 | Grill-Me Preflight | Offered for non-trivial or unclear starts | Expose assumptions, goal boundaries, tradeoffs, and acceptance criteria before implementation. |
 | Multi-agent scheduling | Off | Add controlled delegation only when exploration, verification, parallelism, or recovery value justifies it. |
@@ -60,12 +60,14 @@ MALTS responds by externalizing important state into files, defining completion 
 
 MALTS files are not created by default for every task. For small work, stay single-agent and use the normal project instructions.
 
-When MALTS is enabled or a task grows into recoverable long-task mode, create or reuse `PROJECT_CONTROL.md` in the project root. Each MALTS phase or final delivery should write or append `WORK_TASK_REPORT.md`. Use `PROJECT_HANDOFF.md` when a future Agent needs to continue from the recorded state.
+When MALTS is enabled or a task grows into recoverable long-task mode, create or reuse `PROJECT_CONTROL.md` in the project root. For Chinese users or bilingual project mode, create and maintain `项目控制.md` as the Chinese mirror. Each MALTS phase or final delivery should write or append `WORK_TASK_REPORT.md`; when Chinese user-facing output is in scope, write or append the paired `工作任务报告.md`. Use `PROJECT_HANDOFF.md` when a future Agent needs to continue from the recorded state.
 
 | File | Default Role |
 |---|---|
 | `PROJECT_CONTROL.md` | Agent-facing project state and task queue |
-| `WORK_TASK_REPORT.md` | User-facing phase/final report, usually in the user's or project's language |
+| `项目控制.md` | Simplified Chinese project-control mirror when Chinese user-facing state is in scope |
+| `WORK_TASK_REPORT.md` | Agent-facing structure and phase/final report source |
+| `工作任务报告.md` | Simplified Chinese user-facing phase/final report when Chinese output or bilingual mode is in scope |
 | `PROJECT_HANDOFF.md` | Agent-facing continuation and recovery source |
 
 ## Repository Layout
@@ -74,6 +76,8 @@ When MALTS is enabled or a task grows into recoverable long-task mode, create or
 skills/                Canonical MALTS SKILL.md packages
 runtime/EN/templates/    Project control, task, report, and handoff templates
 runtime/EN/checklists/   Delivery, quality, and memory-write checks
+runtime/CH/templates/    Simplified Chinese runtime template mirrors
+runtime/CH/checklists/   Simplified Chinese checklist mirrors
 adapters/                Optional Codex, Claude Code, and OpenCode adapter files
 tools/                   Lightweight MALTS validation utilities
 scripts/                 Safe installation helper scripts
@@ -105,12 +109,15 @@ These projects are not dependencies of MALTS and do not endorse this repository.
 
 Installation is intentionally review-first. The install script defaults to dry-run and does not write files unless `-Apply` is provided.
 
+The installer plans the tool instruction template, shared skills, installed `malts/` runtime copy, and generated `MALTS_BOOT.md` pointer before writing. `MALTS_BOOT.md` lets a newly installed Agent resolve `MALTS_ROOT` and find `runtime/EN/templates` and `runtime/EN/checklists` without relying on a copied absolute path.
+
 Tool instruction templates such as `AGENTS.md` and `CLAUDE.md` are optional MALTS enhancements. They help the Agent remember MALTS task mode, Grill-Me Preflight, project control, handoff, and verification rules, but they should be reviewed and merged with any existing user or project instructions instead of blindly replacing them.
 
 ```powershell
 .\scripts\Install-MALTS.ps1 -Tool Codex
 .\scripts\Install-MALTS.ps1 -Tool Codex -Apply
 .\scripts\Install-MALTS.ps1 -Tool ClaudeCode -SkipInstructionTemplate
+.\scripts\Install-MALTS.review.cmd -Tool AllIncluded
 ```
 
 If Windows PowerShell blocks script execution, run the same command with a process-local policy override:
@@ -130,19 +137,37 @@ AllIncluded
 
 See [docs/INSTALL.md](docs/INSTALL.md) and [docs/AGENT_INSTALL.md](docs/AGENT_INSTALL.md).
 
+## Update Preview
+
+Installed users can update from a git clone without manually downloading a new archive. The update script is also review-first: it checks the remote branch, prints the install plan, and does not pull or write files unless `-Apply` is provided.
+
+```powershell
+.\scripts\Update-MALTS.ps1 -Tool Codex
+.\scripts\Update-MALTS.ps1 -Tool Codex -Apply
+.\scripts\Update-MALTS.ps1 -Tool AllIncluded -Strategy MergeSafe
+.\scripts\Update-MALTS.review.cmd -Tool Codex
+```
+
+`MergeSafe` updates MALTS-managed runtime, skills, docs, tools, and adapter support files without replacing the user's top-level instruction file. Use `Overwrite` only when replacing tool instruction templates is intentional.
+
+Maintainers can verify a real temporary install layout with:
+
+```powershell
+.\scripts\Test-MALTSInstall.ps1 -Tool AllIncluded
+```
+
 ## Documentation Language
 
-The public repository defaults to English source documents. A Simplified Chinese public entry is available at [README.zh-CN.md](README.zh-CN.md), with translated public docs under `docs/zh-CN/`. English docs and root `skills/` remain the source of truth for Agent execution. See [docs/BILINGUAL_DOCS.md](docs/BILINGUAL_DOCS.md).
+The public repository defaults to English source documents for Agent execution. Simplified Chinese public docs live under `docs/zh-CN/`, and runtime Chinese mirrors live under `runtime/CH/`. Bilingual runtime artifact pairs are normative when Chinese user-facing output or bilingual mode is in scope; Agents should still avoid loading both languages during ordinary execution unless synchronization or Chinese output is required. See [docs/BILINGUAL_DOCS.md](docs/BILINGUAL_DOCS.md).
 
 ## Version
 
 Current release version:
 
 ```text
-0.1.2
+0.1.3
 ```
 
 ## License
 
 MIT License. See [LICENSE](LICENSE).
-

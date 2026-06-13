@@ -1,0 +1,8 @@
+# MALTS Codex project-scoped configuration scaffold.
+# Copy only after reviewing with existing Codex config. Project-scoped config
+# loads only when the project is trusted by Codex.
+
+[agents]
+max_threads = 6
+max_depth = 1
+

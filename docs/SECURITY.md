@@ -1,6 +1,6 @@
 # Security
 
-MALTS is a workflow system and should not store private runtime secrets.
+MALTS is a workflow system and should not store sensitive runtime secrets.
 
 ## Do Not Commit
 
@@ -12,9 +12,9 @@ Do not commit:
 - passwords
 - credentials
 - authorization headers
-- local session logs
+- session logs
 - memory dumps
-- private tool configuration
+- user-specific tool configuration
 - real project handoff records
 - machine-specific absolute paths
 
@@ -26,7 +26,7 @@ Suggested patterns:
 
 ```powershell
 rg -n "OPENAI_API_KEY|ANTHROPIC_API_KEY|GITHUB_TOKEN|token|secret|password|cookie|Authorization|Bearer|oauth|api_key" .
-rg -n "<replace with local user or workspace path patterns before publishing>" .
+rg -n "<replace with machine-specific user or workspace path patterns before publishing>" .
 ```
 
 ## Allowed Public Attribution

@@ -115,7 +115,7 @@ MALTS has these core responsibilities:
 - provide task contracts and sub-agent report templates
 - provide delivery, quality, and memory-write checklists
 - provide Agent-facing handoff through `PROJECT_HANDOFF.md`
-- provide user-facing work reports through `WORK_TASK_REPORT.md`
+- provide work reports through `WORK_TASK_REPORT.md`; when Chinese user-facing output or bilingual mode is in scope, maintain the paired `工作任务报告.md`
 - provide optional adapters for Codex, Claude Code, and OpenCode
 - provide low-overhead linting and document-structure checks
 
@@ -160,7 +160,7 @@ MALTS
 
 The core layer stores the common operating model and durable project artifacts. The runtime layer turns that model into executable Agent workflows through the root `skills/` directory, execution modes, recovery, verification, templates, checklists, and the memory pipeline. The adapter layer maps the same model into each supported agent tool without letting tool-specific details pollute the core design.
 
-The public package has one canonical skill source: `skills/`. Tool-local skill directories are installation targets, not separate sources. `runtime/EN` contains templates and checklists used by MALTS workflows.
+The public package has one canonical skill source: `skills/`. Target tool skill directories are installation targets, not separate sources. `runtime/EN` contains Agent-facing templates and checklists used by MALTS workflows. `runtime/CH` contains Simplified Chinese runtime mirrors for user-facing review and bilingual artifact generation.
 
 ## Activation Model
 
@@ -236,12 +236,16 @@ For small MALTS-enabled work, the file can remain compact. The objective is reco
 | Artifact | Default Location | Audience | Purpose |
 |---|---|---|---|
 | `PROJECT_CONTROL.md` | Project root | Agent-facing | Current goal, queue, decisions, ownership, verification, risks, recovery state |
-| `WORK_TASK_REPORT.md` | Project root | User-facing | Phase or final delivery report in the user's or project's language |
+| `项目控制.md` | Project root | Chinese user-facing mirror | Substantive mirror of `PROJECT_CONTROL.md` when Chinese user-facing state is in scope |
+| `WORK_TASK_REPORT.md` | Project root | Agent-facing structure and report source | Phase or final delivery report structure and evidence record |
+| `工作任务报告.md` | Project root | Chinese user-facing mirror | Substantive mirror of `WORK_TASK_REPORT.md` when Chinese output or bilingual mode is in scope |
 | `PROJECT_HANDOFF.md` | Project root | Agent-facing | Continuation source for future windows, tools, or Agents |
+| `项目交接.md` | Project root | Chinese user-facing mirror | Optional handoff mirror when requested or required by project language |
 | `TASK_CONTRACT.template.en.md` | `runtime/EN/templates/` | Agent-facing | Contract for a real sub-agent task |
 | `SUB_AGENT_REPORT.template.en.md` | `runtime/EN/templates/` | Agent-facing | Structured result returned by a sub-agent |
 | `PROJECT_HANDOFF.template.en.md` | `runtime/EN/templates/` | Agent-facing | Template for fixed recovery handoff |
 | `WORK_TASK_REPORT.template.en.md` | `runtime/EN/templates/` | Agent-facing structure, user-facing output | Structure for reports that may be written in the user's language |
+| `WORK_TASK_REPORT.template.zh-CN.md` | `runtime/CH/templates/` | Chinese user-facing mirror | Structure for `工作任务报告.md` |
 | `DELIVERY_CHECKLIST.en.md` | `runtime/EN/checklists/` | Agent-facing | Final or phase delivery self-check |
 | `MEMORY_WRITE_CHECKLIST.en.md` | `runtime/EN/checklists/` | Agent-facing | Filter before durable memory or rule writes |
 | `QUALITY_GATE.en.md` | `runtime/EN/checklists/` | Agent-facing | General completion gate |
@@ -259,7 +263,7 @@ The standard MALTS execution protocol is round-based:
 5. Offer MALTS-native Grill-Me Preflight for non-trivial or unclear starts unless it is clearly N/A.
 6. Execute the next bounded round.
 7. Verify before marking tasks complete.
-8. Write or append `WORK_TASK_REPORT.md` after each MALTS phase or final delivery.
+8. Write or append `WORK_TASK_REPORT.md` after each MALTS phase or final delivery; when Chinese output or bilingual mode is in scope, write or append `工作任务报告.md` as the user-facing mirror.
 9. When entering handoff, context-risk handling, or cross-window continuation, update `PROJECT_HANDOFF.md`.
 10. Route reusable lessons through the MALTS Memory Pipeline.
 
@@ -346,7 +350,7 @@ Completion is an evidentiary claim. It must be supported by verification records
 
 Before phase or final delivery, the Agent should review `DELIVERY_CHECKLIST.en.md` and record the review in `WORK_TASK_REPORT.md` or the final user-facing report.
 
-The report should include:
+The report pair should include:
 
 - result
 - changed files or artifacts
@@ -473,6 +477,8 @@ MALTS keeps the core portable and puts tool-specific details in adapters.
 Codex:
 
 - use `AGENTS.md` as the instruction entry
+- use Codex project-scoped `.codex/config.toml` and `.codex/agents/*.toml` for Codex-native custom subagent scaffolding when installed
+- do not claim Claude Code or OpenCode-style file-backed custom slash commands for Codex unless Codex documents that mechanism
 - use `PROJECT_CONTROL.md` as recoverable state
 - use visible tool calls or thread tools as dispatch evidence when sub-agents are actually used
 - record agent IDs, roles, task IDs, model policy, and report summaries when available

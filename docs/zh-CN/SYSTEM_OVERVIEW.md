@@ -127,7 +127,7 @@ MALTS 不做以下事情：
 - 把每个任务都变成长任务
 - 在没有验证时保证正确性
 - 认证没有证据的工作
-- 存储 secrets、tokens、private memory dumps 或 raw session logs
+- 存储 secrets、tokens、sensitive memory dumps 或 raw session logs
 - 覆盖用户对高风险操作的审批
 
 这些边界是系统设计的一部分。它们使 MALTS 保持可移植，并减少职责意外扩张。
@@ -155,7 +155,7 @@ MALTS 不做以下事情：
 - design、installation、usage、handoff、security 和 maintenance documentation
 - Simplified Chinese public entry documents under `docs/zh-CN/`
 
-发布仓库不应包含 local handoff outputs、project-specific control files、private archives、raw sessions、caches、credentials 或 generated migration packages。
+发布仓库不应包含 handoff outputs、project-specific control files、user-specific archives、raw sessions、caches、credentials 或 generated migration packages。
 
 ## 11. 与详细设计的关系
 

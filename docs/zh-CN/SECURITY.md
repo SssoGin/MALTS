@@ -2,7 +2,7 @@
 
 语言：[English](../SECURITY.md) | [简体中文](SECURITY.md)
 
-MALTS 是 workflow system，不应存储私有运行时 secrets。
+MALTS 是 workflow system，不应存储 sensitive runtime secrets。
 
 ## 不应提交
 
@@ -12,9 +12,9 @@ MALTS 是 workflow system，不应存储私有运行时 secrets。
 - passwords
 - credentials
 - authorization headers
-- local session logs
+- session logs
 - memory dumps
-- private tool configuration
+- user-specific tool configuration
 - real project handoff records
 - machine-specific absolute paths
 
@@ -26,7 +26,7 @@ MALTS 是 workflow system，不应存储私有运行时 secrets。
 
 ```powershell
 rg -n "OPENAI_API_KEY|ANTHROPIC_API_KEY|GITHUB_TOKEN|token|secret|password|cookie|Authorization|Bearer|oauth|api_key" .
-rg -n "<replace with local user or workspace path patterns before publishing>" .
+rg -n "<replace with machine-specific user or workspace path patterns before publishing>" .
 ```
 
 ## 允许的公开归属

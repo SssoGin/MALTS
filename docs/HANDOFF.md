@@ -20,7 +20,7 @@ Optional user-facing Chinese mirror:
 
 - Generate the Agent-facing handoff first.
 - Chinese mirrors are optional and user-facing.
-- Do not write secrets, tokens, cookies, passwords, credentials, private memory dumps, or raw session logs into handoff files.
+- Do not write secrets, tokens, cookies, passwords, credentials, sensitive memory dumps, or raw session logs into handoff files.
 - Use placeholders for public examples.
 - Real handoff files belong in the user's project workspace, not in the MALTS release repository.
 

@@ -47,6 +47,133 @@ PROJECT_CONTROL_HEADINGS = [
     "Recovery Notes",
 ]
 
+RUNTIME_DOC_PAIRS = [
+    {
+        "en": "EN/templates/PROJECT_CONTROL.template.en.md",
+        "ch": "CH/templates/PROJECT_CONTROL.template.zh-CN.md",
+    },
+    {
+        "en": "EN/templates/WORK_TASK_REPORT.template.en.md",
+        "ch": "CH/templates/WORK_TASK_REPORT.template.zh-CN.md",
+    },
+    {
+        "en": "EN/templates/PROJECT_HANDOFF.template.en.md",
+        "ch": "CH/templates/PROJECT_HANDOFF.template.zh-CN.md",
+    },
+    {
+        "en": "EN/templates/TASK_CONTRACT.template.en.md",
+        "ch": "CH/templates/TASK_CONTRACT.template.zh-CN.md",
+    },
+    {
+        "en": "EN/templates/SUB_AGENT_REPORT.template.en.md",
+        "ch": "CH/templates/SUB_AGENT_REPORT.template.zh-CN.md",
+    },
+    {
+        "en": "EN/checklists/DELIVERY_CHECKLIST.en.md",
+        "ch": "CH/checklists/DELIVERY_CHECKLIST.zh-CN.md",
+    },
+    {
+        "en": "EN/checklists/QUALITY_GATE.en.md",
+        "ch": "CH/checklists/QUALITY_GATE.zh-CN.md",
+    },
+    {
+        "en": "EN/checklists/MEMORY_WRITE_CHECKLIST.en.md",
+        "ch": "CH/checklists/MEMORY_WRITE_CHECKLIST.zh-CN.md",
+    },
+]
+
+ADAPTER_REQUIRED = {
+    "codex": [
+        "adapters/codex/README.md",
+        "adapters/codex/README.zh-CN.md",
+        "adapters/codex/AGENTS.example.md",
+        "adapters/codex/.codex/config.toml",
+        "adapters/codex/.codex/agents/planner.toml",
+        "adapters/codex/.codex/agents/explorer.toml",
+        "adapters/codex/.codex/agents/worker.toml",
+        "adapters/codex/.codex/agents/verifier.toml",
+        "adapters/codex/.codex/agents/memory-curator.toml",
+        "adapters/codex/workflows/start-long-task.md",
+        "adapters/codex/workflows/verify-round.md",
+        "adapters/codex/workflows/retrospective.md",
+        "adapters/codex/workflows/smoke-test.md",
+    ],
+    "claude-code": [
+        "adapters/claude-code/README.md",
+        "adapters/claude-code/README.zh-CN.md",
+        "adapters/claude-code/CLAUDE.example.md",
+        "adapters/claude-code/.claude/agents/explorer.md",
+        "adapters/claude-code/.claude/agents/memory-curator.md",
+        "adapters/claude-code/.claude/agents/planner.md",
+        "adapters/claude-code/.claude/agents/verifier.md",
+        "adapters/claude-code/.claude/agents/worker.md",
+        "adapters/claude-code/.claude/commands/retrospective.md",
+        "adapters/claude-code/.claude/commands/smoke-test.md",
+        "adapters/claude-code/.claude/commands/start-long-task.md",
+        "adapters/claude-code/.claude/commands/verify-round.md",
+    ],
+    "opencode": [
+        "adapters/opencode/README.md",
+        "adapters/opencode/README.zh-CN.md",
+        "adapters/opencode/AGENTS.example.md",
+        "adapters/opencode/opencode.json",
+        "adapters/opencode/.opencode/agents/explorer.md",
+        "adapters/opencode/.opencode/agents/memory-curator.md",
+        "adapters/opencode/.opencode/agents/planner.md",
+        "adapters/opencode/.opencode/agents/verifier.md",
+        "adapters/opencode/.opencode/agents/worker.md",
+    ],
+}
+
+ADAPTER_REQUIRED_TOKENS = [
+    "PROJECT_CONTROL.md",
+    "WORK_TASK_REPORT.md",
+    "确认运行",
+    "unattended",
+    "UTF-8",
+    "Default write scope",
+    "source project",
+    "nearest applicable instruction",
+]
+
+PRIVATE_PUBLIC_LITERALS = [
+    "C:\\Users\\" + "Gin",
+    "D:\\" + "Agent",
+    "D:\\" + "Code",
+    "C:/Users/" + "Gin",
+    "D:/" + "Agent",
+    "D:/" + "Code",
+    "Agent" + "Output",
+    "Agent" + "Workspace",
+    "Codex" + "Workspace",
+    "Multi-Agent-System-" + "Core",
+    ".agent-" + "system",
+    "Baidu" + "Netdisk",
+    "D:\\" + "Temp",
+    "D:/" + "Temp",
+]
+
+SECRET_VALUE_PATTERNS = [
+    re.compile(r"(?i)\b(openai|anthropic|github|gitlab|azure|aws|secret|token|api[_-]?key|password)\b\s*[:=]\s*['\"]?[A-Za-z0-9_./+=-]{20,}"),
+    re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b"),
+    re.compile(r"\bghp_[A-Za-z0-9_]{20,}\b"),
+    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b"),
+    re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+    re.compile(r"-----BEGIN (RSA |OPENSSH |EC |DSA )?PRIVATE KEY-----"),
+    re.compile(r"(?i)\bAuthorization:\s*Bearer\s+[A-Za-z0-9_./+=-]{20,}"),
+]
+
+SECRET_DOC_ALLOWLIST = [
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "GITHUB_TOKEN",
+    "api_key",
+    "token",
+    "secret",
+    "password",
+    "Authorization",
+    "Bearer",
+]
 
 @dataclass
 class Finding:
@@ -134,9 +261,11 @@ def next_task_id(path: Path) -> int:
 def check_doc_sync(output_root: Path, manifest: Path | None, require_ch: bool) -> int:
     findings: list[Finding] = []
     if not output_root.exists():
-        return emit([Finding("ERROR", f"Output root not found: {output_root}")])
+        return emit([Finding("ERROR", f"Document root not found: {output_root}")])
 
     pairs = load_doc_pairs(manifest)
+    if not pairs and (output_root / "EN").exists():
+        pairs = RUNTIME_DOC_PAIRS
     ch_root = output_root / "CH"
     if not require_ch:
         if not ch_root.exists():
@@ -163,6 +292,168 @@ def check_doc_sync(output_root: Path, manifest: Path | None, require_ch: bool) -
                         f"CH doc heading structure differs from EN doc: {pair['en']} -> {pair['ch']}",
                     )
                 )
+
+    return emit(findings)
+
+
+def check_adapter_parity(root: Path) -> int:
+    findings: list[Finding] = []
+    for adapter, required_paths in ADAPTER_REQUIRED.items():
+        for rel in required_paths:
+            if not (root / rel).exists():
+                findings.append(Finding("ERROR", f"Missing {adapter} adapter file: {rel}"))
+
+    for adapter in ADAPTER_REQUIRED:
+        text_parts: list[str] = []
+        adapter_root = root / "adapters" / adapter
+        if not adapter_root.exists():
+            continue
+        for path in adapter_root.rglob("*"):
+            if path.is_file() and path.suffix.lower() in {".md", ".toml", ".json"}:
+                text_parts.append(read_text(path))
+        adapter_text = "\n".join(text_parts)
+        for token in ADAPTER_REQUIRED_TOKENS:
+            if token not in adapter_text:
+                findings.append(Finding("ERROR", f"{adapter} adapter missing required token: {token}"))
+
+    forbidden_codex = [
+        "adapters/codex/.codex/commands",
+        "adapters/codex/.claude",
+        "adapters/codex/.opencode",
+    ]
+    for rel in forbidden_codex:
+        if (root / rel).exists():
+            findings.append(Finding("ERROR", f"Codex adapter contains unsupported or cross-tool scaffold: {rel}"))
+
+    return emit(findings)
+
+
+def check_encoding(root: Path, require_ch_bom: bool) -> int:
+    findings: list[Finding] = []
+    text_suffixes = {".md", ".txt", ".py", ".ps1", ".json", ".toml", ".cmd", ".yml", ".yaml"}
+    for path in root.rglob("*"):
+        if not path.is_file():
+            continue
+        if ".git" in path.relative_to(root).parts:
+            continue
+        if path.suffix.lower() not in text_suffixes and path.name not in {
+            ".gitignore",
+            ".gitattributes",
+            ".editorconfig",
+            "VERSION",
+            "LICENSE",
+        }:
+            continue
+        try:
+            data = path.read_bytes()
+            data.decode("utf-8-sig")
+        except UnicodeDecodeError as exc:
+            findings.append(Finding("ERROR", f"File is not valid UTF-8: {path.relative_to(root)} ({exc})"))
+            continue
+        if require_ch_bom:
+            rel = path.relative_to(root).as_posix()
+            is_ch_surface = (
+                "/zh-CN/" in f"/{rel}"
+                or "/runtime/CH/" in f"/{rel}"
+                or rel.endswith(".zh-CN.md")
+                or any("\u4e00" <= char <= "\u9fff" for char in path.name)
+            )
+            if is_ch_surface and not data.startswith(b"\xef\xbb\xbf"):
+                findings.append(Finding("ERROR", f"Chinese-facing file should use UTF-8 with BOM: {rel}"))
+    return emit(findings)
+
+
+def check_public_safety(root: Path) -> int:
+    findings: list[Finding] = []
+    text_suffixes = {".md", ".txt", ".py", ".ps1", ".json", ".toml", ".cmd", ".yml", ".yaml"}
+    for path in root.rglob("*"):
+        if not path.is_file():
+            continue
+        relative_parts = path.relative_to(root).parts
+        if ".git" in relative_parts:
+            continue
+        if path.suffix.lower() not in text_suffixes and path.name not in {
+            ".gitignore",
+            ".gitattributes",
+            ".editorconfig",
+            "VERSION",
+            "LICENSE",
+        }:
+            continue
+        text = read_text(path)
+        for literal in PRIVATE_PUBLIC_LITERALS:
+            if literal in text:
+                findings.append(Finding("ERROR", f"Machine-specific literal `{literal}` found in {path.relative_to(root)}"))
+        for line_number, line in enumerate(text.splitlines(), start=1):
+            for pattern in SECRET_VALUE_PATTERNS:
+                if not pattern.search(line):
+                    continue
+                if any(token in line for token in SECRET_DOC_ALLOWLIST) and not re.search(r"[:=]\s*['\"]?[A-Za-z0-9_./+=-]{20,}", line):
+                    continue
+                findings.append(
+                    Finding(
+                        "ERROR",
+                        f"Potential secret value found in {path.relative_to(root)}:{line_number}",
+                    )
+                )
+    return emit(findings)
+
+
+def check_install_layout(install_root: Path, tool: str | None) -> int:
+    findings: list[Finding] = []
+    required = [
+        "MALTS_BOOT.md",
+        "malts/README.md",
+        "malts/README.zh-CN.md",
+        "malts/VERSION",
+        "malts/skills/malts-project-init/SKILL.md",
+        "malts/skills/multi-agent-long-task-scheduling/SKILL.md",
+        "malts/runtime/EN/templates/PROJECT_CONTROL.template.en.md",
+        "malts/runtime/EN/templates/WORK_TASK_REPORT.template.en.md",
+        "malts/runtime/EN/checklists/QUALITY_GATE.en.md",
+        "malts/runtime/EN/checklists/DELIVERY_CHECKLIST.en.md",
+        "malts/runtime/CH/templates/WORK_TASK_REPORT.template.zh-CN.md",
+        "malts/runtime/CH/checklists/QUALITY_GATE.zh-CN.md",
+        "malts/tools/agent_system_lint.py",
+        "malts/adapters/codex/AGENTS.example.md",
+        "malts/adapters/claude-code/CLAUDE.example.md",
+        "malts/adapters/opencode/AGENTS.example.md",
+    ]
+
+    if tool == "Codex":
+        required += [
+            "AGENTS.md",
+            ".codex/config.toml",
+            ".codex/agents/planner.toml",
+            "skills/malts-project-init/SKILL.md",
+        ]
+    elif tool == "ClaudeCode":
+        required += [
+            "CLAUDE.md",
+            "agents/planner.md",
+            "commands/start-long-task.md",
+            "skills/malts-project-init/SKILL.md",
+        ]
+    elif tool == "OpenCode":
+        required += [
+            "AGENTS.md",
+            "opencode.json",
+            ".opencode/agents/planner.md",
+            "skills/malts-project-init/SKILL.md",
+        ]
+
+    for rel in required:
+        if not (install_root / rel).exists():
+            findings.append(Finding("ERROR", f"Installed layout missing: {rel}"))
+
+    boot_path = install_root / "MALTS_BOOT.md"
+    if boot_path.exists():
+        boot_text = read_text(boot_path)
+        expected_root = str(install_root / "malts")
+        if "MALTS_ROOT:" not in boot_text:
+            findings.append(Finding("ERROR", "MALTS_BOOT.md does not declare MALTS_ROOT."))
+        if expected_root not in boot_text:
+            findings.append(Finding("ERROR", f"MALTS_BOOT.md does not point at installed runtime root: {expected_root}"))
 
     return emit(findings)
 
@@ -386,7 +677,11 @@ def gitignore_matches_public_file(pattern: str, rel_paths: list[str]) -> list[st
 
 def check_semantic_freshness(malts_root: Path, version: str | None) -> int:
     findings: list[Finding] = []
+    is_local_superset = (malts_root / "AGENTS.md").exists() and (malts_root / "Handoff").exists()
+    local_private_roots = {".release-control", "Handoff", ".md"}
     release_required = [
+        ".editorconfig",
+        ".gitattributes",
         ".gitignore",
         "README.md",
         "README.zh-CN.md",
@@ -396,11 +691,25 @@ def check_semantic_freshness(malts_root: Path, version: str | None) -> int:
         "docs/CORE_DESIGN.md",
         "docs/BILINGUAL_DOCS.md",
         "docs/INSTALL.md",
+        "docs/UPDATE.md",
         "docs/zh-CN/CORE_DESIGN.md",
         "docs/zh-CN/BILINGUAL_DOCS.md",
         "docs/zh-CN/INSTALL.md",
+        "docs/zh-CN/UPDATE.md",
         "adapters/codex/AGENTS.example.md",
+        "adapters/codex/README.zh-CN.md",
+        "adapters/codex/.codex/config.toml",
+        "adapters/codex/.codex/agents/explorer.toml",
+        "adapters/codex/.codex/agents/memory-curator.toml",
+        "adapters/codex/.codex/agents/planner.toml",
+        "adapters/codex/.codex/agents/verifier.toml",
+        "adapters/codex/.codex/agents/worker.toml",
+        "adapters/codex/workflows/retrospective.md",
+        "adapters/codex/workflows/smoke-test.md",
+        "adapters/codex/workflows/start-long-task.md",
+        "adapters/codex/workflows/verify-round.md",
         "adapters/claude-code/CLAUDE.example.md",
+        "adapters/claude-code/README.zh-CN.md",
         "adapters/claude-code/.claude/agents/explorer.md",
         "adapters/claude-code/.claude/agents/memory-curator.md",
         "adapters/claude-code/.claude/agents/planner.md",
@@ -411,6 +720,7 @@ def check_semantic_freshness(malts_root: Path, version: str | None) -> int:
         "adapters/claude-code/.claude/commands/start-long-task.md",
         "adapters/claude-code/.claude/commands/verify-round.md",
         "adapters/opencode/AGENTS.example.md",
+        "adapters/opencode/README.zh-CN.md",
         "adapters/opencode/opencode.json",
         "adapters/opencode/.opencode/agents/explorer.md",
         "adapters/opencode/.opencode/agents/memory-curator.md",
@@ -431,52 +741,106 @@ def check_semantic_freshness(malts_root: Path, version: str | None) -> int:
         "runtime/EN/checklists/DELIVERY_CHECKLIST.en.md",
         "runtime/EN/checklists/QUALITY_GATE.en.md",
         "runtime/EN/checklists/MEMORY_WRITE_CHECKLIST.en.md",
+        "runtime/CH/templates/PROJECT_CONTROL.template.zh-CN.md",
+        "runtime/CH/templates/PROJECT_HANDOFF.template.zh-CN.md",
+        "runtime/CH/templates/SUB_AGENT_REPORT.template.zh-CN.md",
+        "runtime/CH/templates/TASK_CONTRACT.template.zh-CN.md",
+        "runtime/CH/templates/WORK_TASK_REPORT.template.zh-CN.md",
+        "runtime/CH/checklists/DELIVERY_CHECKLIST.zh-CN.md",
+        "runtime/CH/checklists/QUALITY_GATE.zh-CN.md",
+        "runtime/CH/checklists/MEMORY_WRITE_CHECKLIST.zh-CN.md",
         "scripts/Install-MALTS.ps1",
+        "scripts/Install-MALTS.review.cmd",
+        "scripts/Test-MALTSInstall.ps1",
+        "scripts/Update-MALTS.ps1",
+        "scripts/Update-MALTS.review.cmd",
         "tools/agent_system_lint.py",
         "tools/doc_pairs.json",
         "tools/README.md",
     ]
-    local_core_required = [
-        "README.md",
-        "AGENTS.md",
-        "skills/grill-me-preflight/SKILL.md",
-        "skills/malts-project-init/SKILL.md",
-        "skills/multi-agent-long-task-scheduling/SKILL.md",
-        "skills/project-retrospective-growth/SKILL.md",
-        "skills/session-handoff/SKILL.md",
-        "skills/single-agent-lightweight-growth/SKILL.md",
-        "output/EN/templates/PROJECT_CONTROL.template.en.md",
-        "output/EN/templates/PROJECT_HANDOFF.template.en.md",
-        "output/EN/templates/SUB_AGENT_REPORT.template.en.md",
-        "output/EN/templates/TASK_CONTRACT.template.en.md",
-        "output/EN/templates/WORK_TASK_REPORT.template.en.md",
-        "output/EN/checklists/DELIVERY_CHECKLIST.en.md",
-        "output/EN/checklists/QUALITY_GATE.en.md",
-        "output/EN/checklists/MEMORY_WRITE_CHECKLIST.en.md",
-        "output/tools/agent_system_lint.py",
-    ]
-    required = release_required if (malts_root / "runtime" / "EN").exists() else local_core_required
-    for rel in required:
+    for rel in release_required:
         path = malts_root / rel
         if not path.exists():
             findings.append(Finding("ERROR", f"Missing release file: {rel}"))
+
+    for pair in RUNTIME_DOC_PAIRS:
+        en_path = malts_root / "runtime" / pair["en"]
+        ch_path = malts_root / "runtime" / pair["ch"]
+        if not en_path.exists():
+            findings.append(Finding("ERROR", f"Missing runtime EN pair member: runtime/{pair['en']}"))
+        if not ch_path.exists():
+            findings.append(Finding("ERROR", f"Missing runtime CH pair member: runtime/{pair['ch']}"))
 
     if version:
         version_path = malts_root / "VERSION"
         if version_path.exists() and read_text(version_path).strip() != version:
             findings.append(Finding("ERROR", f"VERSION does not match expected {version}."))
 
+    semantic_tokens = {
+        "skills/malts-project-init/SKILL.md": [
+            "Default write scope",
+            "Source project boundary rule",
+            "Simplified Chinese or bilingual form",
+            "nearest applicable target-path instructions",
+            "Verified read-only facts / checks",
+        ],
+        "adapters/codex/AGENTS.example.md": [
+            "Project And Source Boundaries",
+            "Default write scope",
+            "source project",
+            "nearest applicable instruction",
+            "Simplified Chinese",
+        ],
+        "adapters/claude-code/CLAUDE.example.md": [
+            "Project And Source Boundaries",
+            "Default write scope",
+            "source project",
+            "nearest applicable instruction",
+            "Simplified Chinese",
+        ],
+        "adapters/opencode/AGENTS.example.md": [
+            "Project And Source Boundaries",
+            "Default write scope",
+            "source project",
+            "nearest applicable instruction",
+            "Simplified Chinese",
+        ],
+        "scripts/Update-MALTS.ps1": [
+            "MergeSafe",
+            "Overwrite",
+            "Already up to date",
+            "AllowDirty",
+        ],
+        "scripts/Test-MALTSInstall.ps1": [
+            "check-install-layout",
+            "MALTS-install-smoke",
+        ],
+    }
+    for rel, tokens in semantic_tokens.items():
+        path = malts_root / rel
+        if path.exists():
+            text = read_text(path)
+            for token in tokens:
+                if token not in text:
+                    findings.append(Finding("ERROR", f"Missing semantic token `{token}` in {rel}"))
+
     forbidden = [
         "grill-me-preflight" + ".en.md",
         "runtime/EN/" + "skills",
         "runtime\\EN\\" + "skills",
-        "output/EN/" + "skills",
-        "output\\EN\\" + "skills",
+        "out" + "put/EN/" + "skills",
+        "out" + "put\\EN\\" + "skills",
+        "out" + "put/EN/" + "templates",
+        "out" + "put\\EN\\" + "templates",
+        "out" + "put/EN/" + "checklists",
+        "out" + "put\\EN\\" + "checklists",
+        "out" + "put/" + "tools",
+        "out" + "put\\" + "tools",
         "adapters/claude-code/.claude/" + "skills",
         "adapters\\claude-code\\.claude\\" + "skills",
-        "0.1.0-" + "private",
-        "private release-" + "preparation",
-        "private " + "preparation",
+        "0.1.0-" + "pri" + "vate",
+        "pri" + "vate release-" + "preparation",
+        "pri" + "vate " + "preparation",
         "\u0418\u00b7\u0418\u041f\u0424\u041b\u0420\u0420",
         "\u040e\u044a",
         "\u7ead",
@@ -498,11 +862,14 @@ def check_semantic_freshness(malts_root: Path, version: str | None) -> int:
 
     gitignore_path = malts_root / ".gitignore"
     if gitignore_path.exists():
-        rel_paths = [
-            path.relative_to(malts_root).as_posix()
-            for path in malts_root.rglob("*")
-            if path.is_file() and path != gitignore_path
-        ]
+        rel_paths = []
+        for path in malts_root.rglob("*"):
+            if not path.is_file() or path == gitignore_path:
+                continue
+            relative = path.relative_to(malts_root)
+            if is_local_superset and relative.parts and relative.parts[0] in local_private_roots:
+                continue
+            rel_paths.append(relative.as_posix())
         for line in read_text(gitignore_path).splitlines():
             hits = gitignore_matches_public_file(line, rel_paths)
             if hits:
@@ -525,9 +892,23 @@ def main(argv: list[str]) -> int:
     pc_parser.add_argument("--project-control", type=Path, required=True)
 
     sync_parser = subparsers.add_parser("check-doc-sync")
-    sync_parser.add_argument("--output-root", type=Path, required=True)
+    sync_parser.add_argument("--output-root", type=Path, required=True, help="Document root. Use runtime for runtime EN/CH pairs, or . with a manifest for public docs.")
     sync_parser.add_argument("--manifest", type=Path)
     sync_parser.add_argument("--require-ch", action="store_true")
+
+    adapter_parser = subparsers.add_parser("check-adapter-parity")
+    adapter_parser.add_argument("--malts-root", type=Path, required=True)
+
+    encoding_parser = subparsers.add_parser("check-encoding")
+    encoding_parser.add_argument("--malts-root", type=Path, required=True)
+    encoding_parser.add_argument("--require-ch-bom", action="store_true")
+
+    safety_parser = subparsers.add_parser("check-public-safety")
+    safety_parser.add_argument("--malts-root", type=Path, required=True)
+
+    install_layout_parser = subparsers.add_parser("check-install-layout")
+    install_layout_parser.add_argument("--install-root", type=Path, required=True)
+    install_layout_parser.add_argument("--tool", choices=["Codex", "ClaudeCode", "OpenCode"])
 
     new_parser = subparsers.add_parser("new-project-control")
     new_parser.add_argument("--project", required=True)
@@ -563,6 +944,14 @@ def main(argv: list[str]) -> int:
         return check_project_control(args.project_control)
     if args.command == "check-doc-sync":
         return check_doc_sync(args.output_root, args.manifest, args.require_ch)
+    if args.command == "check-adapter-parity":
+        return check_adapter_parity(args.malts_root)
+    if args.command == "check-encoding":
+        return check_encoding(args.malts_root, args.require_ch_bom)
+    if args.command == "check-public-safety":
+        return check_public_safety(args.malts_root)
+    if args.command == "check-install-layout":
+        return check_install_layout(args.install_root, args.tool)
     if args.command == "new-project-control":
         return new_project_control(args)
     if args.command == "check-semantic-freshness":

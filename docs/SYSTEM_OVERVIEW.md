@@ -125,7 +125,7 @@ MALTS does not:
 - make every task a long task
 - guarantee correctness without verification
 - certify work for which no evidence is available
-- store secrets, tokens, private memory dumps, or raw session logs
+- store secrets, tokens, sensitive memory dumps, or raw session logs
 - override user approval for high-risk actions
 
 These boundaries are part of the system design. They keep MALTS portable and reduce accidental expansion into responsibilities that should remain external.
@@ -152,7 +152,7 @@ The public release repository contains:
 - lightweight linting tools
 - design, installation, usage, handoff, security, and maintenance documentation
 
-The release repository should not contain local handoff outputs, project-specific control files, private archives, raw sessions, caches, credentials, or generated migration packages.
+The release repository should not contain handoff outputs, project-specific control files, user-specific archives, raw sessions, caches, credentials, or generated migration packages.
 
 ## 11. Relationship To Detailed Design
 

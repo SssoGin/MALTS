@@ -9,7 +9,7 @@ MALTS adds a file-backed operating workflow for Agent-assisted coding work. It i
 | Problem | MALTS mechanism |
 |---|---|
 | The original goal becomes unclear during a long conversation. | Capture the original goal, current interpretation, completion definition, and acceptance criteria. |
-| Work cannot be recovered after a new window, interruption, or context loss. | Record state in `PROJECT_CONTROL.md`, phase results in `WORK_TASK_REPORT.md`, and continuation context in `PROJECT_HANDOFF.md`. |
+| Work cannot be recovered after a new window, interruption, or context loss. | Record state in `PROJECT_CONTROL.md`, phase results in `WORK_TASK_REPORT.md`, Chinese user-facing results in `工作任务报告.md` when required, and continuation context in `PROJECT_HANDOFF.md`. |
 | An Agent claims completion without enough evidence. | Use delivery and quality checklists, then record verification evidence before delivery. |
 | Multi-agent work creates coordination risk. | Require fit assessment, launch review, task contracts, explicit confirmation, dispatch records, and final reconciliation. |
 | Useful lessons become uncontrolled permanent rules. | Route lessons through the MALTS Memory Pipeline and memory-write checklist before durable promotion. |
@@ -22,7 +22,7 @@ MALTS includes optional adapters for:
 
 | Tool | Installed instruction file | Additional adapter files |
 |---|---|---|
-| Codex | `AGENTS.md` | Shared skills install from root `skills/` |
+| Codex | `AGENTS.md` | Codex-native `.codex` subagent scaffold, workflow prompts, and shared skills install from root `skills/` |
 | Claude Code | `CLAUDE.md` | Optional `.claude/agents` and `.claude/commands` scaffold; shared skills install from root `skills/` |
 | OpenCode | `AGENTS.md` | `opencode.json`, optional `.opencode/agents` scaffold, and shared skills from root `skills/` |
 
@@ -55,6 +55,12 @@ For example:
 
 Review the output before applying. Existing target files are reported as `exists`; new target files are reported as `new`.
 
+On Windows, the review wrapper keeps the console open after the dry-run:
+
+```powershell
+.\scripts\Install-MALTS.review.cmd -Tool AllIncluded
+```
+
 ## 4. Apply The Install
 
 After reviewing the dry-run plan, apply the selected adapter:
@@ -71,16 +77,18 @@ Instruction templates are optional. To install support files without installing 
 .\scripts\Install-MALTS.ps1 -Tool ClaudeCode -SkipInstructionTemplate -Apply
 ```
 
-## 5. Keep Skills And Runtime Documents Available
+## 5. Verify Runtime Discovery
 
 Installed instruction templates and local skill entries depend on:
 
 ```text
 skills/
 runtime/EN
+runtime/CH
+MALTS_BOOT.md
 ```
 
-Keep the MALTS repository available to the Agent, or copy the needed shared skills, templates, and checklists into locations that the Agent can read. Root `skills/` is the canonical skill source. `runtime/EN/templates` and `runtime/EN/checklists` remain the template and checklist source. Chinese documents, when present, are user-facing public translations and are not the default Agent runtime source.
+The installer plans an installed `malts/` runtime copy and `MALTS_BOOT.md` pointer. After install, verify that `MALTS_BOOT.md` resolves to a root containing `README.md`, `skills/`, `runtime/EN/templates`, and `runtime/EN/checklists`. Root `skills/` is the canonical skill source. Chinese runtime mirrors under `runtime/CH` support Chinese user-facing reports and bilingual synchronization, but are not loaded during ordinary English Agent execution unless needed.
 
 ## 6. Use MALTS On A First Task
 
@@ -104,7 +112,8 @@ The Agent should then:
 4. Create a task queue.
 5. Record decisions, file ownership, risks, and verification evidence.
 6. Write or append `WORK_TASK_REPORT.md` after a phase or final delivery.
-7. Update `PROJECT_HANDOFF.md` if another Agent or window needs to continue.
+7. Write or append `工作任务报告.md` when Chinese user-facing output or bilingual mode is in scope.
+8. Update `PROJECT_HANDOFF.md` if another Agent or window needs to continue.
 
 ## 7. Use Grill-Me Preflight When Requirements Are Unclear
 
@@ -149,7 +158,7 @@ Without that confirmation, MALTS remains single-agent.
 Useful checks:
 
 ```powershell
-python tools\agent_system_lint.py check-semantic-freshness --malts-root . --version 0.1.2
+python tools\agent_system_lint.py check-semantic-freshness --malts-root . --version 0.1.3
 python tools\agent_system_lint.py check-doc-sync --output-root runtime
 .\scripts\Install-MALTS.ps1 -Tool Codex
 ```
@@ -166,5 +175,3 @@ The first two commands check release metadata and documentation synchronization.
 | Handoff and continuation behavior | `docs/HANDOFF.md` |
 | Agent-assisted installation policy | `docs/AGENT_INSTALL.md` |
 | Security and release hygiene | `docs/SECURITY.md` |
-
-

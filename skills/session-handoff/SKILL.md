@@ -27,7 +27,7 @@ Write the Agent-facing file first. Write the Chinese mirror only when the user e
 
 ## Privacy Rules
 
-Never write secrets, tokens, cookies, passwords, credentials, authorization headers, private memory dumps, or raw session logs into handoff files.
+Never write secrets, tokens, cookies, passwords, credentials, authorization headers, sensitive memory dumps, or raw session logs into handoff files.
 
 For public examples, use placeholders such as:
 

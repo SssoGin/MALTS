@@ -29,6 +29,7 @@
 - [ ] If folders were added, deleted, moved, renamed, or their purpose changed, related indexes, manuals, and recovery docs were updated or marked N/A with a reason.
 - [ ] If accidental project-level copies of global skills/tools were discovered, the final state confirms whether they were moved to global Agent paths, documented as intentional local artifacts, or removed.
 - [ ] If bilingual control files are used, the final report says which file is Agent-facing, which file is user-facing, and whether both were updated.
+- [ ] If Chinese user-facing reports or bilingual mode are in scope, `WORK_TASK_REPORT.md` and `工作任务报告.md` both exist or the N/A reason is recorded.
 
 ## Risks And Limits
 
@@ -61,6 +62,7 @@
 ## Work Task Report
 
 - [ ] A plain user-facing work task report is provided after task or phase completion.
+- [ ] The report pair policy is satisfied: `WORK_TASK_REPORT.md` for Agent-facing structure and `工作任务报告.md` for Chinese user-facing output when required.
 - [ ] The report records that `DELIVERY_CHECKLIST.en.md` was reviewed before delivery, or explains why it was N/A.
 - [ ] The report states result, changes, verification, risks, recovery point, and next step.
 - [ ] The report states the growth review result and memory-write decision when the task is non-trivial, includes user correction, or completes a recovery round.
