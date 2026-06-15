@@ -21,12 +21,12 @@
 ## 内容
 
 - `AGENTS.example.md`：Codex 指令起点模板。
-- `.codex/config.toml`：Codex project-scoped subagent scaffold 配置。
-- `.codex/agents/*.toml`：Codex-native custom subagent roles。
+- `config.toml`：安装到 Codex 配置 root 的 subagent scaffold 配置。
+- `agents/*.toml`：Codex-native custom subagent roles。
 - `workflows/*.md`：普通 workflow prompts，不是 Codex custom slash commands。
-- 根级 `skills/` 的共享 MALTS skills。
+- 安装器生成的 `MALTS_BOOT.md`，指向共享 `MALTS_ROOT`。
 
-安装会把 `AGENTS.example.md` 映射为 `AGENTS.md`，复制 `.codex` scaffold，安装共享 skills，安装到目标工具目录的 `malts/` runtime 副本，并生成 `MALTS_BOOT.md`。
+安装会把 `AGENTS.example.md` 映射为 `AGENTS.md`，把 Codex scaffold 复制到 Codex 配置 root，安装一份共享 `MALTS_ROOT`，并生成 `MALTS_BOOT.md`。默认不会在工具目录下创建完整 `malts/` runtime 副本。
 
 ## Runtime 规则
 

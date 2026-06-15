@@ -96,8 +96,8 @@ MALTS 将核心 workflow 与工具特定安装细节分离。
 | Adapter | 主指令文件 | 说明 |
 |---|---|---|
 | Codex | `AGENTS.md` | 提供 Codex-facing operating rules 和 MALTS reminders。 |
-| Claude Code | `CLAUDE.md` | 添加可选 Claude Code agents 和 commands；共享 skills 从根级 `skills/` 安装。 |
-| OpenCode | `AGENTS.md` | 添加 OpenCode-specific configuration 和可选 agent scaffold；共享 skills 从根级 `skills/` 安装。 |
+| Claude Code | `CLAUDE.md` | 添加可选 Claude Code agents 和 commands；通过共享 `MALTS_ROOT` 解析 MALTS。 |
+| OpenCode | `AGENTS.md` | 添加 OpenCode-specific configuration 和可选 agent scaffold；通过共享 `MALTS_ROOT` 解析 MALTS。 |
 
 除非变更只适用于某个 runtime，否则 adapter documents 应保持同步。工具差异属于 adapter layer，不应改变 MALTS 核心模型。
 

@@ -28,4 +28,4 @@ Chinese public doc sync is optional unless release scope requires it. Runtime EN
 
 `check-public-safety` verifies that release-safe text files do not contain known machine-specific path literals or high-confidence secret value patterns.
 
-`check-install-layout` verifies an applied installation target, including `MALTS_BOOT.md`, installed `malts/runtime`, required skills, and tool-specific scaffold files. It is used by `scripts/Test-MALTSInstall.ps1`.
+`check-install-layout` verifies an applied thin tool adapter target, including `MALTS_BOOT.md`, the resolved shared `MALTS_ROOT`, required shared runtime files, and tool-specific scaffold files. It fails if a tool target contains a tool-local `malts/` runtime copy or `skills/` duplicate. It is used by `scripts/Test-MALTSInstall.ps1`.

@@ -132,7 +132,7 @@ MALTS 包含公开可用的 Agent 行为模式改写，灵感来自：
 
 安装流程是 review-first。安装脚本默认 dry-run；只有提供 `-Apply` 才会写文件。
 
-安装器会在写入前展示工具指令模板、共享 skills、安装到目标工具目录的 `malts/` runtime 副本，以及生成的 `MALTS_BOOT.md` 指针。`MALTS_BOOT.md` 用于让新机器上的 Agent 解析 `MALTS_ROOT`，找到 `runtime/EN/templates` 和 `runtime/EN/checklists`，不再依赖复制来的绝对路径。
+安装器会在写入前展示一份共享 `MALTS_ROOT`、工具薄适配层文件，以及生成的 `MALTS_BOOT.md` 指针。`MALTS_BOOT.md` 用于让新机器上的 Agent 解析共享 root，找到 `skills/`、`runtime/EN/templates` 和 `runtime/EN/checklists`，不再把完整 MALTS 树复制到每个工具目录。
 
 工具指令模板（例如 `AGENTS.md` 和 `CLAUDE.md`）是可选 MALTS 增强项。它们帮助 Agent 记住 MALTS task mode、Grill-Me Preflight、project control、handoff 和 verification rules，但应先审阅并与已有用户或项目指令合并，而不是直接替换。
 
@@ -171,7 +171,7 @@ AllIncluded
 .\scripts\Update-MALTS.review.cmd -Tool Codex
 ```
 
-`MergeSafe` 会更新 MALTS 管理的 runtime、skills、docs、tools 和 adapter 支持文件，但不替换用户顶层指令文件。只有明确要替换工具指令模板时，才使用 `Overwrite`。
+`MergeSafe` 会更新共享 MALTS root 和 adapter 支持文件，但不替换用户顶层指令文件。只有明确要替换工具指令模板时，才使用 `Overwrite`。
 
 维护者可以用临时目录验证真实安装布局：
 
@@ -188,7 +188,7 @@ AllIncluded
 当前 release version：
 
 ```text
-0.1.3
+0.1.4
 ```
 
 ## License

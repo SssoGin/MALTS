@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.4
+
+Patch release for shared-root installation and lighter tool adapters.
+
+- Changed the default installer layout to one shared `MALTS_ROOT` plus thin tool adapters.
+- Stopped creating full per-tool `malts/` runtime copies by default.
+- Added explicit `-SharedRoot` install/update control.
+- Added Windows UTF-8 execution guidance to installed tool instruction templates.
+- Updated install layout validation to reject per-tool runtime copies and duplicate tool-local skills.
+
 ## 0.1.3
 
 Patch release for public install, update, and adapter reliability.

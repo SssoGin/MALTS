@@ -401,45 +401,25 @@ def check_public_safety(root: Path) -> int:
 
 def check_install_layout(install_root: Path, tool: str | None) -> int:
     findings: list[Finding] = []
-    required = [
-        "MALTS_BOOT.md",
-        "malts/README.md",
-        "malts/README.zh-CN.md",
-        "malts/VERSION",
-        "malts/skills/malts-project-init/SKILL.md",
-        "malts/skills/multi-agent-long-task-scheduling/SKILL.md",
-        "malts/runtime/EN/templates/PROJECT_CONTROL.template.en.md",
-        "malts/runtime/EN/templates/WORK_TASK_REPORT.template.en.md",
-        "malts/runtime/EN/checklists/QUALITY_GATE.en.md",
-        "malts/runtime/EN/checklists/DELIVERY_CHECKLIST.en.md",
-        "malts/runtime/CH/templates/WORK_TASK_REPORT.template.zh-CN.md",
-        "malts/runtime/CH/checklists/QUALITY_GATE.zh-CN.md",
-        "malts/tools/agent_system_lint.py",
-        "malts/adapters/codex/AGENTS.example.md",
-        "malts/adapters/claude-code/CLAUDE.example.md",
-        "malts/adapters/opencode/AGENTS.example.md",
-    ]
+    required = ["MALTS_BOOT.md"]
 
     if tool == "Codex":
         required += [
             "AGENTS.md",
-            ".codex/config.toml",
-            ".codex/agents/planner.toml",
-            "skills/malts-project-init/SKILL.md",
+            "config.toml",
+            "agents/planner.toml",
         ]
     elif tool == "ClaudeCode":
         required += [
             "CLAUDE.md",
             "agents/planner.md",
             "commands/start-long-task.md",
-            "skills/malts-project-init/SKILL.md",
         ]
     elif tool == "OpenCode":
         required += [
             "AGENTS.md",
             "opencode.json",
             ".opencode/agents/planner.md",
-            "skills/malts-project-init/SKILL.md",
         ]
 
     for rel in required:
@@ -447,13 +427,51 @@ def check_install_layout(install_root: Path, tool: str | None) -> int:
             findings.append(Finding("ERROR", f"Installed layout missing: {rel}"))
 
     boot_path = install_root / "MALTS_BOOT.md"
+    shared_root: Path | None = None
     if boot_path.exists():
         boot_text = read_text(boot_path)
-        expected_root = str(install_root / "malts")
         if "MALTS_ROOT:" not in boot_text:
             findings.append(Finding("ERROR", "MALTS_BOOT.md does not declare MALTS_ROOT."))
-        if expected_root not in boot_text:
-            findings.append(Finding("ERROR", f"MALTS_BOOT.md does not point at installed runtime root: {expected_root}"))
+        for line in boot_text.splitlines():
+            if line.startswith("MALTS_ROOT:"):
+                value = line.split(":", 1)[1].strip()
+                if value:
+                    shared_root = Path(value)
+                break
+
+    tool_runtime = install_root / "malts"
+    if tool_runtime.exists():
+        findings.append(Finding("ERROR", f"Tool-local runtime copy should not exist: {tool_runtime}"))
+
+    tool_skills = install_root / "skills"
+    if tool_skills.exists():
+        findings.append(Finding("ERROR", f"Tool-local skills duplicate shared MALTS_ROOT by default: {tool_skills}"))
+
+    if shared_root is None:
+        findings.append(Finding("ERROR", "Could not resolve MALTS_ROOT from MALTS_BOOT.md."))
+    else:
+        shared_required = [
+            "README.md",
+            "README.zh-CN.md",
+            "VERSION",
+            "skills/malts-project-init/SKILL.md",
+            "skills/multi-agent-long-task-scheduling/SKILL.md",
+            "runtime/EN/templates/PROJECT_CONTROL.template.en.md",
+            "runtime/EN/templates/WORK_TASK_REPORT.template.en.md",
+            "runtime/EN/checklists/QUALITY_GATE.en.md",
+            "runtime/EN/checklists/DELIVERY_CHECKLIST.en.md",
+            "runtime/CH/templates/WORK_TASK_REPORT.template.zh-CN.md",
+            "runtime/CH/checklists/QUALITY_GATE.zh-CN.md",
+            "tools/agent_system_lint.py",
+            "scripts/Install-MALTS.ps1",
+            "scripts/Update-MALTS.ps1",
+            "adapters/codex/AGENTS.example.md",
+            "adapters/claude-code/CLAUDE.example.md",
+            "adapters/opencode/AGENTS.example.md",
+        ]
+        for rel in shared_required:
+            if not (shared_root / rel).exists():
+                findings.append(Finding("ERROR", f"Shared MALTS_ROOT missing: {shared_root / rel}"))
 
     return emit(findings)
 
@@ -810,6 +828,11 @@ def check_semantic_freshness(malts_root: Path, version: str | None) -> int:
             "Overwrite",
             "Already up to date",
             "AllowDirty",
+            "SharedRoot",
+        ],
+        "scripts/Install-MALTS.ps1": [
+            "Shared MALTS_ROOT",
+            "Tool-local skills",
         ],
         "scripts/Test-MALTSInstall.ps1": [
             "check-install-layout",

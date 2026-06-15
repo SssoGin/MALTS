@@ -109,7 +109,7 @@ These projects are not dependencies of MALTS and do not endorse this repository.
 
 Installation is intentionally review-first. The install script defaults to dry-run and does not write files unless `-Apply` is provided.
 
-The installer plans the tool instruction template, shared skills, installed `malts/` runtime copy, and generated `MALTS_BOOT.md` pointer before writing. `MALTS_BOOT.md` lets a newly installed Agent resolve `MALTS_ROOT` and find `runtime/EN/templates` and `runtime/EN/checklists` without relying on a copied absolute path.
+The installer plans one shared `MALTS_ROOT`, thin tool adapter files, and a generated `MALTS_BOOT.md` pointer before writing. `MALTS_BOOT.md` lets a newly installed Agent resolve the shared root and find `skills/`, `runtime/EN/templates`, and `runtime/EN/checklists` without copying a full MALTS tree into every tool directory.
 
 Tool instruction templates such as `AGENTS.md` and `CLAUDE.md` are optional MALTS enhancements. They help the Agent remember MALTS task mode, Grill-Me Preflight, project control, handoff, and verification rules, but they should be reviewed and merged with any existing user or project instructions instead of blindly replacing them.
 
@@ -148,7 +148,7 @@ Installed users can update from a git clone without manually downloading a new a
 .\scripts\Update-MALTS.review.cmd -Tool Codex
 ```
 
-`MergeSafe` updates MALTS-managed runtime, skills, docs, tools, and adapter support files without replacing the user's top-level instruction file. Use `Overwrite` only when replacing tool instruction templates is intentional.
+`MergeSafe` updates the shared MALTS root and adapter support files without replacing the user's top-level instruction file. Use `Overwrite` only when replacing tool instruction templates is intentional.
 
 Maintainers can verify a real temporary install layout with:
 
@@ -165,7 +165,7 @@ The public repository defaults to English source documents for Agent execution. 
 Current release version:
 
 ```text
-0.1.3
+0.1.4
 ```
 
 ## License

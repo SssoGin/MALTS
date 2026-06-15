@@ -13,6 +13,8 @@ param(
 
     [string] $TargetRoot,
 
+    [string] $SharedRoot,
+
     [string] $Branch,
 
     [switch] $Apply,
@@ -21,6 +23,19 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+function Initialize-Utf8Console {
+    try {
+        $utf8 = [System.Text.UTF8Encoding]::new($false)
+        [Console]::OutputEncoding = $utf8
+        [Console]::InputEncoding = $utf8
+        $script:OutputEncoding = $utf8
+    } catch {
+        Write-Warning "Could not force UTF-8 console encoding: $($_.Exception.Message)"
+    }
+}
+
+Initialize-Utf8Console
 
 if (-not $RepoRoot) {
     $RepoRoot = Split-Path -Parent $PSScriptRoot
@@ -74,6 +89,9 @@ function Invoke-Installer {
     if ($TargetRoot) {
         $installArgs += @('-TargetRoot', $TargetRoot)
     }
+    if ($SharedRoot) {
+        $installArgs += @('-SharedRoot', $SharedRoot)
+    }
     if ($Strategy -eq 'MergeSafe') {
         $installArgs += '-SkipInstructionTemplate'
         $installArgs += '-Overwrite'
@@ -97,6 +115,7 @@ Write-Host "Tool: $Tool"
 Write-Host "Mode: $Mode"
 Write-Host "Strategy: $Strategy"
 Write-Host "TargetRoot: $(if ($TargetRoot) { $TargetRoot } else { '<tool default>' })"
+Write-Host "SharedRoot: $(if ($SharedRoot) { $SharedRoot } else { '<default shared MALTS_ROOT>' })"
 Write-Host "Apply: $Apply"
 
 if ($Mode -ne 'InstallOnly') {

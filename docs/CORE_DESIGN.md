@@ -160,7 +160,7 @@ MALTS
 
 The core layer stores the common operating model and durable project artifacts. The runtime layer turns that model into executable Agent workflows through the root `skills/` directory, execution modes, recovery, verification, templates, checklists, and the memory pipeline. The adapter layer maps the same model into each supported agent tool without letting tool-specific details pollute the core design.
 
-The public package has one canonical skill source: `skills/`. Target tool skill directories are installation targets, not separate sources. `runtime/EN` contains Agent-facing templates and checklists used by MALTS workflows. `runtime/CH` contains Simplified Chinese runtime mirrors for user-facing review and bilingual artifact generation.
+The public package has one canonical skill and runtime source: the shared `MALTS_ROOT`, with `skills/` at that root. Target tool directories are thin adapter targets, not separate MALTS runtime or skill sources. `runtime/EN` contains Agent-facing templates and checklists used by MALTS workflows. `runtime/CH` contains Simplified Chinese runtime mirrors for user-facing review and bilingual artifact generation.
 
 ## Activation Model
 
@@ -477,7 +477,8 @@ MALTS keeps the core portable and puts tool-specific details in adapters.
 Codex:
 
 - use `AGENTS.md` as the instruction entry
-- use Codex project-scoped `.codex/config.toml` and `.codex/agents/*.toml` for Codex-native custom subagent scaffolding when installed
+- use Codex `config.toml` and `agents/*.toml` in the Codex config root for Codex-native custom subagent scaffolding when installed
+- resolve MALTS skills and runtime files through `MALTS_BOOT.md` and the shared `MALTS_ROOT`
 - do not claim Claude Code or OpenCode-style file-backed custom slash commands for Codex unless Codex documents that mechanism
 - use `PROJECT_CONTROL.md` as recoverable state
 - use visible tool calls or thread tools as dispatch evidence when sub-agents are actually used
@@ -487,7 +488,8 @@ Claude Code:
 
 - use `CLAUDE.md` as the instruction entry
 - place commands and agents in Claude Code's expected adapter directories
-- install shared MALTS skills from root `skills/` into Claude Code's local `skills/` directory
+- resolve MALTS skills and runtime files through `MALTS_BOOT.md` and the shared `MALTS_ROOT`
+- never install tool-local skill duplicates
 - record the runtime-visible agent or transcript evidence available in the installed version
 - record limitations when explicit model selection is unavailable or unverified
 
@@ -495,7 +497,8 @@ OpenCode:
 
 - use `AGENTS.md` and OpenCode-specific config as the instruction and tool entry
 - keep OpenCode-specific files in the adapter layer
-- install shared MALTS skills from root `skills/` into OpenCode's local `skills/` directory
+- resolve MALTS skills and runtime files through `MALTS_BOOT.md` and the shared `MALTS_ROOT`
+- never install tool-local skill duplicates
 - verify how the target OpenCode version exposes sub-agent dispatch evidence before claiming transparent multi-agent execution
 
 Adapter docs and templates should stay synchronized across Codex, Claude Code, and OpenCode unless a change is explicitly scoped to one tool.

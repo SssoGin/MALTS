@@ -23,9 +23,9 @@
 - `AGENTS.example.md`：安装为 `AGENTS.md`。
 - `opencode.json`
 - `.opencode/agents/`
-- 根级 `skills/` 的共享 MALTS skills。
+- 安装器生成的 `MALTS_BOOT.md`，指向共享 `MALTS_ROOT`。
 
-安装还会安装到目标工具目录的 `malts/` runtime 副本，并生成 `MALTS_BOOT.md`。
+安装会复制 OpenCode scaffold，安装一份共享 `MALTS_ROOT`，并生成 `MALTS_BOOT.md`。默认不会在工具目录下创建完整 `malts/` runtime 副本。
 
 ## Runtime 规则
 

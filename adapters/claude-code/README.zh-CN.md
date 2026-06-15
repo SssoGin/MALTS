@@ -23,9 +23,9 @@
 - `CLAUDE.example.md`：Claude Code 指令起点模板。
 - `.claude/agents/`：Claude Code agents。
 - `.claude/commands/`：Claude Code commands。
-- 根级 `skills/` 的共享 MALTS skills。
+- 安装器生成的 `MALTS_BOOT.md`，指向共享 `MALTS_ROOT`。
 
-安装会把 `CLAUDE.example.md` 映射为 `CLAUDE.md`，安装共享 skills，安装到目标工具目录的 `malts/` runtime 副本，并生成 `MALTS_BOOT.md`。
+安装会把 `CLAUDE.example.md` 映射为 `CLAUDE.md`，安装 Claude Code scaffold，安装一份共享 `MALTS_ROOT`，并生成 `MALTS_BOOT.md`。默认不会在工具目录下创建完整 `malts/` runtime 副本。
 
 ## Runtime 规则
 

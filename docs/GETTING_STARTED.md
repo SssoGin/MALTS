@@ -22,9 +22,9 @@ MALTS includes optional adapters for:
 
 | Tool | Installed instruction file | Additional adapter files |
 |---|---|---|
-| Codex | `AGENTS.md` | Codex-native `.codex` subagent scaffold, workflow prompts, and shared skills install from root `skills/` |
-| Claude Code | `CLAUDE.md` | Optional `.claude/agents` and `.claude/commands` scaffold; shared skills install from root `skills/` |
-| OpenCode | `AGENTS.md` | `opencode.json`, optional `.opencode/agents` scaffold, and shared skills from root `skills/` |
+| Codex | `AGENTS.md` | Codex-native `config.toml`, `agents/*.toml`, workflow prompts, and `MALTS_BOOT.md` |
+| Claude Code | `CLAUDE.md` | Optional `agents/` and `commands/` scaffold plus `MALTS_BOOT.md` |
+| OpenCode | `AGENTS.md` | `opencode.json`, optional `.opencode/agents` scaffold, plus `MALTS_BOOT.md` |
 
 Use one tool first unless there is a specific reason to install all adapters. The `AllIncluded` mode is available for users who intentionally maintain the same MALTS behavior across Codex, Claude Code, and OpenCode.
 
@@ -79,7 +79,7 @@ Instruction templates are optional. To install support files without installing 
 
 ## 5. Verify Runtime Discovery
 
-Installed instruction templates and local skill entries depend on:
+Installed instruction templates and adapter files depend on one shared `MALTS_ROOT`:
 
 ```text
 skills/
@@ -88,7 +88,16 @@ runtime/CH
 MALTS_BOOT.md
 ```
 
-The installer plans an installed `malts/` runtime copy and `MALTS_BOOT.md` pointer. After install, verify that `MALTS_BOOT.md` resolves to a root containing `README.md`, `skills/`, `runtime/EN/templates`, and `runtime/EN/checklists`. Root `skills/` is the canonical skill source. Chinese runtime mirrors under `runtime/CH` support Chinese user-facing reports and bilingual synchronization, but are not loaded during ordinary English Agent execution unless needed.
+The installer creates one shared MALTS root and writes `MALTS_BOOT.md` into each selected tool directory. After install, verify that `MALTS_BOOT.md` resolves to a root containing `README.md`, `skills/`, `runtime/EN/templates`, and `runtime/EN/checklists`. The shared `skills/` directory under `MALTS_ROOT` is the canonical skill source. Chinese runtime mirrors under `runtime/CH` support Chinese user-facing reports and bilingual synchronization, but are not loaded during ordinary English Agent execution unless needed.
+
+Default installs should not contain:
+
+```text
+<tool-config-root>/malts/
+<tool-config-root>/skills/
+```
+
+Those paths are invalid install layouts, not the MALTS design.
 
 ## 6. Use MALTS On A First Task
 
@@ -158,7 +167,7 @@ Without that confirmation, MALTS remains single-agent.
 Useful checks:
 
 ```powershell
-python tools\agent_system_lint.py check-semantic-freshness --malts-root . --version 0.1.3
+python tools\agent_system_lint.py check-semantic-freshness --malts-root . --version 0.1.4
 python tools\agent_system_lint.py check-doc-sync --output-root runtime
 .\scripts\Install-MALTS.ps1 -Tool Codex
 ```

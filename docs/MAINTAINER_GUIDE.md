@@ -122,10 +122,12 @@ CI runs on Windows because the install script is PowerShell-based and Windows ex
 MALTS public releases maintain one canonical skill source:
 
 ```text
-skills/
+<MALTS_ROOT>\skills\
 ```
 
-The installer distributes that directory to supported Agent tools. Keep public skills in this root directory, and keep adapter directories limited to tool-specific instruction templates, commands, agents, and configuration. Target tool skill directories are installation targets, not release-package facts.
+The installer creates or updates one shared `MALTS_ROOT` and points each selected tool at that root through `MALTS_BOOT.md`. Tool config directories are thin adapter targets and must not receive full `malts\` runtime copies or tool-local `skills\` duplicates.
+
+Keep public skills in the shared root directory, and keep adapter directories limited to tool-specific instruction templates, commands, agents, and configuration. Target tool directories are installation targets, not release-package facts.
 
 ## Versioning
 

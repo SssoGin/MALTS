@@ -1,36 +1,75 @@
-﻿# MALTS 安装说明
+﻿# 安装 MALTS
 
-语言：[English](../INSTALL.md) | [简体中文](INSTALL.md)
+MALTS 的安装模型是一份共享系统 root 加工具薄适配层。
 
-MALTS 的安装方式是选择一个或多个 Agent 工具 adapter，并把经过审阅的 scaffold 文件复制到对应工具的配置目录。共享 skills 只在公开仓库根级 `skills/` 维护一份，安装时复制到目标工具的本地 `skills/` 目录。
-
-安装器还必须让新机器上的 MALTS runtime 可发现。它会规划安装到目标工具目录的 `malts/` runtime 副本，并生成 `MALTS_BOOT.md` 指针，使项目初始化能找到 `README.md`、`skills/`、`runtime/EN/templates` 和 `runtime/EN/checklists`。
+共享 root 是当前机器上唯一默认的 MALTS runtime 和 skill 事实源。工具目录只应包含工具特定指令、scaffold 文件和指向共享 root 的 `MALTS_BOOT.md`。安装器默认不得在每个工具目录下创建完整 `malts/` 副本。
 
 ## 推荐流程
 
-第一步始终先 dry-run：
+第一步先 dry-run：
 
 ```powershell
 .\scripts\Install-MALTS.ps1 -Tool Codex
 ```
 
-如果 Windows PowerShell 阻止脚本执行，可使用进程级执行策略覆盖：
+如果 Windows PowerShell 阻止脚本执行，使用进程内 execution policy 覆盖：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-MALTS.ps1 -Tool Codex
 ```
 
-Windows 下需要双击审阅时，使用会保留窗口的 wrapper：
+Windows 双击审阅可以使用会保留窗口的 wrapper：
 
 ```powershell
 .\scripts\Install-MALTS.review.cmd -Tool Codex
 ```
 
-不提供 `-Apply` 时不会写入文件。确认计划后再应用：
+除非提供 `-Apply`，否则不会写文件：
 
 ```powershell
 .\scripts\Install-MALTS.ps1 -Tool Codex -Apply
 ```
+
+## 共享 Root
+
+默认共享 root：
+
+```text
+%USERPROFILE%\.malts
+```
+
+提供 `-TargetRoot` 时，默认共享 root：
+
+```text
+<TargetRoot>\MALTS_ROOT
+```
+
+使用 `-SharedRoot <path>` 可以选择另一条经过审阅的位置。
+
+`MALTS_ROOT` 必须包含：
+
+```text
+README.md
+skills/
+runtime/EN/templates/
+runtime/EN/checklists/
+tools/
+scripts/
+```
+
+## 工具薄适配层
+
+每个选中的工具只接收自己的 adapter 文件和 `MALTS_BOOT.md`。
+
+```text
+Codex      -> AGENTS.md, config.toml, agents/*.toml, MALTS_BOOT.md
+ClaudeCode -> CLAUDE.md, agents/*.md, commands/*.md, MALTS_BOOT.md
+OpenCode   -> AGENTS.md, opencode.json, .opencode/agents/*.md, MALTS_BOOT.md
+```
+
+`MALTS_BOOT.md` 记录共享 `MALTS_ROOT`。Agent 运行 MALTS project initialization 前，必须从该文件或另一条经过审阅的 global boot 路径解析 `MALTS_ROOT`。
+
+工具 target 不得接收本地 `skills/` 副本。共享 `MALTS_ROOT\skills\` 是唯一安装的 skill source。
 
 ## 安装 Smoke Test
 
@@ -40,17 +79,15 @@ Windows 下需要双击审阅时，使用会保留窗口的 wrapper：
 .\scripts\Test-MALTSInstall.ps1 -Tool AllIncluded
 ```
 
-该 smoke test 会创建临时安装目标，对临时目标运行 `Install-MALTS.ps1 -Apply -Overwrite`，验证生成的 `MALTS_BOOT.md`、runtime templates、checklists、工具 scaffold 和 `malts/tools/agent_system_lint.py`，然后删除临时目录；提供 `-KeepTemp` 时保留临时目录。
+该 smoke test 会创建受保护的临时目录，安装一份共享 `MALTS_ROOT`，为选中工具安装薄适配层，验证 `MALTS_BOOT.md`、共享 runtime root，并确认工具目录下没有本地 `malts/` runtime 副本或 `skills/` 重复源，然后删除临时目录；提供 `-KeepTemp` 时保留临时目录。
 
-指令模板是可选增强项。它们帮助工具记住 MALTS 的任务模式、Grill-Me Preflight、项目控制、交接和验证规则。应用前应先审阅并与已有用户或项目指令合并。
-
-跳过指令模板但安装支持文件和共享 skills：
+也可以直接运行安装布局检查：
 
 ```powershell
-.\scripts\Install-MALTS.ps1 -Tool ClaudeCode -SkipInstructionTemplate
+python tools\agent_system_lint.py check-install-layout --install-root <TOOL_TARGET> --tool Codex
 ```
 
-## 支持工具
+## 支持的工具
 
 ```text
 Codex
@@ -61,58 +98,29 @@ AllIncluded
 
 ## 默认行为
 
-- 根级 `skills/` 的共享 skills 默认纳入安装计划。
-- 默认在 `<target>\malts\` 下安装 MALTS runtime 副本。
-- 默认生成 `MALTS_BOOT.md`，指向已安装的 runtime root。
+- 每组安装目标只安装一份共享 MALTS root。
+- 工具目录只接收薄 adapter 文件和 `MALTS_BOOT.md`。
+- `MALTS_BOOT.md` 指向共享 `MALTS_ROOT`。
+- `MALTS_ROOT` 下的根级 `skills/` 是 canonical skill source。
+- 不安装工具本地 `skills/` 重复源。
+- 不安装每个工具目录下的 `<target>\malts\` runtime 副本。
 - `runtime/EN` 和 `runtime/CH` 作为运行模板和检查清单来源。
 - 双语文档同步默认关闭。
-- Codex 可安装 `AGENTS.md` 和 Codex-native `.codex` subagent scaffold；Claude Code 可安装 `CLAUDE.md` 和 `.claude` agents/commands；OpenCode 可把 `AGENTS.example.md` 安装为 `AGENTS.md`，并安装 `opencode.json` 和 `.opencode` agents。
-- `-SkipInstructionTemplate` 只跳过工具指令模板，不跳过共享 skills。
-- 只有在已有经过审阅的 MALTS runtime root 和 boot pointer 时，才使用 `-SkipRuntime`。
-- 只有在工具已有其他经过审阅的 `MALTS_ROOT` 解析方式时，才使用 `-SkipBoot`。
+- Codex 安装到 Codex 配置 root；Claude Code 安装到 Claude Code 配置 root；OpenCode 安装到 OpenCode 配置 root。
+- `-SkipInstructionTemplate` 用于安装 adapter 支持文件但不修改 Agent 指令文件。
 - 除非用户明确允许，安装脚本不会覆盖已有文件。
 - 安装脚本会先打印计划。
 
-## Skill 安装路径
-
-公开仓库只有一个 canonical skill source：
-
-```text
-skills/
-```
-
-安装脚本会复制到目标工具发现目录：
-
-```text
-Codex      -> <target>\skills\
-ClaudeCode -> <target>\skills\
-OpenCode   -> <target>\skills\
-```
-
-Adapter 目录只提供工具特定的指令模板、commands、agents 和配置。共享 MALTS skills 始终从仓库根级 `skills/` 安装。
-
-安装后的 runtime root：
-
-```text
-<target>\malts\
-```
-
-生成的 boot pointer：
-
-```text
-<target>\MALTS_BOOT.md
-```
-
-Agent 运行 MALTS project initialization 前，必须从 `MALTS_BOOT.md` 或其他配置好的 global boot 文件解析 `MALTS_ROOT`。
-
 ## 手动安装
 
-1. 阅读 `README.md` 或 `README.zh-CN.md`。
-2. 选择目标工具 adapter。
-3. 审阅 `adapters/` 下对应目录。
-4. 只复制该工具需要的文件。
-5. 把根级 `skills/` 复制到该工具目标 `skills/` 目录。
-6. 保持 `runtime/EN/templates`、`runtime/EN/checklists` 和生成的 `MALTS_BOOT.md` 可被 Agent 读取。
-7. 运行 dry-run 或 lint 检查。
+1. 阅读 `README.md`。
+2. 选择一条共享 `MALTS_ROOT`。
+3. 将仓库 runtime 文件复制到共享 root。
+4. 选择目标工具 adapter。
+5. 审阅 `adapters/` 下的对应 adapter 目录。
+6. 只复制该工具需要的文件到工具配置 root。
+7. 在工具指令文件旁写入 `MALTS_BOOT.md`，并指向共享 `MALTS_ROOT`。
+8. 不要把完整 `malts/` 目录复制到每个工具 target。
+9. 运行对应 smoke test 或 lint 命令。
 
-Agent-assisted 安装规则见 [Agent 安装协议](AGENT_INSTALL.md)。
+Agent 辅助安装规则见 [Agent 安装协议](AGENT_INSTALL.md)。

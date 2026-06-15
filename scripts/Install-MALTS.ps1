@@ -5,18 +5,29 @@ param(
 
     [switch] $SkipInstructionTemplate,
 
-    [switch] $SkipRuntime,
-
-    [switch] $SkipBoot,
-
     [switch] $Apply,
 
     [switch] $Overwrite,
 
-    [string] $TargetRoot
+    [string] $TargetRoot,
+
+    [string] $SharedRoot
 )
 
 $ErrorActionPreference = 'Stop'
+
+function Initialize-Utf8Console {
+    try {
+        $utf8 = [System.Text.UTF8Encoding]::new($false)
+        [Console]::OutputEncoding = $utf8
+        [Console]::InputEncoding = $utf8
+        $script:OutputEncoding = $utf8
+    } catch {
+        Write-Warning "Could not force UTF-8 console encoding: $($_.Exception.Message)"
+    }
+}
+
+Initialize-Utf8Console
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $dryRun = -not $Apply
@@ -37,7 +48,31 @@ function Get-DefaultTarget {
     }
 }
 
-function Get-InstallPlan {
+function Resolve-SharedRoot {
+    if ($SharedRoot) {
+        return [System.IO.Path]::GetFullPath($SharedRoot)
+    }
+    if ($TargetRoot) {
+        return [System.IO.Path]::GetFullPath((Join-Path $TargetRoot 'MALTS_ROOT'))
+    }
+    if (-not $env:USERPROFILE) {
+        throw 'USERPROFILE is not set; provide -SharedRoot explicitly.'
+    }
+    return [System.IO.Path]::GetFullPath((Join-Path $env:USERPROFILE '.malts'))
+}
+
+function New-InstallItem {
+    param(
+        [string] $Source,
+        [string] $Target
+    )
+    return [pscustomobject]@{
+        Source = $Source
+        Target = $Target
+    }
+}
+
+function Get-ToolInstallItems {
     param(
         [string] $SelectedTool,
         [string] $SelectedTarget
@@ -48,36 +83,24 @@ function Get-InstallPlan {
     switch ($SelectedTool) {
         'Codex' {
             if (-not $SkipInstructionTemplate) {
-                $items += [pscustomobject]@{
-                    Source = Join-RepoPath 'adapters\codex\AGENTS.example.md'
-                    Target = Join-Path $SelectedTarget 'AGENTS.md'
-                }
+                $items += New-InstallItem -Source (Join-RepoPath 'adapters\codex\AGENTS.example.md') -Target (Join-Path $SelectedTarget 'AGENTS.md')
             }
             $sourceRoot = Join-RepoPath 'adapters\codex\.codex'
             if (Test-Path -LiteralPath $sourceRoot) {
                 $items += Get-ChildItem -Path $sourceRoot -Recurse -File | ForEach-Object {
                     $relative = $_.FullName.Substring($sourceRoot.Length).TrimStart('\', '/')
-                    [pscustomobject]@{
-                        Source = $_.FullName
-                        Target = Join-Path (Join-Path $SelectedTarget '.codex') $relative
-                    }
+                    New-InstallItem -Source $_.FullName -Target (Join-Path $SelectedTarget $relative)
                 }
             }
         }
         'ClaudeCode' {
             if (-not $SkipInstructionTemplate) {
-                $items += [pscustomobject]@{
-                    Source = Join-RepoPath 'adapters\claude-code\CLAUDE.example.md'
-                    Target = Join-Path $SelectedTarget 'CLAUDE.md'
-                }
+                $items += New-InstallItem -Source (Join-RepoPath 'adapters\claude-code\CLAUDE.example.md') -Target (Join-Path $SelectedTarget 'CLAUDE.md')
             }
             $sourceRoot = Join-RepoPath 'adapters\claude-code\.claude'
             $items += Get-ChildItem -Path $sourceRoot -Recurse -File | ForEach-Object {
                 $relative = $_.FullName.Substring($sourceRoot.Length).TrimStart('\', '/')
-                [pscustomobject]@{
-                    Source = $_.FullName
-                    Target = Join-Path $SelectedTarget $relative
-                }
+                New-InstallItem -Source $_.FullName -Target (Join-Path $SelectedTarget $relative)
             }
         }
         'OpenCode' {
@@ -89,73 +112,44 @@ function Get-InstallPlan {
                 if ($relative -eq 'AGENTS.example.md') {
                     $relative = 'AGENTS.md'
                 }
-                [pscustomobject]@{
-                    Source = $_.FullName
-                    Target = Join-Path $SelectedTarget $relative
-                }
+                New-InstallItem -Source $_.FullName -Target (Join-Path $SelectedTarget $relative)
             }
         }
-    }
-
-    $items += Get-SharedSkillInstallItems -SelectedTarget $SelectedTarget
-    if (-not $SkipRuntime) {
-        $items += Get-MaltsRootInstallItems -SelectedTarget $SelectedTarget
     }
 
     return $items
 }
 
-function Get-SharedSkillInstallItems {
-    param([string] $SelectedTarget)
+function Get-SharedRootInstallItems {
+    param([string] $ResolvedSharedRoot)
 
-    $sourceRoot = Join-RepoPath 'skills'
-    if (-not (Test-Path -LiteralPath $sourceRoot)) {
-        return @()
-    }
-
-    return Get-ChildItem -Path $sourceRoot -Recurse -File | ForEach-Object {
-        $relative = $_.FullName.Substring($sourceRoot.Length).TrimStart('\', '/')
-        [pscustomobject]@{
-            Source = $_.FullName
-            Target = Join-Path (Join-Path $SelectedTarget 'skills') $relative
-        }
-    }
-}
-
-function Get-MaltsRootInstallItems {
-    param([string] $SelectedTarget)
-
-    $installRoot = Join-Path $SelectedTarget 'malts'
     $items = @()
     $rootFiles = @(
         'README.md',
         'README.zh-CN.md',
         'VERSION',
+        'CHANGELOG.md',
         'LICENSE',
-        'THIRD_PARTY_NOTICES.md'
+        'THIRD_PARTY_NOTICES.md',
+        '.editorconfig',
+        '.gitattributes'
     )
 
     foreach ($file in $rootFiles) {
         $source = Join-RepoPath $file
         if (Test-Path -LiteralPath $source) {
-            $items += [pscustomobject]@{
-                Source = $source
-                Target = Join-Path $installRoot $file
-            }
+            $items += New-InstallItem -Source $source -Target (Join-Path $ResolvedSharedRoot $file)
         }
     }
 
-    foreach ($dir in @('runtime', 'skills', 'docs', 'tools', 'adapters')) {
+    foreach ($dir in @('runtime', 'skills', 'docs', 'tools', 'adapters', 'scripts')) {
         $sourceRoot = Join-RepoPath $dir
         if (-not (Test-Path -LiteralPath $sourceRoot)) {
             continue
         }
         $items += Get-ChildItem -Path $sourceRoot -Recurse -File | ForEach-Object {
             $relative = $_.FullName.Substring($sourceRoot.Length).TrimStart('\', '/')
-            [pscustomobject]@{
-                Source = $_.FullName
-                Target = Join-Path (Join-Path $installRoot $dir) $relative
-            }
+            New-InstallItem -Source $_.FullName -Target (Join-Path (Join-Path $ResolvedSharedRoot $dir) $relative)
         }
     }
 
@@ -165,10 +159,9 @@ function Get-MaltsRootInstallItems {
 function Get-BootText {
     param(
         [string] $SelectedTool,
-        [string] $SelectedTarget
+        [string] $ResolvedSharedRoot
     )
 
-    $installRoot = Join-Path $SelectedTarget 'malts'
     $generatedAt = Get-Date -Format 'yyyy-MM-dd HH:mm:ss zzz'
     return @"
 # MALTS_BOOT
@@ -176,7 +169,7 @@ function Get-BootText {
 Generated: $generatedAt
 Tool: $SelectedTool
 
-MALTS_ROOT: $installRoot
+MALTS_ROOT: $ResolvedSharedRoot
 SourcePackageRoot: $repoRoot
 
 Required runtime checks:
@@ -189,23 +182,10 @@ Agents should resolve MALTS_ROOT from this file before running MALTS project ini
 "@
 }
 
-function Invoke-InstallPlan {
-    param(
-        [string] $SelectedTool,
-        [string] $SelectedTarget
-    )
+function Invoke-PlanItems {
+    param([object[]] $Items)
 
-    $plan = @(Get-InstallPlan -SelectedTool $SelectedTool -SelectedTarget $SelectedTarget)
-
-    Write-Host "Tool: $SelectedTool"
-    Write-Host "Target: $SelectedTarget"
-    Write-Host "Instruction template: $(if ($SkipInstructionTemplate) { 'Skipped' } else { 'Included optional enhancement' })"
-    Write-Host "Shared skills: Included from repository skills/"
-    Write-Host "Installed MALTS runtime copy: $(if ($SkipRuntime) { 'Skipped' } else { 'Included under target\\malts' })"
-    Write-Host "Installed boot pointer: $(if ($SkipBoot) { 'Skipped' } else { 'Included as MALTS_BOOT.md' })"
-    Write-Host "Mode: $(if ($dryRun) { 'DryRun' } else { 'Apply' })"
-
-    foreach ($item in $plan) {
+    foreach ($item in $Items) {
         $exists = Test-Path -LiteralPath $item.Target
         $status = if ($exists) { 'exists' } else { 'new' }
         Write-Host "[$status] $($item.Target)"
@@ -222,28 +202,55 @@ function Invoke-InstallPlan {
             Copy-Item -Path $item.Source -Destination $item.Target -Force:$Overwrite
         }
     }
+}
 
-    if (-not $SkipBoot) {
-        $bootTarget = Join-Path $SelectedTarget 'MALTS_BOOT.md'
-        $exists = Test-Path -LiteralPath $bootTarget
-        $status = if ($exists) { 'exists' } else { 'new' }
-        Write-Host "[$status] $bootTarget"
-        Write-Host "  generated MALTS root pointer"
+function Invoke-ToolInstall {
+    param(
+        [string] $SelectedTool,
+        [string] $SelectedTarget,
+        [string] $ResolvedSharedRoot
+    )
 
-        if (-not $dryRun) {
-            if ($exists -and -not $Overwrite) {
-                throw "Refusing to overwrite existing file without -Overwrite: $bootTarget"
-            }
-            $targetDir = Split-Path -Parent $bootTarget
-            if (-not (Test-Path -LiteralPath $targetDir)) {
-                New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
-            }
-            Set-Content -LiteralPath $bootTarget -Value (Get-BootText -SelectedTool $SelectedTool -SelectedTarget $SelectedTarget) -Encoding UTF8
+    $plan = @(Get-ToolInstallItems -SelectedTool $SelectedTool -SelectedTarget $SelectedTarget)
+
+    Write-Host ''
+    Write-Host "Tool: $SelectedTool"
+    Write-Host "Target: $SelectedTarget"
+    Write-Host "Instruction template: $(if ($SkipInstructionTemplate) { 'Skipped' } else { 'Included optional enhancement' })"
+    Write-Host "Tool-local skills: Not installed; shared MALTS_ROOT is canonical"
+    Write-Host "Installed boot pointer: Included as MALTS_BOOT.md"
+    Write-Host "Mode: $(if ($dryRun) { 'DryRun' } else { 'Apply' })"
+
+    Invoke-PlanItems -Items $plan
+
+    $bootTarget = Join-Path $SelectedTarget 'MALTS_BOOT.md'
+    $exists = Test-Path -LiteralPath $bootTarget
+    $status = if ($exists) { 'exists' } else { 'new' }
+    Write-Host "[$status] $bootTarget"
+    Write-Host "  generated MALTS root pointer -> $ResolvedSharedRoot"
+
+    if (-not $dryRun) {
+        if ($exists -and -not $Overwrite) {
+            throw "Refusing to overwrite existing file without -Overwrite: $bootTarget"
         }
+        $targetDir = Split-Path -Parent $bootTarget
+        if (-not (Test-Path -LiteralPath $targetDir)) {
+            New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
+        }
+        Set-Content -LiteralPath $bootTarget -Value (Get-BootText -SelectedTool $SelectedTool -ResolvedSharedRoot $ResolvedSharedRoot) -Encoding UTF8
     }
 }
 
 $selectedTools = if ($Tool -eq 'AllIncluded') { @('Codex', 'ClaudeCode', 'OpenCode') } else { @($Tool) }
+$resolvedSharedRoot = Resolve-SharedRoot
+
+Write-Host "MALTS install"
+Write-Host "Shared MALTS_ROOT: $resolvedSharedRoot"
+Write-Host "Shared runtime copy: Included once at shared MALTS_ROOT"
+Write-Host "Tool set: $($selectedTools -join ', ')"
+
+$sharedPlan = @(Get-SharedRootInstallItems -ResolvedSharedRoot $resolvedSharedRoot)
+Invoke-PlanItems -Items $sharedPlan
 
 foreach ($selected in $selectedTools) {
     $target = if ($TargetRoot -and $selectedTools.Count -eq 1) {
@@ -253,7 +260,8 @@ foreach ($selected in $selectedTools) {
     } else {
         Get-DefaultTarget -SelectedTool $selected
     }
-    Invoke-InstallPlan -SelectedTool $selected -SelectedTarget $target
+    $target = [System.IO.Path]::GetFullPath($target)
+    Invoke-ToolInstall -SelectedTool $selected -SelectedTarget $target -ResolvedSharedRoot $resolvedSharedRoot
 }
 
 if ($dryRun) {

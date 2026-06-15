@@ -58,6 +58,12 @@ This rule overrides the behavior, goal-driven execution, and skill recommendatio
 - Keep code, commands, file paths, variable names, model names, and proper nouns unchanged.
 - Use Simplified Chinese for explanations, summaries, plans, and reasoning unless instructed otherwise.
 
+## Encoding
+
+- On Windows, do not rely on the system default encoding.
+- Scripts, command output, and document checks should explicitly use UTF-8.
+- Python scripts should prefer `encoding='utf-8'`; when needed, set `PYTHONUTF8=1` or explicitly reconfigure `stdout` and `stderr` to UTF-8.
+
 ## Project And Source Boundaries
 
 - Default write scope is the workspace that contains this instruction file, plus any file or directory the user explicitly authorized in the latest execution scope.

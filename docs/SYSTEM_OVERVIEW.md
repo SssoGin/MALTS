@@ -94,8 +94,8 @@ MALTS separates the core workflow from tool-specific installation details.
 | Adapter | Primary instruction file | Notes |
 |---|---|---|
 | Codex | `AGENTS.md` | Provides Codex-facing operating rules and MALTS reminders. |
-| Claude Code | `CLAUDE.md` | Adds optional Claude Code agents and commands; shared skills install from root `skills/`. |
-| OpenCode | `AGENTS.md` | Adds OpenCode-specific configuration and optional agent scaffold; shared skills install from root `skills/`. |
+| Claude Code | `CLAUDE.md` | Adds optional Claude Code agents and commands; resolves MALTS through shared `MALTS_ROOT`. |
+| OpenCode | `AGENTS.md` | Adds OpenCode-specific configuration and optional agent scaffold; resolves MALTS through shared `MALTS_ROOT`. |
 
 Adapter documents should stay synchronized unless a change applies to only one runtime. Tool differences are adapter-layer concerns and should not change the core MALTS model.
 

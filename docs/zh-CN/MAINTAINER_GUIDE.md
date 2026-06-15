@@ -124,10 +124,12 @@ CI 运行在 Windows 上，因为安装脚本基于 PowerShell，并且 Windows 
 MALTS public releases 维护一个 canonical skill source：
 
 ```text
-skills/
+<MALTS_ROOT>\skills\
 ```
 
-安装脚本会把该目录分发到受支持 Agent 工具。Public skills 保持在这个根级目录中；adapter 目录只保存工具特定的指令模板、commands、agents 和配置。目标工具 skill 目录是安装目标，不是 release-package facts。
+安装器创建或更新一份共享 `MALTS_ROOT`，并通过 `MALTS_BOOT.md` 让每个选中的工具指向该 root。工具配置目录是薄 adapter target，不得接收完整 `malts\` runtime 副本或工具本地 `skills\` 重复源。
+
+Public skills 保持在共享 root 中；adapter 目录只保存工具特定的指令模板、commands、agents 和配置。目标工具目录是安装目标，不是 release-package facts。
 
 ## 版本规则
 
