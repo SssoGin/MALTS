@@ -1,6 +1,6 @@
 ---
 name: malts-project-init
-description: Initialize or refresh MALTS-aware project instructions for a workspace. Use when the user asks for an /init-like workflow, project initialization, project-level AGENTS.md, PROJECT_CONTROL.md, 项目控制.md, WORK_TASK_REPORT.md, 工作任务报告.md, Claude Code compatibility through CLAUDE.md, or setup of MALTS operating rules for a new or existing project. This is a shared MALTS installed skill for supported Agent adapters, not a Claude Code slash command.
+description: Initialize or refresh MALTS-aware project instructions for a workspace. Use when the user asks for an /init-like workflow, project initialization, project-level AGENTS.md, PROJECT_CONTROL.md, WORK_TASK_REPORT.md, PROJECT_HANDOFF.md, optional translated mirrors on explicit request, Claude Code compatibility through CLAUDE.md, or setup of MALTS operating rules for a new or existing project. This is a shared MALTS installed skill for supported Agent adapters, not a Claude Code slash command.
 ---
 
 # MALTS Project Init
@@ -11,7 +11,7 @@ Initialize a workspace with project-level Agent instructions and MALTS control f
 
 - Treat read-only inspection as allowed.
 - Before any file write, edit, delete, move, dependency install, generated artifact, long-running service, git state change, remote write, or sub-agent dispatch, show a concrete plan and wait for explicit user authorization.
-- Accept authorization only when it responds to the latest concrete plan and uses words such as "执行", "确认执行", "做吧", "可以", "直接做", "继续", or an equivalent explicit approval.
+- Accept authorization only when it responds to the latest concrete plan and uses words such as "执行", "确认执行", "确认", "继续", "直接做", "都做了", `确认运行`, or an equivalent explicit approval.
 - If the user only asks what init does, whether it is needed, or how it differs from Claude Code `/init`, answer without writing files.
 - If additional work is discovered outside the approved plan, stop and ask for a new authorization.
 
@@ -47,7 +47,7 @@ If creating the first MALTS project-level `AGENTS.md`, also inspect the relevant
 Read only. Check for:
 
 - Existing instruction files: `AGENTS.md`, `CLAUDE.md`, `.claude\CLAUDE.md`, `CLAUDE.local.md`, `.cursorrules`, `.windsurfrules`, `.devin\rules\`, `opencode.json`.
-- Existing MALTS control files: `PROJECT_CONTROL.md`, `项目控制.md`, `WORK_TASK_REPORT.md`, `工作任务报告.md`, handoff files.
+- Existing MALTS state files: `PROJECT_CONTROL.md`, `WORK_TASK_REPORT.md`, `PROJECT_HANDOFF.md`, and any optional translated mirrors that already exist.
 - Project facts: README, package manifests, build/test config, language/framework indicators, repository status, and obvious entry points.
 - If the user provided a separate source project path, inspect that source project root and record that source-project writes remain out of scope unless explicitly authorized.
 - If future source-project writes are likely, discover but do not summarize away the relevant layered instruction files. Record that before writing a source path the agent must re-read the source root and nearest target-path instructions such as `AGENTS.md`, `CLAUDE.md`, `.claude\CLAUDE.md`, nested `AGENTS.md` / `CLAUDE.md`, `.cursorrules`, `.windsurfrules`, `.devin\rules\`, and tool-specific config.
@@ -62,7 +62,7 @@ For non-trivial project starts, offer MALTS-native Grill-Me Preflight from:
 <MALTS_ROOT>\skills\grill-me-preflight\SKILL.md
 ```
 
-Explain briefly that it exposes hidden assumptions, goal boundaries, tradeoffs, and acceptance criteria. Do not auto-run it. Skip for S0/S1 work where the goal and verification path are already clear. Record `offered`, `accepted`, `declined`, or `N/A` in both control files when they are created or updated.
+Explain briefly that it exposes hidden assumptions, goal boundaries, tradeoffs, and acceptance criteria. Do not auto-run it. Skip for S0/S1 work where the goal and verification path are already clear. Record `offered`, `accepted`, `declined`, or `N/A` in `PROJECT_CONTROL.md` when it is created or updated.
 
 ### 4. Present The Plan
 
@@ -71,9 +71,9 @@ Before writing, state:
 - Which files will be created or updated.
 - Whether `AGENTS.md` is new or a merge.
 - Whether `CLAUDE.md` will be created, updated, or left alone.
-- Whether `PROJECT_CONTROL.md` and `项目控制.md` will be created together.
+- Whether `PROJECT_CONTROL.md` will be created or updated as the canonical control file.
 - Whether `WORK_TASK_REPORT.md` will be created, updated, or left alone.
-- Whether `工作任务报告.md` will be created, updated, or left alone when Chinese user-facing output is in scope.
+- Whether any optional translated mirror will be created, updated, or left alone because the user explicitly requested it.
 - The default write scope for the init round.
 - Any source project paths that are read-only context, and the exact authorization required before writing to them.
 - Project assumptions discovered from files.
@@ -86,10 +86,10 @@ Then stop and wait for explicit authorization unless it has already been given f
 Default outputs:
 
 - `AGENTS.md`: primary project-level instructions for Codex and compatible agents.
-- `PROJECT_CONTROL.md`: Agent-facing English project control file.
-- `项目控制.md`: Simplified Chinese mirror created simultaneously with `PROJECT_CONTROL.md`.
-- `WORK_TASK_REPORT.md`: lightweight task execution report scaffold for future work logs and verification records.
-- `工作任务报告.md`: Simplified Chinese work task report mirror created when Chinese user-facing output or bilingual mode is in scope.
+- `PROJECT_CONTROL.md`: canonical project control file. Use English headings, field names, status values, task IDs, paths, and commands; write narrative content in the user's or project's primary language.
+- `WORK_TASK_REPORT.md`: canonical lightweight task execution report scaffold for future work logs and verification records. Use the user's or project's primary language for narrative content while keeping stable structure fields.
+- `PROJECT_HANDOFF.md`: create only for handoff or context-risk workflows, not during default initialization. When created, include a short English Agent Brief and then use the user's or project's primary language.
+- Optional translated mirrors (`项目控制.md`, `工作任务报告.md`, `项目交接.md`): create only when the user explicitly asks for full translated mirrors or an external workflow requires them.
 - `CLAUDE.md`: optional compatibility shim, usually:
 
 ```md
@@ -113,9 +113,9 @@ Keep `AGENTS.md` concise and project-specific. Include:
 - MALTS discovery rule: read `<GLOBAL_BOOT>` when configured, derive `MALTS_ROOT`, then read `<GLOBAL_MEMORY>` when configured.
 - When to suggest MALTS and Grill-Me Preflight.
 - Requirement to create or reuse project control before substantive non-trivial implementation.
-- Requirement that `PROJECT_CONTROL.md` and `项目控制.md` stay synchronized.
+- Requirement that `PROJECT_CONTROL.md` is the single canonical control file by default.
 - Requirement to maintain `WORK_TASK_REPORT.md` for non-trivial implementation tasks.
-- Requirement to maintain `工作任务报告.md` together with `WORK_TASK_REPORT.md` when Chinese user-facing output or bilingual mode is in scope.
+- Requirement to avoid full translated mirrors unless explicitly requested; Chinese narrative can live inside `WORK_TASK_REPORT.md`.
 - Rule that no sub-agent dispatch happens until a launch review is shown and the user replies `确认运行`.
 - Rule that unattended auto-continue requires explicit authorization and recording.
 - Handoff and migration-package rules only if relevant to this project or inherited from the global boot rules.
@@ -129,7 +129,7 @@ Avoid:
 
 ### 7. Required Control File Content
 
-Create `PROJECT_CONTROL.md` and `项目控制.md` together. Keep them synchronized at the level of substance, not necessarily word-for-word translation.
+Create or reuse `PROJECT_CONTROL.md` as the single canonical control file. Do not create a full translated mirror by default. If an optional translated mirror already exists, preserve it and either update it only when explicitly requested or record that `PROJECT_CONTROL.md` is authoritative.
 
 Include:
 
@@ -154,7 +154,7 @@ When Chinese text is present on Windows, prefer UTF-8 with BOM if the surroundin
 
 ### 8. Required Work Task Report Content
 
-Create a compact scaffold, not a verbose report. `WORK_TASK_REPORT.md` is the Agent-facing structure and evidence source. When Chinese user-facing output or bilingual mode is in scope, create `工作任务报告.md` at the same time and keep it substantively synchronized. Include:
+Create a compact scaffold, not a verbose report. `WORK_TASK_REPORT.md` is the canonical structure and evidence source. Use the user's or project's primary language for narrative content and keep English status values, evidence levels, paths, commands, and IDs stable. Do not create a full translated mirror unless explicitly requested. Include:
 
 - Purpose: task-level execution and verification notes for future non-trivial work.
 - Current task table with task id, status, owner, scope, files touched, and last update.
@@ -162,7 +162,7 @@ Create a compact scaffold, not a verbose report. `WORK_TASK_REPORT.md` is the Ag
 - Blockers and follow-ups.
 - Rule that reports should be updated during and after substantive implementation, not used as a substitute for user authorization.
 
-If `WORK_TASK_REPORT.md` or `工作任务报告.md` already exists, preserve its history and add only missing scaffold sections.
+If `WORK_TASK_REPORT.md` or an optional translated mirror already exists, preserve history and add only missing scaffold sections inside the canonical file unless the user requested mirror maintenance.
 
 ### 9. Verify
 
@@ -170,9 +170,9 @@ After writing, run read-only checks:
 
 - Re-read created or updated files.
 - Confirm required files exist.
-- Confirm `PROJECT_CONTROL.md` and `项目控制.md` were created together when applicable.
+- Confirm `PROJECT_CONTROL.md` exists when the plan included MALTS state.
 - Confirm `WORK_TASK_REPORT.md` exists or that the plan explicitly left it out.
-- Confirm `工作任务报告.md` exists when Chinese user-facing output or bilingual mode is in scope, or that the N/A reason is recorded.
+- Confirm optional translated mirrors exist only when explicitly requested, or that they were intentionally not generated.
 - Confirm `AGENTS.md` contains the execution gate and MALTS discovery pointer.
 - Confirm `AGENTS.md` records default write scope and the source-project boundary rule when a separate source project or external path was provided.
 - Confirm Chinese-facing `AGENTS.md` content includes the full authorization gate in Simplified Chinese or bilingual form, not only an English summary.
@@ -180,7 +180,7 @@ After writing, run read-only checks:
 - Confirm no sub-agent dispatch, long-running service, dependency install, or git state change occurred unless explicitly approved.
 - Show a concise summary and any remaining gaps.
 
-Use `git diff -- AGENTS.md CLAUDE.md PROJECT_CONTROL.md 项目控制.md WORK_TASK_REPORT.md 工作任务报告.md` when the workspace is a git repository and those files are tracked or newly created; do not stage or commit unless explicitly requested.
+Use `git diff -- AGENTS.md CLAUDE.md PROJECT_CONTROL.md WORK_TASK_REPORT.md PROJECT_HANDOFF.md` when the workspace is a git repository and those files are tracked or newly created; do not stage or commit unless explicitly requested.
 
 ## Relationship To Claude Code /init
 

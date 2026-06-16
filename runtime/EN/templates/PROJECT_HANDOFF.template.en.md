@@ -1,5 +1,16 @@
 # PROJECT_HANDOFF
 
+> Purpose: canonical continuation and recovery handoff.
+> Language policy: include a short English Agent Brief for machine/agent scanning, then write the rest in the user's or project's primary language. Do not create a full translated mirror unless the user explicitly asks for one.
+
+## Agent Brief
+
+- Goal:
+- Current status:
+- Allowed scope:
+- Last verification:
+- Next step:
+
 ## Identity And Anchors
 
 - Generated time:

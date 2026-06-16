@@ -1,7 +1,7 @@
 # PROJECT_CONTROL
 
 > Purpose: single source of truth for the current project state when MALTS is enabled.
-> When Chinese user-facing state is in scope, maintain the paired `项目控制.md` mirror.
+> Language policy: keep this as the only canonical control file by default. Use English headings, field names, status values, and identifiers; write narrative content in the user's or project's primary language. Do not create a full translated mirror unless the user explicitly asks for one.
 > Do not create MALTS control files for every trivial task by default. Create or reuse this file when the user enables MALTS, long-task scheduling is active, or a normal task grows complex enough to require recoverable state.
 
 ## Metadata
@@ -13,15 +13,15 @@
 - Maintainer: Main Controller
 - Current mode: Single-Agent / Multi-Agent Long-Task
 
-## Bilingual Control Mirror
+## Language And Structure
 
-Use this section when the project keeps both an Agent-facing English control file and a user-facing Chinese control file.
+Use this section to make the control-file language policy explicit.
 
-- Agent-facing control file: `PROJECT_CONTROL.md`
-- User-facing control file: `项目控制.md`
-- Source-of-truth policy: English is for Agent runtime reading; Chinese is for user review.
-- Synchronization rule: substantive state changes must be reflected in both files, or the reason for one side being N/A must be recorded.
-- Last sync check:
+- Canonical control file: `PROJECT_CONTROL.md`
+- Body language: English / Simplified Chinese / project language / mixed
+- Stable fields: keep headings, table headers, status values, task IDs, evidence levels, paths, and commands machine-readable.
+- Optional translated mirror: none by default; create only when explicitly requested.
+- Source-of-truth policy: `PROJECT_CONTROL.md` remains authoritative if an optional translated mirror exists.
 
 ## User Original Goal
 

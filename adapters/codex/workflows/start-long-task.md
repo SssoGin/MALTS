@@ -13,4 +13,3 @@ Required steps:
 5. Ask whether unattended auto-continue is authorized and record the answer.
 6. If multi-agent work is useful, show a launch review and wait for `确认运行`.
 7. Dispatch only bounded tasks with contracts and visible Codex subagent evidence.
-

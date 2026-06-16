@@ -1,5 +1,16 @@
 ﻿# 项目交接
 
+> 用途：canonical continuation and recovery handoff?
+> 语言策略：顶部保留简短 English Agent Brief，便于 Agent 扫描；其余内容使用用户或项目主要语言。除非用户明确要求，不生成完整翻译镜像。
+
+## Agent Brief
+
+- Goal:
+- Current status:
+- Allowed scope:
+- Last verification:
+- Next step:
+
 ## 身份与锚点
 
 - 生成时间：

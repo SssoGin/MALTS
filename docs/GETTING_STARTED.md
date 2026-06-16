@@ -9,7 +9,7 @@ MALTS adds a file-backed operating workflow for Agent-assisted coding work. It i
 | Problem | MALTS mechanism |
 |---|---|
 | The original goal becomes unclear during a long conversation. | Capture the original goal, current interpretation, completion definition, and acceptance criteria. |
-| Work cannot be recovered after a new window, interruption, or context loss. | Record state in `PROJECT_CONTROL.md`, phase results in `WORK_TASK_REPORT.md`, Chinese user-facing results in `工作任务报告.md` when required, and continuation context in `PROJECT_HANDOFF.md`. |
+| Work cannot be recovered after a new window, interruption, or context loss. | Record state in `PROJECT_CONTROL.md`, phase results in `WORK_TASK_REPORT.md` using the user's/project's language, and continuation context in `PROJECT_HANDOFF.md`. |
 | An Agent claims completion without enough evidence. | Use delivery and quality checklists, then record verification evidence before delivery. |
 | Multi-agent work creates coordination risk. | Require fit assessment, launch review, task contracts, explicit confirmation, dispatch records, and final reconciliation. |
 | Useful lessons become uncontrolled permanent rules. | Route lessons through the MALTS Memory Pipeline and memory-write checklist before durable promotion. |
@@ -121,8 +121,8 @@ The Agent should then:
 4. Create a task queue.
 5. Record decisions, file ownership, risks, and verification evidence.
 6. Write or append `WORK_TASK_REPORT.md` after a phase or final delivery.
-7. Write or append `工作任务报告.md` when Chinese user-facing output or bilingual mode is in scope.
-8. Update `PROJECT_HANDOFF.md` if another Agent or window needs to continue.
+7. Use the user's or project's primary language inside `WORK_TASK_REPORT.md`; create a translated mirror only when explicitly requested.
+8. Update `PROJECT_HANDOFF.md` with a short English Agent Brief if another Agent or window needs to continue.
 
 ## 7. Use Grill-Me Preflight When Requirements Are Unclear
 
@@ -167,7 +167,7 @@ Without that confirmation, MALTS remains single-agent.
 Useful checks:
 
 ```powershell
-python tools\agent_system_lint.py check-semantic-freshness --malts-root . --version 0.1.4
+python tools\agent_system_lint.py check-semantic-freshness --malts-root . --version 0.1.5
 python tools\agent_system_lint.py check-doc-sync --output-root runtime
 .\scripts\Install-MALTS.ps1 -Tool Codex
 ```

@@ -21,7 +21,7 @@
 - [ ] Folder additions, deletions, moves, renames, or purpose changes updated the related indexes/manuals/recovery docs, or the N/A reason is recorded.
 - [ ] Project workspace roots do not retain accidental global-skill/tool install copies. If such copies are found, they are either promoted to the correct global Agent path, documented as intentional project artifacts, or removed after verification.
 - [ ] If both `PROJECT_CONTROL.md` and a user-facing localized control file exist, their roles and latest synchronization status are recorded.
-- [ ] If Chinese user-facing reports or bilingual mode are in scope, `WORK_TASK_REPORT.md` and `工作任务报告.md` are present and substantively synchronized.
+- [ ] `WORK_TASK_REPORT.md` exists when a task or phase report is required; narrative uses the user's/project's language, and any full translated mirror exists only when explicitly requested.
 - [ ] For documentation sync work, source/target files, sync direction, and model/cost strategy were recorded.
 
 ## Verification Evidence

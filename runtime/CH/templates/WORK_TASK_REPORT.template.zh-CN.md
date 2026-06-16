@@ -1,14 +1,15 @@
 ﻿# WORK_TASK_REPORT
 
-> 用途：每次 MALTS 任务或阶段完成后的中文用户可读工作任务报告。对应 Agent-facing 结构源是 `WORK_TASK_REPORT.md` 和 `runtime/EN/templates/WORK_TASK_REPORT.template.en.md`。
+> 用途：每次 MALTS 任务或阶段完成后的 canonical 工作任务报告?
+> 语言策略：叙述正文使用用户或项目主要语言；标题、状态值、证据等级、命令、路径和 ID 保持稳定。除非用户明确要求，不生成完整翻译镜像。
 
 ## 结果
 
 - 状态：Completed / Partially Completed / Blocked / Failed
 - 白话结论：
 - 是否回应用户原始目标：
-- 是否需要英文结构报告：Yes / No；原因：
-- 英文结构报告路径：`WORK_TASK_REPORT.md` / N/A
+- 报告语言：
+- 是否明确请求可选翻译镜像：Yes / No；路径 / 原因：
 
 ## 做了什么
 
@@ -58,8 +59,7 @@
 ## 连续性与恢复
 
 - 是否已更新 `PROJECT_CONTROL` 或等价状态：Yes / No / N/A
-- 必要时是否已更新 `项目控制.md`：Yes / No / N/A
-- 必要时是否已更新 `WORK_TASK_REPORT.md`：Yes / No / N/A
+- 明确请求时，是否已更新可选翻译镜像：Yes / No / N/A
 - 已完成轮次：
 - 运行时长说明：不承诺固定一次性运行时长 / N/A
 - 恢复点：

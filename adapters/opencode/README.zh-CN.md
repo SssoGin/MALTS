@@ -31,14 +31,15 @@
 
 默认读取英文 runtime 文档。中文 runtime 镜像只在中文用户可读输出或双语同步进入范围时使用。
 
-中文用户场景的必需 MALTS 产物对：
+Canonical MALTS 产物：
 
 ```text
-PROJECT_CONTROL.md / 项目控制.md
-WORK_TASK_REPORT.md / 工作任务报告.md
+PROJECT_CONTROL.md
+WORK_TASK_REPORT.md
+PROJECT_HANDOFF.md
 ```
 
-中文用户可读 Markdown 应为有效 UTF-8。Windows 下优先 UTF-8 with BOM，除非本地项目约定冲突。
+`项目控制.md`、`工作任务报告.md`、`项目交接.md` 等翻译镜像是可选项；只在用户明确要求或外部流程要求完整翻译镜像时生成。中文用户可读 Markdown 应为有效 UTF-8。Windows 下优先 UTF-8 with BOM，除非本地项目约定冲突。
 
 ## 多 Agent 门禁
 

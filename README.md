@@ -36,7 +36,7 @@ MALTS responds by externalizing important state into files, defining completion 
 - Optional multi-agent launch review and role-based task dispatch
 - Verification checklists for delivery, memory writes, and quality gates
 - Agent-facing project handoffs through `PROJECT_HANDOFF.md`
-- Phase and final delivery reporting through `WORK_TASK_REPORT.md`; when Chinese user-facing output or bilingual mode is in scope, maintain the paired `工作任务报告.md`
+- Phase and final delivery reporting through `WORK_TASK_REPORT.md` in the user's or project's primary language; full translated mirrors are optional and explicit
 - Growth review and durable candidate handling through the MALTS Memory Pipeline
 - Canonical `SKILL.md` packages under `skills/`, installed to each supported Agent tool's local skill directory
 - Bilingual runtime templates under `runtime/EN` and `runtime/CH`
@@ -49,7 +49,7 @@ MALTS responds by externalizing important state into files, defining completion 
 |---|---|---|
 | Single-agent execution | On | Keep small and clear tasks low-overhead. |
 | `PROJECT_CONTROL.md` | Created when MALTS is enabled or recovery is needed | Preserve goal, queue, decisions, risks, ownership, and verification state. |
-| `WORK_TASK_REPORT.md` / `工作任务报告.md` | Used after MALTS phases or final delivery | Report result, checks, risks, and next steps. Keep both files when Chinese user-facing reports or bilingual mode are in scope. |
+| `WORK_TASK_REPORT.md` | Used after MALTS phases or final delivery | Report result, checks, risks, and next steps in the user's or project's primary language. |
 | `PROJECT_HANDOFF.md` | Used for continuation or context-risk handoff | Provide Agent-facing recovery context. |
 | Grill-Me Preflight | Offered for non-trivial or unclear starts | Expose assumptions, goal boundaries, tradeoffs, and acceptance criteria before implementation. |
 | Multi-agent scheduling | Off | Add controlled delegation only when exploration, verification, parallelism, or recovery value justifies it. |
@@ -60,15 +60,13 @@ MALTS responds by externalizing important state into files, defining completion 
 
 MALTS files are not created by default for every task. For small work, stay single-agent and use the normal project instructions.
 
-When MALTS is enabled or a task grows into recoverable long-task mode, create or reuse `PROJECT_CONTROL.md` in the project root. For Chinese users or bilingual project mode, create and maintain `项目控制.md` as the Chinese mirror. Each MALTS phase or final delivery should write or append `WORK_TASK_REPORT.md`; when Chinese user-facing output is in scope, write or append the paired `工作任务报告.md`. Use `PROJECT_HANDOFF.md` when a future Agent needs to continue from the recorded state.
+When MALTS is enabled or a task grows into recoverable long-task mode, create or reuse `PROJECT_CONTROL.md` in the project root as the canonical control file. Each MALTS phase or final delivery should write or append `WORK_TASK_REPORT.md` in the user's or project's primary language. Use `PROJECT_HANDOFF.md` when a future Agent needs to continue from the recorded state; include a short English Agent Brief at the top. Full translated mirrors such as `项目控制.md`, `工作任务报告.md`, or `项目交接.md` are optional and should be created only when explicitly requested.
 
 | File | Default Role |
 |---|---|
-| `PROJECT_CONTROL.md` | Agent-facing project state and task queue |
-| `项目控制.md` | Simplified Chinese project-control mirror when Chinese user-facing state is in scope |
-| `WORK_TASK_REPORT.md` | Agent-facing structure and phase/final report source |
-| `工作任务报告.md` | Simplified Chinese user-facing phase/final report when Chinese output or bilingual mode is in scope |
-| `PROJECT_HANDOFF.md` | Agent-facing continuation and recovery source |
+| `PROJECT_CONTROL.md` | Canonical project state and task queue; narrative may use the user's/project's language |
+| `WORK_TASK_REPORT.md` | Canonical phase/final report and verification evidence |
+| `PROJECT_HANDOFF.md` | Canonical continuation and recovery source with a short English Agent Brief |
 
 ## Repository Layout
 
@@ -158,14 +156,14 @@ Maintainers can verify a real temporary install layout with:
 
 ## Documentation Language
 
-The public repository defaults to English source documents for Agent execution. Simplified Chinese public docs live under `docs/zh-CN/`, and runtime Chinese mirrors live under `runtime/CH/`. Bilingual runtime artifact pairs are normative when Chinese user-facing output or bilingual mode is in scope; Agents should still avoid loading both languages during ordinary execution unless synchronization or Chinese output is required. See [docs/BILINGUAL_DOCS.md](docs/BILINGUAL_DOCS.md).
+The public repository defaults to English source documents for Agent execution. Simplified Chinese public docs live under `docs/zh-CN/`, and localized runtime references live under `runtime/CH/`. Runtime project artifacts are single canonical files by default; write narrative content in the user's/project's language and create full translated mirrors only when explicitly requested. See [docs/BILINGUAL_DOCS.md](docs/BILINGUAL_DOCS.md).
 
 ## Version
 
 Current release version:
 
 ```text
-0.1.4
+0.1.5
 ```
 
 ## License

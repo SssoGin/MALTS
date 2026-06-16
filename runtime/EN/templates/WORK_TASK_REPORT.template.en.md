@@ -1,14 +1,15 @@
 # WORK_TASK_REPORT
 
-> Purpose: Agent-facing structure and evidence report after each completed MALTS task or phase. When Chinese user-facing output or bilingual mode is in scope, maintain the paired `工作任务报告.md` mirror from `runtime/CH/templates/WORK_TASK_REPORT.template.zh-CN.md`.
+> Purpose: canonical task or phase report after each completed MALTS task or phase.
+> Language policy: use the user's or project's primary language for narrative content, while keeping headings, status values, evidence levels, commands, paths, and IDs stable. Do not create a full translated mirror unless the user explicitly asks for one.
 
 ## Result
 
 - Status: Completed / Partially Completed / Blocked / Failed
 - Plain-language conclusion:
 - User original goal addressed:
-- Paired Chinese report required: Yes / No; reason:
-- Paired Chinese report path: `工作任务报告.md` / N/A
+- Report language:
+- Optional translated mirror requested: Yes / No; path / reason:
 
 ## What Was Done
 
@@ -46,7 +47,7 @@
 - Long-term memory decision: Do not write / Local candidate / Proposed global rule / Written after checklist
 - Destination or record location:
 - GLOBAL_MEMORY entry ID or fallback location:
-- Lifecycle check: <any GLOBAL_MEMORY entries ready for promotion? experimental→stable after 3+ verified uses. stable→deprecated after 90 days unverified.>
+- Lifecycle check: <any GLOBAL_MEMORY entries ready for promotion? experimental -> stable after 3+ verified uses. stable -> deprecated after 90 days unverified.>
 
 ## MALTS Memory Pipeline
 
@@ -58,8 +59,7 @@
 ## Continuity And Recovery
 
 - Was `PROJECT_CONTROL` or equivalent state updated: Yes / No / N/A
-- Was `项目控制.md` updated when required: Yes / No / N/A
-- Was `工作任务报告.md` updated when required: Yes / No / N/A
+- Was an optional translated mirror updated when explicitly requested: Yes / No / N/A
 - Round completed:
 - Runtime duration note: no fixed one-shot runtime guarantee / N/A
 - Recovery point:

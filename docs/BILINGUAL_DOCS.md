@@ -1,47 +1,60 @@
-# Bilingual Documentation And Runtime Artifact Sync
+# Bilingual Documentation And Runtime Language Policy
 
-MALTS defaults to English runtime documents for Agent execution.
+MALTS defaults to English source documents for public release docs and Agent execution docs.
 
-Chinese public documents and runtime mirrors are not independent sources of truth, but some bilingual artifacts are normative when Chinese user-facing output or bilingual mode is in scope.
+Project runtime artifacts are single canonical files by default. `PROJECT_CONTROL.md`, `WORK_TASK_REPORT.md`, and `PROJECT_HANDOFF.md` may use the user's or project's primary language for narrative content while keeping stable headings, fields, status values, IDs, paths, commands, and evidence levels readable for Agents.
 
-## Normative Pairs
+## Canonical Runtime Artifacts
 
-These pairs must be created and kept substantively synchronized when the project uses Chinese user-facing state or bilingual mode:
+Use these files by default:
 
-- `PROJECT_CONTROL.md` and `项目控制.md`
-- `WORK_TASK_REPORT.md` and `工作任务报告.md`
-- `PROJECT_HANDOFF.md` and `项目交接.md` when a Chinese handoff mirror is requested or required by the project
+- `PROJECT_CONTROL.md`
+- `WORK_TASK_REPORT.md`
+- `PROJECT_HANDOFF.md`
 
-Runtime template and checklist mirrors are maintained in the release package:
+Do not create full translated mirrors by default. Optional translated mirrors such as `项目控制.md`, `工作任务报告.md`, or `项目交接.md` are created only when the user explicitly asks for a separate translated file or an external workflow requires one. If a mirror exists and conflicts with the canonical file, treat the canonical file as authoritative.
+
+## Public Documentation Mirrors
+
+Public docs may still have English and Simplified Chinese pairs:
+
+```text
+docs/
+docs/zh-CN/
+```
+
+Runtime template and checklist references are maintained in:
 
 ```text
 runtime/EN/
 runtime/CH/
 ```
 
+These CH files are localized references, not a requirement to generate duplicate project artifacts.
+
 ## Rules
 
-- English runtime docs are the release source of truth.
-- Chinese docs and runtime mirrors are user-facing review mirrors, not independent sources.
+- English public docs and runtime EN docs are the release source of truth.
+- Chinese docs and runtime CH files are user-facing review/reference mirrors, not independent sources.
 - Agents should not load both EN and CH docs during normal execution.
-- Read or update CH docs when the user explicitly asks for Chinese review, Chinese output, comparison, or bilingual synchronization.
-- Do not downgrade required bilingual runtime artifacts into optional polish when the current user or project operates in Chinese.
+- Read or update CH docs when the user explicitly asks for Chinese review, Chinese editing, comparison, or public documentation synchronization.
+- Keep runtime project artifacts single-source by default; put Chinese narrative inside the canonical file instead of generating a duplicate mirror.
 - Critical protocol changes must be reviewed for meaning, not only translated mechanically.
-- If EN and CH conflict, fix the English source first, then resynchronize the Chinese review copy.
-- Chinese-facing docs, templates, and reports should be valid UTF-8. On Windows, prefer UTF-8 with BOM for Chinese-facing Markdown unless the surrounding project convention conflicts.
+- If EN and CH public docs conflict, fix the English source first, then resynchronize the Chinese review copy.
+- Chinese-facing docs, templates, and optional mirrors should be valid UTF-8. On Windows, prefer UTF-8 with BOM for Chinese-facing Markdown unless the surrounding project convention conflicts.
 
 ## Tooling
 
 `tools/agent_system_lint.py check-doc-sync` does not require CH docs by default.
-With `--require-ch`, it checks configured document pairs and requires each Chinese document to match the English heading count and heading-level sequence. When the document root is `runtime`, the built-in runtime EN/CH pairs are checked even without a manifest. It does not prove translation quality or semantic parity.
+With `--require-ch`, it checks configured public document pairs and runtime reference pairs. It does not prove translation quality or semantic parity.
 
-The default runtime check stays English-only:
+Default runtime check:
 
 ```powershell
 python tools/agent_system_lint.py check-doc-sync --output-root runtime
 ```
 
-Require runtime Chinese mirrors:
+Check runtime localized references:
 
 ```powershell
 python tools/agent_system_lint.py check-doc-sync --output-root runtime --require-ch

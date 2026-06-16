@@ -9,21 +9,21 @@ Use this skill when the user asks for a handoff, project handoff, next-Agent sum
 
 ## Output Policy
 
-Default Agent-facing output:
+Default canonical output:
 
 ```text
 <PROJECT_ROOT>/PROJECT_HANDOFF.md
 ```
 
-Optional user-facing Chinese mirror:
+`PROJECT_HANDOFF.md` is the single handoff source of truth by default. Include a short English `Agent Brief` at the top for machine/agent scanning, then write the remaining sections in the user's or project's primary language.
+
+Optional full translated mirror:
 
 ```text
 <PROJECT_ROOT>/项目交接.md
 ```
 
-Write the Agent-facing file first. Write the Chinese mirror only when the user explicitly asks for Chinese output or bilingual handoff sync.
-
-`PROJECT_HANDOFF.md` is the Agent-facing source of truth. `项目交接.md` is only an optional user-facing Chinese mirror. If both files exist and conflict, treat `PROJECT_HANDOFF.md` as authoritative and update the mirror.
+Create or update the optional mirror only when the user explicitly asks for Chinese handoff output as a separate file or a workflow requires a full translated copy. If both files exist and conflict, treat `PROJECT_HANDOFF.md` as authoritative.
 
 ## Privacy Rules
 
@@ -44,11 +44,12 @@ For public examples, use placeholders such as:
 3. Read relevant project instructions, `PROJECT_CONTROL.md`, current handoff, and key files.
 4. Distinguish verified current facts from historical claims.
 5. Write `PROJECT_HANDOFF.md`.
-6. Optionally write `项目交接.md`.
+6. Optionally write `项目交接.md` only when explicitly requested.
 7. Verify the output files exist before answering.
 
 ## Required Content
 
+- English Agent Brief
 - generated time
 - workspace or project root
 - source context reviewed
@@ -58,4 +59,3 @@ For public examples, use placeholders such as:
 - known risks
 - verification already performed
 - next recommended steps
-

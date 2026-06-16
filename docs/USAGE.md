@@ -17,8 +17,8 @@ For larger work, enable MALTS and:
 4. Record file ownership when multiple workers are possible.
 5. Verify before marking work done.
 6. Write or append `WORK_TASK_REPORT.md` after each phase or final delivery.
-7. Write or append `工作任务报告.md` when Chinese user-facing output or bilingual mode is in scope.
-8. Update `PROJECT_HANDOFF.md` before handoff or context risk.
+7. Use the user's or project's primary language inside `WORK_TASK_REPORT.md`; create a translated mirror only when explicitly requested.
+8. Update `PROJECT_HANDOFF.md` before handoff or context risk, with a short English Agent Brief at the top.
 
 Single-agent first means the main controller keeps ownership by default after MALTS is enabled. Multi-agent scheduling is a controlled division-of-work mechanism enabled only when needed; use it only when it reduces risk, improves independent verification, or makes non-conflicting work practical.
 
@@ -35,7 +35,7 @@ Multi-agent mode is optional. It requires:
 
 ## Growth And Memory
 
-Use the MALTS Memory Pipeline for reusable lessons. Record candidates first in durable project state, such as `PROJECT_CONTROL.md`, `WORK_TASK_REPORT.md`, `工作任务报告.md`, or a local retrospective. Promote only filtered, reusable candidates to a global skill, `GLOBAL_MEMORY.md`, `AGENTS.md`, `CLAUDE.md`, or an equivalent tool instruction entry.
+Use the MALTS Memory Pipeline for reusable lessons. Record candidates first in durable project state, such as `PROJECT_CONTROL.md`, `WORK_TASK_REPORT.md`, or a local retrospective. Promote only filtered, reusable candidates to a global skill, `GLOBAL_MEMORY.md`, `AGENTS.md`, `CLAUDE.md`, or an equivalent tool instruction entry.
 
 ## Handoff
 

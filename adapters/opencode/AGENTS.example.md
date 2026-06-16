@@ -168,8 +168,8 @@ Read Chinese docs only when the user explicitly asks for Chinese review, Chinese
 Cross-project stable rules:
 
 1. **Read runtime docs before initialization.** When initializing MALTS for a new project, read the relevant runtime docs, templates, and checklists before writing project-level `AGENTS.md`.
-2. **Create bilingual control files together when required.** If the project uses both `PROJECT_CONTROL.md` and `项目控制.md`, create and update them together. Do not defer the Chinese mirror after substantive work begins.
-3. **Create bilingual work reports together when Chinese users or bilingual mode are in scope.** `WORK_TASK_REPORT.md` is Agent-facing structure; `工作任务报告.md` is the Simplified Chinese user-facing mirror. Do not treat the Chinese report as optional polish when the project is operating for a Chinese user.
+2. **Use `PROJECT_CONTROL.md` as the canonical control file.** Write narrative in the user's or project's primary language; create or update a translated mirror only when explicitly requested.
+3. **Use `WORK_TASK_REPORT.md` as the canonical task or phase report.** Write user-facing narrative there; create a full translated report mirror only when explicitly requested.
 4. **Write growth candidates down.** Durable lessons must be recorded in project control files or reports before being promoted to global rules or memory.
 5. **Sync adapter/doc patches across tools.** When modifying adapter READMEs, templates, checklists, or protocol docs, check Codex, Claude Code, and OpenCode together. If one tool is skipped, record why.
 6. **Keep ordinary documentation sync cost-aware.** Use scripts or structured checks first. Candidate translations or gap fills can be low-cost, but critical protocol, safety, permission, memory, unattended, dispatch, and final-merge semantics require main-controller or high-confidence review.
@@ -236,7 +236,7 @@ When the user asks to rebuild, refresh, generate, or package an Agent tool migra
 - `skills/session-handoff/SKILL.md`
 - `runtime/EN/templates/PROJECT_CONTROL.template.en.md`
 - `runtime/EN/templates/WORK_TASK_REPORT.template.en.md`
-- `runtime/CH/templates/WORK_TASK_REPORT.template.zh-CN.md` when Chinese user-facing reports are required
+- `runtime/CH/templates/WORK_TASK_REPORT.template.zh-CN.md` only as a localized reference or explicit translated-mirror template
 - `runtime/EN/templates/PROJECT_HANDOFF.template.en.md`
 - `runtime/EN/checklists/QUALITY_GATE.en.md`
 - `runtime/EN/checklists/DELIVERY_CHECKLIST.en.md`

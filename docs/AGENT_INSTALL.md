@@ -24,7 +24,7 @@ The Agent must not install all included adapters unless the user chooses `AllInc
 9. Default to dry-run.
 10. Do not overwrite existing files without explicit confirmation.
 11. Do not read or copy secrets, sessions, memory dumps, or user-specific generated state.
-12. Ask whether to enable bilingual documentation sync; default is disabled for public docs, but bilingual runtime artifact pairs are required when Chinese user-facing output is in scope.
+12. Ask whether to enable bilingual documentation sync for public docs; default runtime project artifacts remain single canonical files, with optional translated mirrors only on explicit request.
 13. Run verification after installation.
 14. Report exactly what changed.
 
@@ -92,4 +92,4 @@ On Windows, do not rely on the system default encoding. Scripts, command output,
 
 ## Bilingual Docs
 
-If the user enables bilingual documentation sync, the Agent should follow `docs/BILINGUAL_DOCS.md`. Chinese docs are user-facing references and are not default runtime context. When the current user or project operates in Chinese, `PROJECT_CONTROL.md` / `项目控制.md` and `WORK_TASK_REPORT.md` / `工作任务报告.md` are normative artifact pairs, not optional polish.
+If the user enables bilingual documentation sync, the Agent should follow `docs/BILINGUAL_DOCS.md`. Chinese docs are user-facing references and are not default runtime context. Project runtime artifacts are single canonical files by default: put Chinese narrative in `PROJECT_CONTROL.md`, `WORK_TASK_REPORT.md`, and `PROJECT_HANDOFF.md`, and create full translated mirrors only when explicitly requested.

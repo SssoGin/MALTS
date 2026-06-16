@@ -24,7 +24,7 @@ AllIncluded
 9. 默认 dry-run。
 10. 未经明确确认，不覆盖已有文件。
 11. 不读取或复制 secrets、sessions、memory dumps 或用户特定生成状态。
-12. 询问是否启用双语文档同步；公开 docs 默认关闭，但中文用户可读输出在范围内时，双语 runtime artifact pairs 是规范要求。
+12. 询问是否启用公开 docs 的双语文档同步；默认 runtime 项目产物保持单 canonical 文件，完整翻译镜像只在明确要求时生成。
 13. 安装后运行验证。
 14. 准确报告改动。
 
@@ -92,4 +92,4 @@ Windows 环境下不要依赖系统默认编码。脚本读写文本、命令行
 
 ## 双语文档
 
-如果用户启用双语文档同步，Agent 应遵循 [双语文档规则](BILINGUAL_DOCS.md)。中文文档是 user-facing 参考，不是默认 runtime context。当前用户或项目以中文运行时，`PROJECT_CONTROL.md` / `项目控制.md` 和 `WORK_TASK_REPORT.md` / `工作任务报告.md` 是规范产物对，不是可选润色。
+如果用户启用双语文档同步，Agent 应遵循 [双语文档规则](BILINGUAL_DOCS.md)。中文文档是 user-facing 参考，不是默认 runtime context。项目运行产物默认是单 canonical 文件：中文叙述直接写入 `PROJECT_CONTROL.md`、`WORK_TASK_REPORT.md`、`PROJECT_HANDOFF.md`，完整翻译镜像只在明确要求时生成。

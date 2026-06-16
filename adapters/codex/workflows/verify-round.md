@@ -10,4 +10,3 @@ Required checks:
 4. Check that `WORK_TASK_REPORT.md` and `工作任务报告.md` are synchronized when both exist.
 5. Verify adapter parity across Codex, Claude Code, and OpenCode when protocol, template, checklist, or adapter behavior changed.
 6. Record skipped checks and residual risks.
-

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.5
+
+Patch release for token-efficient runtime artifacts and handoff recovery.
+
+- Made `PROJECT_CONTROL.md`, `WORK_TASK_REPORT.md`, and `PROJECT_HANDOFF.md` the default canonical runtime artifacts.
+- Clarified that translated mirrors such as `项目控制.md`, `工作任务报告.md`, and `项目交接.md` are optional and created only when explicitly requested or externally required.
+- Added a short English Agent Brief requirement to `PROJECT_HANDOFF.md` while allowing the main body to use the user's or project's primary language.
+- Updated MALTS init, long-task scheduling, session handoff, adapter README, public docs, templates, and checklists to match the single-canonical-document policy.
+- Preserved EN/CH public documentation synchronization without requiring duplicate runtime reports by default.
+
 ## 0.1.4
 
 Patch release for shared-root installation and lighter tool adapters.

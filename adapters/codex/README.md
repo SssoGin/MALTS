@@ -30,16 +30,17 @@ Review existing user files before copying. Do not overwrite without explicit con
 
 ## Runtime Rule
 
-English runtime docs are default. Chinese runtime mirrors are used when Chinese user-facing output or bilingual synchronization is in scope.
+English runtime docs are default. Localized CH runtime references are used only for explicit Chinese review, editing, or documentation synchronization.
 
-Required MALTS artifact pairs for Chinese users:
+Canonical MALTS artifacts:
 
 ```text
-PROJECT_CONTROL.md / 项目控制.md
-WORK_TASK_REPORT.md / 工作任务报告.md
+PROJECT_CONTROL.md
+WORK_TASK_REPORT.md
+PROJECT_HANDOFF.md
 ```
 
-Chinese-facing Markdown should be valid UTF-8. On Windows, prefer UTF-8 with BOM unless the local project convention conflicts.
+Translated mirrors such as `项目控制.md`, `工作任务报告.md`, and `项目交接.md` are optional; create them only when explicitly requested or when an external workflow requires a full translated mirror. Chinese-facing Markdown should be valid UTF-8. On Windows, prefer UTF-8 with BOM unless the local project convention conflicts.
 
 ## Multi-Agent Gate
 
