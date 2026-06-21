@@ -163,7 +163,7 @@ The public repository defaults to English source documents for Agent execution. 
 Current release version:
 
 ```text
-0.1.5
+0.1.6
 ```
 
 ## License

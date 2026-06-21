@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.6
+
+Patch release for canonical runtime artifact enforcement.
+
+- Fixed Claude Code long-task startup so translated control mirrors are created only when explicitly requested.
+- Updated Codex smoke testing to require canonical control and report artifacts by default.
+- Added semantic freshness guards against legacy rules that create translated runtime artifacts automatically.
+- Updated version metadata and release verification examples.
+
 ## 0.1.5
 
 Patch release for token-efficient runtime artifacts and handoff recovery.

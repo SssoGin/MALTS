@@ -7,7 +7,7 @@ Pre-check: If the project has no CLAUDE.md or PROJECT_CONTROL.md yet, suggest ru
 Instructions:
 
 1. Read English runtime docs only.
-2. Create or update `PROJECT_CONTROL.md` (and `项目控制.md` if it does not exist).
+2. Create or update canonical `PROJECT_CONTROL.md`; create or update `项目控制.md` only when the user explicitly requests a translated mirror.
 3. Capture the user original goal.
 4. Define completion and acceptance criteria.
 5. Build the initial task queue.

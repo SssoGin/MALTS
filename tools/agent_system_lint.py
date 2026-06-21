@@ -864,6 +864,8 @@ def check_semantic_freshness(malts_root: Path, version: str | None) -> int:
         "0.1.0-" + "pri" + "vate",
         "pri" + "vate release-" + "preparation",
         "pri" + "vate " + "preparation",
+        "verify " + "bilingual control/report artifacts",
+        "`PROJECT_CONTROL.md` (and " + "`项目控制.md` if it does not exist)",
         "\u0418\u00b7\u0418\u041f\u0424\u041b\u0420\u0420",
         "\u040e\u044a",
         "\u7ead",
