@@ -15,7 +15,7 @@ This guide describes public-safe maintenance rules for MALTS. It is for humans a
 Allowed:
 
 - public docs
-- root `skills/` as the only public skill source
+- root `skills/` as the only public skill implementation source
 - English runtime templates and checklists
 - optional adapters
 - lightweight tools
@@ -125,9 +125,11 @@ MALTS public releases maintain one canonical skill source:
 <MALTS_ROOT>\skills\
 ```
 
-The installer creates or updates one shared `MALTS_ROOT` and points each selected tool at that root through `MALTS_BOOT.md`. Tool config directories are thin adapter targets and must not receive full `malts\` runtime copies or tool-local `skills\` duplicates.
+The installer creates or updates one shared `MALTS_ROOT` and points each selected tool at that root through `MALTS_BOOT.md`. Tool config directories are thin adapter targets: they receive discovery-only skill bridges, but must not receive full `malts\` runtime copies or full skill implementation duplicates.
 
 Keep public skills in the shared root directory, and keep adapter directories limited to tool-specific instruction templates, commands, agents, and configuration. Target tool directories are installation targets, not release-package facts.
+
+All three public instruction examples must contain exactly one matching MALTS managed marker pair. Installer changes must prove append, in-place block update, legacy migration, idempotency, BOM/newline preservation, `Skip`, and explicit `Replace` behavior before release.
 
 ## Versioning
 

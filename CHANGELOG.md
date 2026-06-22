@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.7
+
+Patch release for lightweight discovery, safer updates, and managed instruction merging.
+
+- Added lightweight native skill-discovery bridges for Codex, Claude Code, and OpenCode while keeping shared `MALTS_ROOT\skills` as the only implementation source.
+- Added default managed-block merging for `AGENTS.md` and `CLAUDE.md`, including safe legacy migration, idempotency, and explicit `Skip` or `Replace` modes.
+- Moved tool-file conflict detection ahead of instruction writes to prevent partial installs.
+- Made `MergeSafe` preserve user-modified tool configuration and added hash-based managed manifests for stale-file cleanup.
+- Decoupled `-TargetRoot` from the default shared root and rejected nested shared/tool layouts.
+- Made no-update runs skip installation unless `-Reinstall` is explicit.
+- Added update-safety regression coverage and synchronized EN/CH installation guidance.
+
 ## 0.1.6
 
 Patch release for canonical runtime artifact enforcement.

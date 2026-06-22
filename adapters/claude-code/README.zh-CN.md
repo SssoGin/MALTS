@@ -24,8 +24,11 @@
 - `.claude/agents/`：Claude Code agents。
 - `.claude/commands/`：Claude Code commands。
 - 安装器生成的 `MALTS_BOOT.md`，指向共享 `MALTS_ROOT`。
+- `skills/<name>/SKILL.md`：路由到共享实现的轻量发现 bridge。
 
-安装会把 `CLAUDE.example.md` 映射为 `CLAUDE.md`，安装 Claude Code scaffold，安装一份共享 `MALTS_ROOT`，并生成 `MALTS_BOOT.md`。默认不会在工具目录下创建完整 `malts/` runtime 副本。
+安装会把 `CLAUDE.example.md` 映射为 `CLAUDE.md`，安装 Claude Code scaffold，安装一份共享 `MALTS_ROOT`，生成 `MALTS_BOOT.md`，并安装发现 bridge。工具目录不会包含完整 runtime 或 skill 实现副本。
+
+默认 `ManagedMerge` 只更新 `CLAUDE.md` 中带标记的 MALTS 指令区块，并保留区块外用户规则。需要完全不改时使用 `InstructionMode Skip`；整份 `Replace` 必须显式搭配 `Overwrite`。
 
 ## Runtime 规则
 

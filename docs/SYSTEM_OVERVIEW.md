@@ -70,7 +70,7 @@ The runtime checklists define delivery and quality checks. They do not prove tha
 
 ### Skills, Templates, And Checklists
 
-Root `skills/` is the canonical source for MALTS `SKILL.md` workflows such as Grill-Me Preflight, multi-agent scheduling, session handoff, retrospective growth, lightweight single-agent growth, and project initialization. The installer copies these skills into each supported tool's local skill directory.
+Root `skills/` is the canonical implementation source for MALTS `SKILL.md` workflows such as Grill-Me Preflight, multi-agent scheduling, session handoff, retrospective growth, lightweight single-agent growth, and project initialization. The installer puts only lightweight discovery bridges in each supported tool's native skill directory; each bridge resolves `MALTS_BOOT.md` and delegates to the shared implementation.
 
 `runtime/EN/templates` and `runtime/EN/checklists` define the expected shape of task contracts, reports, handoff files, project control files, and verification gates. They complement the root skill packages without changing the public skill source.
 
@@ -84,7 +84,7 @@ MALTS is intentionally single-agent first. Optional capabilities are enabled onl
 | Multi-agent scheduling | Off | Independent exploration, verification, or parallel work reduces risk or cost | Requires launch review and explicit `确认运行` |
 | Bilingual documentation sync | Off | A project needs user-facing Chinese review mirrors | English release docs remain the default runtime source |
 | Memory Pipeline | Available | A lesson is reusable beyond the current task | Requires filtering and destination selection |
-| Adapter instruction templates | Optional | A supported Agent tool should remember MALTS behavior | Must be reviewed and merged with existing local instructions |
+| Adapter instruction templates | Optional | A supported Agent tool should remember MALTS behavior | Default managed-block merge preserves user-owned surrounding text |
 | Git-based recovery | Optional | Source control can improve rollback or review safety | MALTS does not require Git |
 
 ## 6. Supported Tool Adapters
@@ -98,6 +98,8 @@ MALTS separates the core workflow from tool-specific installation details.
 | OpenCode | `AGENTS.md` | Adds OpenCode-specific configuration and optional agent scaffold; resolves MALTS through shared `MALTS_ROOT`. |
 
 Adapter documents should stay synchronized unless a change applies to only one runtime. Tool differences are adapter-layer concerns and should not change the core MALTS model.
+
+Each instruction template marks the MALTS-owned block explicitly. Updates replace only that block, append it when absent, or migrate one recognizable legacy discovery section. `Skip` leaves the file untouched; full-file `Replace` is opt-in.
 
 ## 7. Typical Use Cases
 

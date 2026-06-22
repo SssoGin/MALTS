@@ -17,7 +17,7 @@
 允许进入公开包：
 
 - public docs
-- 根级 `skills/` 作为唯一公开 skill source
+- 根级 `skills/` 作为唯一公开 skill 实现 source
 - English runtime templates 和 checklists
 - optional adapters
 - lightweight tools
@@ -127,9 +127,11 @@ MALTS public releases 维护一个 canonical skill source：
 <MALTS_ROOT>\skills\
 ```
 
-安装器创建或更新一份共享 `MALTS_ROOT`，并通过 `MALTS_BOOT.md` 让每个选中的工具指向该 root。工具配置目录是薄 adapter target，不得接收完整 `malts\` runtime 副本或工具本地 `skills\` 重复源。
+安装器创建或更新一份共享 `MALTS_ROOT`，并通过 `MALTS_BOOT.md` 让每个选中的工具指向该 root。工具配置目录是薄 adapter target：可以接收发现型 skill bridge，但不得接收完整 `malts\` runtime 副本或完整 skill 实现重复源。
 
 Public skills 保持在共享 root 中；adapter 目录只保存工具特定的指令模板、commands、agents 和配置。目标工具目录是安装目标，不是 release-package facts。
+
+三份公开指令示例都必须且只能包含一对匹配的 MALTS managed markers。发布 installer 变更前，必须验证追加、区块内更新、旧格式迁移、幂等、BOM/换行保留、`Skip` 和显式 `Replace` 行为。
 
 ## 版本规则
 

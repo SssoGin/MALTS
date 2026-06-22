@@ -42,6 +42,13 @@ For MALTS-enabled project initialization, read the shared skills, templates, and
 
 If creating the first MALTS project-level `AGENTS.md`, also inspect the relevant files under `<MALTS_ROOT>\skills\`, `<MALTS_ROOT>\runtime\EN\templates\`, and `<MALTS_ROOT>\runtime\EN\checklists\` so the generated file does not omit required deliverables such as `WORK_TASK_REPORT`, Growth Review tiers, and checklist references.
 
+When the initialization language profile selects Simplified Chinese, also read these localized drafting references before writing canonical project artifacts:
+
+```text
+<MALTS_ROOT>\runtime\CH\templates\PROJECT_CONTROL.template.zh-CN.md
+<MALTS_ROOT>\runtime\CH\templates\WORK_TASK_REPORT.template.zh-CN.md
+```
+
 ### 2. Inspect The Workspace
 
 Read only. Check for:
@@ -53,6 +60,21 @@ Read only. Check for:
 - If future source-project writes are likely, discover but do not summarize away the relevant layered instruction files. Record that before writing a source path the agent must re-read the source root and nearest target-path instructions such as `AGENTS.md`, `CLAUDE.md`, `.claude\CLAUDE.md`, nested `AGENTS.md` / `CLAUDE.md`, `.cursorrules`, `.windsurfrules`, `.devin\rules\`, and tool-specific config.
 
 Do not infer project conventions that can be verified from files. Do not overwrite existing instructions; plan a surgical merge.
+
+### 2.1 Determine The Initialization Language Profile
+
+During read-only discovery, determine and record:
+
+- `NarrativeLanguage`: the user's or project's primary language for visible headings, prose, plans, risks, decisions, and report content.
+- `StableSchemaLanguage`: keep `MALTS:section` markers, status values, IDs, evidence levels, paths, commands, and code literals stable and English-compatible.
+- `TemplateRoute`: use the matching localized runtime template as the drafting source when one exists; use the EN template as the structural fallback.
+
+For a Simplified Chinese user or Chinese-facing workspace:
+
+- Write project-specific `AGENTS.md` headings and explanatory prose in Simplified Chinese, while preserving code, commands, paths, variables, model names, and proper nouns.
+- Draft canonical `PROJECT_CONTROL.md` from `runtime\CH\templates\PROJECT_CONTROL.template.zh-CN.md`.
+- Draft canonical `WORK_TASK_REPORT.md` from `runtime\CH\templates\WORK_TASK_REPORT.template.zh-CN.md`.
+- Keep the canonical filenames unchanged. Do not create `项目控制.md` or `工作任务报告.md` unless the user explicitly requests a full translated mirror.
 
 ### 3. Offer Preflight When Appropriate
 
@@ -77,6 +99,7 @@ Before writing, state:
 - The default write scope for the init round.
 - Any source project paths that are read-only context, and the exact authorization required before writing to them.
 - Project assumptions discovered from files.
+- The selected `NarrativeLanguage`, `StableSchemaLanguage`, and `TemplateRoute`.
 - Verification checks to run after writing.
 
 Then stop and wait for explicit authorization unless it has already been given for this exact plan.
@@ -86,8 +109,8 @@ Then stop and wait for explicit authorization unless it has already been given f
 Default outputs:
 
 - `AGENTS.md`: primary project-level instructions for Codex and compatible agents.
-- `PROJECT_CONTROL.md`: canonical project control file. Use English headings, field names, status values, task IDs, paths, and commands; write narrative content in the user's or project's primary language.
-- `WORK_TASK_REPORT.md`: canonical lightweight task execution report scaffold for future work logs and verification records. Use the user's or project's primary language for narrative content while keeping stable structure fields.
+- `PROJECT_CONTROL.md`: canonical project control file. Use the selected localized template for visible headings and narrative content; keep `MALTS:section` markers, status values, task IDs, evidence levels, paths, and commands stable.
+- `WORK_TASK_REPORT.md`: canonical lightweight task execution report scaffold for future work logs and verification records. Use the selected localized template and the user's or project's primary language while keeping stable structure fields.
 - `PROJECT_HANDOFF.md`: create only for handoff or context-risk workflows, not during default initialization. When created, include a short English Agent Brief and then use the user's or project's primary language.
 - Optional translated mirrors (`项目控制.md`, `工作任务报告.md`, `项目交接.md`): create only when the user explicitly asks for full translated mirrors or an external workflow requires them.
 - `CLAUDE.md`: optional compatibility shim, usually:
@@ -106,6 +129,7 @@ Keep `AGENTS.md` concise and project-specific. Include:
 
 - A top-priority answer/execution separation gate if not already present. For Chinese users or Chinese-facing workspaces, write this gate in Simplified Chinese or bilingual form, including non-authorization examples, the rule that authorization must respond to the latest concrete plan, scope limits, and violation recovery.
 - Default Simplified Chinese response preference, while preserving code, commands, paths, variables, and proper nouns.
+- For Chinese-facing projects, Simplified Chinese visible headings and project-specific explanatory prose; do not copy the English adapter example wholesale into the project file.
 - Project facts discovered from the workspace.
 - Build, test, lint, and verification commands only when verified.
 - Default write scope: unless the user explicitly authorizes a source project path or other external path, state-changing writes are limited to the initialized workspace and the files named in the approved plan.
@@ -130,6 +154,8 @@ Avoid:
 ### 7. Required Control File Content
 
 Create or reuse `PROJECT_CONTROL.md` as the single canonical control file. Do not create a full translated mirror by default. If an optional translated mirror already exists, preserve it and either update it only when explicitly requested or record that `PROJECT_CONTROL.md` is authoritative.
+
+Use the selected localized template for visible headings and narrative content. Preserve stable `MALTS:section` markers so lint and future Agents do not depend on the display language.
 
 Include:
 
@@ -176,6 +202,8 @@ After writing, run read-only checks:
 - Confirm `AGENTS.md` contains the execution gate and MALTS discovery pointer.
 - Confirm `AGENTS.md` records default write scope and the source-project boundary rule when a separate source project or external path was provided.
 - Confirm Chinese-facing `AGENTS.md` content includes the full authorization gate in Simplified Chinese or bilingual form, not only an English summary.
+- Confirm the selected initialization language profile is recorded and the canonical control/report files use the matching localized template route.
+- Confirm all required `MALTS:section` markers remain present in `PROJECT_CONTROL.md`.
 - Confirm control files contain decision log, risk register, verified commands, existing instructions merge log, and last init snapshot sections.
 - Confirm no sub-agent dispatch, long-running service, dependency install, or git state change occurred unless explicitly approved.
 - Show a concise summary and any remaining gaps.

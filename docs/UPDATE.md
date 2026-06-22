@@ -30,10 +30,12 @@ Modes:
 
 Strategies:
 
-- `MergeSafe`: update MALTS-managed shared runtime files and adapter support files without replacing the user's top-level instruction file.
-- `Overwrite`: update MALTS-managed files and replace tool instruction templates when the user intentionally wants that.
+- `MergeSafe`: update shared runtime, boot pointers, bridges, and unchanged MALTS-managed support files. Its default `InstructionMode ManagedMerge` creates, updates, or migrates exactly one marked MALTS instruction block while preserving surrounding user text.
+- `Overwrite`: update MALTS-managed files. It defaults to `InstructionMode Replace`, which replaces the complete tool instruction file and should be used only intentionally.
 
-If the remote branch is already current, the script prints `Already up to date`. If the working tree has local changes, `-Apply` refuses to pull unless `-AllowDirty` is provided after review.
+Instruction modes are independent and explicit: `ManagedMerge` is the safe default, `Skip` leaves the instruction file untouched, and `Replace` requires `Overwrite`. Ambiguous or incomplete marker sets stop with an error instead of guessing. Managed manifests remove only unchanged stale MALTS files; repeated managed merges are idempotent.
+
+If the remote branch is already current, the script prints `Already up to date` and skips installation. Use `-Reinstall` to reinstall the current version intentionally. If an update is available and the working tree has local changes, `-Apply` refuses to pull unless `-AllowDirty` is provided after review.
 
 ## Layout Rules
 
@@ -46,10 +48,11 @@ Current updates should preserve this layout:
 <MALTS_ROOT>\tools\
 <MALTS_ROOT>\scripts\
 <tool-config-root>\MALTS_BOOT.md
-<tool-config-root>\<adapter files only>
+<tool-config-root>\<adapter files>
+<tool-config-root>\skills\<MALTS-skill>\SKILL.md  # discovery bridge only
 ```
 
-The updater must not create a full `<tool-config-root>\malts\` copy or tool-local `skills\` duplicate.
+The updater must not create a full `<tool-config-root>\malts\` copy or tool-local full skill implementation. Modified stale files are preserved and reported.
 
 ## Install Verification
 
@@ -59,7 +62,7 @@ Maintainers can test a real temporary install:
 .\scripts\Test-MALTSInstall.ps1 -Tool AllIncluded
 ```
 
-This script installs into a guarded temporary directory, validates the shared `MALTS_ROOT`, validates each selected tool's `MALTS_BOOT.md` and adapter scaffold, verifies that tool targets do not contain `<tool>\malts` or tool-local `skills\`, then removes the temporary directory unless `-KeepTemp` is provided.
+This script installs into a guarded temporary directory, validates the shared `MALTS_ROOT`, manifests, each selected tool's `MALTS_BOOT.md`, adapter scaffold, and lightweight bridges, then removes the temporary directory unless `-KeepTemp` is provided.
 
 The same installed layout check can be run directly:
 

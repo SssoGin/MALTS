@@ -1,9 +1,10 @@
 # PROJECT_CONTROL
 
 > Purpose: single source of truth for the current project state when MALTS is enabled.
-> Language policy: keep this as the only canonical control file by default. Use English headings, field names, status values, and identifiers; write narrative content in the user's or project's primary language. Do not create a full translated mirror unless the user explicitly asks for one.
+> Language policy: keep this as the only canonical control file by default. Keep `MALTS:section` markers, status values, identifiers, paths, and commands stable; visible headings and narrative content may use the user's or project's primary language. Do not create a full translated mirror unless the user explicitly asks for one.
 > Do not create MALTS control files for every trivial task by default. Create or reuse this file when the user enables MALTS, long-task scheduling is active, or a normal task grows complex enough to require recoverable state.
 
+<!-- MALTS:section=metadata -->
 ## Metadata
 
 - Project:
@@ -23,6 +24,7 @@ Use this section to make the control-file language policy explicit.
 - Optional translated mirror: none by default; create only when explicitly requested.
 - Source-of-truth policy: `PROJECT_CONTROL.md` remains authoritative if an optional translated mirror exists.
 
+<!-- MALTS:section=user-original-goal -->
 ## User Original Goal
 
 > Locked field. Paste or quote the user's original goal. Do not rewrite this field without explicit confirmation.
@@ -33,6 +35,7 @@ Use this section to make the control-file language policy explicit.
 - Time:
 - Impact:
 
+<!-- MALTS:section=current-interpreted-goal -->
 ## Current Interpreted Goal
 
 - Current understanding:
@@ -50,6 +53,7 @@ Use this for non-trivial task or project starts.
 - Decisions resolved by preflight:
 - Remaining open questions:
 
+<!-- MALTS:section=completion-definition -->
 ## Completion Definition
 
 This project is complete only when:
@@ -61,18 +65,21 @@ This project is complete only when:
 - [ ] Known unfinished items are stated.
 - [ ] Risks are transparent.
 
+<!-- MALTS:section=acceptance-criteria -->
 ## Acceptance Criteria
 
 | Requirement | Verification Method | Status | Evidence |
 |---|---|---|---|
 |  |  | TODO / PASS / FAIL / N/A |  |
 
+<!-- MALTS:section=current-stage -->
 ## Current Stage
 
 - Stage:
 - Stage goal:
 - Exit condition:
 
+<!-- MALTS:section=task-queue -->
 ## Task Queue
 
 Status values: TODO, READY, IN_PROGRESS, REVIEW, DONE, BLOCKED, FAILED, CANCELLED.
@@ -81,6 +88,7 @@ Status values: TODO, READY, IN_PROGRESS, REVIEW, DONE, BLOCKED, FAILED, CANCELLE
 |---|---|---|---|---|---|---|---|
 | T001 | P0 | TODO | Main Controller |  | None |  |  |
 
+<!-- MALTS:section=file-ownership -->
 ## File Ownership
 
 | Path / Resource | Owner | Allowed Operation | Locked Until | Notes |
@@ -155,12 +163,14 @@ Record each recycled sub-agent result before merging it into project progress.
 |---|---|---|---|---|---|---|
 |  |  |  |  | Inline summary / Report path | Accepted / Partially Accepted / Rejected / Redispatched |  |
 
+<!-- MALTS:section=decisions -->
 ## Decisions
 
 | Time | Decision | Reason | Alternatives | Risk |
 |---|---|---|---|---|
 |  |  |  |  |  |
 
+<!-- MALTS:section=verification-records -->
 ## Verification Records
 
 Evidence levels:
@@ -180,6 +190,7 @@ Evidence levels:
 |---|---|---|---|---|
 |  |  | Draft / Usable / Verified / Release / Accepted |  |  |
 
+<!-- MALTS:section=risks-and-blockers -->
 ## Risks And Blockers
 
 | ID | Type | Description | Impact | Mitigation | Status |
@@ -296,6 +307,7 @@ Only add candidates. Long-term memory writes require filtering.
 - Did deliverable availability improve:
 - Any fake progress or repeated exploration:
 
+<!-- MALTS:section=recovery-notes -->
 ## Recovery Notes
 
 Minimum recovery unit:

@@ -160,7 +160,7 @@ MALTS
 
 The core layer stores the common operating model and durable project artifacts. The runtime layer turns that model into executable Agent workflows through the root `skills/` directory, execution modes, recovery, verification, templates, checklists, and the memory pipeline. The adapter layer maps the same model into each supported agent tool without letting tool-specific details pollute the core design.
 
-The public package has one canonical skill and runtime source: the shared `MALTS_ROOT`, with `skills/` at that root. Target tool directories are thin adapter targets, not separate MALTS runtime or skill sources. `runtime/EN` contains Agent-facing templates and checklists used by MALTS workflows. `runtime/CH` contains Simplified Chinese runtime mirrors for user-facing review and bilingual artifact generation.
+The public package has one canonical skill implementation and runtime source: the shared `MALTS_ROOT`, with `skills/` at that root. Target tool directories are thin adapter targets, not separate MALTS runtime or implementation sources. They may contain discovery-only bridge `SKILL.md` files required by native tool indexing. `runtime/EN` contains Agent-facing templates and checklists used by MALTS workflows. `runtime/CH` contains Simplified Chinese runtime mirrors for user-facing review and bilingual artifact generation.
 
 ## Activation Model
 
@@ -486,7 +486,7 @@ Claude Code:
 - use `CLAUDE.md` as the instruction entry
 - place commands and agents in Claude Code's expected adapter directories
 - resolve MALTS skills and runtime files through `MALTS_BOOT.md` and the shared `MALTS_ROOT`
-- never install tool-local skill duplicates
+- install only discovery bridges locally; never install tool-local skill implementation duplicates
 - record the runtime-visible agent or transcript evidence available in the installed version
 - record limitations when explicit model selection is unavailable or unverified
 
@@ -495,10 +495,12 @@ OpenCode:
 - use `AGENTS.md` and OpenCode-specific config as the instruction and tool entry
 - keep OpenCode-specific files in the adapter layer
 - resolve MALTS skills and runtime files through `MALTS_BOOT.md` and the shared `MALTS_ROOT`
-- never install tool-local skill duplicates
+- install only discovery bridges locally; never install tool-local skill implementation duplicates
 - verify how the target OpenCode version exposes sub-agent dispatch evidence before claiming transparent multi-agent execution
 
 Adapter docs and templates should stay synchronized across Codex, Claude Code, and OpenCode unless a change is explicitly scoped to one tool.
+
+Top-level tool instruction files have mixed ownership. MALTS owns only the block delimited by `<!-- MALTS:BEGIN managed instruction -->` and `<!-- MALTS:END managed instruction -->`; all surrounding text remains user-owned. The default installer and updater behavior must merge that block idempotently, migrate a recognizable legacy MALTS section, and stop on ambiguous markers. Whole-file replacement is an explicit operation, never the safe-update default.
 
 ## Bilingual Documentation
 

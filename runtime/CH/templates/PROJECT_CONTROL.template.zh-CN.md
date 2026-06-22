@@ -1,9 +1,10 @@
 ﻿# PROJECT_CONTROL
 
 > 用途：启用 MALTS 后，作为当前项目状态的单一事实源。  
-> 语言策略：默认只维护 `PROJECT_CONTROL.md` 这一份 canonical 控制文件。标题、字段名、状态值和 ID 保持稳定；叙述正文使用用户或项目主要语言。除非用户明确要求，不生成完整翻译镜像。
+> 语言策略：默认只维护 `PROJECT_CONTROL.md` 这一份 canonical 控制文件。`MALTS:section` marker、状态值、ID、路径和命令保持稳定；可见标题和叙述正文使用用户或项目主要语言。除非用户明确要求，不生成完整翻译镜像。
 > 不要为每个琐碎任务默认创建 MALTS 控制文件。仅当用户启用 MALTS、长任务调度已激活，或普通任务变复杂并需要可恢复状态时，创建或复用本文件。
 
+<!-- MALTS:section=metadata -->
 ## 元信息
 
 - 项目：
@@ -23,6 +24,7 @@
 - 可选翻译镜像：默认无；只有用户明确要求时才创建。
 - 事实源策略：如果存在可选翻译镜像，仍以 `PROJECT_CONTROL.md` 为准。
 
+<!-- MALTS:section=user-original-goal -->
 ## 用户原始目标
 
 > 锁定字段。粘贴或引用用户原始目标。没有明确确认，不要改写此字段。
@@ -33,6 +35,7 @@
 - 时间：
 - 影响：
 
+<!-- MALTS:section=current-interpreted-goal -->
 ## 当前理解目标
 
 - 当前理解：
@@ -50,6 +53,7 @@
 - 启动盘问已解决的决策：
 - 剩余待确认问题：
 
+<!-- MALTS:section=completion-definition -->
 ## 完成定义
 
 本项目只有在以下条件满足时才算完成：
@@ -61,18 +65,21 @@
 - [ ] 未完成事项已说明。
 - [ ] 风险透明。
 
+<!-- MALTS:section=acceptance-criteria -->
 ## 验收标准
 
 | 需求 | 验证方法 | 状态 | 证据 |
 |---|---|---|---|
 |  |  | TODO / PASS / FAIL / N/A |  |
 
+<!-- MALTS:section=current-stage -->
 ## 当前阶段
 
 - 阶段：
 - 阶段目标：
 - 退出条件：
 
+<!-- MALTS:section=task-queue -->
 ## 任务队列
 
 状态值：TODO、READY、IN_PROGRESS、REVIEW、DONE、BLOCKED、FAILED、CANCELLED。
@@ -81,6 +88,7 @@
 |---|---|---|---|---|---|---|---|
 | T001 | P0 | TODO | Main Controller |  | 无 |  |  |
 
+<!-- MALTS:section=file-ownership -->
 ## 文件所有权
 
 | 路径 / 资源 | 负责人 | 允许操作 | 锁定到 | 备注 |
@@ -155,12 +163,14 @@
 |---|---|---|---|---|---|---|
 |  |  |  |  | 行内摘要 / 报告路径 | Accepted / Partially Accepted / Rejected / Redispatched |  |
 
+<!-- MALTS:section=decisions -->
 ## 决策记录
 
 | 时间 | 决策 | 原因 | 替代方案 | 风险 |
 |---|---|---|---|---|
 |  |  |  |  |  |
 
+<!-- MALTS:section=verification-records -->
 ## 验证记录
 
 证据等级：
@@ -180,6 +190,7 @@
 |---|---|---|---|---|
 |  |  | Draft / Usable / Verified / Release / Accepted |  |  |
 
+<!-- MALTS:section=risks-and-blockers -->
 ## 风险与阻塞
 
 | ID | 类型 | 描述 | 影响 | 缓解方式 | 状态 |
@@ -296,6 +307,7 @@
 - 交付物可用性是否提高：
 - 是否存在假进度或重复探索：
 
+<!-- MALTS:section=recovery-notes -->
 ## 恢复说明
 
 最低恢复单元：

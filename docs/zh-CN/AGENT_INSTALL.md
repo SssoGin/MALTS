@@ -16,13 +16,13 @@ AllIncluded
 1. 阅读 `README.md`、`docs/INSTALL.md` 和本文。
 2. 询问要安装哪个目标工具。
 3. 说明 MALTS 使用一份共享 `MALTS_ROOT` 加工具薄适配层。
-4. 说明共享 `MALTS_ROOT` 下的 `skills/` 是唯一安装的 skill source。不要安装工具本地 `skills/`。
-5. 说明 `AGENTS.md`、`CLAUDE.md` 等工具指令模板是可选 MALTS 增强项，并询问是否安装或合并到目标工具真实指令文件。
+4. 说明共享 `MALTS_ROOT` 下的 `skills/` 是唯一 skill 实现事实源。工具本地 `skills/` 只安装轻量发现 bridge。
+5. 说明 `AGENTS.md`、`CLAUDE.md` 等工具指令模板是可选 MALTS 增强项。默认使用只拥有标记区块的 `InstructionMode ManagedMerge`；同时提供 `Skip`，整份 `Replace` 前必须再次明确确认。
 6. 说明每个工具需要 `MALTS_BOOT.md`，但它应指向共享 `MALTS_ROOT`；默认安装计划不应包含完整 `<target>\malts\` runtime 副本。
 7. 检查目标配置目录。
 8. 展示计划写入文件、共享 root 位置和可能冲突。
 9. 默认 dry-run。
-10. 未经明确确认，不覆盖已有文件。
+10. 保留 MALTS 标记区块外的用户指令文本；未经明确确认，不覆盖其他已有文件。
 11. 不读取或复制 secrets、sessions、memory dumps 或用户特定生成状态。
 12. 询问是否启用公开 docs 的双语文档同步；默认 runtime 项目产物保持单 canonical 文件，完整翻译镜像只在明确要求时生成。
 13. 安装后运行验证。
@@ -47,7 +47,7 @@ tools/
 scripts/
 ```
 
-使用 `Install-MALTS.ps1` 时，默认共享 root 是 `%USERPROFILE%\.malts`。提供 `-TargetRoot` 时，默认共享 root 是 `<TargetRoot>\MALTS_ROOT`。用户选择其他经过审阅的位置时，使用 `-SharedRoot`。
+使用 `Install-MALTS.ps1` 时，默认共享 root 是 `%USERPROFILE%\.malts`。`-TargetRoot` 只改变工具 target。用户选择其他经过审阅的位置时使用 `-SharedRoot`，并拒绝共享 root 与工具 target 相互嵌套的布局。
 
 ## 工具适配层
 
@@ -58,16 +58,18 @@ Adapter 目录只提供工具特定指令模板、commands、agents 和配置。
 ```text
 <tool-config-root>\MALTS_BOOT.md
 <tool-config-root>\<tool adapter files>
+<tool-config-root>\skills\<MALTS-skill>\SKILL.md  # 仅轻量 bridge
 ```
 
 无效布局：
 
 ```text
 <tool-config-root>\malts\
-<tool-config-root>\skills\
+<tool-config-root>\skills\<MALTS-skill>\scripts\  # runtime 实现重复
+<tool-config-root>\skills\<MALTS-skill>\SKILL.md  # 超出 bridge 体积契约
 ```
 
-如果安装计划里出现上述任一路径，先停止并修正计划，再 apply。
+如果安装计划里出现完整 runtime 路径或非 bridge skill package，先停止并修正计划，再 apply。
 
 ## Runtime Discovery
 

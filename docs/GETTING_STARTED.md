@@ -69,12 +69,12 @@ After reviewing the dry-run plan, apply the selected adapter:
 .\scripts\Install-MALTS.ps1 -Tool Codex -Apply
 ```
 
-The installer refuses to overwrite existing files unless `-Overwrite` is supplied. Use `-Overwrite` only after reviewing the existing target file and confirming that replacement is intended.
+The installer preserves existing support files unless `-Overwrite` or `-MergeSafe` authorizes the selected strategy. Tool instruction files are handled separately: the default `ManagedMerge` mode changes only the marked MALTS block and preserves surrounding user text.
 
 Instruction templates are optional. To install support files without installing the tool instruction template:
 
 ```powershell
-.\scripts\Install-MALTS.ps1 -Tool ClaudeCode -SkipInstructionTemplate -Apply
+.\scripts\Install-MALTS.ps1 -Tool ClaudeCode -InstructionMode Skip -Apply
 ```
 
 ## 5. Verify Runtime Discovery
@@ -88,16 +88,16 @@ runtime/CH
 MALTS_BOOT.md
 ```
 
-The installer creates one shared MALTS root and writes `MALTS_BOOT.md` into each selected tool directory. After install, verify that `MALTS_BOOT.md` resolves to a root containing `README.md`, `skills/`, `runtime/EN/templates`, and `runtime/EN/checklists`. The shared `skills/` directory under `MALTS_ROOT` is the canonical skill source. Chinese runtime mirrors under `runtime/CH` support Chinese user-facing reports and bilingual synchronization, but are not loaded during ordinary English Agent execution unless needed.
+The installer creates one shared MALTS root, writes `MALTS_BOOT.md`, and installs six lightweight discovery bridges into each selected tool directory. After install, verify that every bridge routes to a root containing `README.md`, `skills/`, `runtime/EN/templates`, and `runtime/EN/checklists`. The shared `skills/` directory under `MALTS_ROOT` is the canonical implementation source. Chinese runtime mirrors under `runtime/CH` support Chinese user-facing reports and bilingual synchronization, but are not loaded during ordinary English Agent execution unless needed.
 
-Default installs should not contain:
+Default installs should not contain either of these heavy duplicates:
 
 ```text
 <tool-config-root>/malts/
-<tool-config-root>/skills/
+<tool-config-root>/skills/<MALTS-skill>/<full runtime files>
 ```
 
-Those paths are invalid install layouts, not the MALTS design.
+The expected tool-local skill path contains only one lightweight bridge `SKILL.md` per MALTS skill.
 
 ## 6. Use MALTS On A First Task
 
@@ -167,7 +167,7 @@ Without that confirmation, MALTS remains single-agent.
 Useful checks:
 
 ```powershell
-python tools\agent_system_lint.py check-semantic-freshness --malts-root . --version 0.1.6
+python tools\agent_system_lint.py check-semantic-freshness --malts-root . --version 0.1.7
 python tools\agent_system_lint.py check-doc-sync --output-root runtime
 .\scripts\Install-MALTS.ps1 -Tool Codex
 ```

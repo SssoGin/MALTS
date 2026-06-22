@@ -32,20 +32,29 @@ TASK_STATUS = {
 
 ACCEPTANCE_STATUS = {"TODO", "PASS", "FAIL", "N/A"}
 
-PROJECT_CONTROL_HEADINGS = [
-    "Metadata",
-    "User Original Goal",
-    "Current Interpreted Goal",
-    "Completion Definition",
-    "Acceptance Criteria",
-    "Current Stage",
-    "Task Queue",
-    "File Ownership",
-    "Decisions",
-    "Verification Records",
-    "Risks And Blockers",
-    "Recovery Notes",
-]
+PROJECT_CONTROL_SECTIONS = {
+    "metadata": ("Metadata", "元信息"),
+    "user-original-goal": ("User Original Goal", "用户原始目标"),
+    "current-interpreted-goal": ("Current Interpreted Goal", "当前理解目标"),
+    "completion-definition": ("Completion Definition", "完成定义"),
+    "acceptance-criteria": ("Acceptance Criteria", "验收标准"),
+    "current-stage": ("Current Stage", "当前阶段"),
+    "task-queue": ("Task Queue", "任务队列"),
+    "file-ownership": ("File Ownership", "文件所有权"),
+    "decisions": ("Decisions", "决策记录"),
+    "verification-records": ("Verification Records", "验证记录"),
+    "risks-and-blockers": ("Risks And Blockers", "风险与阻塞"),
+    "recovery-notes": ("Recovery Notes", "恢复说明"),
+}
+
+MALTS_SKILL_NAMES = (
+    "grill-me-preflight",
+    "malts-project-init",
+    "multi-agent-long-task-scheduling",
+    "project-retrospective-growth",
+    "session-handoff",
+    "single-agent-lightweight-growth",
+)
 
 RUNTIME_DOC_PAIRS = [
     {
@@ -136,6 +145,14 @@ ADAPTER_REQUIRED_TOKENS = [
     "nearest applicable instruction",
 ]
 
+MANAGED_INSTRUCTION_START = "<!-- MALTS:BEGIN managed instruction -->"
+MANAGED_INSTRUCTION_END = "<!-- MALTS:END managed instruction -->"
+MANAGED_INSTRUCTION_EXAMPLES = {
+    "codex": "adapters/codex/AGENTS.example.md",
+    "claude-code": "adapters/claude-code/CLAUDE.example.md",
+    "opencode": "adapters/opencode/AGENTS.example.md",
+}
+
 PRIVATE_PUBLIC_LITERALS = [
     "C:\\Users\\" + "Gin",
     "D:\\" + "Agent",
@@ -213,38 +230,110 @@ def check_project_control(path: Path) -> int:
         return emit([Finding("ERROR", f"PROJECT_CONTROL not found: {path}")])
 
     text = read_text(path)
-    for heading in PROJECT_CONTROL_HEADINGS:
-        if f"## {heading}" not in text:
-            findings.append(Finding("ERROR", f"Missing heading: ## {heading}"))
+    sections: dict[str, str] = {}
+    for section_id, headings in PROJECT_CONTROL_SECTIONS.items():
+        content = project_control_section(text, section_id, headings)
+        if content is None:
+            findings.append(
+                Finding("ERROR", f"Missing section `{section_id}` ({' / '.join(headings)}).")
+            )
+        else:
+            sections[section_id] = content
 
-    for status in re.findall(r"\|\s*(TODO|READY|IN_PROGRESS|REVIEW|DONE|BLOCKED|FAILED|CANCELLED|[A-Z_]+)\s*\|", text):
-        if status in {"PASS", "FAIL", "N/A"}:
-            continue
-        if status not in TASK_STATUS and status not in ACCEPTANCE_STATUS:
-            findings.append(Finding("WARN", f"Unknown status value: {status}"))
-
-    acceptance_section = section(text, "Acceptance Criteria")
-    for line in acceptance_section.splitlines():
-        if not line.startswith("|") or "---" in line or "Status" in line:
-            continue
-        cells = [cell.strip() for cell in line.strip("|").split("|")]
-        if len(cells) >= 3 and cells[2] not in ACCEPTANCE_STATUS:
-            findings.append(Finding("ERROR", f"Invalid acceptance status: {cells[2]}"))
-        if len(cells) >= 4 and cells[2] == "PASS" and not cells[3]:
-            findings.append(Finding("ERROR", "PASS acceptance row requires evidence."))
+    validate_status_table(
+        sections.get("task-queue", ""),
+        TASK_STATUS,
+        "task",
+        findings,
+    )
+    validate_status_table(
+        sections.get("acceptance-criteria", ""),
+        ACCEPTANCE_STATUS,
+        "acceptance",
+        findings,
+        require_evidence_for_pass=True,
+    )
 
     return emit(findings)
 
 
-def section(text: str, heading: str) -> str:
-    pattern = re.compile(rf"^## {re.escape(heading)}\s*$", re.MULTILINE)
-    match = pattern.search(text)
-    if not match:
-        return ""
-    next_heading = re.search(r"^##\s+", text[match.end() :], re.MULTILINE)
+def project_control_section(text: str, section_id: str, headings: tuple[str, ...]) -> str | None:
+    marker = re.compile(rf"^<!--\s*MALTS:section={re.escape(section_id)}\s*-->\s*$", re.MULTILINE)
+    marker_match = marker.search(text)
+    if marker_match:
+        heading_match = re.search(r"^##\s+.+$", text[marker_match.end() :], re.MULTILINE)
+        if not heading_match:
+            return None
+        start = marker_match.end() + heading_match.end()
+    else:
+        heading_pattern = "|".join(re.escape(heading) for heading in headings)
+        heading_match = re.search(rf"^##\s+(?:{heading_pattern})\s*$", text, re.MULTILINE)
+        if not heading_match:
+            return None
+        start = heading_match.end()
+
+    next_heading = re.search(r"^##\s+", text[start:], re.MULTILINE)
     if next_heading:
-        return text[match.end() : match.end() + next_heading.start()]
-    return text[match.end() :]
+        return text[start : start + next_heading.start()]
+    return text[start:]
+
+
+def markdown_tables(text: str) -> list[tuple[list[str], list[list[str]]]]:
+    lines = text.splitlines()
+    tables: list[tuple[list[str], list[list[str]]]] = []
+    index = 0
+    while index + 1 < len(lines):
+        if not lines[index].lstrip().startswith("|") or not re.match(
+            r"^\s*\|?\s*:?-{3,}", lines[index + 1]
+        ):
+            index += 1
+            continue
+
+        headers = [cell.strip() for cell in lines[index].strip().strip("|").split("|")]
+        rows: list[list[str]] = []
+        index += 2
+        while index < len(lines) and lines[index].lstrip().startswith("|"):
+            rows.append([cell.strip() for cell in lines[index].strip().strip("|").split("|")])
+            index += 1
+        tables.append((headers, rows))
+    return tables
+
+
+def validate_status_table(
+    text: str,
+    allowed: set[str],
+    label: str,
+    findings: list[Finding],
+    require_evidence_for_pass: bool = False,
+) -> None:
+    status_headers = {"status", "状态"}
+    evidence_headers = {"evidence", "证据"}
+    placeholders = {"TODO / PASS / FAIL / N/A", "TODO/PASS/FAIL/N/A"}
+
+    for headers, rows in markdown_tables(text):
+        normalized = [header.casefold() for header in headers]
+        status_index = next(
+            (index for index, header in enumerate(normalized) if header in status_headers),
+            None,
+        )
+        if status_index is None:
+            continue
+        evidence_index = next(
+            (index for index, header in enumerate(normalized) if header in evidence_headers),
+            None,
+        )
+        for row in rows:
+            status = row[status_index] if status_index < len(row) else ""
+            if status in placeholders:
+                findings.append(Finding("WARN", f"Unresolved {label} status placeholder."))
+                continue
+            if status not in allowed:
+                findings.append(Finding("ERROR", f"Invalid {label} status: {status or '<empty>'}"))
+                continue
+            if require_evidence_for_pass and status == "PASS":
+                evidence = row[evidence_index] if evidence_index is not None and evidence_index < len(row) else ""
+                if not evidence:
+                    findings.append(Finding("ERROR", "PASS acceptance row requires evidence."))
 
 
 def next_task_id(path: Path) -> int:
@@ -315,6 +404,16 @@ def check_adapter_parity(root: Path) -> int:
         for token in ADAPTER_REQUIRED_TOKENS:
             if token not in adapter_text:
                 findings.append(Finding("ERROR", f"{adapter} adapter missing required token: {token}"))
+
+    for adapter, rel in MANAGED_INSTRUCTION_EXAMPLES.items():
+        path = root / rel
+        if not path.exists():
+            continue
+        text = read_text(path)
+        if text.count(MANAGED_INSTRUCTION_START) != 1 or text.count(MANAGED_INSTRUCTION_END) != 1:
+            findings.append(Finding("ERROR", f"{adapter} instruction example must contain exactly one managed marker pair: {rel}"))
+        elif text.index(MANAGED_INSTRUCTION_START) >= text.index(MANAGED_INSTRUCTION_END):
+            findings.append(Finding("ERROR", f"{adapter} instruction example has invalid managed marker order: {rel}"))
 
     forbidden_codex = [
         "adapters/codex/.codex/commands",
@@ -401,7 +500,7 @@ def check_public_safety(root: Path) -> int:
 
 def check_install_layout(install_root: Path, tool: str | None) -> int:
     findings: list[Finding] = []
-    required = ["MALTS_BOOT.md"]
+    required = ["MALTS_BOOT.md", ".malts-managed-files.json"]
 
     if tool == "Codex":
         required += [
@@ -426,6 +525,15 @@ def check_install_layout(install_root: Path, tool: str | None) -> int:
         if not (install_root / rel).exists():
             findings.append(Finding("ERROR", f"Installed layout missing: {rel}"))
 
+    instruction_name = "CLAUDE.md" if tool == "ClaudeCode" else "AGENTS.md"
+    instruction_path = install_root / instruction_name
+    if tool in {"Codex", "ClaudeCode", "OpenCode"} and instruction_path.exists():
+        instruction_text = read_text(instruction_path)
+        if instruction_text.count(MANAGED_INSTRUCTION_START) != 1 or instruction_text.count(MANAGED_INSTRUCTION_END) != 1:
+            findings.append(Finding("ERROR", f"Installed instruction file must contain exactly one managed marker pair: {instruction_name}"))
+        elif instruction_text.index(MANAGED_INSTRUCTION_START) >= instruction_text.index(MANAGED_INSTRUCTION_END):
+            findings.append(Finding("ERROR", f"Installed instruction file has invalid managed marker order: {instruction_name}"))
+
     boot_path = install_root / "MALTS_BOOT.md"
     shared_root: Path | None = None
     if boot_path.exists():
@@ -444,18 +552,55 @@ def check_install_layout(install_root: Path, tool: str | None) -> int:
         findings.append(Finding("ERROR", f"Tool-local runtime copy should not exist: {tool_runtime}"))
 
     tool_skills = install_root / "skills"
-    if tool_skills.exists():
-        findings.append(Finding("ERROR", f"Tool-local skills duplicate shared MALTS_ROOT by default: {tool_skills}"))
+    for skill_name in MALTS_SKILL_NAMES:
+        bridge_dir = tool_skills / skill_name
+        bridge_path = bridge_dir / "SKILL.md"
+        if not bridge_path.exists():
+            findings.append(Finding("ERROR", f"Installed skill bridge missing: {bridge_path}"))
+            continue
+
+        bridge_text = read_text(bridge_path)
+        if f"MALTS_SKILL_BRIDGE: {skill_name}" not in bridge_text:
+            findings.append(Finding("ERROR", f"Invalid MALTS skill bridge marker: {bridge_path}"))
+        canonical_reference = f"skills/{skill_name}/SKILL.md"
+        if canonical_reference not in bridge_text.replace("\\", "/"):
+            findings.append(Finding("ERROR", f"Skill bridge does not reference {canonical_reference}: {bridge_path}"))
+        if bridge_path.stat().st_size > 4096:
+            findings.append(Finding("ERROR", f"Skill bridge exceeds 4096 bytes: {bridge_path}"))
+
+        allowed_discovery_metadata = {bridge_dir / "agents" / "openai.yaml"}
+        extra_files = [
+            path
+            for path in bridge_dir.rglob("*")
+            if path.is_file() and path != bridge_path and path not in allowed_discovery_metadata
+        ]
+        for extra in extra_files:
+            findings.append(Finding("ERROR", f"Skill bridge directory contains a runtime duplicate: {extra}"))
+        for metadata_path in allowed_discovery_metadata:
+            if metadata_path.exists() and metadata_path.stat().st_size > 4096:
+                findings.append(Finding("ERROR", f"Skill bridge discovery metadata exceeds 4096 bytes: {metadata_path}"))
 
     if shared_root is None:
         findings.append(Finding("ERROR", "Could not resolve MALTS_ROOT from MALTS_BOOT.md."))
     else:
+        install_resolved = install_root.resolve()
+        shared_resolved = shared_root.resolve()
+        if (
+            install_resolved == shared_resolved
+            or install_resolved in shared_resolved.parents
+            or shared_resolved in install_resolved.parents
+        ):
+            findings.append(
+                Finding(
+                    "ERROR",
+                    f"Shared MALTS_ROOT and tool target must be separate paths: shared={shared_root} target={install_root}",
+                )
+            )
         shared_required = [
+            ".malts-managed-files.json",
             "README.md",
             "README.zh-CN.md",
             "VERSION",
-            "skills/malts-project-init/SKILL.md",
-            "skills/multi-agent-long-task-scheduling/SKILL.md",
             "runtime/EN/templates/PROJECT_CONTROL.template.en.md",
             "runtime/EN/templates/WORK_TASK_REPORT.template.en.md",
             "runtime/EN/checklists/QUALITY_GATE.en.md",
@@ -469,6 +614,7 @@ def check_install_layout(install_root: Path, tool: str | None) -> int:
             "adapters/claude-code/CLAUDE.example.md",
             "adapters/opencode/AGENTS.example.md",
         ]
+        shared_required += [f"skills/{skill_name}/SKILL.md" for skill_name in MALTS_SKILL_NAMES]
         for rel in shared_required:
             if not (shared_root / rel).exists():
                 findings.append(Finding("ERROR", f"Shared MALTS_ROOT missing: {shared_root / rel}"))
@@ -770,11 +916,16 @@ def check_semantic_freshness(malts_root: Path, version: str | None) -> int:
         "scripts/Install-MALTS.ps1",
         "scripts/Install-MALTS.review.cmd",
         "scripts/Test-MALTSInstall.ps1",
+        "scripts/Test-MALTSRegression.ps1",
+        "scripts/Test-MALTSUpdate.ps1",
         "scripts/Update-MALTS.ps1",
         "scripts/Update-MALTS.review.cmd",
         "tools/agent_system_lint.py",
         "tools/doc_pairs.json",
         "tools/README.md",
+    ]
+    release_required += [
+        f"adapters/skill-bridges/{skill_name}/SKILL.md" for skill_name in MALTS_SKILL_NAMES
     ]
     for rel in release_required:
         path = malts_root / rel
@@ -799,6 +950,9 @@ def check_semantic_freshness(malts_root: Path, version: str | None) -> int:
             "Default write scope",
             "Source project boundary rule",
             "Simplified Chinese or bilingual form",
+            "NarrativeLanguage",
+            "runtime\\CH\\templates\\PROJECT_CONTROL.template.zh-CN.md",
+            "runtime\\CH\\templates\\WORK_TASK_REPORT.template.zh-CN.md",
             "nearest applicable target-path instructions",
             "Verified read-only facts / checks",
         ],
@@ -808,6 +962,9 @@ def check_semantic_freshness(malts_root: Path, version: str | None) -> int:
             "source project",
             "nearest applicable instruction",
             "Simplified Chinese",
+            "NarrativeLanguage",
+            MANAGED_INSTRUCTION_START,
+            MANAGED_INSTRUCTION_END,
         ],
         "adapters/claude-code/CLAUDE.example.md": [
             "Project And Source Boundaries",
@@ -815,6 +972,9 @@ def check_semantic_freshness(malts_root: Path, version: str | None) -> int:
             "source project",
             "nearest applicable instruction",
             "Simplified Chinese",
+            "NarrativeLanguage",
+            MANAGED_INSTRUCTION_START,
+            MANAGED_INSTRUCTION_END,
         ],
         "adapters/opencode/AGENTS.example.md": [
             "Project And Source Boundaries",
@@ -822,6 +982,9 @@ def check_semantic_freshness(malts_root: Path, version: str | None) -> int:
             "source project",
             "nearest applicable instruction",
             "Simplified Chinese",
+            "NarrativeLanguage",
+            MANAGED_INSTRUCTION_START,
+            MANAGED_INSTRUCTION_END,
         ],
         "scripts/Update-MALTS.ps1": [
             "MergeSafe",
@@ -829,14 +992,61 @@ def check_semantic_freshness(malts_root: Path, version: str | None) -> int:
             "Already up to date",
             "AllowDirty",
             "SharedRoot",
+            "Reinstall",
+            "Skipping install because no remote update is available",
+            "InstructionMode",
+            "ManagedMerge",
         ],
         "scripts/Install-MALTS.ps1": [
             "Shared MALTS_ROOT",
             "Tool-local skills",
+            "Discovery bridges included",
+            ".malts-managed-files.json",
+            "preserve-modified-stale",
+            "ToolBridge",
+            "Get-InstructionMergePlan",
+            "migrate-legacy",
+            MANAGED_INSTRUCTION_START,
+        ],
+        "adapters/skill-bridges/malts-project-init/SKILL.md": [
+            "MALTS_SKILL_BRIDGE: malts-project-init",
+            "MALTS_BOOT.md",
+            "skills/malts-project-init/SKILL.md",
         ],
         "scripts/Test-MALTSInstall.ps1": [
             "check-install-layout",
             "MALTS-install-smoke",
+        ],
+        "scripts/Test-MALTSRegression.ps1": [
+            "SkillBridgeDiscovery",
+            "LocalizedProjectControl",
+            "UpdateSafety",
+        ],
+        "scripts/Test-MALTSUpdate.ps1": [
+            "SharedRootIsolation",
+            "MergeSafePreservation",
+            "NoUpdateNoInstall",
+            "ManagedStaleCleanup",
+            "InstructionManagedMerge",
+            "PublicConsistency",
+        ],
+        "docs/INSTALL.md": [
+            "lightweight discovery bridges",
+            "`-TargetRoot` changes only the selected tool target",
+        ],
+        "docs/zh-CN/INSTALL.md": [
+            "轻量发现 bridge",
+            "`-TargetRoot` 只改变工具 target",
+        ],
+        "docs/UPDATE.md": [
+            "`-Reinstall`",
+            "Managed manifests remove only unchanged stale MALTS files",
+            "InstructionMode ManagedMerge",
+        ],
+        "docs/zh-CN/UPDATE.md": [
+            "`-Reinstall`",
+            "Managed manifest 只删除未修改的过期 MALTS 文件",
+            "InstructionMode ManagedMerge",
         ],
     }
     for rel, tokens in semantic_tokens.items():
@@ -866,6 +1076,12 @@ def check_semantic_freshness(malts_root: Path, version: str | None) -> int:
         "pri" + "vate " + "preparation",
         "verify " + "bilingual control/report artifacts",
         "`PROJECT_CONTROL.md` (and " + "`项目控制.md` if it does not exist)",
+        "Do not install tool-local " + "`skills/`",
+        "不要安装工具本地 " + "`skills/`",
+        "copies these skills into each supported tool's " + "local skill directory",
+        "把这些 skills 复制到各受支持工具的" + "本地 skill 目录",
+        "<MALTS_ROOT>/Handoff/" + "PROJECT_HANDOFF.md",
+        "<MALTS_ROOT>\\Handoff\\" + "PROJECT_HANDOFF.md",
         "\u0418\u00b7\u0418\u041f\u0424\u041b\u0420\u0420",
         "\u040e\u044a",
         "\u7ead",
@@ -884,6 +1100,19 @@ def check_semantic_freshness(malts_root: Path, version: str | None) -> int:
             for literal in forbidden:
                 if literal in text:
                     findings.append(Finding("ERROR", f"Forbidden literal `{literal}` found in {path.relative_to(malts_root)}"))
+
+    for rel in (
+        "adapters/codex/AGENTS.example.md",
+        "adapters/claude-code/CLAUDE.example.md",
+        "adapters/opencode/AGENTS.example.md",
+    ):
+        path = malts_root / rel
+        if not path.exists():
+            continue
+        for match in re.finditer(r"<MALTS_ROOT>[/\\](?P<rel>[A-Za-z0-9_.\\/-]+)", read_text(path)):
+            referenced = match.group("rel").replace("\\", "/").rstrip("./")
+            if referenced and not (malts_root / referenced).exists():
+                findings.append(Finding("ERROR", f"Missing MALTS_ROOT reference `{referenced}` in {rel}"))
 
     gitignore_path = malts_root / ".gitignore"
     if gitignore_path.exists():

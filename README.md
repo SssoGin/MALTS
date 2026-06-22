@@ -107,14 +107,14 @@ These projects are not dependencies of MALTS and do not endorse this repository.
 
 Installation is intentionally review-first. The install script defaults to dry-run and does not write files unless `-Apply` is provided.
 
-The installer plans one shared `MALTS_ROOT`, thin tool adapter files, and a generated `MALTS_BOOT.md` pointer before writing. `MALTS_BOOT.md` lets a newly installed Agent resolve the shared root and find `skills/`, `runtime/EN/templates`, and `runtime/EN/checklists` without copying a full MALTS tree into every tool directory.
+The installer plans one shared `MALTS_ROOT`, thin tool adapter files, six lightweight discovery bridges, and a generated `MALTS_BOOT.md` pointer before writing. Each bridge routes native tool discovery to the shared `skills/` implementation without copying a full MALTS tree into every tool directory.
 
-Tool instruction templates such as `AGENTS.md` and `CLAUDE.md` are optional MALTS enhancements. They help the Agent remember MALTS task mode, Grill-Me Preflight, project control, handoff, and verification rules, but they should be reviewed and merged with any existing user or project instructions instead of blindly replacing them.
+Tool instruction templates such as `AGENTS.md` and `CLAUDE.md` are optional MALTS enhancements. By default, the installer merges only the block between `<!-- MALTS:BEGIN managed instruction -->` and `<!-- MALTS:END managed instruction -->`; text outside that block remains user-owned. Existing unmarked MALTS discovery sections are migrated when their boundary is unambiguous.
 
 ```powershell
 .\scripts\Install-MALTS.ps1 -Tool Codex
 .\scripts\Install-MALTS.ps1 -Tool Codex -Apply
-.\scripts\Install-MALTS.ps1 -Tool ClaudeCode -SkipInstructionTemplate
+.\scripts\Install-MALTS.ps1 -Tool ClaudeCode -InstructionMode Skip
 .\scripts\Install-MALTS.review.cmd -Tool AllIncluded
 ```
 
@@ -146,7 +146,7 @@ Installed users can update from a git clone without manually downloading a new a
 .\scripts\Update-MALTS.review.cmd -Tool Codex
 ```
 
-`MergeSafe` updates the shared MALTS root and adapter support files without replacing the user's top-level instruction file. Use `Overwrite` only when replacing tool instruction templates is intentional.
+`MergeSafe` defaults to `InstructionMode ManagedMerge`: it updates the MALTS-managed instruction block while preserving surrounding user rules. Use `InstructionMode Skip` to leave the instruction file untouched, or combine `Strategy Overwrite` with `InstructionMode Replace` only when full replacement is intentional.
 
 Maintainers can verify a real temporary install layout with:
 
@@ -163,7 +163,7 @@ The public repository defaults to English source documents for Agent execution. 
 Current release version:
 
 ```text
-0.1.6
+0.1.7
 ```
 
 ## License

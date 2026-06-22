@@ -130,14 +130,14 @@ MALTS 包含公开可用的 Agent 行为模式改写，灵感来自：
 
 安装流程是 review-first。安装脚本默认 dry-run；只有提供 `-Apply` 才会写文件。
 
-安装器会在写入前展示一份共享 `MALTS_ROOT`、工具薄适配层文件，以及生成的 `MALTS_BOOT.md` 指针。`MALTS_BOOT.md` 用于让新机器上的 Agent 解析共享 root，找到 `skills/`、`runtime/EN/templates` 和 `runtime/EN/checklists`，不再把完整 MALTS 树复制到每个工具目录。
+安装器会在写入前展示一份共享 `MALTS_ROOT`、工具薄适配层文件、六个轻量发现 bridge，以及生成的 `MALTS_BOOT.md` 指针。每个 bridge 都把工具原生发现入口路由到共享 `skills/` 实现，不再把完整 MALTS 树复制到每个工具目录。
 
-工具指令模板（例如 `AGENTS.md` 和 `CLAUDE.md`）是可选 MALTS 增强项。它们帮助 Agent 记住 MALTS task mode、Grill-Me Preflight、project control、handoff 和 verification rules，但应先审阅并与已有用户或项目指令合并，而不是直接替换。
+工具指令模板（例如 `AGENTS.md` 和 `CLAUDE.md`）是可选 MALTS 增强项。默认情况下，安装器只合并 `<!-- MALTS:BEGIN managed instruction -->` 与 `<!-- MALTS:END managed instruction -->` 之间的区块，区块外文本仍归用户所有；边界明确的旧版无标记 MALTS discovery section 会自动迁移。
 
 ```powershell
 .\scripts\Install-MALTS.ps1 -Tool Codex
 .\scripts\Install-MALTS.ps1 -Tool Codex -Apply
-.\scripts\Install-MALTS.ps1 -Tool ClaudeCode -SkipInstructionTemplate
+.\scripts\Install-MALTS.ps1 -Tool ClaudeCode -InstructionMode Skip
 .\scripts\Install-MALTS.review.cmd -Tool AllIncluded
 ```
 
@@ -169,7 +169,7 @@ AllIncluded
 .\scripts\Update-MALTS.review.cmd -Tool Codex
 ```
 
-`MergeSafe` 会更新共享 MALTS root 和 adapter 支持文件，但不替换用户顶层指令文件。只有明确要替换工具指令模板时，才使用 `Overwrite`。
+`MergeSafe` 默认使用 `InstructionMode ManagedMerge`：更新 MALTS 管理区块，同时保留区块外的用户规则。需要完全不改指令文件时使用 `InstructionMode Skip`；只有明确要整份替换时，才组合使用 `Strategy Overwrite` 与 `InstructionMode Replace`。
 
 维护者可以用临时目录验证真实安装布局：
 
@@ -186,7 +186,7 @@ AllIncluded
 当前 release version：
 
 ```text
-0.1.6
+0.1.7
 ```
 
 ## License

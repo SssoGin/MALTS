@@ -30,10 +30,12 @@ Modes：
 
 Strategies：
 
-- `MergeSafe`：更新共享 MALTS root 和 adapter 支持文件，但不替换用户顶层指令文件。
-- `Overwrite`：更新 MALTS 管理文件，并在用户明确需要时替换工具指令模板。
+- `MergeSafe`：更新共享 runtime、boot 指针、bridge 和未被用户修改的 MALTS-managed 支持文件。其默认 `InstructionMode ManagedMerge` 会创建、更新或迁移且仅保留一个带标记的 MALTS 指令区块，同时保留区块外用户文本。
+- `Overwrite`：更新 MALTS 管理文件。它默认使用 `InstructionMode Replace` 整份替换工具指令文件，只应在明确需要时使用。
 
-如果远端分支已经是最新，脚本会打印 `Already up to date`。如果 working tree 有本地改动，`-Apply` 会拒绝 pull，除非审阅后提供 `-AllowDirty`。
+指令模式相互独立且语义明确：`ManagedMerge` 是安全默认值，`Skip` 完全不修改指令文件，`Replace` 必须搭配 `Overwrite`。标记缺失一端或存在多个候选时会报错停止，不会猜测。Managed manifest 只删除未修改的过期 MALTS 文件；重复执行 managed merge 保持幂等。
+
+如果远端分支已经是最新，脚本会打印 `Already up to date` 并跳过安装。需要主动重装当前版本时使用 `-Reinstall`。存在远端更新且 working tree 有本地改动时，除非审阅后提供 `-AllowDirty`，否则 `-Apply` 拒绝 pull。
 
 ## 布局规则
 
@@ -46,10 +48,11 @@ Strategies：
 <MALTS_ROOT>\tools\
 <MALTS_ROOT>\scripts\
 <tool-config-root>\MALTS_BOOT.md
-<tool-config-root>\<adapter files only>
+<tool-config-root>\<adapter files>
+<tool-config-root>\skills\<MALTS-skill>\SKILL.md  # 仅发现 bridge
 ```
 
-更新器不得创建完整 `<tool-config-root>\malts\` 副本或工具本地 `skills\` 重复源。
+更新器不得创建完整 `<tool-config-root>\malts\` 副本或工具本地完整 skill 实现。修改过的过期文件必须保留并报告。
 
 ## 安装验证
 
@@ -59,7 +62,7 @@ Strategies：
 .\scripts\Test-MALTSInstall.ps1 -Tool AllIncluded
 ```
 
-该脚本安装到受保护的临时目录，验证共享 `MALTS_ROOT`、每个选中工具的 `MALTS_BOOT.md` 和 adapter scaffold，确认工具 target 下没有 `<tool>\malts` 或工具本地 `skills\`，然后删除临时目录；提供 `-KeepTemp` 时保留。
+该脚本安装到受保护的临时目录，验证共享 `MALTS_ROOT`、managed manifest、每个选中工具的 `MALTS_BOOT.md`、adapter scaffold 和轻量 bridge，然后删除临时目录；提供 `-KeepTemp` 时保留。
 
 也可以直接运行同一个安装布局检查：
 

@@ -162,7 +162,7 @@ MALTS
 
 Core layer 存储通用操作模型和持久 project artifacts。Runtime layer 通过根级 `skills/`、execution modes、recovery、verification、templates、checklists 和 memory pipeline 把模型变成可执行 Agent workflows。Adapter layer 把同一模型映射到每个受支持 agent tool，而不让 tool-specific details 污染核心设计。
 
-公开包只有一个 canonical skill 和 runtime source：共享 `MALTS_ROOT`，并以该 root 下的 `skills/` 为准。目标工具目录是薄 adapter target，不是独立 MALTS runtime 或 skill source。`runtime/EN` 包含 MALTS workflows 使用的 Agent-facing templates 和 checklists。`runtime/CH` 包含简体中文运行镜像，用于用户可读审阅和双语产物生成。
+公开包只有一个 canonical skill 实现和 runtime source：共享 `MALTS_ROOT`，并以该 root 下的 `skills/` 为准。目标工具目录是薄 adapter target，不是独立 MALTS runtime 或实现 source；其中可以包含工具原生索引所需的发现型 bridge `SKILL.md`。`runtime/EN` 包含 MALTS workflows 使用的 Agent-facing templates 和 checklists。`runtime/CH` 包含简体中文运行镜像，用于用户可读审阅和双语产物生成。
 
 ## 激活模型
 
@@ -488,7 +488,7 @@ Claude Code：
 - 使用 `CLAUDE.md` 作为 instruction entry。
 - 将 commands 和 agents 放在 Claude Code 预期的 adapter directories。
 - 通过 `MALTS_BOOT.md` 和共享 `MALTS_ROOT` 解析 MALTS skills 与 runtime files。
-- 不安装工具本地 skill 重复源。
+- 工具本地只安装发现 bridge，不安装完整 skill 实现重复源。
 - 记录 installed version 可用的 runtime-visible agent 或 transcript evidence。
 - 当 explicit model selection 不可用或未验证时，记录限制。
 
@@ -497,10 +497,12 @@ OpenCode：
 - 使用 `AGENTS.md` 和 OpenCode-specific config 作为 instruction 和 tool entry。
 - 将 OpenCode-specific files 保持在 adapter layer。
 - 通过 `MALTS_BOOT.md` 和共享 `MALTS_ROOT` 解析 MALTS skills 与 runtime files。
-- 不安装工具本地 skill 重复源。
+- 工具本地只安装发现 bridge，不安装完整 skill 实现重复源。
 - 在声称透明 multi-agent execution 前，验证目标 OpenCode version 如何暴露 sub-agent dispatch evidence。
 
 除非变更明确 scoped to one tool，否则 adapter docs 和 templates 应在 Codex、Claude Code 和 OpenCode 之间保持同步。
+
+顶层工具指令文件属于混合所有权。MALTS 只拥有 `<!-- MALTS:BEGIN managed instruction -->` 与 `<!-- MALTS:END managed instruction -->` 之间的区块，周围文本全部归用户所有。安装器和更新器的默认行为必须幂等合并该区块、迁移可明确识别的旧 MALTS section，并在标记有歧义时停止。整份文件替换属于显式操作，绝不能作为安全更新默认值。
 
 ## 双语文档
 

@@ -22,12 +22,12 @@ Chinese public doc sync is optional unless release scope requires it. Runtime EN
 
 `check-doc-sync` is a structural check. With `--require-ch`, it verifies configured document pairs and requires each Chinese document to match the English heading count and heading-level sequence. For `runtime`, built-in runtime EN/CH pairs are used even without a manifest. It does not validate translation quality, semantic equivalence, or whether a Chinese review copy is ready for release. Critical protocol wording still needs human or main-controller review.
 
-`check-adapter-parity` verifies required Codex, Claude Code, and OpenCode adapter scaffold files and required protocol tokens.
+`check-adapter-parity` verifies required Codex, Claude Code, and OpenCode adapter scaffold files, required protocol tokens, and exactly one valid MALTS managed instruction marker pair in every tool instruction example.
 
 `check-encoding` verifies text files are valid UTF-8 and, with `--require-ch-bom`, requires Chinese-facing Markdown surfaces to use UTF-8 with BOM.
 
 `check-public-safety` verifies that release-safe text files do not contain known machine-specific path literals or high-confidence secret value patterns.
 
-`check-install-layout` verifies an applied thin tool adapter target, including `MALTS_BOOT.md`, the resolved shared `MALTS_ROOT`, required shared runtime files, and tool-specific scaffold files. It fails if a tool target contains a tool-local `malts/` runtime copy or `skills/` duplicate. It is used by `scripts/Test-MALTSInstall.ps1`.
+`check-install-layout` verifies an applied thin tool adapter target, including `MALTS_BOOT.md`, managed manifests, the resolved shared `MALTS_ROOT`, required shared runtime files, tool-specific scaffold files, and six lightweight skill bridges. It fails if the shared root is nested in the tool target or a bridge contains a full runtime duplicate. It is used by `scripts/Test-MALTSInstall.ps1`.
 
 `check-semantic-freshness` verifies required release surfaces and semantic tokens, and rejects stale path models, private-release wording, encoding corruption markers, and legacy rules that create translated runtime artifacts by default.

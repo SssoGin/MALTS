@@ -18,6 +18,8 @@ if (-not $TempRoot) {
     $createdTemp = $true
 }
 $TempRoot = [System.IO.Path]::GetFullPath($TempRoot)
+$targetsRoot = Join-Path $TempRoot 'targets'
+$sharedRoot = Join-Path $TempRoot 'shared'
 
 if (Test-Path -LiteralPath $TempRoot) {
     throw "TempRoot already exists; choose an empty path: $TempRoot"
@@ -39,19 +41,19 @@ function Assert-SafeTempPath {
 function Get-InstallRoots {
     if ($Tool -eq 'AllIncluded') {
         return @(
-            [pscustomobject]@{ Tool = 'Codex'; Root = Join-Path $TempRoot 'Codex' },
-            [pscustomobject]@{ Tool = 'ClaudeCode'; Root = Join-Path $TempRoot 'ClaudeCode' },
-            [pscustomobject]@{ Tool = 'OpenCode'; Root = Join-Path $TempRoot 'OpenCode' }
+            [pscustomobject]@{ Tool = 'Codex'; Root = Join-Path $targetsRoot 'Codex' },
+            [pscustomobject]@{ Tool = 'ClaudeCode'; Root = Join-Path $targetsRoot 'ClaudeCode' },
+            [pscustomobject]@{ Tool = 'OpenCode'; Root = Join-Path $targetsRoot 'OpenCode' }
         )
     }
-    return @([pscustomobject]@{ Tool = $Tool; Root = $TempRoot })
+    return @([pscustomobject]@{ Tool = $Tool; Root = $targetsRoot })
 }
 
 try {
     $installScript = Join-Path $repoRoot 'scripts\Install-MALTS.ps1'
     $lintScript = Join-Path $repoRoot 'tools\agent_system_lint.py'
 
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $installScript -Tool $Tool -TargetRoot $TempRoot -Apply -Overwrite
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $installScript -Tool $Tool -TargetRoot $targetsRoot -SharedRoot $sharedRoot -Apply -Overwrite
     if ($LASTEXITCODE -ne 0) {
         throw 'Install-MALTS.ps1 smoke install failed.'
     }

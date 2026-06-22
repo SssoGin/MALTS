@@ -2,7 +2,7 @@
 
 MALTS 的安装模型是一份共享系统 root 加工具薄适配层。
 
-共享 root 是当前机器上唯一默认的 MALTS runtime 和 skill 事实源。工具目录只应包含工具特定指令、scaffold 文件和指向共享 root 的 `MALTS_BOOT.md`。安装器默认不得在每个工具目录下创建完整 `malts/` 副本。
+共享 root 是当前机器上唯一默认的 MALTS runtime 和 skill 实现事实源。工具目录包含工具特定指令、scaffold 文件、指向共享 root 的 `MALTS_BOOT.md`，以及 `skills/` 下的六个轻量发现 bridge。Bridge 只包含路由 `SKILL.md`；安装器不得在每个工具目录下创建完整 runtime 或完整 skill 实现。
 
 ## 推荐流程
 
@@ -38,13 +38,7 @@ Windows 双击审阅可以使用会保留窗口的 wrapper：
 %USERPROFILE%\.malts
 ```
 
-提供 `-TargetRoot` 时，默认共享 root：
-
-```text
-<TargetRoot>\MALTS_ROOT
-```
-
-使用 `-SharedRoot <path>` 可以选择另一条经过审阅的位置。
+`-TargetRoot` 只改变工具 target，不改变默认共享 root。需要其他共享位置时显式使用 `-SharedRoot <path>`；共享 root 与每个工具 target 必须是相互独立的路径。
 
 `MALTS_ROOT` 必须包含：
 
@@ -59,17 +53,17 @@ scripts/
 
 ## 工具薄适配层
 
-每个选中的工具只接收自己的 adapter 文件和 `MALTS_BOOT.md`。
+每个选中的工具接收自己的 adapter 文件、`MALTS_BOOT.md` 和六个轻量发现 bridge。
 
 ```text
-Codex      -> AGENTS.md, config.toml, agents/*.toml, MALTS_BOOT.md
-ClaudeCode -> CLAUDE.md, agents/*.md, commands/*.md, MALTS_BOOT.md
-OpenCode   -> AGENTS.md, opencode.json, .opencode/agents/*.md, MALTS_BOOT.md
+Codex      -> AGENTS.md, config.toml, agents/*.toml, MALTS_BOOT.md, skills/<name>/SKILL.md bridge
+ClaudeCode -> CLAUDE.md, agents/*.md, commands/*.md, MALTS_BOOT.md, skills/<name>/SKILL.md bridge
+OpenCode   -> AGENTS.md, opencode.json, .opencode/agents/*.md, MALTS_BOOT.md, skills/<name>/SKILL.md bridge
 ```
 
 `MALTS_BOOT.md` 记录共享 `MALTS_ROOT`。Agent 运行 MALTS project initialization 前，必须从该文件或另一条经过审阅的 global boot 路径解析 `MALTS_ROOT`。
 
-工具 target 不得接收本地 `skills/` 副本。共享 `MALTS_ROOT\skills\` 是唯一安装的 skill source。
+工具 target 不得接收完整 skill 实现副本。工具本地 `skills/` 只保存发现 bridge；共享 `MALTS_ROOT\skills\` 仍是唯一实现事实源。
 
 ## 安装 Smoke Test
 
@@ -79,7 +73,7 @@ OpenCode   -> AGENTS.md, opencode.json, .opencode/agents/*.md, MALTS_BOOT.md
 .\scripts\Test-MALTSInstall.ps1 -Tool AllIncluded
 ```
 
-该 smoke test 会创建受保护的临时目录，安装一份共享 `MALTS_ROOT`，为选中工具安装薄适配层，验证 `MALTS_BOOT.md`、共享 runtime root，并确认工具目录下没有本地 `malts/` runtime 副本或 `skills/` 重复源，然后删除临时目录；提供 `-KeepTemp` 时保留临时目录。
+该 smoke test 会创建受保护的临时目录，安装一份共享 `MALTS_ROOT`，为选中工具安装薄适配层和 bridge，验证 `MALTS_BOOT.md`、managed manifest 与共享 runtime root，并确认 bridge 目录没有 runtime 重复文件，然后删除临时目录；提供 `-KeepTemp` 时保留临时目录。
 
 也可以直接运行安装布局检查：
 
@@ -99,16 +93,18 @@ AllIncluded
 ## 默认行为
 
 - 每组安装目标只安装一份共享 MALTS root。
-- 工具目录只接收薄 adapter 文件和 `MALTS_BOOT.md`。
+- 工具目录接收薄 adapter 文件、`MALTS_BOOT.md` 和发现 bridge。
 - `MALTS_BOOT.md` 指向共享 `MALTS_ROOT`。
 - `MALTS_ROOT` 下的根级 `skills/` 是 canonical skill source。
-- 不安装工具本地 `skills/` 重复源。
+- 工具本地 bridge 不包含完整 skill 实现或额外 runtime 文件。
 - 不安装每个工具目录下的 `<target>\malts\` runtime 副本。
 - `runtime/EN` 和 `runtime/CH` 作为运行模板和检查清单来源。
 - 双语文档同步默认关闭。
 - Codex 安装到 Codex 配置 root；Claude Code 安装到 Claude Code 配置 root；OpenCode 安装到 OpenCode 配置 root。
-- `-SkipInstructionTemplate` 用于安装 adapter 支持文件但不修改 Agent 指令文件。
-- 除非用户明确允许，安装脚本不会覆盖已有文件。
+- `InstructionMode ManagedMerge` 是默认值：创建或更新一个带标记的 MALTS 区块，并保留区块外全部用户文本。
+- 只安装 adapter 支持文件、不修改 Agent 指令文件时使用 `-InstructionMode Skip`；`-SkipInstructionTemplate` 继续作为兼容别名。
+- 只有经过明确审阅并决定整份替换时，才使用 `-InstructionMode Replace -Overwrite`。
+- 除非用户明确允许，安装脚本不会覆盖已有支持文件。
 - 安装脚本会先打印计划。
 
 ## 手动安装
@@ -119,8 +115,9 @@ AllIncluded
 4. 选择目标工具 adapter。
 5. 审阅 `adapters/` 下的对应 adapter 目录。
 6. 只复制该工具需要的文件到工具配置 root。
-7. 在工具指令文件旁写入 `MALTS_BOOT.md`，并指向共享 `MALTS_ROOT`。
-8. 不要把完整 `malts/` 目录复制到每个工具 target。
-9. 运行对应 smoke test 或 lint 命令。
+7. 在工具原生 `skills/` 发现目录下为每个 MALTS skill 安装一个轻量 bridge。
+8. 在工具指令文件旁写入 `MALTS_BOOT.md`，并指向共享 `MALTS_ROOT`。
+9. 不要把完整 `malts/` 目录或完整 skill 实现复制到每个工具 target。
+10. 运行对应 smoke test 或 lint 命令。
 
 Agent 辅助安装规则见 [Agent 安装协议](AGENT_INSTALL.md)。

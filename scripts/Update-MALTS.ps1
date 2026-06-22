@@ -9,6 +9,9 @@ param(
     [ValidateSet('MergeSafe', 'Overwrite')]
     [string] $Strategy = 'MergeSafe',
 
+    [ValidateSet('ManagedMerge', 'Skip', 'Replace')]
+    [string] $InstructionMode,
+
     [string] $RepoRoot,
 
     [string] $TargetRoot,
@@ -19,7 +22,9 @@ param(
 
     [switch] $Apply,
 
-    [switch] $AllowDirty
+    [switch] $AllowDirty,
+
+    [switch] $Reinstall
 )
 
 $ErrorActionPreference = 'Stop'
@@ -42,6 +47,16 @@ if (-not $RepoRoot) {
 }
 $RepoRoot = [System.IO.Path]::GetFullPath($RepoRoot)
 $dryRun = -not $Apply
+$resolvedInstructionMode = if ($PSBoundParameters.ContainsKey('InstructionMode')) {
+    $InstructionMode
+} elseif ($Strategy -eq 'Overwrite') {
+    'Replace'
+} else {
+    'ManagedMerge'
+}
+if ($resolvedInstructionMode -eq 'Replace' -and $Strategy -ne 'Overwrite') {
+    throw '-InstructionMode Replace requires -Strategy Overwrite.'
+}
 
 function Invoke-Git {
     param([string[]] $Arguments)
@@ -93,11 +108,11 @@ function Invoke-Installer {
         $installArgs += @('-SharedRoot', $SharedRoot)
     }
     if ($Strategy -eq 'MergeSafe') {
-        $installArgs += '-SkipInstructionTemplate'
-        $installArgs += '-Overwrite'
+        $installArgs += '-MergeSafe'
     } else {
         $installArgs += '-Overwrite'
     }
+    $installArgs += @('-InstructionMode', $resolvedInstructionMode)
     if ($Apply) {
         $installArgs += '-Apply'
     }
@@ -114,9 +129,17 @@ Write-Host "RepoRoot: $RepoRoot"
 Write-Host "Tool: $Tool"
 Write-Host "Mode: $Mode"
 Write-Host "Strategy: $Strategy"
+Write-Host "InstructionMode: $resolvedInstructionMode"
 Write-Host "TargetRoot: $(if ($TargetRoot) { $TargetRoot } else { '<tool default>' })"
 Write-Host "SharedRoot: $(if ($SharedRoot) { $SharedRoot } else { '<default shared MALTS_ROOT>' })"
 Write-Host "Apply: $Apply"
+Write-Host "Reinstall: $Reinstall"
+
+if ($Mode -eq 'PullOnly' -and $Reinstall) {
+    throw '-Reinstall cannot be combined with -Mode PullOnly.'
+}
+
+$remoteUpdateAvailable = $false
 
 if ($Mode -ne 'InstallOnly') {
     Test-GitRepo
@@ -143,28 +166,33 @@ if ($Mode -ne 'InstallOnly') {
     Write-Host "Local HEAD: $localHead"
     Write-Host "Remote HEAD: $remoteHead"
 
-    if ($dirty.Count -gt 0) {
-        Write-Host "Working tree has local changes: $($dirty.Count) item(s)."
-        if ($Apply -and -not $AllowDirty) {
-            throw 'Refusing to pull with local changes. Commit/stash them first, or rerun with -AllowDirty after review.'
-        }
-    }
-
     if ($localHead -eq $remoteHead) {
         Write-Host 'Already up to date. No remote update is available.'
-    } elseif ($dryRun) {
-        Write-Host 'Remote update is available. Dry-run only; rerun with -Apply to pull.'
     } else {
-        Write-Host 'Pulling remote updates with --ff-only...'
-        Invoke-Git @('pull', '--ff-only', $remote, $Branch) | Write-Host
-        if ($LASTEXITCODE -ne 0) {
-            throw 'git pull --ff-only failed.'
+        $remoteUpdateAvailable = $true
+        if ($dirty.Count -gt 0) {
+            Write-Host "Working tree has local changes: $($dirty.Count) item(s)."
+            if ($Apply -and -not $AllowDirty) {
+                throw 'Refusing to pull with local changes. Commit/stash them first, or rerun with -AllowDirty after review.'
+            }
+        }
+        if ($dryRun) {
+            Write-Host 'Remote update is available. Dry-run only; rerun with -Apply to pull.'
+        } else {
+            Write-Host 'Pulling remote updates with --ff-only...'
+            Invoke-Git @('pull', '--ff-only', $remote, $Branch) | Write-Host
+            if ($LASTEXITCODE -ne 0) {
+                throw 'git pull --ff-only failed.'
+            }
         }
     }
 }
 
-if ($Mode -ne 'PullOnly') {
+$shouldInstall = $Mode -eq 'InstallOnly' -or $remoteUpdateAvailable -or $Reinstall
+if ($shouldInstall) {
     Invoke-Installer
+} elseif ($Mode -eq 'PullAndInstall') {
+    Write-Host 'Skipping install because no remote update is available. Use -Reinstall to reinstall the current version.'
 }
 
 if ($Apply) {

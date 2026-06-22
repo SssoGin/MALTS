@@ -127,6 +127,7 @@ Recommended format:
 This task is a good fit for `skill-name` because ... Use it?
 ```
 
+<!-- MALTS:BEGIN managed instruction -->
 ## Global Agent System Discovery
 
 The user may have a reusable Multi-Agent Long-Task Scheduling and Growth System.
@@ -161,13 +162,13 @@ When MALTS is activated, read only the minimum needed runtime docs relative to `
 <MALTS_ROOT>/runtime/EN/checklists/QUALITY_GATE.en.md
 ```
 
-Read Chinese docs only when the user explicitly asks for Chinese review, Chinese editing, comparison, or bilingual synchronization.
+When project initialization selects Simplified Chinese as `NarrativeLanguage`, also read `runtime/CH/templates/PROJECT_CONTROL.template.zh-CN.md` and `runtime/CH/templates/WORK_TASK_REPORT.template.zh-CN.md` as localized drafting references for the canonical files. Otherwise read Chinese docs only when the user explicitly asks for Chinese review, Chinese editing, comparison, or bilingual synchronization.
 
 ## MALTS Operating Rules
 
 Cross-project stable rules:
 
-1. **Read runtime docs before initialization.** When initializing MALTS for a new project, read the relevant runtime docs, templates, and checklists before writing project-level `CLAUDE.md`.
+1. **Read runtime docs before initialization.** When initializing MALTS for a new project, read the relevant runtime docs, templates, and checklists before writing project-level `CLAUDE.md`. Route Chinese-facing canonical control/report artifacts through the CH templates while preserving stable schema markers and values.
 2. **Use `PROJECT_CONTROL.md` as the canonical control file.** Write narrative in the user's or project's primary language; create or update a translated mirror only when explicitly requested.
 3. **Use `WORK_TASK_REPORT.md` as the canonical task or phase report.** Write user-facing narrative there; create a full translated report mirror only when explicitly requested.
 4. **Write growth candidates down.** Durable lessons must be recorded in project control files or reports before being promoted to global rules or memory.
@@ -212,7 +213,6 @@ When the user asks for a handoff, project handoff, session summary for the next 
 - Use `session-handoff` by default.
 - Write the fixed Agent-facing current handoff in the current project workspace as `PROJECT_HANDOFF.md` unless the user specifies another path.
 - Write `项目交接.md` only when the user explicitly asks for Chinese handoff output or a Chinese mirror.
-- For the canonical MALTS system workspace, write the fixed Agent-facing handoff to `<MALTS_ROOT>/Handoff/PROJECT_HANDOFF.md`; use `<MALTS_ROOT>/Handoff/项目交接.md` only as the Chinese mirror.
 - If a centralized archive is configured, update `<HANDOFF_ARCHIVE_ROOT>` after writing the current handoff.
 - Keep handoff archives, session logs, caches, and project-control files out of public release repositories.
 
@@ -248,3 +248,4 @@ When the user asks to rebuild, refresh, generate, or package an Agent tool migra
 - Do not claim completion without verification.
 - Do not delete files, change permissions, change dependencies, change build configuration, or modify long-term rules without confirmation or a safety mechanism.
 - Treat Git as optional unless the user explicitly asks for Git operations.
+<!-- MALTS:END managed instruction -->
