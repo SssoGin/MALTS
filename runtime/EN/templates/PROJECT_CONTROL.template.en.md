@@ -9,6 +9,7 @@
 
 - Project:
 - Control version: <MALTS_VERSION>
+- Version source: active boot file -> <MALTS_ROOT>/VERSION; do not copy current MALTS versions from old control/report/handoff/template files.
 - Current round:
 - Last updated:
 - Maintainer: Main Controller

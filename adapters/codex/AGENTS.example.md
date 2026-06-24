@@ -137,6 +137,7 @@ Portable discovery rules:
 - If `MALTS_BOOT.md` exists next to this tool-level instruction file, read it first and resolve `MALTS_ROOT` from its `MALTS_ROOT:` line.
 - If a global boot file is configured, read it first. Example placeholder: `<GLOBAL_BOOT>`.
 - Resolve the current `MALTS_ROOT` from that boot file. Do not treat copied absolute paths in examples, wrappers, handoffs, or reports as authoritative.
+- MALTS version metadata must be read from the active boot file and `<MALTS_ROOT>/VERSION`; never copy the current version from old control/report/handoff/template files.
 - If no global boot file is configured, use the installed MALTS repository root as `<MALTS_ROOT>` after verifying that it contains `README.md`, this adapter, and `skills`.
 - If a global memory file is configured, read only the relevant entries needed for the current task. Example placeholder: `<GLOBAL_MEMORY>`.
 
@@ -168,13 +169,14 @@ When project initialization selects Simplified Chinese as `NarrativeLanguage`, a
 
 Cross-project stable rules:
 
-1. **Read runtime docs before initialization.** When initializing MALTS for a new project, read the relevant runtime docs, templates, and checklists before writing project-level instruction files. Route Chinese-facing canonical control/report artifacts through the CH templates while preserving stable schema markers and values.
+1. **Read runtime docs before initialization.** When initializing MALTS for a new project, read all relevant runtime docs, templates, and checklists before writing project-level instruction files. Route Chinese-facing canonical control/report artifacts through the CH templates while preserving stable schema markers and values.
 2. **Use `PROJECT_CONTROL.md` as the canonical control file.** Write narrative in the user's or project's primary language; create or update a translated mirror only when explicitly requested.
 3. **Use `WORK_TASK_REPORT.md` as the canonical task or phase report.** Write user-facing narrative there; create a full translated report mirror only when explicitly requested.
 4. **Write growth candidates down.** Durable lessons must be recorded in project control files or reports before being promoted to global rules or memory.
-5. **Sync adapter/doc patches across tools.** When modifying adapter READMEs, templates, checklists, or protocol docs, check Codex, Claude Code, and OpenCode together. If one tool is skipped, record why.
+5. **Sync adapter/doc patches across tools and languages.** When modifying adapter READMEs, templates, checklists, or protocol docs, update EN+CH counterparts and check Codex, Claude Code, and OpenCode together. If one tool or language is skipped, record why.
 6. **Keep ordinary documentation sync cost-aware.** Use scripts or structured checks first. Candidate translations or gap fills can be low-cost, but critical protocol, safety, permission, memory, unattended, dispatch, and final-merge semantics require main-controller or high-confidence review.
 7. **Grill-Me Preflight is MALTS-native.** It is a clarification gate, not sub-agent dispatch, and does not require `确认运行`.
+8. **Keep MALTS version metadata fresh.** Current project metadata must come from the active boot file and `<MALTS_ROOT>/VERSION`; treat versions found in old control/report/handoff/template files as historical until revalidated.
 
 ## Codex Long-Task Mode
 

@@ -153,6 +153,18 @@ MANAGED_INSTRUCTION_EXAMPLES = {
     "opencode": "adapters/opencode/AGENTS.example.md",
 }
 
+TOOL_INSTRUCTION_TARGETS = {
+    "Codex": "AGENTS.md",
+    "ClaudeCode": "CLAUDE.md",
+    "OpenCode": "AGENTS.md",
+}
+
+TOOL_INSTRUCTION_SOURCES = {
+    "Codex": "adapters/codex/AGENTS.example.md",
+    "ClaudeCode": "adapters/claude-code/CLAUDE.example.md",
+    "OpenCode": "adapters/opencode/AGENTS.example.md",
+}
+
 PRIVATE_PUBLIC_LITERALS = [
     "C:\\Users\\" + "Gin",
     "D:\\" + "Agent",
@@ -224,7 +236,11 @@ def emit(findings: list[Finding]) -> int:
     return 0
 
 
-def check_project_control(path: Path) -> int:
+def check_project_control(
+    path: Path,
+    malts_root: Path | None = None,
+    malts_version: str | None = None,
+) -> int:
     findings: list[Finding] = []
     if not path.exists():
         return emit([Finding("ERROR", f"PROJECT_CONTROL not found: {path}")])
@@ -253,8 +269,69 @@ def check_project_control(path: Path) -> int:
         findings,
         require_evidence_for_pass=True,
     )
+    expected_version = resolve_expected_malts_version(malts_root, malts_version, findings)
+    if expected_version:
+        validate_project_control_version(sections.get("metadata", ""), expected_version, findings)
 
     return emit(findings)
+
+
+def resolve_expected_malts_version(
+    malts_root: Path | None,
+    malts_version: str | None,
+    findings: list[Finding],
+) -> str | None:
+    if malts_version:
+        normalized = normalize_semver(malts_version)
+        if not normalized:
+            findings.append(Finding("ERROR", f"Invalid MALTS version value: {malts_version}"))
+        return normalized
+    if not malts_root:
+        return None
+    version_path = malts_root / "VERSION"
+    if not version_path.exists():
+        findings.append(Finding("ERROR", f"MALTS VERSION not found: {version_path}"))
+        return None
+    normalized = normalize_semver(read_text(version_path).strip())
+    if not normalized:
+        findings.append(Finding("ERROR", f"MALTS VERSION is not a semantic version: {version_path}"))
+    return normalized
+
+
+def normalize_semver(value: str) -> str | None:
+    match = re.search(r"(?<!\d)(?:MALTS\s*)?v?(\d+\.\d+\.\d+)(?!\d)", value, re.IGNORECASE)
+    if not match:
+        return None
+    return match.group(1)
+
+
+def validate_project_control_version(
+    metadata: str,
+    expected_version: str,
+    findings: list[Finding],
+) -> None:
+    version_line = None
+    for line in metadata.splitlines():
+        match = re.match(
+            r"^\s*-\s*(?:Control version|MALTS runtime version|控制文件版本|MALTS\s*运行时版本)\s*[:：]\s*(?P<value>.+?)\s*$",
+            line,
+        )
+        if match:
+            version_line = match.group("value").strip().strip("`")
+            break
+    if version_line is None:
+        findings.append(
+            Finding("ERROR", "PROJECT_CONTROL metadata is missing current MALTS version metadata.")
+        )
+        return
+    actual_version = normalize_semver(version_line)
+    if actual_version != expected_version:
+        findings.append(
+            Finding(
+                "ERROR",
+                f"PROJECT_CONTROL MALTS version `{actual_version or version_line}` does not match active VERSION `{expected_version}`.",
+            )
+        )
 
 
 def project_control_section(text: str, section_id: str, headings: tuple[str, ...]) -> str | None:
@@ -643,7 +720,8 @@ PROJECT_CONTROL_TEMPLATE = """# PROJECT_CONTROL
 ## Metadata
 
 - Project: {project}
-- Control version: v0.1
+- Control version: <MALTS_VERSION>
+- Version source: active boot file -> <MALTS_ROOT>/VERSION; do not copy current MALTS versions from old control/report/handoff/template files.
 - Current round: {round_name}
 - Last updated: {timestamp}
 - Maintainer: Main Controller
@@ -793,6 +871,61 @@ def build_task_rows(values: list[str]) -> str:
 def slugify(value: str) -> str:
     slug = re.sub(r"[^a-zA-Z0-9]+", "-", value.strip().lower()).strip("-")
     return slug or "project"
+
+
+def managed_block(text: str, label: str, findings: list[Finding]) -> str | None:
+    start_matches = list(re.finditer(re.escape(MANAGED_INSTRUCTION_START), text))
+    end_matches = list(re.finditer(re.escape(MANAGED_INSTRUCTION_END), text))
+    if len(start_matches) != 1 or len(end_matches) != 1:
+        findings.append(
+            Finding(
+                "ERROR",
+                f"{label} must contain exactly one MALTS managed instruction marker pair.",
+            )
+        )
+        return None
+    start = start_matches[0].start()
+    end = end_matches[0].end()
+    if end <= start:
+        findings.append(Finding("ERROR", f"{label} has invalid MALTS managed instruction marker order."))
+        return None
+    return text[start:end]
+
+
+def normalize_block(text: str) -> str:
+    return re.sub(r"\r\n|\r|\n", "\n", text).strip()
+
+
+def check_managed_instruction_sync(
+    malts_root: Path,
+    install_root: Path,
+    tool: str,
+) -> int:
+    findings: list[Finding] = []
+    source_rel = TOOL_INSTRUCTION_SOURCES[tool]
+    target_rel = TOOL_INSTRUCTION_TARGETS[tool]
+    source_path = malts_root / source_rel
+    target_path = install_root / target_rel
+
+    if not source_path.exists():
+        findings.append(Finding("ERROR", f"Missing adapter instruction source: {source_path}"))
+        return emit(findings)
+    if not target_path.exists():
+        findings.append(Finding("ERROR", f"Missing installed instruction target: {target_path}"))
+        return emit(findings)
+
+    source_block = managed_block(read_text(source_path), str(source_path), findings)
+    target_block = managed_block(read_text(target_path), str(target_path), findings)
+    if source_block is None or target_block is None:
+        return emit(findings)
+    if normalize_block(source_block) != normalize_block(target_block):
+        findings.append(
+            Finding(
+                "ERROR",
+                f"Installed {tool} MALTS managed instruction block is not synchronized with {source_rel}.",
+            )
+        )
+    return emit(findings)
 
 
 def gitignore_matches_public_file(pattern: str, rel_paths: list[str]) -> list[str]:
@@ -963,6 +1096,10 @@ def check_semantic_freshness(malts_root: Path, version: str | None) -> int:
             "nearest applicable instruction",
             "Simplified Chinese",
             "NarrativeLanguage",
+            "MALTS version metadata",
+            "<MALTS_ROOT>/VERSION",
+            "old control/report/handoff/template",
+            "EN+CH",
             MANAGED_INSTRUCTION_START,
             MANAGED_INSTRUCTION_END,
         ],
@@ -973,6 +1110,10 @@ def check_semantic_freshness(malts_root: Path, version: str | None) -> int:
             "nearest applicable instruction",
             "Simplified Chinese",
             "NarrativeLanguage",
+            "MALTS version metadata",
+            "<MALTS_ROOT>/VERSION",
+            "old control/report/handoff/template",
+            "EN+CH",
             MANAGED_INSTRUCTION_START,
             MANAGED_INSTRUCTION_END,
         ],
@@ -983,6 +1124,10 @@ def check_semantic_freshness(malts_root: Path, version: str | None) -> int:
             "nearest applicable instruction",
             "Simplified Chinese",
             "NarrativeLanguage",
+            "MALTS version metadata",
+            "<MALTS_ROOT>/VERSION",
+            "old control/report/handoff/template",
+            "EN+CH",
             MANAGED_INSTRUCTION_START,
             MANAGED_INSTRUCTION_END,
         ],
@@ -1021,6 +1166,8 @@ def check_semantic_freshness(malts_root: Path, version: str | None) -> int:
             "SkillBridgeDiscovery",
             "LocalizedProjectControl",
             "UpdateSafety",
+            "ProjectControlVersionMetadata",
+            "ManagedInstructionSync",
         ],
         "scripts/Test-MALTSUpdate.ps1": [
             "SharedRootIsolation",
@@ -1144,6 +1291,8 @@ def main(argv: list[str]) -> int:
 
     pc_parser = subparsers.add_parser("check-project-control")
     pc_parser.add_argument("--project-control", type=Path, required=True)
+    pc_parser.add_argument("--malts-root", type=Path)
+    pc_parser.add_argument("--malts-version")
 
     sync_parser = subparsers.add_parser("check-doc-sync")
     sync_parser.add_argument("--output-root", type=Path, required=True, help="Document root. Use runtime for runtime EN/CH pairs, or . with a manifest for public docs.")
@@ -1163,6 +1312,11 @@ def main(argv: list[str]) -> int:
     install_layout_parser = subparsers.add_parser("check-install-layout")
     install_layout_parser.add_argument("--install-root", type=Path, required=True)
     install_layout_parser.add_argument("--tool", choices=["Codex", "ClaudeCode", "OpenCode"])
+
+    instruction_sync_parser = subparsers.add_parser("check-managed-instruction-sync")
+    instruction_sync_parser.add_argument("--malts-root", type=Path, required=True)
+    instruction_sync_parser.add_argument("--install-root", type=Path, required=True)
+    instruction_sync_parser.add_argument("--tool", choices=["Codex", "ClaudeCode", "OpenCode"], required=True)
 
     new_parser = subparsers.add_parser("new-project-control")
     new_parser.add_argument("--project", required=True)
@@ -1195,7 +1349,7 @@ def main(argv: list[str]) -> int:
     if args.command == "next-task-id":
         return next_task_id(args.project_control)
     if args.command == "check-project-control":
-        return check_project_control(args.project_control)
+        return check_project_control(args.project_control, args.malts_root, args.malts_version)
     if args.command == "check-doc-sync":
         return check_doc_sync(args.output_root, args.manifest, args.require_ch)
     if args.command == "check-adapter-parity":
@@ -1206,6 +1360,8 @@ def main(argv: list[str]) -> int:
         return check_public_safety(args.malts_root)
     if args.command == "check-install-layout":
         return check_install_layout(args.install_root, args.tool)
+    if args.command == "check-managed-instruction-sync":
+        return check_managed_instruction_sync(args.malts_root, args.install_root, args.tool)
     if args.command == "new-project-control":
         return new_project_control(args)
     if args.command == "check-semantic-freshness":

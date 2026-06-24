@@ -19,12 +19,13 @@ The Agent must not install all included adapters unless the user chooses `AllInc
 4. Explain that `skills/` under the shared `MALTS_ROOT` is the only skill implementation source. Tool-local `skills/` contains only lightweight discovery bridges.
 5. Explain that tool instruction templates such as `AGENTS.md` and `CLAUDE.md` are optional MALTS enhancements. Default to `InstructionMode ManagedMerge`, which owns only the marked MALTS block; offer `Skip`, and require explicit confirmation before full-file `Replace`.
 6. Explain that each tool needs `MALTS_BOOT.md`, but it should point to the shared `MALTS_ROOT`; the install plan should not include a full `<target>\malts\` runtime copy by default.
-7. Inspect the target configuration directory.
-8. Show the planned file writes, shared root location, and possible conflicts.
-9. Default to dry-run.
-10. Preserve user-owned instruction text outside the MALTS markers. Do not overwrite other existing files without explicit confirmation.
-11. Do not read or copy secrets, sessions, memory dumps, or user-specific generated state.
-12. Ask whether to enable bilingual documentation sync for public docs; default runtime project artifacts remain single canonical files, with optional translated mirrors only on explicit request.
+7. Explain that installed instruction sync can be verified with `check-managed-instruction-sync`, which compares only the MALTS managed block and ignores user-owned text outside the markers.
+8. Inspect the target configuration directory.
+9. Show the planned file writes, shared root location, and possible conflicts.
+10. Default to dry-run.
+11. Preserve user-owned instruction text outside the MALTS markers. Do not overwrite other existing files without explicit confirmation.
+12. Do not read or copy secrets, sessions, memory dumps, or user-specific generated state.
+13. Ask whether to enable bilingual documentation sync for public docs; default runtime project artifacts remain single canonical files, with optional translated mirrors only on explicit request.
 13. Run verification after installation.
 14. Report exactly what changed.
 

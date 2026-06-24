@@ -35,6 +35,8 @@ Strategies:
 
 Instruction modes are independent and explicit: `ManagedMerge` is the safe default, `Skip` leaves the instruction file untouched, and `Replace` requires `Overwrite`. Ambiguous or incomplete marker sets stop with an error instead of guessing. Managed manifests remove only unchanged stale MALTS files; repeated managed merges are idempotent.
 
+After an update, use `check-managed-instruction-sync` if you need to prove that an installed `AGENTS.md` or `CLAUDE.md` managed block matches the current adapter source while preserving user-owned text outside the markers.
+
 If the remote branch is already current, the script prints `Already up to date` and skips installation. Use `-Reinstall` to reinstall the current version intentionally. If an update is available and the working tree has local changes, `-Apply` refuses to pull unless `-AllowDirty` is provided after review.
 
 ## Layout Rules
@@ -80,6 +82,7 @@ python tools\agent_system_lint.py check-install-layout --install-root <TOOL_TARG
 6. When reusable Agent guidance changes, sync only stable MALTS-relevant public guidance into adapter examples. Preserve public-safe confirmation and skill-recommendation rules. Exclude personal language defaults, machine-specific paths, user-specific archive paths, package-maintenance-only rules, and environment-specific wording.
 7. Keep third-party attribution current when public guidance is inspired by or adapted from upstream projects.
 8. Update `VERSION` and `CHANGELOG.md` when preparing a new public release.
+9. When writing project-control metadata, resolve the active boot file and read `<MALTS_ROOT>/VERSION`; do not copy current versions from old control, report, handoff, or template files.
 9. Run sensitive scans.
 10. Run lint checks.
 11. Review the diff before committing.

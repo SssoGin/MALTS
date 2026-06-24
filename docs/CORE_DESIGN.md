@@ -192,6 +192,8 @@ The Agent should explain the expected operational value of multi-agent work befo
 
 `PROJECT_CONTROL.md` is the main state file when MALTS is enabled. It exists so the next window, next Agent, or same Agent after context compaction can continue from external evidence.
 
+Current MALTS version metadata inside `PROJECT_CONTROL.md` is not historical prose. Agents must resolve the active boot file, read `<MALTS_ROOT>/VERSION`, and write that value into current metadata. Version strings found in old control files, work reports, handoffs, templates, release notes, or chat history are historical until revalidated against the active root.
+
 The core sections are:
 
 ```text
@@ -498,9 +500,9 @@ OpenCode:
 - install only discovery bridges locally; never install tool-local skill implementation duplicates
 - verify how the target OpenCode version exposes sub-agent dispatch evidence before claiming transparent multi-agent execution
 
-Adapter docs and templates should stay synchronized across Codex, Claude Code, and OpenCode unless a change is explicitly scoped to one tool.
+Adapter docs and templates should stay synchronized across Codex, Claude Code, and OpenCode unless a change is explicitly scoped to one tool. Public protocol changes should also update EN+CH counterparts together unless a release note records why a language is intentionally skipped.
 
-Top-level tool instruction files have mixed ownership. MALTS owns only the block delimited by `<!-- MALTS:BEGIN managed instruction -->` and `<!-- MALTS:END managed instruction -->`; all surrounding text remains user-owned. The default installer and updater behavior must merge that block idempotently, migrate a recognizable legacy MALTS section, and stop on ambiguous markers. Whole-file replacement is an explicit operation, never the safe-update default.
+Top-level tool instruction files have mixed ownership. MALTS owns only the block delimited by `<!-- MALTS:BEGIN managed instruction -->` and `<!-- MALTS:END managed instruction -->`; all surrounding text remains user-owned. The default installer and updater behavior must merge that block idempotently, migrate a recognizable legacy MALTS section, and stop on ambiguous markers. Whole-file replacement is an explicit operation, never the safe-update default. Installed tool instructions can be checked against their adapter source with `check-managed-instruction-sync`.
 
 ## Bilingual Documentation
 

@@ -8,7 +8,8 @@
 ## 元信息
 
 - 项目：
-- 控制文件版本：v0.1
+- 控制文件版本：<MALTS_VERSION>
+- 版本来源：active boot file -> <MALTS_ROOT>/VERSION；不要从旧 control/report/handoff/template 文件复制当前 MALTS 版本。
 - 当前轮次：
 - 最后更新：
 - 维护者：Main Controller

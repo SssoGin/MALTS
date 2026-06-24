@@ -29,6 +29,8 @@ MALTS_BOOT.md, when installed beside the active tool instruction file
 
 Derive `MALTS_ROOT` from `MALTS_BOOT.md` or `<GLOBAL_BOOT>` when either boot file is configured. Prefer the nearest active tool boot file for portable installs, and use an explicitly configured global boot file only when the user or project already provides one. If no boot file is configured, use the installed MALTS repository root after verifying that it contains `README.md`, `skills/`, `runtime/EN/templates`, and `runtime/EN/checklists`. Do not treat copied absolute paths elsewhere as authoritative.
 
+Read `<MALTS_ROOT>\VERSION` after resolving the active root. Current MALTS version metadata in `PROJECT_CONTROL.md` must come from this active version file; never copy the current version from old control, report, handoff, template, release-note, or chat-history text.
+
 For MALTS-enabled project initialization, read the shared skills, templates, and checklists required by the configured MALTS root before writing project-level instructions. At minimum this includes:
 
 ```text
@@ -161,6 +163,7 @@ Include:
 
 - Project identity and workspace path.
 - MALTS_ROOT resolved from `GLOBAL_BOOT.md`.
+- Current MALTS version read from `<MALTS_ROOT>\VERSION`; do not reuse version strings from older control/report/handoff/template files.
 - Current status and active objective.
 - Scope, non-goals, assumptions, risks, and open questions.
 - Default write scope and any separate source-project paths treated as read-only context until explicitly authorized.
@@ -204,6 +207,7 @@ After writing, run read-only checks:
 - Confirm Chinese-facing `AGENTS.md` content includes the full authorization gate in Simplified Chinese or bilingual form, not only an English summary.
 - Confirm the selected initialization language profile is recorded and the canonical control/report files use the matching localized template route.
 - Confirm all required `MALTS:section` markers remain present in `PROJECT_CONTROL.md`.
+- Confirm current MALTS version metadata matches the active `<MALTS_ROOT>\VERSION`.
 - Confirm control files contain decision log, risk register, verified commands, existing instructions merge log, and last init snapshot sections.
 - Confirm no sub-agent dispatch, long-running service, dependency install, or git state change occurred unless explicitly approved.
 - Show a concise summary and any remaining gaps.

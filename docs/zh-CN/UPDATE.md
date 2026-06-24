@@ -35,6 +35,8 @@ Strategies：
 
 指令模式相互独立且语义明确：`ManagedMerge` 是安全默认值，`Skip` 完全不修改指令文件，`Replace` 必须搭配 `Overwrite`。标记缺失一端或存在多个候选时会报错停止，不会猜测。Managed manifest 只删除未修改的过期 MALTS 文件；重复执行 managed merge 保持幂等。
 
+更新后，如果需要证明已安装的 `AGENTS.md` 或 `CLAUDE.md` managed block 与当前 adapter source 一致，同时保留 marker 外用户文本，可运行 `check-managed-instruction-sync`。
+
 如果远端分支已经是最新，脚本会打印 `Already up to date` 并跳过安装。需要主动重装当前版本时使用 `-Reinstall`。存在远端更新且 working tree 有本地改动时，除非审阅后提供 `-AllowDirty`，否则 `-Apply` 拒绝 pull。
 
 ## 布局规则
@@ -80,9 +82,10 @@ python tools\agent_system_lint.py check-install-layout --install-root <TOOL_TARG
 6. 当 reusable Agent guidance 改动时，只把稳定的 MALTS-relevant public guidance 同步到 adapter examples。保留 public-safe confirmation 和 skill-recommendation rules。排除个人语言默认值、机器特定路径、用户特定 archive 路径、package-maintenance-only rules 和环境特定措辞。
 7. 当 public guidance 借鉴或改编 upstream projects 时，保持 third-party attribution 最新。
 8. 准备新公开 release 时更新 `VERSION` 和 `CHANGELOG.md`。
-9. 运行 sensitive scans。
-10. 运行 lint checks。
-11. commit 前审阅 diff。
-12. 使用 GitHub Desktop 或 Git CLI commit 和 push。
+9. 写入 project-control 元数据时，先解析 active boot file 并读取 `<MALTS_ROOT>/VERSION`；不要从旧 control、report、handoff 或 template 文件复制当前版本。
+10. 运行 sensitive scans。
+11. 运行 lint checks。
+12. commit 前审阅 diff。
+13. 使用 GitHub Desktop 或 Git CLI commit 和 push。
 
 任何 visibility change 之前，仓库都应保持 public-safe。

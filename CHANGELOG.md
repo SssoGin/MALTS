@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.8
+
+Patch release for fresher project metadata and public managed-instruction parity.
+
+- Added active `VERSION` validation for `PROJECT_CONTROL.md` metadata.
+- Added managed instruction sync checks for installed tool-level instruction files.
+- Synced public adapter managed rules for active version metadata and EN+CH documentation parity.
+- Updated project-init guidance and PROJECT_CONTROL templates to avoid copying stale MALTS versions from older artifacts.
+
 ## 0.1.7
 
 Patch release for lightweight discovery, safer updates, and managed instruction merging.
