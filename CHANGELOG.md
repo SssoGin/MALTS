@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.9
+
+Patch release for response-quality guidance in Agent adapter templates.
+
+- Added shared `Response Quality` guidance to Codex, Claude Code, and OpenCode adapter instruction examples.
+- Documented response-quality guardrails in adapter README files and Simplified Chinese adapter README mirrors.
+- Refreshed release metadata and semantic freshness examples for `0.1.9`.
+
 ## 0.1.8
 
 Patch release for fresher project metadata and public managed-instruction parity.

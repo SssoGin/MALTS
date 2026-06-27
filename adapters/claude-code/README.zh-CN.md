@@ -20,7 +20,7 @@
 
 ## 内容
 
-- `CLAUDE.example.md`：Claude Code 指令起点模板。
+- `CLAUDE.example.md`：Claude Code 指令起点模板，包含回答质量规则。
 - `.claude/agents/`：Claude Code agents。
 - `.claude/commands/`：Claude Code commands。
 - 安装器生成的 `MALTS_BOOT.md`，指向共享 `MALTS_ROOT`。

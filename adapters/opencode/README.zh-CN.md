@@ -20,7 +20,7 @@
 
 ## 内容
 
-- `AGENTS.example.md`：安装为 `AGENTS.md`。
+- `AGENTS.example.md`：指令起点模板，安装为 `AGENTS.md`，包含回答质量规则。
 - `opencode.json`
 - `.opencode/agents/`
 - 安装器生成的 `MALTS_BOOT.md`，指向共享 `MALTS_ROOT`。

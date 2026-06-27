@@ -186,7 +186,7 @@ AllIncluded
 当前 release version：
 
 ```text
-0.1.8
+0.1.9
 ```
 
 ## License

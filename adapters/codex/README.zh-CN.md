@@ -20,7 +20,7 @@
 
 ## 内容
 
-- `AGENTS.example.md`：Codex 指令起点模板。
+- `AGENTS.example.md`：Codex 指令起点模板，包含回答质量规则。
 - `config.toml`：安装到 Codex 配置 root 的 subagent scaffold 配置。
 - `agents/*.toml`：Codex-native custom subagent roles。
 - `workflows/*.md`：普通 workflow prompts，不是 Codex custom slash commands。

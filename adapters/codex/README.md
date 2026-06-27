@@ -18,7 +18,7 @@ Apply after review:
 
 ## Contents
 
-- `AGENTS.example.md` starting template for Codex instructions
+- `AGENTS.example.md` starting template for Codex instructions, including response-quality guardrails
 - `config.toml` Codex subagent scaffold configuration for the Codex config root
 - `agents/*.toml` Codex-native custom subagent role scaffolds
 - `workflows/*.md` plain workflow prompts for Codex usage; these are not custom slash commands

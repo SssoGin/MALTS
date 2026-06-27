@@ -86,18 +86,18 @@ function Test-ProjectControlVersionMetadata {
         New-Item -ItemType Directory -Force -Path $probeRoot | Out-Null
         $maltsRoot = Join-Path $probeRoot 'malts'
         New-Item -ItemType Directory -Force -Path $maltsRoot | Out-Null
-        Set-Content -LiteralPath (Join-Path $maltsRoot 'VERSION') -Value '0.1.8' -Encoding UTF8
+        Set-Content -LiteralPath (Join-Path $maltsRoot 'VERSION') -Value '0.1.9' -Encoding UTF8
         $template = Get-Content -LiteralPath (Join-Path $repoRoot 'runtime\EN\templates\PROJECT_CONTROL.template.en.md') -Raw -Encoding UTF8
         $projectControl = Join-Path $probeRoot 'PROJECT_CONTROL.md'
 
-        $staleText = $template.Replace('<MALTS_VERSION>', 'MALTS 0.1.7')
+        $staleText = $template.Replace('<MALTS_VERSION>', 'MALTS 0.1.8')
         Set-Content -LiteralPath $projectControl -Value $staleText -Encoding UTF8
         $staleOutput = & python $lintScript check-project-control --project-control $projectControl --malts-root $maltsRoot 2>&1 | Out-String
         if ($LASTEXITCODE -eq 0 -or $staleOutput -notmatch 'does not match active VERSION') {
             Add-Failure "ProjectControlVersionMetadata: stale current version was not rejected.`n$staleOutput"
         }
 
-        $freshText = $template.Replace('<MALTS_VERSION>', 'MALTS 0.1.8')
+        $freshText = $template.Replace('<MALTS_VERSION>', 'MALTS 0.1.9')
         Set-Content -LiteralPath $projectControl -Value $freshText -Encoding UTF8
         $freshOutput = & python $lintScript check-project-control --project-control $projectControl --malts-root $maltsRoot 2>&1 | Out-String
         if ($LASTEXITCODE -ne 0) {
