@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:malts:schema:installation-registry:1",
+  "title": "MALTS Installation Registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "install_id", "active_generation_id", "lifecycle_state", "release_binding_profile", "selected_tools", "generations", "persistent_state_roots", "user_data_roots", "updated_at"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "install_id": {"$ref": "#/$defs/id"},
+    "active_generation_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "lifecycle_state": {"enum": ["stable", "transaction-active", "recovery-required", "uninstalled"]},
+    "release_binding_profile": {"enum": ["legacy-inner-artifact", "release-package-v1"]},
+    "selected_tools": {"type": "array", "minItems": 1, "maxItems": 3, "uniqueItems": true, "items": {"enum": ["codex", "claude-code", "opencode"]}},
+    "generations": {"type": "array", "items": {"$ref": "#/$defs/generationRecord"}},
+    "persistent_state_roots": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/absolutePath"}},
+    "user_data_roots": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/absolutePath"}},
+    "updated_at": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "absolutePath": {"type": "string", "pattern": "^(?:[A-Za-z]:[\\\\/]|\\\\\\\\)[^<>|?*]+$"},
+    "generationRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generation_id", "version", "artifact_sha256", "release_id", "release_manifest_sha256",
+        "release_package_sha256", "generation_manifest_sha256", "root", "state",
+        "generation_manifest_ref", "projection_manifests", "created_at"
+      ],
+      "properties": {
+        "generation_id": {"$ref": "#/$defs/id"},
+        "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "artifact_sha256": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+        "release_id": {"type": ["string", "null"], "pattern": "^MALTS-[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "release_manifest_sha256": {"type": ["string", "null"], "pattern": "^[A-Fa-f0-9]{64}$"},
+        "release_package_sha256": {"type": ["string", "null"], "pattern": "^[A-Fa-f0-9]{64}$"},
+        "generation_manifest_sha256": {"type": ["string", "null"], "pattern": "^[A-Fa-f0-9]{64}$"},
+        "root": {"$ref": "#/$defs/absolutePath"},
+        "state": {"enum": ["staged", "active", "retiring"]},
+        "generation_manifest_ref": {"type": "string", "minLength": 1},
+        "projection_manifests": {"type": "array", "minItems": 1, "maxItems": 3, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "created_at": {"type": "string", "format": "date-time"}
+      }
+    }
+  }
+}

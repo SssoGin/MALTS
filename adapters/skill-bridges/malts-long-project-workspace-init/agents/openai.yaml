@@ -1,0 +1,3 @@
+interface:
+  display_name: "MALTS Long Project Workspace Init"
+  short_description: "Initialize phase-ready long-project workspaces"

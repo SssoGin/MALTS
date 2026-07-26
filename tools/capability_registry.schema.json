@@ -1,0 +1,522 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:malts:schema:capability-registry:1",
+  "title": "MALTS Capability Registry",
+  "description": "Target v1.0 metadata contract. It describes capabilities without becoming a second physical content source.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "registry_version",
+    "design_status",
+    "registry_scope",
+    "generated_at",
+    "entries"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "registry_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "design_status": {
+      "enum": ["v1.0-target", "active"]
+    },
+    "registry_scope": {
+      "enum": ["public-contract", "operator-state"]
+    },
+    "generated_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/capability"
+      }
+    }
+  },
+  "$defs": {
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "skill_id",
+        "name",
+        "declared_name",
+        "aliases",
+        "capability_kind",
+        "ownership",
+        "owner",
+        "managed_by",
+        "source",
+        "content",
+        "descriptor",
+        "interface",
+        "package_variants",
+        "compatibility",
+        "adapters",
+        "dependencies",
+        "source_trust",
+        "review_status",
+        "execution_risk",
+        "risk_factors",
+        "exposure_policy",
+        "routing",
+        "lifecycle",
+        "projection_plan",
+        "verification",
+        "last_verified",
+        "evidence_refs",
+        "rollback"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]+$"
+        },
+        "skill_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "declared_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "aliases": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "capability_kind": {
+          "enum": ["skill", "agent", "tool-adapter", "workflow", "verifier", "checklist"]
+        },
+        "ownership": {
+          "enum": ["malts", "external", "tool", "user"]
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "managed_by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "content": {
+          "$ref": "#/$defs/content"
+        },
+        "descriptor": {
+          "$ref": "#/$defs/descriptor"
+        },
+        "interface": {
+          "$ref": "#/$defs/interface"
+        },
+        "package_variants": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["local", "public"]
+          }
+        },
+        "compatibility": {
+          "$ref": "#/$defs/compatibility"
+        },
+        "adapters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/adapter"
+          }
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/dependency"
+          }
+        },
+        "source_trust": {
+          "enum": ["unknown", "unverified", "community", "verified", "first-party"]
+        },
+        "review_status": {
+          "enum": ["pending", "static-reviewed", "runtime-verified", "rejected"]
+        },
+        "execution_risk": {
+          "enum": ["low", "medium", "high", "critical"]
+        },
+        "risk_factors": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": ["scripts", "write", "network", "credentials", "destructive", "self-modifying", "external-runtime"]
+          }
+        },
+        "exposure_policy": {
+          "$ref": "#/$defs/exposure"
+        },
+        "routing": {
+          "$ref": "#/$defs/routing"
+        },
+        "lifecycle": {
+          "$ref": "#/$defs/lifecycle"
+        },
+        "projection_plan": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/projectionPlan"
+          }
+        },
+        "verification": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/verification"
+          }
+        },
+        "last_verified": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "rollback": {
+          "$ref": "#/$defs/rollback"
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "locator", "revision", "package_variant", "source_relative_path"],
+      "properties": {
+        "type": {
+          "enum": ["package", "git", "plugin", "bundled", "generated"]
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1
+        },
+        "package_variant": {
+          "enum": ["local", "public"]
+        },
+        "source_relative_path": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_sha256", "tree_sha256"],
+      "properties": {
+        "source_sha256": {
+          "type": "string",
+          "pattern": "^[A-Fa-f0-9]{64}$"
+        },
+        "tree_sha256": {
+          "type": "string",
+          "pattern": "^[A-Fa-f0-9]{64}$"
+        }
+      }
+    },
+    "descriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relative_path", "sha256"],
+      "properties": {
+        "relative_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[A-Fa-f0-9]{64}$"
+        }
+      }
+    },
+    "interface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inputs", "outputs", "required_permissions"],
+      "properties": {
+        "inputs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "outputs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "required_permissions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "read-files",
+              "write-project-files",
+              "write-local-canonical",
+              "write-global-state",
+              "tool-invocation",
+              "agent-dispatch",
+              "git-read",
+              "git-write",
+              "network",
+              "install-dependency",
+              "delete-managed-files",
+              "release"
+            ]
+          }
+        }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["platforms", "tools", "protocol_versions", "constraints"],
+      "properties": {
+        "platforms": {
+          "type": "array",
+          "items": {
+            "enum": ["windows", "linux", "macos"]
+          }
+        },
+        "tools": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": ["codex", "claude-code", "opencode"]
+          }
+        },
+        "protocol_versions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "adapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool", "projection", "locator"],
+      "properties": {
+        "tool": {
+          "enum": ["codex", "claude-code", "opencode"]
+        },
+        "projection": {
+          "enum": ["native", "bridge", "junction", "overlay", "none"]
+        },
+        "locator": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "required", "source_relative_path"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "enum": ["skill", "agent", "tool", "runtime", "file", "service"]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "source_relative_path": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "exposure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["default", "tools", "catalog_budget_class", "reason"],
+      "properties": {
+        "default": {
+          "enum": ["hidden", "advisory", "visible"]
+        },
+        "tools": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["codex", "claude-code", "opencode"],
+          "properties": {
+            "codex": {
+              "enum": ["hidden", "advisory", "visible"]
+            },
+            "claude-code": {
+              "enum": ["hidden", "advisory", "visible"]
+            },
+            "opencode": {
+              "enum": ["hidden", "advisory", "visible"]
+            }
+          }
+        },
+        "catalog_budget_class": {
+          "enum": ["core", "standard", "extended", "protected"]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "routing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["triggers", "task_types", "modes", "conditions", "contraindications"],
+      "properties": {
+        "triggers": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "task_types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "modes": {
+          "type": "array",
+          "items": {
+            "enum": ["single-agent", "preflight", "multi-agent", "release", "handoff", "review-only"]
+          }
+        },
+        "conditions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "contraindications": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "legacy_aliases"],
+      "properties": {
+        "state": {
+          "enum": ["candidate", "active", "deprecated", "quarantined", "blocked"]
+        },
+        "legacy_aliases": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "rollback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strategy", "reference"],
+      "properties": {
+        "strategy": {
+          "enum": ["restore-previous-lock", "restore-snapshot", "remove-projection", "manual-review"]
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "projectionPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool", "projection", "target", "required", "projected_name", "package_variant", "metadata_type"],
+      "properties": {
+        "tool": {
+          "enum": ["codex", "claude-code", "opencode"]
+        },
+        "projection": {
+          "enum": ["native", "overlay", "junction", "none"]
+        },
+        "target": {
+          "type": ["string", "null"]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "projected_name": {
+          "type": "string",
+          "pattern": "^malts-[a-z0-9][a-z0-9-]+$"
+        },
+        "package_variant": {
+          "enum": ["local", "public"]
+        },
+        "metadata_type": {
+          "enum": ["skill-only", "skill-with-openai-metadata"]
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "status", "tool", "evidence_ref"],
+      "properties": {
+        "level": {
+          "enum": ["static", "discovery", "invocation", "behavior"]
+        },
+        "status": {
+          "enum": ["pending", "pass", "fail", "not-applicable"]
+        },
+        "tool": {
+          "type": ["string", "null"],
+          "enum": ["codex", "claude-code", "opencode", null]
+        },
+        "evidence_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

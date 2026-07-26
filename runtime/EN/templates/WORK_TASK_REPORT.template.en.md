@@ -5,11 +5,23 @@
 
 ## Result
 
-- Status: Completed / Partially Completed / Blocked / Failed
+- Status: DONE / PARTIAL / BLOCKED / FAILED
 - Plain-language conclusion:
 - User original goal addressed:
 - Report language:
 - Optional translated mirror requested: Yes / No; path / reason:
+
+## Result Contract
+
+- Result ID:
+- Execution status: DRAFT / PREFLIGHT / AWAITING_AUTHORIZATION / AUTHORIZED / PLANNING / EXECUTING / VERIFYING / REPLANNING / FINALIZING / DONE / PARTIAL / BLOCKED / FAILED
+- Terminal status: None / DONE / PARTIAL / BLOCKED / FAILED
+- Authorization envelope reference:
+- Hard acceptance criteria reconciliation:
+- Current round / attempt / strategy ID:
+- Budget usage / hard-limit state:
+- Last status event / direct evidence:
+- Remaining work:
 
 ## What Was Done
 
@@ -17,7 +29,8 @@
 - Files or deliverables created/updated:
 - Artifact/directory boundary, if any:
 - Grill-Me Preflight: offered / accepted / declined / N/A; decisions resolved:
-- Multi-agent roles used, if any:
+- Dynamic Agent route: 0 / 1 / N; responsibility lanes used, if any:
+- Route reason, launch review reference, and approved batch IDs:
 
 ## Verification
 
@@ -25,6 +38,7 @@
 - Result:
 - Evidence level:
 - Not verified:
+- Runtime/provider test state and G4 status: component only / G4 PASS / G4 FAIL / G4 NOT RUN
 - Delivery checklist reviewed: Yes / No / N/A; reason:
 
 ## Cost And Model Strategy
@@ -36,18 +50,33 @@
 - High-capability/main-controller approval scope:
 - Final status if approval is missing: Draft / Unverified / N/A
 - Runtime model-routing limitation, if any:
+- Requested / recommended / configured / effective model-and-effort evidence:
+- Runtime effort ID / normalized reasoning tier / display label:
+- Binding status, effective concurrency/depth, fallback reason, and usage evidence:
+- Role-to-effort review: responsibility did not hard-code difficulty / deviation recorded
 - Unreviewed risk:
 
 ## Growth Review
 
 - Review level: None / Light / Standard / Major
+- Growth authority: L1 Analyze / L2 Project Maintain / L3 System Promote
+- L1 result: no meaningful signal / temporary candidate only / N/A; L1 does not create a durable record
+- Project write authorization reference for L2, if used:
+- Signal and candidate IDs:
 - Reusable experience found: Yes / No
+- Trigger / action / check / boundary:
+- Anti-pollution and deduplication result:
+- Lifecycle status: OBSERVED / CANDIDATE / PROJECT_EXPERIMENTAL / FUTURE_USE_VALIDATING / VALIDATED / CHALLENGED / SUSPENDED / SYSTEM_PROMOTION_PROPOSED / ACCEPTED / REJECTED / DEPRECATED / REMOVED
+- Future-use validation: the source task does not count; record helped outcomes from two independent future tasks before default validation
+- High-risk supplement: independent review / negative test / counterexample test / N/A
+- Retrieval outcome: not_evaluated / helped / neutral / harmful / inconclusive
+- Challenge / suspension / replacement decision:
 - What changed for next time:
-- Promotion decision: None / Local only / Proposed for GLOBAL_MEMORY / Written to GLOBAL_MEMORY
-- Long-term memory decision: Do not write / Local candidate / Proposed global rule / Written after checklist
+- Promotion decision: None / Project only / L3 proposed / L3 separately authorized and written
+- Separate L3 promotion authorization reference: N/A / <authorization ref>
+- Long-term memory decision: Do not write / Local candidate / Proposed global rule / Written after authorization and checklist
 - Destination or record location:
 - GLOBAL_MEMORY entry ID or fallback location:
-- Lifecycle check: <any GLOBAL_MEMORY entries ready for promotion? experimental -> stable after 3+ verified uses. stable -> deprecated after 90 days unverified.>
 
 ## MALTS Memory Pipeline
 
@@ -61,6 +90,10 @@
 - Was `PROJECT_CONTROL` or equivalent state updated: Yes / No / N/A
 - Was an optional translated mirror updated when explicitly requested: Yes / No / N/A
 - Round completed:
+- Recovery round / attempt:
+- Active strategy ID:
+- Budget usage / hard limits:
+- Last status event ID / evidence:
 - Runtime duration note: no fixed one-shot runtime guarantee / N/A
 - Recovery point:
 - New-window or other-project resume path:

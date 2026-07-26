@@ -17,19 +17,30 @@ Use for all normal tasks unless multi-agent long-task scheduling is explicitly e
 
 ## Principle
 
-Growth should be continuous but cheap. Most small tasks should not produce files, long reviews, or heavy process.
+Growth analysis may be continuous, but durable growth writes are permission-bound. Most small tasks should not produce files, long reviews, or heavy process.
+
+## Authority Levels
+
+- `L1 Analyze`: identify a real signal and form an in-memory candidate. Do not create or modify a durable project, global, canonical, Skill, checklist, lint, adapter, tool-install, or public record.
+- `L2 Project Maintain`: only after a one-time project authorization that names the writable project surface. Record the triggering event, evidence, and authorization reference. The user may switch back to `analysis_only` or revoke the authorization.
+- `L3 System Promote`: proposing or changing `GLOBAL_MEMORY`, global/canonical rules, Skills, checklists, lint, adapters, installed tools, or public content always requires a separate confirmation. L2 never implies L3.
 
 ## Workflow
 
 1. Execute the user's task normally.
 2. Verify before claiming completion.
-3. At the end, briefly check whether the task produced reusable experience.
-4. If no meaningful experience exists, do not write memory.
-5. If a small lesson exists, mention it as a local note or growth candidate.
-6. If a repeated or high-impact pattern appears, propose Standard or Major retrospective.
-7. Write long-term memory only after the memory write checklist passes.
-8. If the intended long-term memory target is unavailable, keep the candidate as a local note and report that no real long-term write happened.
-9. For non-trivial tasks, user corrections, recovery rounds, or failures, include a short user-facing growth result in the final or phase report.
+3. At the end, briefly check whether the task produced a high-signal event: user correction, verification reversal, repeated failure, rework, recovery/rollback, a materially successful method, or a tool-fact/assumption conflict.
+4. If no meaningful signal exists, do not create a growth file.
+5. Under L1, analyze the signal in memory and report only a temporary candidate when useful.
+6. Under an explicit L2 authorization, record the candidate only in the declared project surface and run the anti-pollution gate.
+7. Retrieve candidates only when their task type, risk, tool, workspace key, and failure signature are relevant. Retrieval is not permission to apply the candidate.
+8. Record adoption or rejection and the outcome; do not record successes only.
+9. If a repeated or high-impact pattern appears, propose Standard or Major retrospective.
+10. Do not propose `VALIDATED` until the original event is followed by two helped future tasks with different task IDs and independence keys. The original event does not count as future-use validation.
+11. High-risk candidates also require an independent review or negative/counterexample test.
+12. Harmful evidence moves the candidate to `CHALLENGED`; severe harmful evidence moves it to `SUSPENDED` and stops automatic application.
+13. Any L3 proposal or write requires a separate user confirmation even when the memory checklist passes.
+14. For non-trivial tasks, user corrections, recovery rounds, or failures, include a short user-facing growth result in the final or phase report.
 
 ## Lightweight Growth Triggers
 
@@ -60,11 +71,14 @@ If meaningful:
 
 ```md
 Growth candidate:
+- Authority level: L1 / L2 / L3
 - Trigger:
-- Lesson:
-- Suggested destination:
-- Needs long-term write check: Yes / No
-- Promotion candidate: Yes / No
+- Action:
+- Check:
+- Boundary:
+- Evidence:
+- Lifecycle status:
+- Durable write authorization: None / Project authorization reference / Separate L3 confirmation required
 ```
 
 If not meaningful, no growth output is required.
@@ -78,6 +92,8 @@ Growth review:
 - Next-time change:
 - Memory write decision: Do not write / Local candidate / Proposed after checklist / Local fallback because target unavailable
 - Promotion decision: None / Local only / Proposed for GLOBAL_MEMORY / Written to GLOBAL_MEMORY
+- Future-use status: Not started / Validating / Two independent future tasks passed / Challenged / Suspended
+- Original event counted as future use: No
 ```
 
 ## Checklist
@@ -87,6 +103,11 @@ Growth review:
 - [ ] No one-off detail was promoted.
 - [ ] No long review was forced for a small task.
 - [ ] Long-term writes were filtered.
+- [ ] L1 analysis did not create a durable file.
+- [ ] Any L2 write stayed inside the declared project authorization and recorded its authorization reference.
+- [ ] Any L3 proposal or write has a separate confirmation.
+- [ ] The original triggering event was not counted as a future use.
+- [ ] Harmful evidence opens a challenge; severe evidence suspends automatic use.
 - [ ] Failed or unavailable memory writes were preserved as local candidates instead of claimed as completed.
 - [ ] The user-facing report includes the growth result when the task is non-trivial or recovery-related.
 

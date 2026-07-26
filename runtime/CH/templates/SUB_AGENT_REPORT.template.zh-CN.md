@@ -8,8 +8,15 @@
 - Agent 角色：
 - 运行时 Agent ID：
 - 分派机制：
-- 契约中的模型策略：
-- 实际使用模型，如可知：
+- 批次 ID 与启动审阅引用：
+- 契约中的模型与 runtime effort 策略：
+- requested / recommended / configured 选择：
+- 生效模型与 runtime effort（如可知）：
+- 归一化推理等级 / 展示标签：
+- 运行时 binding 状态：
+- 路由证据与 usage evidence 引用：
+- 生效并发数 / 深度（如观察到）：
+- fallback 原因（如有）：
 - 状态：Completed / Partially Completed / Blocked / Failed
 - 任务目标：
 - 实际完成：
@@ -37,6 +44,8 @@
 - 验证失败：
 - 未验证：
 - 未验证原因：
+- 运行时 / provider 行为测试状态：behavior_verified / integration_verified / discovery_verified / provider_unconfigured / runtime_unsupported / not_run
+- G4 runtime/provider gate：PASS / FAIL / NOT RUN
 
 ## 验收映射
 

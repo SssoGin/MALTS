@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "capability_id": "malts.skill.multi-agent-long-task-scheduling",
+  "skill_id": "multi-agent-long-task-scheduling",
+  "declared_name": "multi-agent-long-task-scheduling",
+  "projected_names": {
+    "codex": "malts-multi-agent-long-task-scheduling",
+    "claude-code": "malts-multi-agent-long-task-scheduling",
+    "opencode": "malts-multi-agent-long-task-scheduling"
+  },
+  "display_name": "MALTS Multi-Agent Long-Task Scheduling",
+  "short_description": "Run recoverable long-task scheduling after launch review",
+  "triggers": ["run a recoverable long task", "coordinate multiple Agents", "schedule parallel bounded work"],
+  "applicability": {
+    "task_types": ["long-task", "multi-agent-coordination", "parallel-verification"],
+    "modes": ["multi-agent", "review-only"],
+    "conditions": ["A launch review has been shown and the user explicitly confirmed dispatch."],
+    "contraindications": ["The task is trivial, tightly coupled, or has no useful independent work."]
+  },
+  "inputs": ["authorized goal", "launch review", "task contracts", "model policy"],
+  "outputs": ["bounded task queue", "dispatch evidence", "reconciled Agent reports", "recovery checkpoint"],
+  "risks": {
+    "risk_class": "high",
+    "factors": ["write", "external-runtime"],
+    "forbidden_effects": ["Do not dispatch before explicit confirmation.", "Do not exceed the authorized Agent batch or scope."]
+  },
+  "required_permissions": ["read-files", "write-project-files", "agent-dispatch", "tool-invocation"],
+  "dependencies": [],
+  "supported_tools": ["codex", "claude-code", "opencode"],
+  "package_variants": ["local", "public"],
+  "tool_metadata": {
+    "codex": {"projection_type": "native", "include_openai_metadata": true},
+    "claude-code": {"projection_type": "native", "include_openai_metadata": false},
+    "opencode": {"projection_type": "native", "include_openai_metadata": false}
+  },
+  "verification": {
+    "status": "static-validated",
+    "levels": ["static"],
+    "evidence_refs": ["test:T-SK-W3-DESC-003"]
+  }
+}

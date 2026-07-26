@@ -8,8 +8,15 @@
 - Agent role:
 - Runtime agent ID:
 - Dispatch mechanism:
-- Model policy from contract:
-- Model actually used, if known:
+- Batch ID and launch review reference:
+- Model and runtime effort policy from contract:
+- Requested / recommended / configured selection:
+- Effective model and runtime effort, if known:
+- Normalized reasoning tier / display label:
+- Runtime binding status:
+- Route evidence and usage evidence references:
+- Effective concurrency / depth, if observed:
+- Fallback reason, if any:
 - Status: Completed / Partially Completed / Blocked / Failed
 - Mission objective:
 - Actual completion:
@@ -37,6 +44,8 @@
 - Failed verification:
 - Not verified:
 - Why not verified:
+- Runtime/provider behavior test state: behavior_verified / integration_verified / discovery_verified / provider_unconfigured / runtime_unsupported / not_run
+- G4 runtime/provider gate: PASS / FAIL / NOT RUN
 
 ## Acceptance Mapping
 

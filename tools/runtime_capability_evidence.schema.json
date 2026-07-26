@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:malts:schema:runtime-capability-evidence:1",
+  "title": "MALTS Runtime Capability Evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "evidence_id", "tool", "runtime_version", "probe_time", "requested",
+    "recommended", "configured", "effective", "selection_source", "support", "effective_concurrency",
+    "effective_depth", "constraint_strength", "runtime_binding", "binding_status", "fallback_reason",
+    "usage_evidence", "test_state", "probe_sources", "ultra_authorization", "evidence_refs"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "evidence_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "tool": {"enum": ["codex", "claude-code", "opencode"]},
+    "runtime_version": {"type": ["string", "null"], "minLength": 1},
+    "probe_time": {"type": "string", "format": "date-time"},
+    "requested": {"$ref": "#/$defs/routeSelection"},
+    "recommended": {"$ref": "#/$defs/routeSelection"},
+    "configured": {"$ref": "#/$defs/routeSelection"},
+    "effective": {"$ref": "#/$defs/routeSelection"},
+    "selection_source": {"enum": ["user", "planner", "configuration", "runtime", "fallback", "inherited", "unknown"]},
+    "support": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_override", "effort_override", "effective_reporting", "native_skill", "session_resume", "permission_binding"],
+      "properties": {
+        "model_override": {"$ref": "#/$defs/supportState"},
+        "effort_override": {"$ref": "#/$defs/supportState"},
+        "effective_reporting": {"$ref": "#/$defs/supportState"},
+        "native_skill": {"$ref": "#/$defs/supportState"},
+        "session_resume": {"$ref": "#/$defs/supportState"},
+        "permission_binding": {"$ref": "#/$defs/supportState"}
+      }
+    },
+    "effective_concurrency": {"type": ["integer", "null"], "minimum": 1},
+    "effective_depth": {"type": ["integer", "null"], "minimum": 0},
+    "constraint_strength": {"$ref": "#/$defs/constraintStrength"},
+    "runtime_binding": {"$ref": "#/$defs/runtimeBinding"},
+    "binding_status": {
+      "enum": [
+        "effective_verified", "configured_unverified", "static_binding", "inherited",
+        "fallback_verified", "unsupported", "unknown"
+      ]
+    },
+    "fallback_reason": {"type": ["string", "null"], "minLength": 1},
+    "usage_evidence": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "test_state": {
+      "enum": [
+        "integration_verified", "discovery_verified", "behavior_verified", "provider_unconfigured",
+        "runtime_unsupported", "not_run"
+      ]
+    },
+    "probe_sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source_type", "strength", "locator", "observed_at"],
+        "properties": {
+          "source_type": {
+            "enum": ["cli-help", "config", "in-band-interface", "runtime-return", "runtime-log", "behavior-probe"]
+          },
+          "strength": {"enum": ["static", "configured", "effective"]},
+          "locator": {"type": "string", "minLength": 1},
+          "observed_at": {"type": "string", "format": "date-time"}
+        }
+      }
+    },
+    "ultra_authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["explicitly_authorized", "observable", "budgeted"],
+      "properties": {
+        "explicitly_authorized": {"type": "boolean"},
+        "observable": {"type": "boolean"},
+        "budgeted": {"type": "boolean"}
+      }
+    },
+    "evidence_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "$defs": {
+    "supportState": {"enum": ["supported", "unsupported", "unknown"]},
+    "reasoningEffort": {"enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra", "unknown", null]},
+    "normalizedReasoningTier": {"enum": ["none", "light", "standard", "deep", "maximum", "unknown", null]},
+    "constraintStrength": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "effort", "delegation", "concurrency"],
+      "properties": {
+        "model": {"enum": ["hard", "soft", "none"]},
+        "effort": {"enum": ["hard", "soft", "none"]},
+        "delegation": {"enum": ["hard", "soft", "none"]},
+        "concurrency": {"enum": ["hard", "soft", "none"]}
+      }
+    },
+    "runtimeBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "profile_id", "adapter_id", "session_id"],
+      "properties": {
+        "provider": {"type": ["string", "null"], "minLength": 1},
+        "profile_id": {"type": ["string", "null"], "minLength": 1},
+        "adapter_id": {"type": ["string", "null"], "minLength": 1},
+        "session_id": {"type": ["string", "null"], "minLength": 1}
+      }
+    },
+    "routeSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model_id", "reasoning_effort", "normalized_reasoning_tier", "display_label",
+        "delegation_mode", "concurrency_policy", "outcome"
+      ],
+      "properties": {
+        "model_id": {"type": ["string", "null"], "minLength": 1},
+        "reasoning_effort": {"$ref": "#/$defs/reasoningEffort"},
+        "normalized_reasoning_tier": {"$ref": "#/$defs/normalizedReasoningTier"},
+        "display_label": {"type": ["string", "null"], "minLength": 1},
+        "delegation_mode": {"type": ["string", "null"], "enum": ["main", "single-agent", "sub-agent", "nested", "unknown", null]},
+        "concurrency_policy": {"type": ["string", "null"], "enum": ["serial", "bounded-parallel", "runtime-default", "unknown", null]},
+        "outcome": {
+          "enum": [
+            "requested", "recommended", "configured", "effective", "effective_unknown",
+            "runtime_unsupported", "requested_unavailable", "routing_degraded", "blocked", "not_applicable"
+          ]
+        }
+      }
+    }
+  }
+}

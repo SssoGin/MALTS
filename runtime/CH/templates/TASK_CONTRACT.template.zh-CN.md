@@ -5,21 +5,36 @@
 ## 任务身份
 
 - 任务 ID：
-- 任务类型：Planner / Explorer / Worker / Verifier / Memory Curator
+- 职责通道：Planner / Explorer / Worker / Verifier / Memory Curator / Other
 - 优先级：P0 / P1 / P2 / P3
 - 状态：READY
 - 分派者：Main Controller
 
-## 运行时与模型策略
+## 运行时、模型与 Effort 策略
 
 - 运行时 / 适配器：Codex / Claude Code / OpenCode / Other
 - 分派机制：例如 Codex `spawn_agent`
-- 模型策略：继承当前 Main Controller 会话 / 显式指定模型
+- 模型策略：继承当前 Main Controller 会话 / 显式指定模型 / 运行时默认
+- 运行时 effort 策略：继承 / 显式 runtime effort ID / 运行时默认
+- 归一化推理等级：none / light / standard / deep / maximum / unknown
+- 展示标签（如运行时提供）：
 - 查漏补缺三工具同步预期：Codex + Claude Code + OpenCode，除非用户另行限定 / N/A
 - 用户可见模型名称或策略：
 - 用户模型指定来源：用户指定 / 用户选择继承 / 审阅后默认继承
 - 显式模型，如有：
 - 显式指定模型的原因，如有：
+- 显式指定 effort 的原因，如有：
+- 路由证据引用：
+- Requested 选择：
+- Recommended 选择：
+- Configured 选择：
+- Effective 选择：
+- 约束强度：model=hard|soft|none; effort=hard|soft|none; delegation=hard|soft|none; concurrency=hard|soft|none
+- 运行时 binding 状态：effective_verified / fallback_verified / configured_unverified / static_binding / inherited / unsupported / unknown
+- 运行时 test state：behavior_verified / integration_verified / discovery_verified / provider_unconfigured / runtime_unsupported / not_run
+- 生效并发数 / 深度：
+- fallback 原因与 usage evidence（如有）：
+- 启动审阅引用与已批准批次 ID：
 - 预期运行时 Agent ID 来源：工具调用返回 / 运行时日志 / N/A
 - 是否已包含在启动审阅包中：Yes / No / N/A
 - 用户是否已用 `确认运行` 确认启动：Yes / No / N/A
@@ -55,7 +70,9 @@
 - [ ] 没有文件或资源所有权冲突。
 - [ ] 预期输出格式清楚。
 - [ ] 验证方法清楚。
-- [ ] 运行时与模型策略清楚。
+- [ ] 运行时、模型、effort、证据四元组、约束强度和 binding 策略清楚。
+- [ ] 角色名称只描述职责，不硬编码任务难度或推理 effort。
+- [ ] 如果 Agent 数量为 N，已记录 effective / verified-fallback binding 和生效运行时容量。
 - [ ] 如果任务属于协议、模板、检查清单、适配器或文档查漏补缺，Codex、Claude Code、OpenCode 同步范围清楚。
 - [ ] 如果本任务属于用户要求的多 Agent 运行，已在启动审阅包中展示，且用户已回复 `确认运行`。
 
@@ -76,7 +93,8 @@
 必须包含：
 
 - 运行时 Agent ID，如运行时提供。
-- 实际使用模型，如可知；否则说明已记录的模型策略。
+- 生效模型与 runtime effort（如可知）；否则说明确切的 configured / inherited 策略，并把 effective 标为 unknown。
+- requested / recommended / configured / effective 路由证据和 binding 状态。
 - 做了什么。
 - 修改了哪些文件，如有。
 - 执行了什么验证。

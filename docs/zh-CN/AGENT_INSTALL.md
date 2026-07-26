@@ -1,98 +1,14 @@
-﻿# Agent 辅助安装协议
+﻿# Agent 辅助安装
 
-当 Agent 为用户安装 MALTS 时，必须先询问目标工具：
+当 Agent 协助用户安装 MALTS 时，使用以下规则。
 
-```text
-Codex
-Claude Code
-OpenCode
-AllIncluded
-```
+1. 阅读[安装](INSTALL.md)、[生命周期](LIFECYCLE.md)和[安全](SECURITY.md)。
+2. 确认用户已选择一个或多个工具根，以及一个与它们分离的生命周期根。
+3. 解包前先验证下载 package。
+4. 生成 dry-run 生命周期计划，向用户展示目标、破坏性操作和 `plan_hash`。
+5. 执行该计划前等待用户明确授权。
+6. 执行后检查生命周期状态和所选 projection。
 
-除非用户选择 `AllIncluded`，Agent 不得安装全部 adapters。
+Agent 不得添加未选择的工具、猜测工具根、复用过期计划 hash，或向不可变用户 payload 写入 live project 文件。
 
-## 必需流程
-
-1. 阅读 `README.md`、`docs/INSTALL.md` 和本文。
-2. 询问要安装哪个目标工具。
-3. 说明 MALTS 使用一份共享 `MALTS_ROOT` 加工具薄适配层。
-4. 说明共享 `MALTS_ROOT` 下的 `skills/` 是唯一 skill 实现事实源。工具本地 `skills/` 只安装轻量发现 bridge。
-5. 说明 `AGENTS.md`、`CLAUDE.md` 等工具指令模板是可选 MALTS 增强项。默认使用只拥有标记区块的 `InstructionMode ManagedMerge`；同时提供 `Skip`，整份 `Replace` 前必须再次明确确认。
-6. 说明每个工具需要 `MALTS_BOOT.md`，但它应指向共享 `MALTS_ROOT`；默认安装计划不应包含完整 `<target>\malts\` runtime 副本。
-7. 说明已安装指令同步可用 `check-managed-instruction-sync` 验证；它只比较 MALTS managed block，忽略 markers 外的用户自有文本。
-8. 检查目标配置目录。
-9. 展示计划写入文件、共享 root 位置和可能冲突。
-10. 默认 dry-run。
-11. 保留 MALTS 标记区块外的用户指令文本；未经明确确认，不覆盖其他已有文件。
-12. 不读取或复制 secrets、sessions、memory dumps 或用户特定生成状态。
-13. 询问是否启用公开 docs 的双语文档同步；默认 runtime 项目产物保持单 canonical 文件，完整翻译镜像只在明确要求时生成。
-14. 安装后运行验证。
-15. 准确报告改动。
-
-## 共享 Root
-
-MALTS 每次安装只有一条 canonical public skill 和 runtime root：
-
-```text
-MALTS_ROOT
-```
-
-共享 root 必须包含：
-
-```text
-README.md
-skills/
-runtime/EN/templates/
-runtime/EN/checklists/
-tools/
-scripts/
-```
-
-使用 `Install-MALTS.ps1` 时，默认共享 root 是 `%USERPROFILE%\.malts`。`-TargetRoot` 只改变工具 target。用户选择其他经过审阅的位置时使用 `-SharedRoot`，并拒绝共享 root 与工具 target 相互嵌套的布局。
-
-## 工具适配层
-
-Adapter 目录只提供工具特定指令模板、commands、agents 和配置。它们不定义独立公开 skill source。
-
-正常安装布局：
-
-```text
-<tool-config-root>\MALTS_BOOT.md
-<tool-config-root>\<tool adapter files>
-<tool-config-root>\skills\<MALTS-skill>\SKILL.md  # 仅轻量 bridge
-```
-
-无效布局：
-
-```text
-<tool-config-root>\malts\
-<tool-config-root>\skills\<MALTS-skill>\scripts\  # runtime 实现重复
-<tool-config-root>\skills\<MALTS-skill>\SKILL.md  # 超出 bridge 体积契约
-```
-
-如果安装计划里出现完整 runtime 路径或非 bridge skill package，先停止并修正计划，再 apply。
-
-## Runtime Discovery
-
-项目初始化必须能找到共享 MALTS runtime root。因此正常安装应包含：
-
-```text
-<tool-config-root>\MALTS_BOOT.md
-```
-
-`MALTS_BOOT.md` 记录共享 `MALTS_ROOT`。Agent 必须验证该 root 包含：
-
-```text
-README.md
-skills/
-runtime/EN/templates/
-runtime/EN/checklists/
-```
-
-## 编码
-
-Windows 环境下不要依赖系统默认编码。脚本读写文本、命令行输出、文档校验应显式使用 UTF-8。Python 脚本优先写 `encoding='utf-8'`；必要时设置 `PYTHONUTF8=1`，或对 `stdout` / `stderr` 显式 `reconfigure(encoding='utf-8')`。
-
-## 双语文档
-
-如果用户启用双语文档同步，Agent 应遵循 [双语文档规则](BILINGUAL_DOCS.md)。中文文档是 user-facing 参考，不是默认 runtime context。项目运行产物默认是单 canonical 文件：中文叙述直接写入 `PROJECT_CONTROL.md`、`WORK_TASK_REPORT.md`、`PROJECT_HANDOFF.md`，完整翻译镜像只在明确要求时生成。
+安装后的普通项目工作应遵循已安装 MALTS boot pointer 与最近的项目指令。

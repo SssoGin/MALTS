@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "capability_id": "malts.skill.long-project-workspace-init",
+  "skill_id": "malts-long-project-workspace-init",
+  "declared_name": "malts-long-project-workspace-init",
+  "projected_names": {
+    "codex": "malts-long-project-workspace-init",
+    "claude-code": "malts-long-project-workspace-init",
+    "opencode": "malts-long-project-workspace-init"
+  },
+  "display_name": "MALTS Long Project Workspace Init",
+  "short_description": "Initialize phase-ready long-project workspaces",
+  "triggers": ["initialize a phase-ready long MALTS project workspace", "recover a bounded multi-phase workspace", "compact MALTS project history safely"],
+  "applicability": {
+    "task_types": ["long-project-initialization", "workspace-maintenance", "workspace-recovery"],
+    "modes": ["single-agent", "multi-agent", "review-only"],
+    "conditions": ["The work is long-running, phase-oriented, interruption-prone, or recovery-sensitive."],
+    "contraindications": ["The task is S0/S1 or the user requested no project control artifacts."]
+  },
+  "inputs": ["workspace path", "project identifier", "original goal", "initial Phase identifier", "initial Phase goal", "narrative language", "explicit operation authorization"],
+  "outputs": ["phase-ready long-project workspace", "active initial Phase control", "explicit later Phase and Session controls", "capacity report", "ordered recovery evidence"],
+  "risks": {
+    "risk_class": "medium",
+    "factors": ["scripts", "write"],
+    "forbidden_effects": ["Do not report initialization complete without a registered initial Phase.", "Do not overwrite user files.", "Do not create a Session implicitly.", "Do not treat runtime state as canonical truth.", "Do not schedule automatic update checks."]
+  },
+  "required_permissions": ["read-files", "write-project-files"],
+  "dependencies": [
+    {"id": "malts.tool.long-workspace", "type": "tool", "required": true, "source_relative_path": "tools/long_workspace.py"},
+    {"id": "malts.contract.workspace-control", "type": "file", "required": true, "source_relative_path": "tools/workspace_control.schema.json"},
+    {"id": "malts.template.project-control.en", "type": "file", "required": true, "source_relative_path": "runtime/EN/templates/PROJECT_CONTROL.template.en.md"},
+    {"id": "malts.template.phase-control.en", "type": "file", "required": true, "source_relative_path": "runtime/EN/templates/PHASE_CONTROL.template.en.md"},
+    {"id": "malts.template.session-control.en", "type": "file", "required": true, "source_relative_path": "runtime/EN/templates/SESSION_CONTROL.template.en.md"}
+  ],
+  "supported_tools": ["codex", "claude-code", "opencode"],
+  "package_variants": ["local", "public"],
+  "tool_metadata": {
+    "codex": {"projection_type": "native", "include_openai_metadata": true},
+    "claude-code": {"projection_type": "native", "include_openai_metadata": false},
+    "opencode": {"projection_type": "native", "include_openai_metadata": false}
+  },
+  "verification": {
+    "status": "static-validated",
+    "levels": ["static"],
+    "evidence_refs": ["test:T-WS-COMPONENT"]
+  }
+}

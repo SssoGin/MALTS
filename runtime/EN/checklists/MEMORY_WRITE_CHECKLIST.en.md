@@ -2,7 +2,13 @@
 
 > Use before writing any experience into long-term skills, `AGENTS.md`, `CLAUDE.md`, or global memory.
 
-Passing this checklist means a long-term memory write may proceed or be proposed according to the selected destination. It is not a blanket requirement to wait for an explicit user request before every memory note. Explicit user confirmation is required when the destination changes durable global instructions or other high-risk behavior.
+Passing this checklist establishes candidate quality, not write authority. L1 analysis never writes durable state. L2 writes only inside a one-time project authorization and declared file surface. Every L3 proposal or change to global/canonical memory, Skills, checklists, lint, adapters, installed tools, public content, or durable tool instructions requires a separate explicit confirmation.
+
+## Authority
+
+- [ ] Authority is classified as L1 Analyze / L2 Project Maintain / L3 System Promote.
+- [ ] An L2 write includes the project authorization reference and stays inside its declared surface.
+- [ ] Any L3 proposal or write has a separate explicit confirmation.
 
 ## Fact Check
 
@@ -50,7 +56,16 @@ Passing this checklist means a long-term memory write may proceed or be proposed
 - [ ] No secrets, tokens, account identifiers, or sensitive machine-specific details are written.
 - [ ] User-specific sensitive information is not promoted into global memory.
 - [ ] The rule will not cause unsafe future automation.
-- [ ] High-risk rule changes require user confirmation.
+- [ ] Every L3 proposal or rule change requires separate user confirmation.
+
+## Future-Use Validation
+
+- [ ] The original triggering event is recorded but is not counted as a future use.
+- [ ] `VALIDATED` has two helped future tasks with different task IDs and independence keys, for three total validations including the source event.
+- [ ] A high-risk candidate also has an independent review or negative/counterexample test.
+- [ ] Adoption, rejection, deferral, and outcome are recorded; retrieval alone is not treated as application authority.
+- [ ] Harmful evidence opens `CHALLENGED`; severe harmful evidence opens `SUSPENDED` and stops automatic application.
+- [ ] A challenge, revision, deprecation, replacement, and removal path exists.
 
 ## Fallback
 
@@ -64,3 +79,5 @@ Passing this checklist means a long-term memory write may proceed or be proposed
 - Reason:
 - Fallback location if write failed or was skipped:
 - Review after future use: Yes / No
+- Authority reference:
+- Lifecycle status:

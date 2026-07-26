@@ -18,12 +18,14 @@ sessions/
 session-logs/
 
 # Generated MALTS maintenance state
-.release-control/
 Handoff/
 runtime/EN/trial-runs/
 .md/
 
 # Tool-generated state at the repository root only
+/AGENTS.md
+/CLAUDE.md
+/.release-control/
 /.codex/
 /.claude/
 /.config/

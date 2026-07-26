@@ -44,6 +44,10 @@
 - [ ] 选择执行模式前，已评估任务难度和多 Agent 适配度。
 - [ ] 如果建议使用多 Agent，已说明它为什么适合当前任务。
 - [ ] 如果使用多 Agent 调度，确实产生了可合并价值。
+- [ ] 最终报告说明动态路由结果（`0`、`1` 或 `N`）、职责通道，以及所选数量的依据。
+- [ ] 交付记录能区分 requested、recommended、configured、effective 模型 / effort 证据。
+- [ ] configured-only、inherited、unsupported、provider-unconfigured 或 unknown binding 均如实标注。
+- [ ] 如果真实 Agent/provider 行为不在范围内，G4 标为 `NOT RUN`，而不是从 component 测试推断。
 - [ ] 普通文档同步在翻译或补齐前先使用脚本或结构化检查。
 - [ ] 低成本 Worker 只产出候选文档改动；如果运行时不能路由模型，已记录限制。
 - [ ] 高能力或主控批准覆盖关键协议语义、最终合并和最终风险判断，而不是全量机械翻译。

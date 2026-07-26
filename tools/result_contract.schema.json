@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:malts:schema:result-contract:1",
+  "title": "MALTS Result Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version", "task_id", "goal", "authorized_scope", "prohibited_scope", "non_goals",
+    "acceptance_criteria", "budgets", "budget_usage", "risk_policy", "continuation_policy", "execution_status",
+    "terminal_status", "status_history", "deliverables", "verification", "remaining_work", "recovery_point"
+  ],
+  "properties": {
+    "contract_version": {"const": "1"},
+    "task_id": {"$ref": "#/$defs/id"},
+    "goal": {"type": "string", "minLength": 1},
+    "authorized_scope": {"$ref": "#/$defs/authorizedScope"},
+    "prohibited_scope": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "non_goals": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "acceptance_criteria": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/criterion"}},
+    "budgets": {"$ref": "#/$defs/budgets"},
+    "budget_usage": {"$ref": "#/$defs/budgetUsage"},
+    "risk_policy": {"$ref": "#/$defs/riskPolicy"},
+    "continuation_policy": {"$ref": "#/$defs/continuationPolicy"},
+    "execution_status": {"$ref": "#/$defs/executionStatus"},
+    "terminal_status": {"type": ["string", "null"], "enum": ["DONE", "PARTIAL", "BLOCKED", "FAILED", null]},
+    "status_history": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/statusEvent"}},
+    "deliverables": {"type": "array", "items": {"$ref": "#/$defs/deliverable"}},
+    "verification": {"type": "array", "items": {"$ref": "#/$defs/verification"}},
+    "remaining_work": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "recovery_point": {"$ref": "#/$defs/recoveryPoint"}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "sha256OrNull": {"type": ["string", "null"], "pattern": "^[A-Fa-f0-9]{64}$"},
+    "executionStatus": {"enum": ["DRAFT", "PREFLIGHT", "AWAITING_AUTHORIZATION", "AUTHORIZED", "PLANNING", "EXECUTING", "VERIFYING", "REPLANNING", "FINALIZING", "DONE", "PARTIAL", "BLOCKED", "FAILED"]},
+    "resourceRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locator", "operations"],
+      "properties": {
+        "locator": {"type": "string", "minLength": 1},
+        "operations": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["read", "write", "create", "delete", "move", "execute", "install", "git-read", "git-write", "network", "remote-write"]}}
+      }
+    },
+    "multiAgentPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed", "max_agents", "approved_batches", "launch_review_ref"],
+      "properties": {
+        "allowed": {"type": "boolean"},
+        "max_agents": {"type": "integer", "minimum": 0},
+        "approved_batches": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "launch_review_ref": {"type": ["string", "null"], "minLength": 1}
+      }
+    },
+    "unattendedPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed", "max_rounds"],
+      "properties": {
+        "allowed": {"type": "boolean"},
+        "max_rounds": {"type": ["integer", "null"], "minimum": 1}
+      }
+    },
+    "authorizedScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resources", "commands", "actions", "external_systems", "multi_agent", "unattended"],
+      "properties": {
+        "resources": {"type": "array", "items": {"$ref": "#/$defs/resourceRule"}},
+        "commands": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "actions": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "external_systems": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "multi_agent": {"$ref": "#/$defs/multiAgentPolicy"},
+        "unattended": {"$ref": "#/$defs/unattendedPolicy"}
+      }
+    },
+    "criterion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["criterion_id", "description", "hard", "verification_method", "minimum_evidence_level", "status", "evidence_refs"],
+      "properties": {
+        "criterion_id": {"$ref": "#/$defs/id"},
+        "description": {"type": "string", "minLength": 1},
+        "hard": {"type": "boolean"},
+        "verification_method": {"type": "string", "minLength": 1},
+        "minimum_evidence_level": {"enum": ["A", "B", "C", "D"]},
+        "status": {"enum": ["TODO", "PASS", "FAIL", "N/A"]},
+        "evidence_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "budgets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_rounds", "max_elapsed_seconds", "max_tokens", "max_cost_units", "max_concurrency", "hard_limits"],
+      "properties": {
+        "max_rounds": {"type": ["integer", "null"], "minimum": 1},
+        "max_elapsed_seconds": {"type": ["integer", "null"], "minimum": 1},
+        "max_tokens": {"type": ["integer", "null"], "minimum": 1},
+        "max_cost_units": {"type": ["number", "null"], "minimum": 0},
+        "max_concurrency": {"type": "integer", "minimum": 1},
+        "hard_limits": {"type": "array", "uniqueItems": true, "items": {"enum": ["rounds", "tokens", "cost", "concurrency", "time"]}}
+      }
+    },
+    "budgetUsage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rounds_used", "elapsed_seconds", "tokens_used", "cost_units_used", "peak_concurrency"],
+      "properties": {
+        "rounds_used": {"type": "integer", "minimum": 0},
+        "elapsed_seconds": {"type": "number", "minimum": 0},
+        "tokens_used": {"type": "integer", "minimum": 0},
+        "cost_units_used": {"type": "number", "minimum": 0},
+        "peak_concurrency": {"type": "integer", "minimum": 0}
+      }
+    },
+    "riskPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["risk_level", "stop_conditions", "requires_confirmation_for"],
+      "properties": {
+        "risk_level": {"enum": ["low", "medium", "high", "critical"]},
+        "stop_conditions": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "requires_confirmation_for": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "continuationPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "authorization_ref", "max_authorized_rounds"],
+      "properties": {
+        "mode": {"enum": ["single-round", "manual-checkpoint", "bounded-auto"]},
+        "authorization_ref": {"type": ["string", "null"], "minLength": 1},
+        "max_authorized_rounds": {"type": ["integer", "null"], "minimum": 1}
+      }
+    },
+    "statusEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event_id", "status", "at", "reason", "evidence_refs", "strategy_id", "scope_locators", "new_information_refs", "retry_basis", "failure_class"],
+      "properties": {
+        "event_id": {"$ref": "#/$defs/id"},
+        "status": {"$ref": "#/$defs/executionStatus"},
+        "at": {"type": "string", "format": "date-time"},
+        "reason": {"type": "string", "minLength": 1},
+        "evidence_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "strategy_id": {"type": ["string", "null"], "minLength": 1},
+        "scope_locators": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "new_information_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "retry_basis": {"type": ["string", "null"], "enum": ["new_information", "new_strategy", "smaller_scope", null]},
+        "failure_class": {"type": ["string", "null"], "enum": ["requirement", "implementation", "environment", "permission", "runtime_capability", "verification", "recovery", null]}
+      }
+    },
+    "deliverable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "status", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "status": {"enum": ["planned", "created", "verified"]},
+        "sha256": {"$ref": "#/$defs/sha256OrNull"}
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["criterion_id", "method", "result", "evidence_level", "evidence_refs"],
+      "properties": {
+        "criterion_id": {"$ref": "#/$defs/id"},
+        "method": {"type": "string", "minLength": 1},
+        "result": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
+        "evidence_level": {"enum": ["A", "B", "C", "D"]},
+        "evidence_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "recoveryPoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "summary", "next_action", "blockers", "failure_evidence", "round", "attempt", "strategy_id", "budget_usage", "last_event_id"],
+      "properties": {
+        "status": {"$ref": "#/$defs/executionStatus"},
+        "summary": {"type": "string", "minLength": 1},
+        "next_action": {"type": ["string", "null"], "minLength": 1},
+        "blockers": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "failure_evidence": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "round": {"type": "integer", "minimum": 0},
+        "attempt": {"type": "integer", "minimum": 0},
+        "strategy_id": {"type": ["string", "null"], "minLength": 1},
+        "budget_usage": {"$ref": "#/$defs/budgetUsage"},
+        "last_event_id": {"$ref": "#/$defs/id"}
+      }
+    }
+  }
+}

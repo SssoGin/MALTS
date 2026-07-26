@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "capability_id": "malts.skill.project-init",
+  "skill_id": "malts-project-init",
+  "declared_name": "malts-project-init",
+  "projected_names": {
+    "codex": "malts-project-init",
+    "claude-code": "malts-project-init",
+    "opencode": "malts-project-init"
+  },
+  "display_name": "MALTS Project Init",
+  "short_description": "Initialize MALTS project files and control artifacts",
+  "triggers": ["initialize a MALTS project", "create PROJECT_CONTROL", "set up recoverable project artifacts"],
+  "applicability": {
+    "task_types": ["project-initialization", "control-artifact-setup", "recovery-setup"],
+    "modes": ["single-agent", "preflight", "multi-agent"],
+    "conditions": ["The user has authorized project initialization writes."],
+    "contraindications": ["The task is a trivial lookup or the user requested no project artifacts."]
+  },
+  "inputs": ["workspace path", "user goal", "narrative language", "active MALTS root and version"],
+  "outputs": ["PROJECT_CONTROL.md", "WORK_TASK_REPORT.md", "project AGENTS.md when required"],
+  "risks": {
+    "risk_class": "medium",
+    "factors": ["write", "scripts"],
+    "forbidden_effects": ["Do not overwrite user files without authorization.", "Do not infer multi-agent dispatch authorization."]
+  },
+  "required_permissions": ["read-files", "write-project-files"],
+  "dependencies": [
+    {"id": "malts.skill.grill-me-preflight", "type": "skill", "required": true, "source_relative_path": "skills/grill-me-preflight/SKILL.md"},
+    {"id": "malts.skill.multi-agent-long-task-scheduling", "type": "skill", "required": true, "source_relative_path": "skills/multi-agent-long-task-scheduling/SKILL.md"},
+    {"id": "malts.runtime.version", "type": "file", "required": true, "source_relative_path": "VERSION"},
+    {"id": "malts.template.project-control.en", "type": "file", "required": true, "source_relative_path": "runtime/EN/templates/PROJECT_CONTROL.template.en.md"},
+    {"id": "malts.checklist.quality.en", "type": "file", "required": true, "source_relative_path": "runtime/EN/checklists/QUALITY_GATE.en.md"}
+  ],
+  "supported_tools": ["codex", "claude-code", "opencode"],
+  "package_variants": ["local", "public"],
+  "tool_metadata": {
+    "codex": {"projection_type": "native", "include_openai_metadata": true},
+    "claude-code": {"projection_type": "native", "include_openai_metadata": false},
+    "opencode": {"projection_type": "native", "include_openai_metadata": false}
+  },
+  "verification": {
+    "status": "static-validated",
+    "levels": ["static"],
+    "evidence_refs": ["test:T-SK-W3-DESC-002"]
+  }
+}

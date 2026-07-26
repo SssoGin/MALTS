@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:malts:schema:growth-candidate:1",
+  "title": "MALTS Growth Candidate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "candidate_id", "source_signals", "trigger", "action", "check", "boundary",
+    "avoided_risk_or_reused_practice", "scope", "authority_level", "risk_level", "retrieval_profile",
+    "anti_pollution_review", "status", "future_use_validations", "challenge_refs", "dedup_refs",
+    "promotion_authorization_ref", "status_reason", "replacement_ref"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "candidate_id": {"$ref": "#/$defs/id"},
+    "source_signals": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+    "trigger": {"type": "string", "minLength": 1},
+    "action": {"type": "string", "minLength": 1},
+    "check": {"type": "string", "minLength": 1},
+    "boundary": {"type": "string", "minLength": 1},
+    "avoided_risk_or_reused_practice": {"type": "string", "minLength": 1},
+    "scope": {"enum": ["project", "cross-project", "tool"]},
+    "authority_level": {"enum": ["L1", "L2", "L3"]},
+    "risk_level": {"enum": ["low", "medium", "high", "critical"]},
+    "retrieval_profile": {"$ref": "#/$defs/retrievalProfile"},
+    "anti_pollution_review": {"$ref": "#/$defs/antiPollutionReview"},
+    "status": {"enum": ["OBSERVED", "CANDIDATE", "PROJECT_EXPERIMENTAL", "FUTURE_USE_VALIDATING", "VALIDATED", "CHALLENGED", "SUSPENDED", "SYSTEM_PROMOTION_PROPOSED", "ACCEPTED", "REJECTED", "DEPRECATED", "REMOVED"]},
+    "future_use_validations": {"type": "array", "items": {"$ref": "#/$defs/futureValidation"}},
+    "challenge_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "dedup_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "promotion_authorization_ref": {"type": ["string", "null"], "minLength": 1},
+    "status_reason": {"type": ["string", "null"], "minLength": 1},
+    "replacement_ref": {"type": ["string", "null"], "minLength": 1}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "retrievalProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_types", "risk_levels", "tools", "workspace_keys", "failure_signatures"],
+      "properties": {
+        "task_types": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "risk_levels": {"type": "array", "uniqueItems": true, "items": {"enum": ["low", "medium", "high", "critical"]}},
+        "tools": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "workspace_keys": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "failure_signatures": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "antiPollutionReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["generalization_reason", "benefit_cost_reason", "dedup_conflict_status", "dedup_conflict_refs", "sensitivity_status", "sensitivity_evidence_refs", "automation_safety_status", "automation_safety_evidence_refs", "challenge_deprecation_path"],
+      "properties": {
+        "generalization_reason": {"type": "string", "minLength": 1},
+        "benefit_cost_reason": {"type": "string", "minLength": 1},
+        "dedup_conflict_status": {"enum": ["clear", "related", "conflict"]},
+        "dedup_conflict_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "sensitivity_status": {"enum": ["pass", "redacted", "fail"]},
+        "sensitivity_evidence_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "automation_safety_status": {"enum": ["pass", "fail"]},
+        "automation_safety_evidence_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "challenge_deprecation_path": {"type": "string", "minLength": 1}
+      }
+    },
+    "futureValidation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["validation_id", "future_task_id", "independence_key", "use_index", "validation_kind", "outcome", "severity", "evidence_refs", "challenge_case", "reviewer", "validated_at"],
+      "properties": {
+        "validation_id": {"$ref": "#/$defs/id"},
+        "future_task_id": {"$ref": "#/$defs/id"},
+        "independence_key": {"type": "string", "minLength": 1},
+        "use_index": {"type": "integer", "minimum": 1},
+        "validation_kind": {"enum": ["future_use", "independent_review", "negative_test", "counterexample"]},
+        "outcome": {"enum": ["helped", "neutral", "harmful", "inconclusive"]},
+        "severity": {"enum": ["none", "low", "medium", "high", "critical"]},
+        "evidence_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "challenge_case": {"type": "boolean"},
+        "reviewer": {"type": "string", "minLength": 1},
+        "validated_at": {"type": "string", "format": "date-time"}
+      }
+    }
+  }
+}

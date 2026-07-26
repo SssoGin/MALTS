@@ -1,38 +1,28 @@
 # Security
 
-MALTS is a workflow system and should not store sensitive runtime secrets.
+## Verify before use
 
-## Do Not Commit
+Use the bootstrap verifier before extracting a downloaded package. It checks the
+ZIP, checksum, transport manifest, public notes, exact inventory, safe Windows
+paths, and the inner lifecycle artifact.
 
-Do not commit:
+## Keep local data local
 
-- API keys
-- tokens
-- cookies
-- passwords
-- credentials
-- authorization headers
-- session logs
-- memory dumps
-- user-specific tool configuration
-- real project handoff records
-- machine-specific absolute paths
+Do not place credentials, tokens, session data, user-profile paths, private
+project files, cache directories, or generated runtime state inside a MALTS
+user payload or tool projection.
 
-## Before Publishing Scan
+Use environment variables or the selected tool's normal secure configuration
+mechanism for credentials. Do not put secret values in `PROJECT_CONTROL.md`,
+`WORK_TASK_REPORT.md`, handoff files, prompts, or command history.
 
-Before publishing or pushing, run a sensitive information scan.
+## Lifecycle safety
 
-Suggested patterns:
+Review every lifecycle plan before applying it. The plan identifies the exact
+roots, operations, and generation identity. Stop if a target is unexpected,
+contains a link or reparse point, or no longer matches the reviewed plan.
 
-```powershell
-rg -n "OPENAI_API_KEY|ANTHROPIC_API_KEY|GITHUB_TOKEN|token|secret|password|cookie|Authorization|Bearer|oauth|api_key" .
-rg -n "<replace with machine-specific user or workspace path patterns before publishing>" .
-```
+## Report a vulnerability
 
-## Allowed Public Attribution
-
-Allowed public attribution:
-
-```text
-Copyright (c) 2026 Gin
-```
+Share only the minimum reproducible information needed to describe the issue.
+Remove secrets and private machine details before sending a report.

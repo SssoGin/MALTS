@@ -1,6 +1,6 @@
 ---
 name: malts-project-init
-description: Initialize or refresh MALTS-aware project instructions and canonical project control/report artifacts.
+description: "MALTS Project Init: initialize or refresh MALTS-aware project instructions and canonical project control/report artifacts."
 ---
 
 # MALTS Skill Bridge

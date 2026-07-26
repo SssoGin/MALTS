@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:malts:schema:growth-ledger:1",
+  "title": "MALTS Growth Ledger",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "ledger_id", "project_id", "mode", "authorization_ref", "signal_records", "candidate_records", "retrieval_events", "updated_at"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "ledger_id": {"$ref": "#/$defs/id"},
+    "project_id": {"$ref": "#/$defs/id"},
+    "mode": {"enum": ["analysis_only", "project_maintain"]},
+    "authorization_ref": {"type": ["string", "null"], "minLength": 1},
+    "signal_records": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/recordRef"}},
+    "candidate_records": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/recordRef"}},
+    "retrieval_events": {"type": "array", "items": {"$ref": "#/$defs/retrievalEvent"}},
+    "updated_at": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "sha256": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+    "relativePath": {"type": "string", "minLength": 1, "pattern": "^(?![A-Za-z]:)(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$"},
+    "recordRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["record_id", "relative_path", "sha256"],
+      "properties": {
+        "record_id": {"$ref": "#/$defs/id"},
+        "relative_path": {"$ref": "#/$defs/relativePath"},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "retrievalQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_types", "risk_levels", "tools", "workspace_keys", "failure_signatures"],
+      "properties": {
+        "task_types": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "risk_levels": {"type": "array", "uniqueItems": true, "items": {"enum": ["low", "medium", "high", "critical"]}},
+        "tools": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "workspace_keys": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "failure_signatures": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "retrievalDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_id", "decision", "reason", "authorization_ref"],
+      "properties": {
+        "candidate_id": {"$ref": "#/$defs/id"},
+        "decision": {"enum": ["adopted", "rejected", "deferred"]},
+        "reason": {"type": "string", "minLength": 1},
+        "authorization_ref": {"type": ["string", "null"], "minLength": 1}
+      }
+    },
+    "retrievalEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event_id", "task_id", "query", "matched_candidate_ids", "decisions", "outcome", "evidence_refs", "recorded_at"],
+      "properties": {
+        "event_id": {"$ref": "#/$defs/id"},
+        "task_id": {"$ref": "#/$defs/id"},
+        "query": {"$ref": "#/$defs/retrievalQuery"},
+        "matched_candidate_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "decisions": {"type": "array", "items": {"$ref": "#/$defs/retrievalDecision"}},
+        "outcome": {"enum": ["not_evaluated", "helped", "neutral", "harmful", "inconclusive"]},
+        "evidence_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "recorded_at": {"type": "string", "format": "date-time"}
+      }
+    }
+  }
+}

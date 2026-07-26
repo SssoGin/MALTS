@@ -1,0 +1,1064 @@
+#!/usr/bin/env python3
+"""Phase-ready long-project workspace lifecycle for MALTS v1.
+
+Read-only commands never write. State-changing commands are dry-run by default
+and require an explicit --apply flag.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import sys
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Iterable
+
+from malts_user_contracts import validate_instance
+
+
+MALTS_ROOT = Path(__file__).resolve().parents[1]
+STATE_RELATIVE = Path("runtime") / "workspace_control.json"
+FIXED_FILES = ("AGENTS.md", "PROJECT_CONTROL.md", "WORK_TASK_REPORT.md", "CLAUDE.md")
+ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+HISTORY_TOKEN = re.compile(
+    r"<!-- MALTS:history:(?:start id=(?P<id>[A-Za-z0-9][A-Za-z0-9._-]{0,127})|(?P<end>end)) -->"
+)
+PROTECTED_HISTORY_SECTION = re.compile(
+    r"MALTS:section=(?:user-original-goal|current-interpreted-goal|completion-definition|"
+    r"acceptance-criteria|current-stage|current-state|task-queue|risks?|recovery[^ ]*)",
+    re.IGNORECASE,
+)
+DEFAULT_BUDGET = {
+    "max_root_lines": 1200,
+    "max_root_bytes": 262144,
+    "max_active_tasks": 50,
+    "max_open_decisions": 50,
+    "max_evidence_refs": 500,
+    "max_stale_history_ratio": 0.65,
+}
+
+
+class WorkspaceError(RuntimeError):
+    def __init__(self, code: str, message: str, path: str | None = None) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+        self.path = path
+
+    def as_dict(self) -> dict[str, Any]:
+        value: dict[str, Any] = {"status": "FAIL", "error_code": self.code, "message": self.message}
+        if self.path is not None:
+            value["path"] = self.path
+        return value
+
+
+def _timestamp(value: str | None) -> str:
+    if value is None:
+        return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise WorkspaceError("WS_TIMESTAMP_INVALID", "Timestamp must be an ISO 8601 date-time.") from exc
+    if parsed.tzinfo is None:
+        raise WorkspaceError("WS_TIMESTAMP_INVALID", "Timestamp must include a timezone.")
+    return parsed.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _workspace(value: str, *, may_not_exist: bool = False) -> Path:
+    root = Path(value).expanduser().resolve(strict=False)
+    if root.exists() and not root.is_dir():
+        raise WorkspaceError("WS_ROOT_NOT_DIRECTORY", "Workspace root is not a directory.", str(root))
+    if not root.exists() and not may_not_exist:
+        raise WorkspaceError("WS_ROOT_MISSING", "Workspace root does not exist.", str(root))
+    return root
+
+
+def _inside(root: Path, path: Path) -> Path:
+    resolved = path.resolve(strict=False)
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise WorkspaceError("WS_PATH_ESCAPE", "Path escapes the workspace boundary.", str(path)) from exc
+    return resolved
+
+
+def _target(root: Path, relative: str | Path) -> Path:
+    relative_path = Path(relative)
+    if relative_path.is_absolute() or ".." in relative_path.parts:
+        raise WorkspaceError("WS_PATH_ESCAPE", "Only workspace-relative paths are allowed.", str(relative))
+    return _inside(root, root / relative_path)
+
+
+def _relative(root: Path, path: Path) -> str:
+    return path.relative_to(root).as_posix()
+
+
+def _read_bytes(root: Path, relative: str | Path) -> bytes:
+    path = _target(root, relative)
+    if not path.is_file():
+        raise WorkspaceError("WS_FILE_MISSING", "Required workspace file is missing.", _relative(root, path))
+    return path.read_bytes()
+
+
+def _decode_markdown(data: bytes) -> tuple[str, bool]:
+    has_bom = data.startswith(b"\xef\xbb\xbf")
+    return data.decode("utf-8-sig"), has_bom
+
+
+def _encode_markdown(text: str, has_bom: bool) -> bytes:
+    payload = text.encode("utf-8")
+    return (b"\xef\xbb\xbf" + payload) if has_bom else payload
+
+
+def _json_bytes(value: Any) -> bytes:
+    return (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+
+
+def _atomic_write(path: Path, payload: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.parent / f".{path.name}.malts-write-{uuid.uuid4().hex}.tmp"
+    try:
+        with temporary.open("xb") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def _transaction_write(root: Path, changes: dict[Path, bytes], *, must_be_new: Iterable[Path] = ()) -> None:
+    must_be_new_set = set(must_be_new)
+    originals: dict[Path, bytes | None] = {}
+    for path in changes:
+        _inside(root, path)
+        if path in must_be_new_set and path.exists():
+            raise WorkspaceError("WS_FILE_EXISTS", "Refusing to overwrite an existing file.", _relative(root, path))
+        if path.exists() and not path.is_file():
+            raise WorkspaceError("WS_PATH_TYPE", "Expected a file path.", _relative(root, path))
+        originals[path] = path.read_bytes() if path.exists() else None
+
+    written: list[Path] = []
+    try:
+        for path, payload in changes.items():
+            _atomic_write(path, payload)
+            written.append(path)
+    except Exception:
+        for path in reversed(written):
+            original = originals[path]
+            if original is None:
+                if path.exists():
+                    path.unlink()
+            else:
+                _atomic_write(path, original)
+        raise
+
+
+def _validate_id(value: str, kind: str) -> str:
+    if not ID_PATTERN.fullmatch(value):
+        raise WorkspaceError("WS_ID_INVALID", f"{kind} must match {ID_PATTERN.pattern}.")
+    return value
+
+
+def _state_path(root: Path) -> Path:
+    return _target(root, STATE_RELATIVE)
+
+
+def _validate_state(root: Path, state: dict[str, Any]) -> None:
+    issues = validate_instance(MALTS_ROOT, "workspace-control", state)
+    if issues:
+        message = "; ".join(issue.render() for issue in issues)
+        raise WorkspaceError("WS_STATE_INVALID", message, STATE_RELATIVE.as_posix())
+    for item in state["phase_controls"]:
+        _target(root, item["path"])
+    for item in state["session_controls"]:
+        _target(root, item["path"])
+
+
+def _load_state(root: Path) -> dict[str, Any]:
+    path = _state_path(root)
+    if not path.is_file():
+        raise WorkspaceError("WS_STATE_MISSING", "Workspace is not initialized.", STATE_RELATIVE.as_posix())
+    try:
+        state = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise WorkspaceError("WS_STATE_PARSE", "Workspace state is not valid UTF-8 JSON.", STATE_RELATIVE.as_posix()) from exc
+    if not isinstance(state, dict):
+        raise WorkspaceError("WS_STATE_PARSE", "Workspace state root must be an object.", STATE_RELATIVE.as_posix())
+    _validate_state(root, state)
+    return state
+
+
+def _default_state(project_id: str, now: str) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "project_id": project_id,
+        "active_phase_id": None,
+        "active_session_id": None,
+        "project_control": "PROJECT_CONTROL.md",
+        "phase_controls": [],
+        "session_controls": [],
+        "capacity_budget": dict(DEFAULT_BUDGET),
+        "maintenance_state": {
+            "state": "clean",
+            "last_action": "init",
+            "last_checked_at": now,
+            "runtime_is_canonical": False,
+        },
+        "recovery_point": {
+            "summary": "Long-project workspace state prepared for its required initial Phase.",
+            "next_action": "Create the initial Phase before reporting initialization complete.",
+            "evidence_refs": ["workspace:init-prepared"],
+        },
+    }
+
+
+def _template_bytes(relative: str) -> tuple[str, bool]:
+    path = MALTS_ROOT / relative
+    if not path.is_file():
+        raise WorkspaceError("WS_TEMPLATE_MISSING", "Required MALTS template is missing.", relative)
+    return _decode_markdown(path.read_bytes())
+
+
+def _language(args: argparse.Namespace, root: Path) -> str:
+    requested = getattr(args, "language", "auto")
+    if requested != "auto":
+        return requested
+    control = root / "PROJECT_CONTROL.md"
+    if control.is_file():
+        text, _ = _decode_markdown(control.read_bytes())
+        if any("\u4e00" <= character <= "\u9fff" for character in text):
+            return "zh-CN"
+    return "en"
+
+
+def _replace_metadata(text: str, language: str, project_id: str, now: str) -> str:
+    version = (MALTS_ROOT / "VERSION").read_text(encoding="utf-8-sig").strip()
+    replacements = {
+        "en": {
+            "- Project:": f"- Project: {project_id}",
+            "- Control version: <MALTS_VERSION>": f"- Control version: MALTS {version}",
+            "- Current round:": "- Current round: INIT-001",
+            "- Last updated:": f"- Last updated: {now}",
+            "- Current mode: Single-Agent / Multi-Agent Long-Task": "- Current mode: Single-Agent",
+        },
+        "zh-CN": {
+            "- 项目：": f"- 项目：{project_id}",
+            "- 控制文件版本：<MALTS_VERSION>": f"- 控制文件版本：MALTS {version}",
+            "- 当前轮次：": "- 当前轮次：INIT-001",
+            "- 最后更新：": f"- 最后更新：{now}",
+            "- 当前模式：Single-Agent / Multi-Agent Long-Task": "- 当前模式：Single-Agent",
+        },
+    }[language]
+    for source, target in replacements.items():
+        text = text.replace(source, target, 1)
+    return text.replace("<MALTS_ROOT>", str(MALTS_ROOT))
+
+
+def _insert_locked_goal(text: str, goal: str) -> str:
+    marker = "<!-- MALTS:section=user-original-goal -->"
+    start = text.find(marker)
+    if start < 0:
+        raise WorkspaceError("WS_TEMPLATE_INVALID", "Project template lacks the original-goal marker.")
+    next_marker = text.find("<!-- MALTS:section=", start + len(marker))
+    if next_marker < 0:
+        raise WorkspaceError("WS_TEMPLATE_INVALID", "Project template lacks the next canonical marker.")
+    newline = "\r\n" if "\r\n" in text else "\n"
+    segment = text[start:next_marker].rstrip("\r\n")
+    safe_goal = " ".join(goal.splitlines()).strip()
+    segment += f"{newline}{newline}> Original goal (locked): {safe_goal}{newline}{newline}"
+    return text[:start] + segment + text[next_marker:]
+
+
+def _single_line(value: str) -> str:
+    return " ".join(value.splitlines()).strip()
+
+
+def _markdown_cell(value: str) -> str:
+    return _single_line(value).replace("|", "\\|")
+
+
+def _populate_initial_phase(text: str, language: str, goal: str, phase_id: str, phase_goal: str) -> str:
+    safe_goal = _single_line(goal)
+    safe_phase_goal = _single_line(phase_goal)
+    phase_cell = _markdown_cell(phase_goal)
+    replacements = {
+        "en": {
+            "- Current understanding:": f"- Current understanding: {safe_goal}",
+            "- Stage:": f"- Stage: {phase_id}",
+            "- Active Phase:": f"- Active Phase: {phase_id}",
+            "- Stage goal:": f"- Stage goal: {safe_phase_goal}",
+            "- Exit condition:": "- Exit condition: The initial Phase goal is accepted and its evidence is recorded.",
+            "|  |  | TODO / PASS / FAIL / N/A |  |": "| Initial Phase goal is completed | Review the active Phase control and recorded evidence | TODO |  |",
+            "| T001 | P0 | TODO | Main Controller |  | None |  |  |": f"| T001 | P0 | TODO | Main Controller | {phase_cell} | None | Project workspace | Active Phase evidence |",
+        },
+        "zh-CN": {
+            "- 当前理解：": f"- 当前理解：{safe_goal}",
+            "- 阶段：": f"- 阶段：{phase_id}",
+            "- Active Phase：": f"- Active Phase：{phase_id}",
+            "- 阶段目标：": f"- 阶段目标：{safe_phase_goal}",
+            "- 退出条件：": "- 退出条件：首个 Phase 目标通过验收并记录证据。",
+            "|  |  | TODO / PASS / FAIL / N/A |  |": "| 首个 Phase 目标完成 | 审阅 active Phase control 与已记录证据 | TODO |  |",
+            "| T001 | P0 | TODO | Main Controller |  | 无 |  |  |": f"| T001 | P0 | TODO | Main Controller | {phase_cell} | 无 | 项目工作区 | Active Phase evidence |",
+        },
+    }[language]
+    for source, target in replacements.items():
+        if source not in text:
+            raise WorkspaceError("WS_TEMPLATE_INVALID", f"Project template lacks the required initial-Phase token: {source}")
+        text = text.replace(source, target, 1)
+    return text
+
+
+def _render_project_control(
+    language: str,
+    project_id: str,
+    goal: str,
+    phase_id: str,
+    phase_goal: str,
+    now: str,
+) -> bytes:
+    suffix = "en.md" if language == "en" else "zh-CN.md"
+    text, bom = _template_bytes(f"runtime/{'EN' if language == 'en' else 'CH'}/templates/PROJECT_CONTROL.template.{suffix}")
+    text = _replace_metadata(text, language, project_id, now)
+    text = _insert_locked_goal(text, goal)
+    text = _populate_initial_phase(text, language, goal, phase_id, phase_goal)
+    return _encode_markdown(text, bom)
+
+
+def _render_work_report(language: str, project_id: str, goal: str, phase_id: str) -> bytes:
+    suffix = "en.md" if language == "en" else "zh-CN.md"
+    text, bom = _template_bytes(f"runtime/{'EN' if language == 'en' else 'CH'}/templates/WORK_TASK_REPORT.template.{suffix}")
+    if language == "en":
+        text = text.replace("- Status: DONE / PARTIAL / BLOCKED / FAILED", "- Status: PARTIAL", 1)
+        text = text.replace(
+            "- Plain-language conclusion:",
+            f"- Plain-language conclusion: Long-project workspace initialized with active Phase {phase_id}; no Session is active.",
+            1,
+        )
+        text = text.replace("- User original goal addressed:", f"- User original goal addressed: {goal}", 1)
+    else:
+        text = text.replace("- 状态：DONE / PARTIAL / BLOCKED / FAILED", "- 状态：PARTIAL", 1)
+        text = text.replace("- 直白结论：", f"- 直白结论：长项目工作区已初始化，active Phase 为 {phase_id}；当前没有 active Session。", 1)
+        text = text.replace("- 已处理的用户原始目标：", f"- 已处理的用户原始目标：{goal}", 1)
+    text = text.replace("- Result ID:", f"- Result ID: {project_id}-INIT-001", 1)
+    return _encode_markdown(text, bom)
+
+
+def _render_named_template(relative: str, values: dict[str, str]) -> bytes:
+    text, bom = _template_bytes(relative)
+    for key, value in values.items():
+        text = text.replace(f"<{key}>", value)
+    if re.search(r"<[A-Z][A-Z0-9_]+>", text):
+        raise WorkspaceError("WS_TEMPLATE_INVALID", "Template contains unresolved required placeholders.", relative)
+    return _encode_markdown(text, bom)
+
+
+def _plan(operation: str, root: Path, changes: Iterable[Path], apply: bool, **extra: Any) -> dict[str, Any]:
+    value: dict[str, Any] = {
+        "status": "PASS",
+        "operation": operation,
+        "mode": "APPLY" if apply else "DRY_RUN",
+        "workspace": str(root),
+        "planned_changes": [_relative(root, path) for path in changes],
+        "writes_performed": bool(apply),
+    }
+    value.update(extra)
+    return value
+
+
+def command_init(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace, may_not_exist=True)
+    project_id = _validate_id(args.project_id, "Project ID")
+    now = _timestamp(args.timestamp)
+    language = args.language
+    if not args.goal.strip():
+        raise WorkspaceError("WS_GOAL_EMPTY", "Original goal must not be empty.")
+
+    existing_state: dict[str, Any] | None = None
+    if _state_path(root).is_file():
+        existing_state = _load_state(root)
+        if existing_state["project_id"] != project_id:
+            raise WorkspaceError("WS_PROJECT_MISMATCH", "Existing workspace state belongs to another project.", STATE_RELATIVE.as_posix())
+
+    phase_id_arg = args.initial_phase_id
+    phase_goal_arg = args.initial_phase_goal
+    has_registered_phase = bool(existing_state and existing_state["phase_controls"])
+    if not has_registered_phase and (not phase_id_arg or not phase_goal_arg or not phase_goal_arg.strip()):
+        raise WorkspaceError(
+            "WS_INITIAL_PHASE_REQUIRED",
+            "Long-project initialization requires both --initial-phase-id and --initial-phase-goal. No files were written.",
+        )
+    if has_registered_phase and bool(phase_id_arg) != bool(phase_goal_arg):
+        raise WorkspaceError(
+            "WS_INITIAL_PHASE_REQUIRED",
+            "Provide both initial Phase arguments together, or omit both for an already initialized workspace.",
+        )
+
+    initial_phase_id: str
+    initial_phase_goal: str
+    if has_registered_phase:
+        first_registered = existing_state["phase_controls"][0]
+        initial_phase_id = first_registered["phase_id"]
+        initial_phase_goal = phase_goal_arg.strip() if phase_goal_arg else "Existing initialized Phase."
+        if phase_id_arg is not None:
+            requested_phase_id = _validate_id(phase_id_arg, "Initial Phase ID")
+            if requested_phase_id != initial_phase_id:
+                raise WorkspaceError(
+                    "WS_INITIAL_PHASE_CONFLICT",
+                    "The requested initial Phase does not match the registered initial Phase.",
+                    first_registered["path"],
+                )
+    else:
+        initial_phase_id = _validate_id(phase_id_arg, "Initial Phase ID")
+        initial_phase_goal = phase_goal_arg.strip()
+
+    if (root / "runtime").exists() and not (root / "runtime").is_dir():
+        raise WorkspaceError("WS_PATH_TYPE", "runtime must be a directory.", "runtime")
+
+    rendered: dict[str, bytes] = {}
+    if not (root / "AGENTS.md").exists():
+        template = f"runtime/{'EN' if language == 'en' else 'CH'}/templates/LONG_PROJECT_AGENTS.template.{'en' if language == 'en' else 'zh-CN'}.md"
+        text, bom = _template_bytes(template)
+        rendered["AGENTS.md"] = _encode_markdown(text, bom)
+    if not (root / "PROJECT_CONTROL.md").exists():
+        rendered["PROJECT_CONTROL.md"] = _render_project_control(
+            language,
+            project_id,
+            args.goal,
+            initial_phase_id,
+            initial_phase_goal,
+            now,
+        )
+    if not (root / "WORK_TASK_REPORT.md").exists():
+        rendered["WORK_TASK_REPORT.md"] = _render_work_report(language, project_id, args.goal, initial_phase_id)
+    if not (root / "CLAUDE.md").exists():
+        rendered["CLAUDE.md"] = b"@AGENTS.md\n"
+    updated_state = json.loads(json.dumps(existing_state)) if existing_state is not None else _default_state(project_id, now)
+    initial_phase_relative = f"phases/{initial_phase_id}/PHASE_CONTROL.md"
+    initial_phase_path = _target(root, initial_phase_relative)
+    if not has_registered_phase:
+        if initial_phase_path.exists():
+            raise WorkspaceError(
+                "WS_FILE_EXISTS",
+                "Refusing to adopt or overwrite an unregistered initial Phase control.",
+                initial_phase_relative,
+            )
+        template = f"runtime/{'EN' if language == 'en' else 'CH'}/templates/PHASE_CONTROL.template.{'en' if language == 'en' else 'zh-CN'}.md"
+        rendered[initial_phase_relative] = _render_named_template(
+            template,
+            {"PHASE_ID": initial_phase_id, "PHASE_GOAL": initial_phase_goal, "TIMESTAMP": now},
+        )
+        updated_state["phase_controls"].append(
+            {"phase_id": initial_phase_id, "path": initial_phase_relative, "status": "ACTIVE"}
+        )
+        updated_state["active_phase_id"] = initial_phase_id
+        updated_state["maintenance_state"].update(
+            {"state": "clean", "last_action": "init-with-phase", "last_checked_at": now}
+        )
+        updated_state["recovery_point"] = {
+            "summary": f"Initial Phase {initial_phase_id} is active; no Session is active.",
+            "next_action": "Open a Session only for an explicit bounded work-session boundary.",
+            "evidence_refs": ["workspace:init", f"phase:{initial_phase_id}"],
+        }
+        _validate_state(root, updated_state)
+        rendered[STATE_RELATIVE.as_posix()] = _json_bytes(updated_state)
+
+    for name in FIXED_FILES:
+        path = root / name
+        if path.exists() and not path.is_file():
+            raise WorkspaceError("WS_PATH_TYPE", "Expected a file path.", name)
+
+    changes = {_target(root, relative): payload for relative, payload in rendered.items()}
+    preserved_existing = [name for name in (*FIXED_FILES, STATE_RELATIVE.as_posix()) if (root / name).exists()]
+    if has_registered_phase and initial_phase_path.is_file():
+        preserved_existing.append(initial_phase_relative)
+    result = _plan(
+        "init",
+        root,
+        changes,
+        args.apply,
+        project_id=project_id,
+        language=language,
+        initialization_status="READY",
+        active_phase_id=updated_state["active_phase_id"],
+        active_session_id=updated_state["active_session_id"],
+        created_controls=[relative for relative in rendered if relative.endswith("_CONTROL.md")],
+        preserved_existing=preserved_existing,
+        implicit_session_created=False,
+        session_status="NOT_CREATED_BY_DESIGN" if updated_state["active_session_id"] is None else "ACTIVE",
+        next_action=updated_state["recovery_point"]["next_action"],
+    )
+    if args.apply:
+        root.mkdir(parents=True, exist_ok=True)
+        must_be_new = tuple(path for path in changes if not path.exists())
+        _transaction_write(root, changes, must_be_new=must_be_new)
+    return result
+
+
+def _active_phase(state: dict[str, Any]) -> dict[str, Any]:
+    phase_id = state["active_phase_id"]
+    if phase_id is None:
+        raise WorkspaceError("WS_NO_ACTIVE_PHASE", "No active Phase exists.")
+    return next(item for item in state["phase_controls"] if item["phase_id"] == phase_id)
+
+
+def _active_session(state: dict[str, Any]) -> dict[str, Any]:
+    session_id = state["active_session_id"]
+    if session_id is None:
+        raise WorkspaceError("WS_NO_ACTIVE_SESSION", "No active Session exists.")
+    return next(item for item in state["session_controls"] if item["session_id"] == session_id)
+
+
+def command_open_phase(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state = _load_state(root)
+    phase_id = _validate_id(args.phase_id, "Phase ID")
+    if state["active_phase_id"] is not None:
+        raise WorkspaceError("WS_PHASE_ACTIVE", "Close the active Phase before opening another one.")
+    if any(item["phase_id"] == phase_id for item in state["phase_controls"]):
+        raise WorkspaceError("WS_PHASE_EXISTS", "Phase ID already exists.", phase_id)
+    if not args.goal.strip():
+        raise WorkspaceError("WS_GOAL_EMPTY", "Phase goal must not be empty.")
+    now = _timestamp(args.timestamp)
+    language = _language(args, root)
+    relative = f"phases/{phase_id}/PHASE_CONTROL.md"
+    phase_path = _target(root, relative)
+    if phase_path.exists():
+        raise WorkspaceError("WS_FILE_EXISTS", "Refusing to adopt or overwrite an unregistered Phase control.", relative)
+    template = f"runtime/{'EN' if language == 'en' else 'CH'}/templates/PHASE_CONTROL.template.{'en' if language == 'en' else 'zh-CN'}.md"
+    control = _render_named_template(template, {"PHASE_ID": phase_id, "PHASE_GOAL": args.goal.strip(), "TIMESTAMP": now})
+    updated = json.loads(json.dumps(state))
+    updated["phase_controls"].append({"phase_id": phase_id, "path": relative, "status": "ACTIVE"})
+    updated["active_phase_id"] = phase_id
+    updated["maintenance_state"].update({"state": "clean", "last_action": "open-phase", "last_checked_at": now})
+    updated["recovery_point"] = {
+        "summary": f"Phase {phase_id} is active; no Session is active.",
+        "next_action": "Open a Session only for an explicit bounded work-session boundary.",
+        "evidence_refs": [f"phase:{phase_id}"],
+    }
+    _validate_state(root, updated)
+    changes = {phase_path: control, _state_path(root): _json_bytes(updated)}
+    result = _plan("open-phase", root, changes, args.apply, phase_id=phase_id, implicit_session_created=False)
+    if args.apply:
+        _transaction_write(root, changes, must_be_new=(phase_path,))
+    return result
+
+
+def _replace_line(text: str, source: str, target: str, code: str) -> str:
+    pattern = re.compile(rf"(?m)^{re.escape(source)}[^\r\n]*$")
+    if pattern.search(text) is None:
+        raise WorkspaceError(code, f"Expected control token is missing: {source}")
+    return pattern.sub(target, text, count=1)
+
+
+def command_close_phase(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state = _load_state(root)
+    if state["active_session_id"] is not None:
+        raise WorkspaceError("WS_SESSION_ACTIVE", "Close the active Session before closing its Phase.")
+    phase = _active_phase(state)
+    now = _timestamp(args.timestamp)
+    path = _target(root, phase["path"])
+    data = _read_bytes(root, phase["path"])
+    text, bom = _decode_markdown(data)
+    text = _replace_line(text, "- Status: ACTIVE", f"- Status: {args.status}", "WS_PHASE_CONTROL_INVALID")
+    text = _replace_line(text, "- Updated at:", f"- Updated at: {now}", "WS_PHASE_CONTROL_INVALID")
+    text = _replace_line(text, "- Close result:", f"- Close result: {args.status}", "WS_PHASE_CONTROL_INVALID")
+    updated = json.loads(json.dumps(state))
+    next(item for item in updated["phase_controls"] if item["phase_id"] == phase["phase_id"])["status"] = args.status
+    updated["active_phase_id"] = None
+    updated["maintenance_state"].update({"last_action": "close-phase", "last_checked_at": now})
+    updated["recovery_point"] = {
+        "summary": f"Phase {phase['phase_id']} closed with {args.status}.",
+        "next_action": args.next_action,
+        "evidence_refs": [f"phase:{phase['phase_id']}:{args.status.lower()}"],
+    }
+    _validate_state(root, updated)
+    changes = {path: _encode_markdown(text, bom), _state_path(root): _json_bytes(updated)}
+    result = _plan("close-phase", root, changes, args.apply, phase_id=phase["phase_id"], terminal_status=args.status)
+    if args.apply:
+        _transaction_write(root, changes)
+    return result
+
+
+def command_open_session(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state = _load_state(root)
+    phase = _active_phase(state)
+    if state["active_session_id"] is not None:
+        raise WorkspaceError("WS_SESSION_ACTIVE", "Close the active Session before opening another one.")
+    session_id = _validate_id(args.session_id, "Session ID")
+    if any(item["session_id"] == session_id for item in state["session_controls"]):
+        raise WorkspaceError("WS_SESSION_EXISTS", "Session ID already exists.", session_id)
+    if not args.goal.strip():
+        raise WorkspaceError("WS_GOAL_EMPTY", "Session goal must not be empty.")
+    now = _timestamp(args.timestamp)
+    language = _language(args, root)
+    relative = f"sessions/{session_id}/SESSION_CONTROL.md"
+    session_path = _target(root, relative)
+    if session_path.exists():
+        raise WorkspaceError("WS_FILE_EXISTS", "Refusing to adopt or overwrite an unregistered Session control.", relative)
+    template = f"runtime/{'EN' if language == 'en' else 'CH'}/templates/SESSION_CONTROL.template.{'en' if language == 'en' else 'zh-CN'}.md"
+    control = _render_named_template(
+        template,
+        {
+            "SESSION_ID": session_id,
+            "PHASE_ID": phase["phase_id"],
+            "SESSION_REASON": args.reason,
+            "SESSION_GOAL": args.goal.strip(),
+            "TIMESTAMP": now,
+        },
+    )
+    updated = json.loads(json.dumps(state))
+    updated["session_controls"].append(
+        {
+            "session_id": session_id,
+            "phase_id": phase["phase_id"],
+            "path": relative,
+            "status": "ACTIVE",
+            "reason": args.reason,
+            "created_at": now,
+        }
+    )
+    updated["active_session_id"] = session_id
+    updated["maintenance_state"].update({"last_action": "open-session", "last_checked_at": now})
+    updated["recovery_point"] = {
+        "summary": f"Session {session_id} is active in Phase {phase['phase_id']}.",
+        "next_action": args.goal.strip(),
+        "evidence_refs": [f"session:{session_id}"],
+    }
+    _validate_state(root, updated)
+    changes = {session_path: control, _state_path(root): _json_bytes(updated)}
+    result = _plan("open-session", root, changes, args.apply, session_id=session_id, phase_id=phase["phase_id"])
+    if args.apply:
+        _transaction_write(root, changes, must_be_new=(session_path,))
+    return result
+
+
+def command_close_session(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state = _load_state(root)
+    session = _active_session(state)
+    now = _timestamp(args.timestamp)
+    path = _target(root, session["path"])
+    data = _read_bytes(root, session["path"])
+    text, bom = _decode_markdown(data)
+    text = _replace_line(text, "- Status: ACTIVE", f"- Status: {args.status}", "WS_SESSION_CONTROL_INVALID")
+    text = _replace_line(text, "- Updated at:", f"- Updated at: {now}", "WS_SESSION_CONTROL_INVALID")
+    text = _replace_line(text, "- Next action:", f"- Next action: {args.next_action}", "WS_SESSION_CONTROL_INVALID")
+    updated = json.loads(json.dumps(state))
+    next(item for item in updated["session_controls"] if item["session_id"] == session["session_id"])["status"] = args.status
+    updated["active_session_id"] = None
+    updated["maintenance_state"].update({"last_action": "close-session", "last_checked_at": now})
+    updated["recovery_point"] = {
+        "summary": f"Session {session['session_id']} closed with {args.status}; Phase {session['phase_id']} remains active.",
+        "next_action": args.next_action,
+        "evidence_refs": [f"session:{session['session_id']}:{args.status.lower()}"],
+    }
+    _validate_state(root, updated)
+    changes = {path: _encode_markdown(text, bom), _state_path(root): _json_bytes(updated)}
+    result = _plan("close-session", root, changes, args.apply, session_id=session["session_id"], terminal_status=args.status)
+    if args.apply:
+        _transaction_write(root, changes)
+    return result
+
+
+def _history_blocks(text: str) -> list[tuple[str, int, int, str]]:
+    tokens = list(HISTORY_TOKEN.finditer(text))
+    raw_start_count = text.count("<!-- MALTS:history:start")
+    raw_end_count = text.count("<!-- MALTS:history:end")
+    recognized_starts = sum(1 for token in tokens if token.group("id") is not None)
+    recognized_ends = sum(1 for token in tokens if token.group("end") is not None)
+    if raw_start_count != recognized_starts or raw_end_count != recognized_ends:
+        raise WorkspaceError("WS_HISTORY_MARKER_INVALID", "History markers are malformed.")
+    blocks: list[tuple[str, int, int, str]] = []
+    opened: tuple[str, int] | None = None
+    for token in tokens:
+        history_id = token.group("id")
+        if history_id is not None:
+            if opened is not None:
+                raise WorkspaceError("WS_HISTORY_MARKER_INVALID", "Nested history blocks are forbidden.")
+            opened = (history_id, token.start())
+        else:
+            if opened is None:
+                raise WorkspaceError("WS_HISTORY_MARKER_INVALID", "History end marker has no start marker.")
+            history_id, start = opened
+            block = text[start:token.end()]
+            if PROTECTED_HISTORY_SECTION.search(block):
+                raise WorkspaceError("WS_HISTORY_PROTECTED_CONTENT", "History block contains a protected active canonical section.", history_id)
+            blocks.append((history_id, start, token.end(), block))
+            opened = None
+    if opened is not None:
+        raise WorkspaceError("WS_HISTORY_MARKER_INVALID", "History start marker has no end marker.")
+    ids = [item[0] for item in blocks]
+    if len(ids) != len(set(ids)):
+        raise WorkspaceError("WS_HISTORY_DUPLICATE", "History block IDs must be unique.")
+    return blocks
+
+
+def _metrics(data: bytes) -> dict[str, Any]:
+    text, _ = _decode_markdown(data)
+    blocks = _history_blocks(text)
+    stale_bytes = sum(len(block.encode("utf-8")) for _, _, _, block in blocks)
+    total_bytes = len(data)
+    active_tasks = len(re.findall(r"(?im)^\|.*\|\s*(?:TODO|READY|IN_PROGRESS|ACTIVE|BLOCKED)\s*\|", text))
+    open_decisions = len(
+        re.findall(r"(?im)(?:\[OPEN\]|\|\s*OPEN\s*\||^-\s*Open decision(?:s)?:\s*\S|^-\s*待确认(?:决策|问题)[：:]\s*\S)", text)
+    )
+    evidence_refs = len(set(re.findall(r"(?i)(?:evidence|证据)[/:=：\s]+([A-Za-z0-9][A-Za-z0-9._:/\\-]+)", text)))
+    return {
+        "lines": len(text.splitlines()),
+        "bytes": total_bytes,
+        "active_tasks": active_tasks,
+        "open_decisions": open_decisions,
+        "evidence_refs": evidence_refs,
+        "stale_history_ratio": round(stale_bytes / total_bytes, 6) if total_bytes else 0.0,
+        "history_blocks": len(blocks),
+    }
+
+
+def _collect_metrics(root: Path, state: dict[str, Any]) -> dict[str, Any]:
+    def item(relative: str) -> dict[str, Any]:
+        result = {"path": relative}
+        result.update(_metrics(_read_bytes(root, relative)))
+        return result
+
+    return {
+        "root": item("PROJECT_CONTROL.md"),
+        "phases": [item(entry["path"]) for entry in state["phase_controls"]],
+        "sessions": [item(entry["path"]) for entry in state["session_controls"]],
+    }
+
+
+def _budget_assessment(metrics: dict[str, Any], budget: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
+    controls = [metrics["root"], *metrics["phases"], *metrics["sessions"]]
+    breaches: list[dict[str, Any]] = []
+    total_tasks = sum(item["active_tasks"] for item in controls)
+    total_decisions = sum(item["open_decisions"] for item in controls)
+    total_evidence = sum(item["evidence_refs"] for item in controls)
+    for item in controls:
+        for metric, budget_key in (("lines", "max_root_lines"), ("bytes", "max_root_bytes"), ("stale_history_ratio", "max_stale_history_ratio")):
+            if item[metric] > budget[budget_key]:
+                breaches.append({"path": item["path"], "metric": metric, "actual": item[metric], "limit": budget[budget_key]})
+    for metric, actual, budget_key in (
+        ("active_tasks", total_tasks, "max_active_tasks"),
+        ("open_decisions", total_decisions, "max_open_decisions"),
+        ("evidence_refs", total_evidence, "max_evidence_refs"),
+    ):
+        if actual > budget[budget_key]:
+            breaches.append({"path": "all-controls", "metric": metric, "actual": actual, "limit": budget[budget_key]})
+    if any(item["metric"] in {"lines", "bytes", "stale_history_ratio"} for item in breaches):
+        return "compaction-required", breaches
+    if breaches:
+        return "maintenance-required", breaches
+    return "clean", breaches
+
+
+def _validate_workspace(root: Path, state: dict[str, Any]) -> tuple[list[dict[str, str]], dict[str, Any], list[dict[str, Any]]]:
+    issues: list[dict[str, str]] = []
+    for relative in (*FIXED_FILES, "runtime"):
+        path = _target(root, relative)
+        expected = "directory" if relative == "runtime" else "file"
+        valid = path.is_dir() if expected == "directory" else path.is_file()
+        if not valid:
+            issues.append({"code": "WS_SKELETON_MISSING", "path": relative, "message": f"Expected {expected}."})
+    for entry in [*state["phase_controls"], *state["session_controls"]]:
+        if not _target(root, entry["path"]).is_file():
+            issues.append({"code": "WS_CONTROL_MISSING", "path": entry["path"], "message": "Registered control file is missing."})
+    if not state["phase_controls"]:
+        issues.append(
+            {
+                "code": "WS_INITIAL_PHASE_MISSING",
+                "path": STATE_RELATIVE.as_posix(),
+                "message": "Long-project initialization is incomplete until its initial Phase is registered.",
+            }
+        )
+    if state["active_phase_id"] is not None:
+        active = next(item for item in state["phase_controls"] if item["phase_id"] == state["active_phase_id"])
+        if active["status"] != "ACTIVE":
+            issues.append({"code": "WS_ACTIVE_PHASE_STATUS", "path": active["path"], "message": "Active Phase index must have ACTIVE status."})
+    if state["active_session_id"] is not None:
+        active = next(item for item in state["session_controls"] if item["session_id"] == state["active_session_id"])
+        if active["status"] != "ACTIVE":
+            issues.append({"code": "WS_ACTIVE_SESSION_STATUS", "path": active["path"], "message": "Active Session index must have ACTIVE status."})
+    metrics = _collect_metrics(root, state) if not issues else {"root": {}, "phases": [], "sessions": []}
+    _, breaches = _budget_assessment(metrics, state["capacity_budget"]) if not issues else ("recovery-required", [])
+    return issues, metrics, breaches
+
+
+def command_validate(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state = _load_state(root)
+    issues, metrics, breaches = _validate_workspace(root, state)
+    initialization_status = "READY" if state["phase_controls"] else "NEEDS_INITIAL_PHASE"
+    return {
+        "status": "PASS" if not issues else "FAIL",
+        "operation": "validate",
+        "mode": "READ_ONLY",
+        "workspace": str(root),
+        "writes_performed": False,
+        "issues": issues,
+        "capacity_warnings": breaches,
+        "metrics": metrics,
+        "active_phase_id": state["active_phase_id"],
+        "active_session_id": state["active_session_id"],
+        "initialization_status": initialization_status,
+        "required_action": (
+            None
+            if initialization_status == "READY"
+            else "Create the initial Phase before treating this as an initialized long-project workspace."
+        ),
+        "implicit_session_created": False,
+    }
+
+
+def command_maintain(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state = _load_state(root)
+    issues, metrics, _ = _validate_workspace(root, state)
+    if issues:
+        raise WorkspaceError("WS_VALIDATION_FAILED", "Workspace validation must pass before maintenance.")
+    maintenance_state, breaches = _budget_assessment(metrics, state["capacity_budget"])
+    now = _timestamp(args.timestamp)
+    updated = json.loads(json.dumps(state))
+    updated["maintenance_state"].update(
+        {"state": maintenance_state, "last_action": "maintain", "last_checked_at": now, "runtime_is_canonical": False}
+    )
+    changes = {_state_path(root): _json_bytes(updated)}
+    result = _plan(
+        "maintain",
+        root,
+        changes,
+        args.apply,
+        maintenance_state=maintenance_state,
+        capacity_warnings=breaches,
+        metrics=metrics,
+        implicit_session_created=False,
+    )
+    if args.apply:
+        _transaction_write(root, changes)
+    return result
+
+
+def command_compact(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state = _load_state(root)
+    now = _timestamp(args.timestamp)
+    project_path = _target(root, "PROJECT_CONTROL.md")
+    project_data = _read_bytes(root, "PROJECT_CONTROL.md")
+    text, bom = _decode_markdown(project_data)
+    blocks = _history_blocks(text)
+    if not blocks:
+        return _plan("compact", root, (), args.apply, compacted_blocks=0, implicit_session_created=False)
+
+    archive_relative = "history/PROJECT_CONTROL_HISTORY.md"
+    archive_path = _target(root, archive_relative)
+    if archive_path.exists() and not archive_path.is_file():
+        raise WorkspaceError("WS_PATH_TYPE", "History archive path is not a file.", archive_relative)
+    archive_data = archive_path.read_bytes() if archive_path.is_file() else b"# PROJECT_CONTROL History\n\n"
+    archive_text, archive_bom = _decode_markdown(archive_data)
+    for history_id, _, _, _ in blocks:
+        if re.search(rf"(?m)^## {re.escape(history_id)}$", archive_text):
+            raise WorkspaceError("WS_HISTORY_DUPLICATE", "History archive already contains this ID.", history_id)
+
+    compacted = text
+    for history_id, start, end, block in reversed(blocks):
+        marker = f"<!-- MALTS:history:archived id={history_id} path={archive_relative} -->"
+        compacted = compacted[:start] + marker + compacted[end:]
+    if not archive_text.endswith("\n"):
+        archive_text += "\n"
+    for history_id, _, _, block in blocks:
+        archive_text += f"\n## {history_id}\n\n{block.rstrip()}\n"
+
+    updated = json.loads(json.dumps(state))
+    updated["maintenance_state"].update({"state": "clean", "last_action": "compact", "last_checked_at": now})
+    updated["recovery_point"] = {
+        "summary": f"Compacted {len(blocks)} explicitly marked historical block(s).",
+        "next_action": state["recovery_point"]["next_action"],
+        "evidence_refs": [f"history:{history_id}" for history_id, _, _, _ in blocks],
+    }
+    changes = {
+        archive_path: _encode_markdown(archive_text, archive_bom),
+        project_path: _encode_markdown(compacted, bom),
+        _state_path(root): _json_bytes(updated),
+    }
+    result = _plan(
+        "compact",
+        root,
+        changes,
+        args.apply,
+        compacted_blocks=len(blocks),
+        history_ids=[item[0] for item in blocks],
+        protected_sections_moved=False,
+        implicit_session_created=False,
+    )
+    if args.apply:
+        must_be_new = (archive_path,) if not archive_path.exists() else ()
+        _transaction_write(root, changes, must_be_new=must_be_new)
+    return result
+
+
+def _nearest_instruction(root: Path, state: dict[str, Any]) -> Path | None:
+    start = root
+    if state["active_session_id"] is not None:
+        start = _target(root, _active_session(state)["path"]).parent
+    elif state["active_phase_id"] is not None:
+        start = _target(root, _active_phase(state)["path"]).parent
+    current = start
+    while True:
+        candidate = current / "AGENTS.md"
+        if candidate.is_file():
+            return _inside(root, candidate)
+        if current == root:
+            break
+        current = current.parent
+    return None
+
+
+def command_recover(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state = _load_state(root)
+    ordered: list[Path] = []
+
+    def add(path: Path) -> None:
+        path = _inside(root, path)
+        if path.is_file() and path not in ordered:
+            ordered.append(path)
+
+    nearest = _nearest_instruction(root, state)
+    if nearest is not None:
+        add(nearest)
+    add(_target(root, "PROJECT_CONTROL.md"))
+    if state["active_phase_id"] is not None:
+        add(_target(root, _active_phase(state)["path"]))
+    if state["active_session_id"] is not None:
+        add(_target(root, _active_session(state)["path"]))
+    elif state["session_controls"]:
+        latest = max(state["session_controls"], key=lambda item: item["created_at"])
+        add(_target(root, latest["path"]))
+    add(_target(root, "WORK_TASK_REPORT.md"))
+    add(_target(root, "PROJECT_HANDOFF.md"))
+    add(_state_path(root))
+
+    evidence = []
+    for index, path in enumerate(ordered, start=1):
+        data = path.read_bytes()
+        evidence.append(
+            {
+                "order": index,
+                "path": _relative(root, path),
+                "bytes": len(data),
+                "sha256": hashlib.sha256(data).hexdigest().upper(),
+                "canonical": not _relative(root, path).startswith("runtime/"),
+            }
+        )
+    initialization_status = "READY" if state["phase_controls"] else "NEEDS_INITIAL_PHASE"
+    return {
+        "status": "PASS" if initialization_status == "READY" else initialization_status,
+        "operation": "recover",
+        "mode": "READ_ONLY_COLD_START",
+        "workspace": str(root),
+        "writes_performed": False,
+        "read_order": evidence,
+        "active_phase_id": state["active_phase_id"],
+        "active_session_id": state["active_session_id"],
+        "initialization_status": initialization_status,
+        "required_action": (
+            None
+            if initialization_status == "READY"
+            else "Run init with --initial-phase-id and --initial-phase-goal, or explicitly open the first Phase."
+        ),
+        "recovery_point": state["recovery_point"],
+        "runtime_is_canonical": False,
+        "summary_replaces_current_facts": False,
+    }
+
+
+def _add_common_write_arguments(parser: argparse.ArgumentParser, *, language: bool = False) -> None:
+    parser.add_argument("--workspace", required=True)
+    parser.add_argument("--apply", action="store_true", help="Apply the planned state changes; default is dry-run.")
+    parser.add_argument("--timestamp", help="Optional deterministic ISO 8601 timestamp for tests/evidence.")
+    if language:
+        parser.add_argument("--language", choices=("auto", "en", "zh-CN"), default="auto")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    init = subparsers.add_parser("init")
+    _add_common_write_arguments(init)
+    init.add_argument("--project-id", required=True)
+    init.add_argument("--goal", required=True)
+    init.add_argument("--language", choices=("en", "zh-CN"), default="en")
+    init.add_argument("--initial-phase-id", help="Required initial Phase ID for a new or legacy-minimal workspace.")
+    init.add_argument("--initial-phase-goal", help="Required initial Phase goal for a new or legacy-minimal workspace.")
+    init.set_defaults(handler=command_init)
+
+    open_phase = subparsers.add_parser("open-phase")
+    _add_common_write_arguments(open_phase, language=True)
+    open_phase.add_argument("--phase-id", required=True)
+    open_phase.add_argument("--goal", required=True)
+    open_phase.set_defaults(handler=command_open_phase)
+
+    close_phase = subparsers.add_parser("close-phase")
+    _add_common_write_arguments(close_phase)
+    close_phase.add_argument("--status", choices=("DONE", "BLOCKED", "FAILED"), required=True)
+    close_phase.add_argument("--next-action", default="Open the next Phase when authorized.")
+    close_phase.set_defaults(handler=command_close_phase)
+
+    open_session = subparsers.add_parser("open-session")
+    _add_common_write_arguments(open_session, language=True)
+    open_session.add_argument("--session-id", required=True)
+    open_session.add_argument("--goal", required=True)
+    open_session.add_argument("--reason", choices=("bounded-work-session", "recovery", "manual-checkpoint"), default="bounded-work-session")
+    open_session.set_defaults(handler=command_open_session)
+
+    close_session = subparsers.add_parser("close-session")
+    _add_common_write_arguments(close_session)
+    close_session.add_argument("--status", choices=("DONE", "BLOCKED", "FAILED"), required=True)
+    close_session.add_argument("--next-action", required=True)
+    close_session.set_defaults(handler=command_close_session)
+
+    validate = subparsers.add_parser("validate")
+    validate.add_argument("--workspace", required=True)
+    validate.set_defaults(handler=command_validate)
+
+    maintain = subparsers.add_parser("maintain")
+    _add_common_write_arguments(maintain)
+    maintain.set_defaults(handler=command_maintain)
+
+    compact = subparsers.add_parser("compact")
+    _add_common_write_arguments(compact)
+    compact.set_defaults(handler=command_compact)
+
+    recover = subparsers.add_parser("recover")
+    recover.add_argument("--workspace", required=True)
+    recover.set_defaults(handler=command_recover)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    try:
+        result = args.handler(args)
+    except WorkspaceError as exc:
+        print(json.dumps(exc.as_dict(), ensure_ascii=False, indent=2), file=sys.stderr)
+        return 2
+    except Exception as exc:
+        failure = WorkspaceError("WS_INTERNAL_ERROR", f"{type(exc).__name__}: {exc}")
+        print(json.dumps(failure.as_dict(), ensure_ascii=False, indent=2), file=sys.stderr)
+        return 3
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0 if result.get("status") == "PASS" else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

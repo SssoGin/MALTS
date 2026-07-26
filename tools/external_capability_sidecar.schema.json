@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:malts:schema:external-capability-sidecar:1",
+  "title": "MALTS External Capability Sidecar",
+  "description": "Operator-state metadata for an external-owned Skill. It never authorizes MALTS to modify the external source.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "sidecar_id",
+    "capability_id",
+    "declared_name",
+    "ownership",
+    "skill_path",
+    "source_hash",
+    "capability_tags",
+    "tool_scope",
+    "risk_class",
+    "verified_at",
+    "evidence_refs",
+    "user_aliases",
+    "lifecycle_policy"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "sidecar_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "capability_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]+$"},
+    "declared_name": {"type": "string", "minLength": 1},
+    "ownership": {"const": "external"},
+    "skill_path": {"type": "string", "minLength": 1},
+    "source_hash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+    "capability_tags": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "tool_scope": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["codex", "claude-code", "opencode"]}},
+    "risk_class": {"enum": ["low", "medium", "high", "critical"]},
+    "verified_at": {"type": ["string", "null"], "format": "date-time"},
+    "evidence_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "user_aliases": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "lifecycle_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["discover", "route", "install", "update", "delete", "authorization_ref"],
+      "properties": {
+        "discover": {"const": true},
+        "route": {"const": true},
+        "install": {"const": false},
+        "update": {"const": false},
+        "delete": {"const": false},
+        "authorization_ref": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

@@ -12,7 +12,7 @@
 - Version source: active boot file -> <MALTS_ROOT>/VERSION; do not copy current MALTS versions from old control/report/handoff/template files.
 - Current round:
 - Last updated:
-- Maintainer: Main Controller
+- Project owner: Main Controller
 - Current mode: Single-Agent / Multi-Agent Long-Task
 
 ## Language And Structure
@@ -77,6 +77,7 @@ This project is complete only when:
 ## Current Stage
 
 - Stage:
+- Active Phase:
 - Stage goal:
 - Exit condition:
 
@@ -126,6 +127,9 @@ Use this before suggesting or enabling multi-agent mode.
 - Positive multi-agent signals:
 - Negative multi-agent signals:
 - Recommended runtime mode: Single-Agent / Suggest Multi-Agent Launch Review / Ask Clarification
+- Recommended dynamic Agent count: 0 / 1 / N
+- Independent verification required by acceptance contract: Yes / No
+- Runtime route evidence state: effective_verified / fallback_verified / configured_unverified / static_binding / inherited / unsupported / unknown
 - Reason:
 - User was informed of recommendation: Yes / No / N/A
 - User confirmation required before dispatch: `确认运行`
@@ -136,25 +140,34 @@ Use this before any real sub-agent dispatch after the user asks to use multi-age
 
 - Overall goal:
 - Total plan:
-- Model specification prompt shown: Yes / No
-- Model specification prompt deviation accepted: Yes / No / N/A
-- How to specify models: `Role=model-id; Role=inherit; default=inherit`
-- User model choices:
+- Model-and-effort specification prompt shown: Yes / No
+- Model-and-effort prompt deviation accepted: Yes / No / N/A
+- How to specify routes: `responsibility=model-id@runtime-effort; responsibility=inherit@runtime-default; default=inherit@runtime-default`
+- User model and effort choices:
+- Launch review reference:
+- Approved batch IDs:
+- Route evidence reference:
+- Requested / recommended / configured / effective selection:
+- Runtime effort ID / normalized reasoning tier / display label:
+- Constraint strength: model=hard|soft|none; effort=hard|soft|none; delegation=hard|soft|none; concurrency=hard|soft|none
+- Binding status and test state:
+- Effective concurrency / depth:
+- Fallback reason and usage evidence, if any:
 - Planned dispatch order / parallel batches:
 - User confirmation phrase required: `确认运行`
 - Confirmation status: Pending / Confirmed / Revised / Cancelled
 
-| Role | Task ID | Model Name / Policy | Task Objective | Short Plan | Permission Level |
-|---|---|---|---|---|---|
-| Planner / Explorer / Worker / Verifier / Memory Curator |  | Explicit model / Inherited model / Runtime default |  |  | Level 0 / 1 / 2 / 3 / 4 |
+| Responsibility Lane | Task ID | Model + Runtime Effort Policy | Route Evidence / Binding | Task Objective | Short Plan | Permission Level |
+|---|---|---|---|---|---|---|
+| Planner / Explorer / Worker / Verifier / Memory Curator / Other |  | Explicit / Inherited / Runtime default | requested / recommended / configured / effective; binding status |  |  | Level 0 / 1 / 2 / 3 / 4 |
 
 ## Agent Dispatch Log
 
 Record every real sub-agent dispatch. If no sub-agent was dispatched, write `N/A`.
 
-| Time | Round | Task ID | Role | Dispatch Mechanism | Runtime Agent ID | Model Policy | Contract Reference | Status |
-|---|---|---|---|---|---|---|---|---|
-|  |  |  | Planner / Explorer / Worker / Verifier / Memory Curator | e.g. Codex `spawn_agent` |  | Inherited / Explicit: model name |  | Requested / Running / Returned / Failed / Cancelled |
+| Time | Round | Batch ID | Task ID | Responsibility | Dispatch Mechanism | Runtime Agent ID | Effective Model / Effort | Binding Status | Contract / Route Evidence | Status |
+|---|---|---|---|---|---|---|---|---|---|---|
+|  |  |  |  | Planner / Explorer / Worker / Verifier / Memory Curator / Other | e.g. Codex `spawn_agent` |  | Known value / Unknown | effective_verified / fallback_verified / other |  | Requested / Running / Returned / Failed / Cancelled |
 
 ## Agent Feedback Log
 
@@ -221,11 +234,20 @@ No fixed one-shot runtime is guaranteed. Use this section to design long work as
 - Whole-project continuation strategy:
 - Next state write checkpoint:
 
-## Termination Status
+## Result Contract
 
-| Level | Current Fit | Reason | Delivery Behavior |
-|---|---|---|---|
-| Ideal / Pragmatic / Forced | Yes / No / Unknown |  | Normal delivery / Deliver with risks / Save recovery path |
+Project terminal status has exactly four values: `DONE`, `PARTIAL`, `BLOCKED`, and `FAILED`. Internal execution status is not an additional terminal.
+
+- Contract / result ID:
+- Execution status: DRAFT / PREFLIGHT / AWAITING_AUTHORIZATION / AUTHORIZED / PLANNING / EXECUTING / VERIFYING / REPLANNING / FINALIZING / DONE / PARTIAL / BLOCKED / FAILED
+- Terminal status: None / DONE / PARTIAL / BLOCKED / FAILED
+- Authorization envelope reference:
+- Hard acceptance criteria reconciliation:
+- Current round / attempt / strategy ID:
+- Budget usage / hard-limit state:
+- Last status event / direct evidence:
+- Remaining work:
+- Recovery point:
 
 ## Unattended Auto-Continue Authorization
 
@@ -273,15 +295,15 @@ Record user-facing task or phase reports delivered after completion.
 
 | Time | Scope | Status | Report Location / Summary | Recovery Point |
 |---|---|---|---|---|
-|  | Task / Phase / Project | Completed / Partially Completed / Blocked / Failed |  |  |
+|  | Task / Phase / Project | DONE / PARTIAL / BLOCKED / FAILED |  |  |
 
 ## Growth Candidates
 
-Only add candidates. Long-term memory writes require filtering.
+L1 analysis creates no durable record. L2 project maintenance requires current project write authorization. L3 system promotion requires separate confirmation. The source observation is not a future-use validation: default `VALIDATED` requires helped outcomes in two independent future tasks; high-risk candidates also require an independent review, negative test, or counterexample test.
 
-| Candidate | Source | Trigger | Reusable? | Suggested Destination | Status |
-|---|---|---|---|---|---|
-|  | Success / Failure / Decision / Process |  | Yes / No / Unsure | Skill / Checklist / Tool instruction file / Local Only | Local / Proposed for global / Promoted / Merged / Rejected |
+| Signal / Candidate | Evidence | Trigger / Action / Check / Boundary | Authority | Risk | Lifecycle Status | Future-Use Validations | Retrieval Outcome | Challenge / Suspension | Promotion Authorization |
+|---|---|---|---|---|---|---|---|---|---|
+|  |  |  | L1 / L2 / L3 | low / medium / high / critical | OBSERVED / CANDIDATE / PROJECT_EXPERIMENTAL / FUTURE_USE_VALIDATING / VALIDATED / CHALLENGED / SUSPENDED / SYSTEM_PROMOTION_PROPOSED / ACCEPTED / REJECTED / DEPRECATED / REMOVED | Future task IDs, independence keys, outcomes, evidence | not_evaluated / helped / neutral / harmful / inconclusive | Challenge refs, severity, replacement or review | Separate L3 authorization ref / N/A |
 
 ## Token And Complexity Control
 
@@ -313,6 +335,12 @@ Only add candidates. Long-term memory writes require filtering.
 
 Minimum recovery unit:
 
+- Result execution status:
+- Terminal status: None / DONE / PARTIAL / BLOCKED / FAILED
+- Current round / attempt:
+- Active strategy ID:
+- Budget usage / hard limits:
+- Last status event / evidence:
 - Current goal:
 - Completion definition:
 - Current task queue:

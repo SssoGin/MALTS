@@ -1,42 +1,59 @@
-# Using MALTS
+# Use MALTS in a Project
 
-Use MALTS when a task needs recoverable planning, explicit verification, cross-window continuity, optional multi-agent coordination, or reusable process review.
+After lifecycle installation, start work from the tool's MALTS boot pointer.
+It resolves the active immutable generation; do not copy runtime files into a
+project manually.
 
-## Normal Task
+## Start a project
 
-For small tasks, stay single-agent and keep process overhead low.
-Do not create MALTS files unless MALTS is explicitly enabled or the task grows enough to need recoverable state.
+For a non-trivial task, define the goal, acceptance criteria, task queue, and
+recovery point in `PROJECT_CONTROL.md`. Record execution evidence in
+`WORK_TASK_REPORT.md`. Create `PROJECT_HANDOFF.md` when another Agent needs to
+continue the work.
 
-## Long Task
+Use the matching runtime templates under `runtime/EN/` or `runtime/CH/` as
+drafting references. Keep one canonical control, report, and handoff file unless
+the user explicitly requests a translated mirror.
 
-For larger work, enable MALTS and:
+## Choose the right workflow
 
-1. Create or update `PROJECT_CONTROL.md`.
-2. Define acceptance criteria.
-3. Build a task queue.
-4. Record file ownership when multiple workers are possible.
-5. Verify before marking work done.
-6. Write or append `WORK_TASK_REPORT.md` after each phase or final delivery.
-7. Use the user's or project's primary language inside `WORK_TASK_REPORT.md`; create a translated mirror only when explicitly requested.
-8. Update `PROJECT_HANDOFF.md` before handoff or context risk, with a short English Agent Brief at the top.
+- Use `malts-project-init` when only lightweight root project control is needed.
+- Use `malts-long-project-workspace-init` when the project will span phases,
+  windows, interruptions, or recovery boundaries. Selecting it is the choice
+  for a long-project workspace: initialization creates the root controls and
+  first active Phase together. It does not silently stop at a minimal skeleton.
+- Use Grill-Me Preflight when goals, assumptions, tradeoffs, or acceptance
+  criteria need clarification.
+- Keep simple work single-agent.
+- For a user-approved long or multi-agent task, show the launch review before
+  dispatching work.
+- Use the handoff skill when continuation context must survive a session change.
 
-Single-agent first means the main controller keeps ownership by default after MALTS is enabled. Multi-agent scheduling is a controlled division-of-work mechanism enabled only when needed; use it only when it reduces risk, improves independent verification, or makes non-conflicting work practical.
+The long-project initializer requires an initial Phase ID and goal. Its dry run
+must list the initial `PHASE_CONTROL.md`; missing Phase input causes a zero-write
+failure. After apply, check `initialization_status=READY` and the active Phase.
+No Session is created by initialization. Open one only for an explicit bounded
+work-session boundary.
 
-## Multi-Agent Work
+If an older workspace has root controls but no registered Phase, validation
+reports `WS_INITIAL_PHASE_MISSING`. Supply its initial Phase through the
+initializer or explicitly open its first Phase; existing user files are
+preserved.
 
-Multi-agent mode is optional. It requires:
+## Verify project control
 
-- a clear fit assessment
-- launch review
-- user confirmation
-- task contracts
-- recorded dispatch and feedback
-- final reconciliation by the main controller
+The user helper validates the stable project-control structure and, when a
+MALTS root is supplied, its active version reference:
 
-## Growth And Memory
+```powershell
+python -B <MALTS_ROOT>\tools\malts_user_tools.py check-project-control `
+  --project-control <PROJECT_CONTROL_PATH> `
+  --malts-root <MALTS_ROOT>
+```
 
-Use the MALTS Memory Pipeline for reusable lessons. Record candidates first in durable project state, such as `PROJECT_CONTROL.md`, `WORK_TASK_REPORT.md`, or a local retrospective. Promote only filtered, reusable candidates to a global skill, `GLOBAL_MEMORY.md`, `AGENTS.md`, `CLAUDE.md`, or an equivalent tool instruction entry.
+## Safety defaults
 
-## Handoff
-
-Use `PROJECT_HANDOFF.md` as the default Agent-facing recovery file. See `docs/HANDOFF.md`.
+Plan before writing. Keep tool-root changes inside the user's approved scope.
+Verify before reporting completion, and do not enable unattended continuation
+unless the user explicitly authorizes its objective, limits, stop conditions,
+and recovery behavior.

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:malts:schema:model-profile:1",
+  "title": "MALTS Provider-Neutral Model Profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "profile_id", "provider", "model_family", "model_id", "model_revision",
+    "base_capability_tier", "capabilities", "reasoning_efforts", "default_reasoning_effort",
+    "effort_mappings", "tool_use", "delegation_behavior", "context_class", "latency_class",
+    "cost_class", "safety_constraints", "runtime_source", "observed_at", "runtime_verified",
+    "evidence_refs"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "profile_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "provider": {"type": "string", "minLength": 1},
+    "model_family": {"type": ["string", "null"], "minLength": 1},
+    "model_id": {"type": "string", "minLength": 1},
+    "model_revision": {"type": ["string", "null"], "minLength": 1},
+    "base_capability_tier": {"enum": ["strategic", "balanced", "efficient", "specialized", "unknown"]},
+    "capabilities": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "reasoning_efforts": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/reasoningEffort"}},
+    "default_reasoning_effort": {"$ref": "#/$defs/reasoningEffort"},
+    "effort_mappings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["runtime_effort_id", "normalized_reasoning_tier", "display_label"],
+        "properties": {
+          "runtime_effort_id": {"$ref": "#/$defs/reasoningEffort"},
+          "normalized_reasoning_tier": {"enum": ["none", "light", "standard", "deep", "maximum", "unknown"]},
+          "display_label": {"type": ["string", "null"], "minLength": 1}
+        }
+      }
+    },
+    "tool_use": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["supported", "modes", "constraints"],
+      "properties": {
+        "supported": {"enum": ["supported", "unsupported", "unknown"]},
+        "modes": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "constraints": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "delegation_behavior": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["supported", "modes", "constraints"],
+      "properties": {
+        "supported": {"enum": ["supported", "unsupported", "unknown"]},
+        "modes": {"type": "array", "uniqueItems": true, "items": {"enum": ["main", "single-agent", "sub-agent", "nested"]}},
+        "constraints": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "context_class": {"enum": ["small", "medium", "large", "very-large", "unknown"]},
+    "latency_class": {"enum": ["low", "medium", "high", "unknown"]},
+    "cost_class": {"enum": ["low", "medium", "high", "unknown"]},
+    "safety_constraints": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "runtime_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "locator"],
+      "properties": {
+        "type": {"enum": ["runtime-probe", "official-metadata", "configured-profile", "unknown"]},
+        "locator": {"type": "string", "minLength": 1}
+      }
+    },
+    "observed_at": {"type": "string", "format": "date-time"},
+    "runtime_verified": {"type": "boolean"},
+    "evidence_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "$defs": {
+    "reasoningEffort": {"enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra", "unknown"]}
+  }
+}

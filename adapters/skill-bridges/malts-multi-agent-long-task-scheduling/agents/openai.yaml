@@ -1,0 +1,3 @@
+interface:
+  display_name: "MALTS Multi-Agent Long-Task Scheduling"
+  short_description: "Run recoverable long-task scheduling after launch review"

@@ -44,11 +44,21 @@
 - [ ] Task type and difficulty were assessed before suggesting or enabling multi-agent mode.
 - [ ] Multi-agent was suggested only when it could reduce risk, improve independent verification, enable non-conflicting parallel work, or improve recoverability.
 - [ ] If the task was S0/S1 or merge cost exceeded benefit, single-agent mode was used or the reason for escalation was recorded.
+- [ ] The route decision is explicitly `0`, `1`, or `N`; no fixed role chain or minimum role count was imposed.
+- [ ] Role names describe responsibility only; model and effort were selected from task difficulty, risk, budget, and current runtime evidence.
 - [ ] If the user requested multi-agent mode, the launch review packet was shown before dispatch.
 - [ ] The launch review packet listed the overall goal, total plan, each planned agent, model name or model policy, task, and short plan.
 - [ ] The user was asked whether they wanted to specify sub-agent models and was shown the accepted model specification format.
 - [ ] The user explicitly replied `确认运行` before any real sub-agent dispatch.
 - [ ] Any model/scope/batch changes during review were reflected in task contracts before dispatch.
+- [ ] Launch review reference and approved batch ID are recorded in the Result Contract before dispatch.
+- [ ] `requested`, `recommended`, `configured`, and `effective` route selections are recorded separately.
+- [ ] Runtime effort ID, normalized reasoning tier, and display label are not conflated.
+- [ ] Configuration, CLI help, or interface discovery alone was not labeled `effective_verified`.
+- [ ] Every fallback identifies hard/soft constraint treatment, reason, binding status, and usage evidence.
+- [ ] `N > 1` is bounded by approved Agent count, contract concurrency, effective runtime capacity, and conflict-free locator leases.
+- [ ] `agent_route_planner.py` and `result_controller.py` were treated as advisory/validation components and not as proof of real dispatch.
+- [ ] Real Agent/provider validation is explicitly `G4 PASS`, `G4 FAIL`, or `G4 NOT RUN`; component tests are not presented as G4.
 - [ ] Agent Dispatch Log, task contracts, returned reports, and Agent Feedback Log agree on task ID, role, runtime agent ID when available, model policy, and main-controller decision.
 
 ## Unattended Auto-Continue Gate

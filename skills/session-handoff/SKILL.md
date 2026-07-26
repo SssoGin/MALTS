@@ -34,7 +34,6 @@ For public examples, use placeholders such as:
 ```text
 <PROJECT_ROOT>
 <MALTS_ROOT>
-<HANDOFF_ARCHIVE_ROOT>
 ```
 
 ## Workflow

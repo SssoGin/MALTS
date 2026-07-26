@@ -98,16 +98,17 @@ This preflight is not multi-agent dispatch and does not require `确认运行`. 
 10. Process serves delivery; do not keep scheduling after the core goal is complete.
 11. Do not claim multi-agent validation unless sub-agent task contracts were dispatched and sub-agent reports were recycled.
 12. Do not claim a sub-agent ran unless the real runtime dispatch mechanism was used and recorded.
-13. Sub-agent model policy is explicit: use the user-specified model when provided; otherwise inherit the current main-controller session model.
-14. When the user asks to use multi-agent mode, ask whether they want to specify sub-agent models, explain the specification format, show the launch review packet, and wait for explicit `确认运行` before dispatching any sub-agent.
-15. For any gap-filling update to protocols, templates, checklists, adapters, or docs, check and synchronize Codex, Claude Code, and OpenCode together unless the user explicitly scopes one tool out.
-16. Long-task continuity is implemented through external state. If context saturation, compaction, interruption, or handoff risk appears, update `PROJECT_CONTROL.md`, task contracts, reports, and recovery notes before expanding the work.
-17. After each completed MALTS task or phase, write or append a plain work task report for the user, including the growth review result and memory-write decision when the phase is non-trivial, corrective, failed, or recovery-related.
-18. Do not promise a fixed one-shot runtime such as "guaranteed 8 hours." Design long work as recoverable rounds.
-19. At long-task start, ask whether the user wants to enable unattended auto-continue. It requires explicit authorization recorded in `PROJECT_CONTROL.md`; without that authorization, unattended auto-running is forbidden and the system must stop at user checkpoints.
-20. If unattended continuation needs a new multi-agent batch that was not already reviewed and confirmed, stop and ask for the normal launch review confirmation.
-21. Standalone task or tool artifacts must keep their boundary explicit. Do not register a one-off artifact as a system entry, shared tool, or index item unless the user asks for that scope.
-22. Cross-window or cross-project continuation starts from external state: project instructions, latest `PROJECT_CONTROL`, latest `WORK_TASK_REPORT` or `PROJECT_HANDOFF`, and current files. If that state is missing or stale, update it before continuing.
+13. Sub-agent routing is provider-neutral and explicit: record the requested model ID, runtime effort ID, normalized reasoning tier, and display label separately; otherwise record inheritance or runtime default without inventing an effective value.
+14. Role describes responsibility, not difficulty. Select model and effort from task complexity, risk, budget, runtime support, and evidence; do not hard-code an effort merely because a lane is called Planner, Worker, or Verifier.
+15. When the user asks to use multi-agent mode, ask whether they want to specify sub-agent model and effort choices, explain the specification format, show the launch review packet, and wait for explicit `确认运行` before dispatching any sub-agent.
+16. For any gap-filling update to protocols, templates, checklists, adapters, or docs, check and synchronize Codex, Claude Code, and OpenCode together unless the user explicitly scopes one tool out.
+17. Long-task continuity is implemented through external state. If context saturation, compaction, interruption, or handoff risk appears, update `PROJECT_CONTROL.md`, task contracts, reports, and recovery notes before expanding the work.
+18. After each completed MALTS task or phase, write or append a plain work task report for the user, including the growth review result and memory-write decision when the phase is non-trivial, corrective, failed, or recovery-related.
+19. Do not promise a fixed one-shot runtime such as "guaranteed 8 hours." Design long work as recoverable rounds.
+20. At long-task start, ask whether the user wants to enable unattended auto-continue. It requires explicit authorization recorded in `PROJECT_CONTROL.md`; without that authorization, unattended auto-running is forbidden and the system must stop at user checkpoints.
+21. If unattended continuation needs a new multi-agent batch that was not already reviewed and confirmed, stop and ask for the normal launch review confirmation.
+22. Standalone task or tool artifacts must keep their boundary explicit. Do not register a one-off artifact as a system entry, shared tool, or index item unless the user asks for that scope.
+23. Cross-window or cross-project continuation starts from external state: project instructions, latest `PROJECT_CONTROL`, latest `WORK_TASK_REPORT` or `PROJECT_HANDOFF`, and current files. If that state is missing or stale, update it before continuing.
 
 ## Role Model
 
@@ -130,7 +131,7 @@ This preflight is not multi-agent dispatch and does not require `确认运行`. 
 6. Ask whether the user wants to enable unattended auto-continue and record the answer in `PROJECT_CONTROL.md`.
 7. Offer MALTS-native Grill-Me Preflight for non-trivial or unclear starts, unless it is clearly N/A, and record offered/accepted/declined/N/A.
 8. Run the Multi-Agent Fit Assessment and decide whether to stay single-agent, suggest multi-agent, or ask for clarification.
-9. Ask whether the user wants to specify sub-agent models and show the accepted format.
+9. Ask whether the user wants to specify sub-agent model and effort choices and show the accepted format.
 10. Prepare task contracts and a user-visible launch review packet.
 11. Wait for the user's explicit `确认运行`.
 12. Dispatch only READY tasks with clear task contracts after confirmation.
@@ -163,38 +164,37 @@ Before dispatch, every task must have:
 - Expected output format.
 - Verification requirement.
 - Escalation rules.
-- Dispatch mechanism, runtime agent ID source, and model policy.
+- Dispatch mechanism, runtime agent ID source, model and effort policy, runtime binding status, and route evidence reference.
 
 Use `TASK_CONTRACT.template.en.md` for dispatch.
 
 Before any real dispatch, the main controller must present a launch review packet to the user. It must include:
 
 - Overall goal and total plan.
-- A direct question asking whether the user wants to specify any sub-agent model.
-- Model specification instructions, for example: `Planner=gpt-5.4-mini; Explorer=inherit; Verifier=inherit; default=inherit`.
+- A direct question asking whether the user wants to specify any sub-agent model or effort.
+- Provider-neutral specification instructions, for example: `analysis=model-id@high; verification=inherit@runtime-default; default=inherit@runtime-default`.
 - Planned dispatch order or parallel batches.
-- Each planned agent's role, task objective, short plan, permission level, model name or model policy, and whether the model is user-specified or inherited/default.
+- Each planned responsibility lane's task objective, short plan, permission level, requested/recommended/configured/effective model-and-effort evidence, and whether the choice is user-specified, inherited, configured, or a verified fallback.
 - Any runtime limitation, such as an inherited model whose exact name is not exposed.
 - A clear statement that no sub-agent will be dispatched until the user replies `确认运行`.
 
 For Claude Code, OpenCode, or any non-Codex runtime, record the runtime-specific visible sub-agent invocation, transcript, command output, or log reference. Do not invent a dispatch proof or model override that the installed runtime does not expose.
 
-In Codex, `spawn_agent` is the visible dispatch proof. If the user does not specify a sub-agent model, do not pass a model override and record `Model: inherited from current Codex session`. If the user specifies a model, pass it explicitly when the runtime supports that model.
+In Codex, `spawn_agent` is the visible dispatch proof. If the user does not specify a sub-agent model or effort, do not invent overrides; record the exposed inheritance/default policy. If the user specifies a value, pass it only when the current runtime interface supports it, and record configured values separately from the effective values returned or otherwise observed.
 
 ## Role Assignment Protocol
 
 Multi-agent dispatch assigns roles by responsibility, not by count. Stacking the same role across all tasks defeats the purpose of a role model.
 
-### Standard Dispatch Chain
+### Dynamic Responsibility Lanes
 
-Planner → Worker → Verifier → Memory Curator → Main Controller
+The Main Controller always owns authorization, merge, final judgment, and delivery. Every other role is an optional responsibility lane selected from the work actually needed. A phase may use zero, one, or N sub-agents; it does not follow a mandatory fixed chain.
 
-Each phase follows this chain:
-1. Planner confirms scope before any edit begins.
-2. Worker executes only within confirmed scope.
-3. Verifier independently checks results.
-4. Memory Curator extracts reusable candidates after delivery.
-5. Main Controller owns merge, final judgment, and user-facing delivery.
+- `0`: keep work in the Main Controller for S0/S1 tasks, unclear boundaries, unavailable authorization, unsupported runtime, or merge cost greater than benefit.
+- `1`: assign one bounded exploration, implementation, or independent-verification lane when that materially reduces risk.
+- `N`: use multiple conflict-free lanes only within the minimum of approved Agent count, contract concurrency, and effective runtime capacity.
+
+Planner, Explorer, Worker, Verifier, and Memory Curator remain responsibility names. Their presence, order, and count are determined by dependencies and acceptance criteria, not by a fixed ceremony.
 
 ### Role Boundaries
 
@@ -208,27 +208,39 @@ Each phase follows this chain:
 
 ### Assignment Rules
 
-1. At least two distinct roles per phase beyond Main Controller.
-2. Worker batch size: 1–3. Parallel Workers must have non-overlapping file ownership.
-3. Verifier must be a different agent instance from the Worker it verifies.
+1. Use the minimum number of lanes that improves the result; zero sub-agents is a valid routed outcome.
+2. Parallel write lanes must have non-overlapping locator leases. Read/read sharing is allowed; any shared write lease fails closed.
+3. When independence is a hard acceptance requirement, the Verifier must be a different Agent instance from the work it verifies; if authorization or runtime evidence is missing, block rather than pretend independence.
 4. Planner and Explorer are always read-only. Never grant them write access.
-5. Memory Curator runs after verification, never before.
-6. A role not needed for the current phase must be explicitly recorded as "Not assigned" with reason.
+5. Memory Curator runs only when verified evidence exists and a growth review is actually warranted.
+6. Do not create placeholder lanes or assign unused roles merely to reach a count.
 
 ### Anti-Patterns
 
 - Dispatching only Workers and calling it multi-agent.
 - Having the same agent verify its own work.
-- Skipping Planner because "the plan is already written."
+- Treating Planner as mandatory when the Main Controller already has a verified plan.
 - Running Memory Curator before Verifier has confirmed delivery.
 
 ## Batch Size Rules
 
 - Explorers may run in parallel when they are read-only.
 - Workers may run in parallel only when file ownership does not conflict.
-- Default Worker batch size is 1 to 3.
+- Compute batch size dynamically; do not use a fixed Worker-count default.
 - If the task type is new or risky, run one pilot task first.
 - If merge cost exceeds execution benefit, downgrade to single-agent mode.
+
+## Runtime Route Evidence
+
+Before relying on a model, effort, fallback, or N-agent capacity, record all four route selections: `requested`, `recommended`, `configured`, and `effective`. Keep the runtime effort ID, normalized reasoning tier, and display label separate because runtimes may expose different IDs for similar labels.
+
+Classify each route as one of `effective_verified`, `fallback_verified`, `configured_unverified`, `static_binding`, `inherited`, `unsupported`, or `unknown`. Configuration, CLI help, and interface discovery are not proof of effective use. Only direct behavior/return/log evidence plus usage evidence may support `effective_verified` or `fallback_verified`.
+
+- Hard model, effort, delegation, or concurrency constraints fail closed when the effective route differs.
+- A changed soft constraint may use a fallback only when the reason and effective evidence are recorded.
+- `N > 1` requires effective or verified-fallback bindings and a non-null effective runtime concurrency value.
+- `agent_route_planner.py` is advisory and `result_controller.py` is authorization-aware; neither component dispatches an Agent.
+- Real Agent/provider behavior and the G4 runtime gate remain `NOT RUN` until a separate launch review is approved.
 
 ## Recycling Rules
 

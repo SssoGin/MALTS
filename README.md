@@ -1,171 +1,53 @@
-﻿# MALTS
+# MALTS v1.0
 
-**Multi-Agent Long-Task Scheduling and Growth System**
+MALTS is a portable operating layer for agent work: it supplies project-control
+templates, working checklists, reusable skills, and adapters for Codex, Claude
+Code, and OpenCode.
 
-Languages: [English](README.md) | [简体中文](README.zh-CN.md)
+This repository is a user distribution. It contains only material needed to
+install, run, update, and understand MALTS in a project.
 
-A file-based workflow system that helps AI coding agents handle long-running tasks, coordinate agent collaboration, and turn reviewed experience into reusable rules.
+## Start here
 
-MALTS is a Multi-Agent Long-Task Scheduling and Growth System for AI coding agents. It records goals, plans, task ownership, verification, handoffs, and retrospectives in project files so long-running work stays recoverable, verifiable, collaborative, and able to convert reviewed lessons into reusable guidance.
+1. Read [Install](docs/INSTALL.md) before writing into a tool root.
+2. Verify the downloaded package and review a lifecycle plan.
+3. Execute only the exact plan hash you reviewed.
+4. Read [Usage](docs/USAGE.md) to start a MALTS-managed project.
 
-MALTS is relevant for migrations, multi-file changes, long bug investigations, release preparation, protocol/documentation updates, and other coding tasks where losing context or skipping verification would create avoidable risk.
+For work that will span phases or windows, use `malts-long-project-workspace-init`.
+It creates the root controls and the first active Phase as one reviewed
+initialization; Sessions remain explicit and are not created automatically.
 
-MALTS is a portable workflow system made of canonical skills, templates, checklists, adapters, scripts, and public maintenance docs.
+The same payload supports one selected tool, two selected tools, or all three.
+It never starts network activity, provider calls, background polling, or an
+automatic update by itself.
 
-MALTS is single-agent first. That means that after MALTS is enabled, the main controller remains the default executor. Multi-agent work is a controlled division-of-work mechanism enabled only when needed, and every real sub-agent dispatch requires an explicit launch review first.
+## What is included
 
-## Start Here
+- `runtime/`: canonical project-control templates and checklists.
+- `skills/`: MALTS-native workflows for lightweight project initialization,
+  phase-ready long-project initialization, preflight, long-task coordination,
+  retrospective growth, and handoff.
+- `adapters/`: Codex, Claude Code, and OpenCode projection inputs.
+- `scripts/` and `tools/`: lifecycle planning, execution, integrity checks, and
+  small project-control helpers.
 
-| Need | Read |
-|---|---|
-| Install MALTS and run a first task | [Getting Started](docs/GETTING_STARTED.md) |
-| Understand what MALTS does and when to use it | [System Overview](docs/SYSTEM_OVERVIEW.md) |
-| Review the full operating model and design boundaries | [Core Design](docs/CORE_DESIGN.md) |
-| Install a specific Agent tool adapter | [Install](docs/INSTALL.md) |
-| Configure Agent-assisted installation safely | [Agent Install](docs/AGENT_INSTALL.md) |
+## User documentation
 
-## What Problem It Solves
+- [Install](docs/INSTALL.md)
+- [Agent-assisted install](docs/AGENT_INSTALL.md)
+- [Lifecycle](docs/LIFECYCLE.md)
+- [Usage](docs/USAGE.md)
+- [Security](docs/SECURITY.md)
 
-MALTS addresses operating risks that appear when coding-agent work becomes longer than a short, self-contained exchange. The main risks are goal drift, loss of recoverable state, weak completion evidence, unsafe multi-agent coordination, and uncontrolled growth of durable rules or memory.
+Chinese documentation is available in [README.zh-CN.md](README.zh-CN.md) and
+`docs/zh-CN/`.
 
-MALTS responds by externalizing important state into files, defining completion criteria, recording verification evidence, requiring explicit launch review before sub-agent dispatch, and filtering reusable lessons before promotion into durable guidance.
+## Integrity
 
-## What It Provides
+Verify the package before extraction. The bootstrap verifier checks the ZIP,
+checksum, transport manifest, public notes, exact inventory, and inner
+lifecycle artifact before it writes an extraction target.
 
-- Long-task planning and recovery through `PROJECT_CONTROL.md`
-- Optional multi-agent launch review and role-based task dispatch
-- Verification checklists for delivery, memory writes, and quality gates
-- Agent-facing project handoffs through `PROJECT_HANDOFF.md`
-- Phase and final delivery reporting through `WORK_TASK_REPORT.md` in the user's or project's primary language; full translated mirrors are optional and explicit
-- Growth review and durable candidate handling through the MALTS Memory Pipeline
-- Canonical `SKILL.md` packages under `skills/`, installed to each supported Agent tool's local skill directory
-- Bilingual runtime templates under `runtime/EN` and `runtime/CH`
-- Optional adapters for Codex, Claude Code, and OpenCode
-- Lightweight linting and project-control generation tools
-
-## Core And Optional Capabilities
-
-| Capability | Default | Purpose |
-|---|---|---|
-| Single-agent execution | On | Keep small and clear tasks low-overhead. |
-| `PROJECT_CONTROL.md` | Created when MALTS is enabled or recovery is needed | Preserve goal, queue, decisions, risks, ownership, and verification state. |
-| `WORK_TASK_REPORT.md` | Used after MALTS phases or final delivery | Report result, checks, risks, and next steps in the user's or project's primary language. |
-| `PROJECT_HANDOFF.md` | Used for continuation or context-risk handoff | Provide Agent-facing recovery context. |
-| Grill-Me Preflight | Offered for non-trivial or unclear starts | Expose assumptions, goal boundaries, tradeoffs, and acceptance criteria before implementation. |
-| Multi-agent scheduling | Off | Add controlled delegation only when exploration, verification, parallelism, or recovery value justifies it. |
-| Memory Pipeline | Available | Filter reusable lessons before promoting them into durable rules or memory. |
-| Bilingual documentation sync | Off | Maintain optional Chinese review mirrors when needed. |
-
-## Activation And Artifacts
-
-MALTS files are not created by default for every task. For small work, stay single-agent and use the normal project instructions.
-
-When MALTS is enabled or a task grows into recoverable long-task mode, create or reuse `PROJECT_CONTROL.md` in the project root as the canonical control file. Each MALTS phase or final delivery should write or append `WORK_TASK_REPORT.md` in the user's or project's primary language. Use `PROJECT_HANDOFF.md` when a future Agent needs to continue from the recorded state; include a short English Agent Brief at the top. Full translated mirrors such as `项目控制.md`, `工作任务报告.md`, or `项目交接.md` are optional and should be created only when explicitly requested.
-
-| File | Default Role |
-|---|---|
-| `PROJECT_CONTROL.md` | Canonical project state and task queue; narrative may use the user's/project's language |
-| `WORK_TASK_REPORT.md` | Canonical phase/final report and verification evidence |
-| `PROJECT_HANDOFF.md` | Canonical continuation and recovery source with a short English Agent Brief |
-
-## Repository Layout
-
-```text
-skills/                Canonical MALTS SKILL.md packages
-runtime/EN/templates/    Project control, task, report, and handoff templates
-runtime/EN/checklists/   Delivery, quality, and memory-write checks
-runtime/CH/templates/    Simplified Chinese runtime template mirrors
-runtime/CH/checklists/   Simplified Chinese checklist mirrors
-adapters/                Optional Codex, Claude Code, and OpenCode adapter files
-tools/                   Lightweight MALTS validation utilities
-scripts/                 Safe installation helper scripts
-docs/                    Design, install, usage, handoff, security, and maintenance docs
-```
-
-## Documentation Map
-
-- [Getting Started](docs/GETTING_STARTED.md): practical installation and first-use path.
-- [System Overview](docs/SYSTEM_OVERVIEW.md): public explanation of goals, features, optional capabilities, and boundaries.
-- [Usage](docs/USAGE.md): concise operating guide for normal tasks, long tasks, multi-agent work, growth, and handoff.
-- [Core Design](docs/CORE_DESIGN.md): detailed system model, invariants, task sizing, and protocol boundaries.
-- [Install](docs/INSTALL.md): installation command reference.
-- [Agent Install](docs/AGENT_INSTALL.md): rules for Agent-assisted installation.
-- [Handoff](docs/HANDOFF.md): handoff file behavior and release boundary.
-- [Security](docs/SECURITY.md): release hygiene and secret-handling rules.
-- [Maintainer Guide](docs/MAINTAINER_GUIDE.md): public-safe maintenance, CI, versioning, and handoff boundaries.
-
-## Acknowledgements
-
-MALTS includes public-safe adaptations of agent behavior patterns inspired by:
-
-- [multica-ai/andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills), for concise coding-agent behavior guardrails.
-- [mattpocock/skills](https://github.com/mattpocock/skills), especially the idea of a pre-implementation grilling workflow.
-
-These projects are not dependencies of MALTS and do not endorse this repository. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-## Install Preview
-
-Installation is intentionally review-first. The install script defaults to dry-run and does not write files unless `-Apply` is provided.
-
-The installer plans one shared `MALTS_ROOT`, thin tool adapter files, six lightweight discovery bridges, and a generated `MALTS_BOOT.md` pointer before writing. Each bridge routes native tool discovery to the shared `skills/` implementation without copying a full MALTS tree into every tool directory.
-
-Tool instruction templates such as `AGENTS.md` and `CLAUDE.md` are optional MALTS enhancements. By default, the installer merges only the block between `<!-- MALTS:BEGIN managed instruction -->` and `<!-- MALTS:END managed instruction -->`; text outside that block remains user-owned. Existing unmarked MALTS discovery sections are migrated when their boundary is unambiguous.
-
-```powershell
-.\scripts\Install-MALTS.ps1 -Tool Codex
-.\scripts\Install-MALTS.ps1 -Tool Codex -Apply
-.\scripts\Install-MALTS.ps1 -Tool ClaudeCode -InstructionMode Skip
-.\scripts\Install-MALTS.review.cmd -Tool AllIncluded
-```
-
-If Windows PowerShell blocks script execution, run the same command with a process-local policy override:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-MALTS.ps1 -Tool Codex
-```
-
-Supported tools:
-
-```text
-Codex
-ClaudeCode
-OpenCode
-AllIncluded
-```
-
-See [docs/INSTALL.md](docs/INSTALL.md) and [docs/AGENT_INSTALL.md](docs/AGENT_INSTALL.md).
-
-## Update Preview
-
-Installed users can update from a git clone without manually downloading a new archive. The update script is also review-first: it checks the remote branch, prints the install plan, and does not pull or write files unless `-Apply` is provided.
-
-```powershell
-.\scripts\Update-MALTS.ps1 -Tool Codex
-.\scripts\Update-MALTS.ps1 -Tool Codex -Apply
-.\scripts\Update-MALTS.ps1 -Tool AllIncluded -Strategy MergeSafe
-.\scripts\Update-MALTS.review.cmd -Tool Codex
-```
-
-`MergeSafe` defaults to `InstructionMode ManagedMerge`: it updates the MALTS-managed instruction block while preserving surrounding user rules. Use `InstructionMode Skip` to leave the instruction file untouched, or combine `Strategy Overwrite` with `InstructionMode Replace` only when full replacement is intentional.
-
-Maintainers can verify a real temporary install layout with:
-
-```powershell
-.\scripts\Test-MALTSInstall.ps1 -Tool AllIncluded
-```
-
-## Documentation Language
-
-The public repository defaults to English source documents for Agent execution. Simplified Chinese public docs live under `docs/zh-CN/`, and localized runtime references live under `runtime/CH/`. Runtime project artifacts are single canonical files by default; write narrative content in the user's/project's language and create full translated mirrors only when explicitly requested. See [docs/BILINGUAL_DOCS.md](docs/BILINGUAL_DOCS.md).
-
-## Version
-
-Current release version:
-
-```text
-0.1.9
-```
-
-## License
-
-MIT License. See [LICENSE](LICENSE).
+See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+for attribution.

@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "capability_id": "malts.skill.single-agent-lightweight-growth",
+  "skill_id": "single-agent-lightweight-growth",
+  "declared_name": "single-agent-lightweight-growth",
+  "projected_names": {
+    "codex": "malts-single-agent-lightweight-growth",
+    "claude-code": "malts-single-agent-lightweight-growth",
+    "opencode": "malts-single-agent-lightweight-growth"
+  },
+  "display_name": "MALTS Single-Agent Lightweight Growth",
+  "short_description": "Record lightweight lessons during single-agent work",
+  "triggers": ["record a lightweight growth signal", "capture a reusable single-agent lesson", "maintain project growth evidence"],
+  "applicability": {
+    "task_types": ["growth-signal", "single-agent-learning", "project-memory"],
+    "modes": ["single-agent", "review-only"],
+    "conditions": ["A concrete useful check, failure, correction, or reusable practice was observed."],
+    "contraindications": ["The observation contains secrets or lacks concrete evidence."]
+  },
+  "inputs": ["observed event", "fact evidence", "authorized project-local destination"],
+  "outputs": ["L1 analysis", "authorized L2 project-local growth record", "separate L3 proposal"],
+  "risks": {
+    "risk_class": "medium",
+    "factors": ["write"],
+    "forbidden_effects": ["Do not persist L1 analysis.", "Do not write L2 without exact authorization.", "Do not perform L3 writes without separate confirmation."]
+  },
+  "required_permissions": ["read-files", "write-project-files"],
+  "dependencies": [],
+  "supported_tools": ["codex", "claude-code", "opencode"],
+  "package_variants": ["local", "public"],
+  "tool_metadata": {
+    "codex": {"projection_type": "native", "include_openai_metadata": true},
+    "claude-code": {"projection_type": "native", "include_openai_metadata": false},
+    "opencode": {"projection_type": "native", "include_openai_metadata": false}
+  },
+  "verification": {
+    "status": "static-validated",
+    "levels": ["static"],
+    "evidence_refs": ["test:T-SK-W3-DESC-006"]
+  }
+}

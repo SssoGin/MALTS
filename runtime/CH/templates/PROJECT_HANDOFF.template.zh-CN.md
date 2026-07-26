@@ -1,6 +1,6 @@
 ﻿# 项目交接
 
-> 用途：canonical continuation and recovery handoff?
+> 用途：canonical continuation and recovery handoff。
 > 语言策略：顶部保留简短 English Agent Brief，便于 Agent 扫描；其余内容使用用户或项目主要语言。除非用户明确要求，不生成完整翻译镜像。
 
 ## Agent Brief
@@ -30,6 +30,17 @@
 - 已完成：
 - 进行中：
 - 待处理：
+
+## Result Contract 恢复
+
+- Result ID：
+- 执行状态：DRAFT / PREFLIGHT / AWAITING_AUTHORIZATION / AUTHORIZED / PLANNING / EXECUTING / VERIFYING / REPLANNING / FINALIZING / DONE / PARTIAL / BLOCKED / FAILED
+- 终态：None / DONE / PARTIAL / BLOCKED / FAILED
+- 恢复轮次 / 尝试次数：
+- 当前 strategy ID：
+- 预算使用量 / hard limits：
+- 最后状态事件 ID / 直接证据：
+- 恢复摘要 / 下一步：
 
 ## 验证
 

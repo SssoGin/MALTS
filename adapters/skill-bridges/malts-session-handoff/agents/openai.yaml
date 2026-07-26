@@ -1,0 +1,3 @@
+interface:
+  display_name: "MALTS Session Handoff"
+  short_description: "Write recoverable handoff context for continuation"

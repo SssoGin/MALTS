@@ -44,6 +44,10 @@
 - [ ] Task difficulty and multi-agent fit were assessed before choosing the execution mode.
 - [ ] If multi-agent scheduling was suggested, the user was told why it fit this task.
 - [ ] Multi-agent scheduling, if used, produced mergeable value.
+- [ ] The final report states the dynamic route (`0`, `1`, or `N`), responsibility lanes, and why the selected count was justified.
+- [ ] Requested, recommended, configured, and effective model/effort evidence is distinguishable in the delivery record.
+- [ ] Any configured-only, inherited, unsupported, provider-unconfigured, or unknown binding is labeled honestly.
+- [ ] If real Agent/provider behavior was outside scope, G4 is reported as `NOT RUN` rather than inferred from component tests.
 - [ ] Ordinary documentation sync used scripts or structured checks before translation or gap filling.
 - [ ] Low-cost workers produced only candidate documentation changes when available; runtime limitations were recorded when model routing was unavailable.
 - [ ] High-capability or main-controller approval covered critical protocol semantics, final merge, and final risk judgment instead of full mechanical translation.

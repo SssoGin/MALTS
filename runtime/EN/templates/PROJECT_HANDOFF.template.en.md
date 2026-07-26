@@ -31,6 +31,17 @@
 - In progress:
 - Pending:
 
+## Result Contract Recovery
+
+- Result ID:
+- Execution status: DRAFT / PREFLIGHT / AWAITING_AUTHORIZATION / AUTHORIZED / PLANNING / EXECUTING / VERIFYING / REPLANNING / FINALIZING / DONE / PARTIAL / BLOCKED / FAILED
+- Terminal status: None / DONE / PARTIAL / BLOCKED / FAILED
+- Recovery round / attempt:
+- Active strategy ID:
+- Budget usage / hard limits:
+- Last status event ID / direct evidence:
+- Recovery summary / next action:
+
 ## Verification
 
 | Check | Result | Evidence |

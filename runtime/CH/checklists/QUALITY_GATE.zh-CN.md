@@ -44,11 +44,21 @@
 - [ ] 建议或启用多 Agent 前，已评估任务类型和难度。
 - [ ] 只有在多 Agent 能降低风险、提高独立验证质量、支持无冲突并行工作或改善可恢复性时，才建议多 Agent。
 - [ ] 如果任务是 S0/S1，或合并成本高于收益，已使用单 Agent，或记录了升级原因。
+- [ ] 路由决定明确为 `0`、`1` 或 `N`；没有强加固定角色链或最低角色数量。
+- [ ] 角色名只描述职责；模型与 effort 按任务难度、风险、预算和当前运行时证据选择。
 - [ ] 如果用户要求使用多 Agent，分派前已展示启动审阅包。
 - [ ] 启动审阅包列出总体目标、总计划、每个计划 Agent、模型名称或模型策略、任务和简要计划。
 - [ ] 已询问用户是否要指定子 Agent 模型，并展示可接受的模型指定格式。
 - [ ] 用户在任何真实子 Agent 分派前已明确回复 `确认运行`。
 - [ ] 审阅期间对模型、范围或批次的修改已同步到任务契约。
+- [ ] 分派前，Result Contract 已记录启动审阅引用和已批准批次 ID。
+- [ ] `requested`、`recommended`、`configured`、`effective` 路由选择已分开记录。
+- [ ] runtime effort ID、归一化推理等级和展示标签没有混为一谈。
+- [ ] 仅有配置、CLI help 或接口发现时，没有标记为 `effective_verified`。
+- [ ] 每个 fallback 都记录 hard/soft 约束处理、原因、binding 状态和 usage evidence。
+- [ ] `N > 1` 同时受已批准 Agent 数、契约并发上限、生效运行时容量和无冲突 locator lease 限制。
+- [ ] `agent_route_planner.py` 与 `result_controller.py` 仅作为建议 / 校验组件，没有冒充真实分派证据。
+- [ ] 真实 Agent/provider 验证明确标为 `G4 PASS`、`G4 FAIL` 或 `G4 NOT RUN`；component 测试没有冒充 G4。
 - [ ] Agent 分派日志、任务契约、返回报告和 Agent 反馈日志在任务 ID、角色、运行时 Agent ID（如有）、模型策略和 Main Controller 决策上互相一致。
 
 ## 无人值守自动继续门

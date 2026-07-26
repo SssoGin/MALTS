@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:malts:schema:update-plan:1",
+  "title": "MALTS Lifecycle Update Plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "operation_id", "operation", "source_artifact_sha256", "release_identity", "detected_generation",
+    "tool_targets", "legacy_roots", "actions", "user_modifications", "expected_cleanup", "acceptance_matrix",
+    "plan_hash_algorithm", "plan_hash", "created_at"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "operation_id": {"$ref": "#/$defs/id"},
+    "operation": {"enum": ["install", "update", "repair", "uninstall"]},
+    "source_artifact_sha256": {"type": ["string", "null"], "pattern": "^[A-Fa-f0-9]{64}$"},
+    "release_identity": {"$ref": "#/$defs/releaseIdentity"},
+    "detected_generation": {"enum": ["A", "B", "C", "D", "legacy", "v1", "none"]},
+    "tool_targets": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["codex", "claude-code", "opencode"]}},
+    "legacy_roots": {"type": "array", "items": {"$ref": "#/$defs/legacyRoot"}},
+    "actions": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/action"}},
+    "user_modifications": {"type": "array", "items": {"$ref": "#/$defs/userModification"}},
+    "expected_cleanup": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "acceptance_matrix": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/acceptance"}},
+    "plan_hash_algorithm": {"const": "SHA256-UTF8-CANONICAL-JSON-v1-EXCLUDING-plan_hash"},
+    "plan_hash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+    "created_at": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "sha256": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+    "absolutePath": {"type": "string", "pattern": "^(?:[A-Za-z]:[\\\\/]|\\\\\\\\)[^<>|?*]+$"},
+    "releaseIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "release_root", "release_id", "release_manifest_sha256", "release_package_sha256",
+        "artifact_sha256", "generation_id", "generation_manifest_sha256"
+      ],
+      "properties": {
+        "release_root": {"anyOf": [{"$ref": "#/$defs/absolutePath"}, {"type": "null"}]},
+        "release_id": {"type": "string", "pattern": "^MALTS-[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "release_manifest_sha256": {"$ref": "#/$defs/sha256"},
+        "release_package_sha256": {"$ref": "#/$defs/sha256"},
+        "artifact_sha256": {"$ref": "#/$defs/sha256"},
+        "generation_id": {"$ref": "#/$defs/id"},
+        "generation_manifest_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "legacyRoot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "locator", "discovery_sources", "manifest_sha256", "source_version", "classification",
+        "planned_action", "managed_file_count", "exact_match_count", "missing_count", "drift_count", "extra_count"
+      ],
+      "properties": {
+        "locator": {"$ref": "#/$defs/absolutePath"},
+        "discovery_sources": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"enum": ["explicit", "selected-tool-boot", "default-user-profile"]}
+        },
+        "manifest_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "source_version": {"type": ["string", "null"], "pattern": "^0\\.1\\.[0-9]+$"},
+        "classification": {"enum": ["missing", "untrusted", "exact-managed-root", "partial-managed-root"]},
+        "planned_action": {"enum": ["none", "manual-review", "delete-whole-root", "delete-exact-managed-paths"]},
+        "managed_file_count": {"type": "integer", "minimum": 0},
+        "exact_match_count": {"type": "integer", "minimum": 0},
+        "missing_count": {"type": "integer", "minimum": 0},
+        "drift_count": {"type": "integer", "minimum": 0},
+        "extra_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action_id", "kind", "target", "dependencies", "destructive"],
+      "properties": {
+        "action_id": {"$ref": "#/$defs/id"},
+        "kind": {"enum": ["create", "copy", "merge", "verify", "activate", "delete", "preserve", "rollback"]},
+        "target": {"type": "string", "minLength": 1},
+        "dependencies": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "destructive": {"type": "boolean"}
+      }
+    },
+    "userModification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locator", "classification", "decision", "evidence_refs"],
+      "properties": {
+        "locator": {"type": "string", "minLength": 1},
+        "classification": {"enum": ["U0", "U1", "U2", "U3", "U4"]},
+        "decision": {"enum": ["replace", "merge", "preserve", "ask", "fail-closed", "drop"]},
+        "evidence_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["criterion_id", "hard", "verification", "expected_result"],
+      "properties": {
+        "criterion_id": {"$ref": "#/$defs/id"},
+        "hard": {"type": "boolean"},
+        "verification": {"type": "string", "minLength": 1},
+        "expected_result": {"const": "PASS"}
+      }
+    }
+  }
+}

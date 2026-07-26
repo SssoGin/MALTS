@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "capability_id": "malts.skill.session-handoff",
+  "skill_id": "session-handoff",
+  "declared_name": "session-handoff",
+  "projected_names": {
+    "codex": "malts-session-handoff",
+    "claude-code": "malts-session-handoff",
+    "opencode": "malts-session-handoff"
+  },
+  "display_name": "MALTS Session Handoff",
+  "short_description": "Write recoverable handoff context for continuation",
+  "triggers": ["write a handoff", "prepare continuation context", "capture a recovery checkpoint"],
+  "applicability": {
+    "task_types": ["handoff", "recovery", "context-transfer"],
+    "modes": ["handoff", "single-agent", "multi-agent"],
+    "conditions": ["The user requested a handoff or recovery-sensitive continuation artifact."],
+    "contraindications": ["The user explicitly requested no handoff document."]
+  },
+  "inputs": ["current project state", "verified work", "remaining work", "recovery paths"],
+  "outputs": ["PROJECT_HANDOFF.md"],
+  "risks": {
+    "risk_class": "medium",
+    "factors": ["write", "scripts"],
+    "forbidden_effects": ["Do not include secrets or stale version metadata."]
+  },
+  "required_permissions": ["read-files", "write-project-files"],
+  "dependencies": [],
+  "supported_tools": ["codex", "claude-code", "opencode"],
+  "package_variants": ["local", "public"],
+  "tool_metadata": {
+    "codex": {"projection_type": "native", "include_openai_metadata": true},
+    "claude-code": {"projection_type": "native", "include_openai_metadata": false},
+    "opencode": {"projection_type": "native", "include_openai_metadata": false}
+  },
+  "verification": {
+    "status": "static-validated",
+    "levels": ["static"],
+    "evidence_refs": ["test:T-SK-W3-DESC-005"]
+  }
+}

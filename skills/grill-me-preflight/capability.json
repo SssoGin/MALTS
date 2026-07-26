@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "capability_id": "malts.skill.grill-me-preflight",
+  "skill_id": "grill-me-preflight",
+  "declared_name": "grill-me-preflight",
+  "projected_names": {
+    "codex": "malts-grill-me-preflight",
+    "claude-code": "malts-grill-me-preflight",
+    "opencode": "malts-grill-me-preflight"
+  },
+  "display_name": "MALTS Grill-Me Preflight",
+  "short_description": "Expose assumptions, boundaries, tradeoffs, and criteria",
+  "triggers": ["grill me", "preflight a non-trivial task", "clarify hidden assumptions before implementation"],
+  "applicability": {
+    "task_types": ["preflight", "requirements-clarification", "acceptance-design"],
+    "modes": ["preflight", "review-only", "single-agent"],
+    "conditions": ["The task is non-trivial and implementation has not started."],
+    "contraindications": ["The task is S0/S1 and its goal plus verification are already unambiguous."]
+  },
+  "inputs": ["user goal", "known constraints", "current evidence"],
+  "outputs": ["clarified objective", "scope boundaries", "acceptance criteria", "open-question disposition"],
+  "risks": {
+    "risk_class": "low",
+    "factors": [],
+    "forbidden_effects": ["Do not modify files.", "Do not dispatch Agents.", "Do not convert clarification into implementation authorization."]
+  },
+  "required_permissions": ["read-files"],
+  "dependencies": [],
+  "supported_tools": ["codex", "claude-code", "opencode"],
+  "package_variants": ["local", "public"],
+  "tool_metadata": {
+    "codex": {"projection_type": "native", "include_openai_metadata": true},
+    "claude-code": {"projection_type": "native", "include_openai_metadata": false},
+    "opencode": {"projection_type": "native", "include_openai_metadata": false}
+  },
+  "verification": {
+    "status": "static-validated",
+    "levels": ["static"],
+    "evidence_refs": ["test:T-SK-W3-DESC-001"]
+  }
+}

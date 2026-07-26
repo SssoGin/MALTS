@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "capability_id": "malts.skill.project-retrospective-growth",
+  "skill_id": "project-retrospective-growth",
+  "declared_name": "project-retrospective-growth",
+  "projected_names": {
+    "codex": "malts-project-retrospective-growth",
+    "claude-code": "malts-project-retrospective-growth",
+    "opencode": "malts-project-retrospective-growth"
+  },
+  "display_name": "MALTS Project Retrospective Growth",
+  "short_description": "Distill reusable lessons after completion or rework",
+  "triggers": ["run a project retrospective", "extract reusable lessons", "review repeated rework or failures"],
+  "applicability": {
+    "task_types": ["retrospective", "growth-review", "rework-analysis"],
+    "modes": ["single-agent", "review-only"],
+    "conditions": ["There is completed work, rework, or failure evidence to review."],
+    "contraindications": ["There is no concrete evidence or the task is still in active implementation."]
+  },
+  "inputs": ["task evidence", "verification results", "rework history", "existing growth ledger"],
+  "outputs": ["growth signals", "project-local candidates", "promotion proposals requiring separate authorization"],
+  "risks": {
+    "risk_class": "medium",
+    "factors": ["write"],
+    "forbidden_effects": ["Do not write global memory without separate L3 authorization.", "Do not promote unvalidated advice."]
+  },
+  "required_permissions": ["read-files", "write-project-files"],
+  "dependencies": [],
+  "supported_tools": ["codex", "claude-code", "opencode"],
+  "package_variants": ["local", "public"],
+  "tool_metadata": {
+    "codex": {"projection_type": "native", "include_openai_metadata": true},
+    "claude-code": {"projection_type": "native", "include_openai_metadata": false},
+    "opencode": {"projection_type": "native", "include_openai_metadata": false}
+  },
+  "verification": {
+    "status": "static-validated",
+    "levels": ["static"],
+    "evidence_refs": ["test:T-SK-W3-DESC-004"]
+  }
+}

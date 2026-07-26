@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:malts:schema:residue-tombstone:1",
+  "title": "MALTS Residue Tombstone",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "residue_id", "owner", "kind", "locator", "source_generation",
+    "retire_version", "action", "ownership_evidence_refs", "user_decision_ref", "preserve_reason", "evidence_refs"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "residue_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "owner": {"enum": ["malts", "external", "user", "unknown"]},
+    "kind": {"enum": ["generation", "backup", "bridge", "boot", "wrapper", "projection", "manifest", "alias", "cache", "registry", "other"]},
+    "locator": {"type": "string", "minLength": 1},
+    "source_generation": {"type": "string", "minLength": 1},
+    "retire_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "action": {"enum": ["delete", "preserve", "manual-review"]},
+    "ownership_evidence_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "user_decision_ref": {"type": ["string", "null"], "minLength": 1},
+    "preserve_reason": {"type": ["string", "null"], "minLength": 1},
+    "evidence_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+    ,
+    "cleanup_scope": {"enum": ["path", "whole-root"]},
+    "manifest_sha256": {"type": ["string", "null"], "pattern": "^[A-Fa-f0-9]{64}$"},
+    "coverage": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["managed_file_count", "exact_match_count", "missing_count", "drift_count", "extra_count"],
+      "properties": {
+        "managed_file_count": {"type": "integer", "minimum": 0},
+        "exact_match_count": {"type": "integer", "minimum": 0},
+        "missing_count": {"type": "integer", "minimum": 0},
+        "drift_count": {"type": "integer", "minimum": 0},
+        "extra_count": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

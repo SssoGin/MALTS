@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:malts:schema:workspace-control:1",
+  "title": "MALTS Long-Project Workspace Control",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "project_id", "active_phase_id", "active_session_id", "project_control",
+    "phase_controls", "session_controls", "capacity_budget", "maintenance_state", "recovery_point"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "project_id": {"$ref": "#/$defs/id"},
+    "active_phase_id": {
+      "description": "The active Phase. A completed long-project init sets this to its initial Phase; null is valid only between or after registered Phases.",
+      "type": ["string", "null"],
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "active_session_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "project_control": {"const": "PROJECT_CONTROL.md"},
+    "phase_controls": {
+      "description": "Registered Phase controls. An empty array is accepted only so a legacy silent-minimal workspace can be diagnosed and migrated; it is not a phase-ready initialized state.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/phaseControl"}
+    },
+    "session_controls": {"type": "array", "items": {"$ref": "#/$defs/sessionControl"}},
+    "capacity_budget": {"$ref": "#/$defs/capacityBudget"},
+    "maintenance_state": {"$ref": "#/$defs/maintenanceState"},
+    "recovery_point": {"$ref": "#/$defs/recoveryPoint"}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "phaseControl": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["phase_id", "path", "status"],
+      "properties": {
+        "phase_id": {"$ref": "#/$defs/id"},
+        "path": {"type": "string", "pattern": "^phases[/\\\\][A-Za-z0-9._-]+[/\\\\]PHASE_CONTROL\\.md$"},
+        "status": {"enum": ["PLANNED", "ACTIVE", "DONE", "BLOCKED", "FAILED"]}
+      }
+    },
+    "sessionControl": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_id", "phase_id", "path", "status", "reason", "created_at"],
+      "properties": {
+        "session_id": {"$ref": "#/$defs/id"},
+        "phase_id": {"$ref": "#/$defs/id"},
+        "path": {"type": "string", "pattern": "^sessions[/\\\\][A-Za-z0-9._-]+[/\\\\]SESSION_CONTROL\\.md$"},
+        "status": {"enum": ["ACTIVE", "DONE", "BLOCKED", "FAILED"]},
+        "reason": {"enum": ["bounded-work-session", "recovery", "manual-checkpoint"]},
+        "created_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "capacityBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_root_lines", "max_root_bytes", "max_active_tasks", "max_open_decisions", "max_evidence_refs", "max_stale_history_ratio"],
+      "properties": {
+        "max_root_lines": {"type": "integer", "minimum": 1},
+        "max_root_bytes": {"type": "integer", "minimum": 1},
+        "max_active_tasks": {"type": "integer", "minimum": 1},
+        "max_open_decisions": {"type": "integer", "minimum": 0},
+        "max_evidence_refs": {"type": "integer", "minimum": 1},
+        "max_stale_history_ratio": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "maintenanceState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "last_action", "last_checked_at", "runtime_is_canonical"],
+      "properties": {
+        "state": {"enum": ["clean", "maintenance-required", "compaction-required", "recovery-required"]},
+        "last_action": {"type": ["string", "null"], "minLength": 1},
+        "last_checked_at": {"type": "string", "format": "date-time"},
+        "runtime_is_canonical": {"const": false}
+      }
+    },
+    "recoveryPoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "next_action", "evidence_refs"],
+      "properties": {
+        "summary": {"type": "string", "minLength": 1},
+        "next_action": {"type": "string", "minLength": 1},
+        "evidence_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    }
+  }
+}

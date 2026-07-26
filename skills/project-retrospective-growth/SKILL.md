@@ -100,12 +100,18 @@ Output:
 7. Ask at least two levels of why for important failures.
 8. Extract reusable rules.
 9. Filter rules before writing long-term memory.
-10. Decide destination: local note, checklist, project skill, global skill, tool instruction file such as `AGENTS.md` or `CLAUDE.md`, or no write.
+10. Classify authority before deciding destination: L1 analysis, authorized L2 project maintenance, or separately confirmed L3 system promotion.
 11. Record what changed or what is only proposed.
 12. If the intended long-term memory target is unavailable, preserve the candidate locally in `PROJECT_CONTROL`, a work task report, or a retrospective and do not claim a real memory write.
 13. Route filtered decisions and growth results through the MALTS Memory Pipeline.
-14. Review GLOBAL_MEMORY lifecycle: check if any experimental entries have 3+ verified uses → propose promotion to stable. Check if any stable entries are 90+ days unverified → propose deprecation.
+14. Review the candidate lifecycle. The original event is not a future use; default validation requires two helped future tasks with different task IDs and independence keys, for three total validations including the source event. High-risk candidates need an independent review or negative/counterexample test.
 15. For user corrections, recovery work, failures, and long-task phases, include the retrospective level, reusable lesson, and memory-write decision in the user-facing report.
+
+Lifecycle states are:
+
+`OBSERVED → CANDIDATE → PROJECT_EXPERIMENTAL → FUTURE_USE_VALIDATING → VALIDATED → SYSTEM_PROMOTION_PROPOSED → ACCEPTED / REJECTED → DEPRECATED / REMOVED`
+
+Counterevidence may move a candidate to `CHALLENGED` or `SUSPENDED` from any applicable active state. Severe harmful evidence immediately stops automatic application. Retrieval must remain relevant to the current task and must record matched, adopted/rejected/deferred, and outcome evidence.
 
 For system pilots, add one extra gate before closing the work: return to the main system workspace, write or update the relevant trial-run record, and record evidence, validation gaps, and growth candidates there. A target-project delivery is not the same as system validation completion.
 
@@ -140,7 +146,7 @@ If this formula cannot be filled, the experience is usually not ready for long-t
 
 Before writing to long-term memory, the experience must pass `MEMORY_WRITE_CHECKLIST.en.md`.
 
-Long-term memory is not disabled until the user explicitly asks for it. When the growth trigger and checklist both pass, the agent may write or propose a long-term memory entry. Explicit user confirmation is still required for high-risk global rule edits, such as changing `AGENTS.md`, `CLAUDE.md`, tool permissions, automation policy, or other durable instruction surfaces.
+Passing the checklist does not grant write authority. L1 never writes durable state. L2 writes only inside a one-time project authorization and its declared file surface. Every L3 proposal or modification to global/canonical memory, Skills, checklists, lint, adapters, installed tools, public content, `AGENTS.md`, `CLAUDE.md`, permissions, or automation policy requires a separate explicit confirmation.
 
 The MALTS Memory Pipeline records candidates in the nearest durable MALTS surface first: `PROJECT_CONTROL.md`, a work task report, a local retrospective, `GLOBAL_MEMORY.md` or a global-rule candidate, and only then an optional external memory system when one is configured and write-capable.
 
@@ -156,6 +162,9 @@ Minimum criteria:
 - Bounded.
 - Non-duplicate.
 - Worth the cost.
+- Has a challenge, suspension, deprecation, and removal path.
+- Contains no secret, sensitive user detail, or unnecessary machine path.
+- Will not cause unsafe future automation.
 
 ## Output Format
 
@@ -213,4 +222,9 @@ Minimum criteria:
 - [ ] Existing rules are checked before adding new ones.
 - [ ] The review depth matches task scale.
 - [ ] The user-facing report states the review level and memory-write decision.
+- [ ] The original event is not counted as future-use validation.
+- [ ] Two helped future tasks use distinct task IDs and independence keys before `VALIDATED`.
+- [ ] High-risk candidates have independent or negative/counterexample evidence.
+- [ ] Harmful evidence is challenged and severe evidence is suspended.
+- [ ] L1/L2/L3 authorization is recorded and no lower level is treated as higher-level authority.
 

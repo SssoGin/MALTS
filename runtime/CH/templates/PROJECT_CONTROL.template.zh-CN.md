@@ -12,7 +12,7 @@
 - 版本来源：active boot file -> <MALTS_ROOT>/VERSION；不要从旧 control/report/handoff/template 文件复制当前 MALTS 版本。
 - 当前轮次：
 - 最后更新：
-- 维护者：Main Controller
+- 项目负责人：Main Controller
 - 当前模式：Single-Agent / Multi-Agent Long-Task
 
 ## 语言与结构
@@ -77,6 +77,7 @@
 ## 当前阶段
 
 - 阶段：
+- Active Phase：
 - 阶段目标：
 - 退出条件：
 
@@ -126,6 +127,9 @@
 - 适合多 Agent 的信号：
 - 不适合多 Agent 的信号：
 - 推荐运行模式：Single-Agent / Suggest Multi-Agent Launch Review / Ask Clarification
+- 推荐动态 Agent 数量：0 / 1 / N
+- 验收契约是否硬性要求独立验证：Yes / No
+- 运行时路由证据状态：effective_verified / fallback_verified / configured_unverified / static_binding / inherited / unsupported / unknown
 - 原因：
 - 是否已告知用户建议：Yes / No / N/A
 - 分派前必须等待的用户确认：`确认运行`
@@ -136,25 +140,34 @@
 
 - 总体目标：
 - 总计划：
-- 是否已询问模型指定：Yes / No
-- 模型指定询问偏差是否已接受：Yes / No / N/A
-- 模型指定写法：`Role=model-id; Role=inherit; default=inherit`
-- 用户模型选择：
+- 是否已询问模型与 effort 指定：Yes / No
+- 模型与 effort 询问偏差是否已接受：Yes / No / N/A
+- 路由指定写法：`responsibility=model-id@runtime-effort; responsibility=inherit@runtime-default; default=inherit@runtime-default`
+- 用户模型与 effort 选择：
+- 启动审阅引用：
+- 已批准批次 ID：
+- 路由证据引用：
+- requested / recommended / configured / effective 选择：
+- 运行时 effort ID / 归一化推理等级 / 展示标签：
+- 约束强度：model=hard|soft|none; effort=hard|soft|none; delegation=hard|soft|none; concurrency=hard|soft|none
+- binding status 与 test state：
+- 生效并发数 / 深度：
+- fallback 原因与 usage evidence（如有）：
 - 分派顺序 / 并行批次：
 - 必须等待的用户确认短语：`确认运行`
 - 确认状态：Pending / Confirmed / Revised / Cancelled
 
-| 角色 | 任务 ID | 模型名称 / 策略 | 任务目标 | 简要计划 | 权限等级 |
-|---|---|---|---|---|---|
-| Planner / Explorer / Worker / Verifier / Memory Curator |  | 显式模型 / 继承模型 / 运行时默认 |  |  | Level 0 / 1 / 2 / 3 / 4 |
+| 职责通道 | 任务 ID | 模型 + 运行时 Effort 策略 | 路由证据 / Binding | 任务目标 | 简要计划 | 权限等级 |
+|---|---|---|---|---|---|---|
+| Planner / Explorer / Worker / Verifier / Memory Curator / Other |  | 显式 / 继承 / 运行时默认 | requested / recommended / configured / effective；binding status |  |  | Level 0 / 1 / 2 / 3 / 4 |
 
 ## Agent 分派日志
 
 记录每一次真实的子 Agent 分派。如果本项目没有分派子 Agent，写 `N/A`。
 
-| 时间 | 轮次 | 任务 ID | 角色 | 分派机制 | 运行时 Agent ID | 模型策略 | 契约引用 | 状态 |
-|---|---|---|---|---|---|---|---|---|
-|  |  |  | Planner / Explorer / Worker / Verifier / Memory Curator | 例如 Codex `spawn_agent` |  | 继承 / 显式指定：模型名 |  | Requested / Running / Returned / Failed / Cancelled |
+| 时间 | 轮次 | 批次 ID | 任务 ID | 职责 | 分派机制 | 运行时 Agent ID | 生效模型 / Effort | Binding 状态 | 契约 / 路由证据 | 状态 |
+|---|---|---|---|---|---|---|---|---|---|---|
+|  |  |  |  | Planner / Explorer / Worker / Verifier / Memory Curator / Other | 例如 Codex `spawn_agent` |  | 已知值 / Unknown | effective_verified / fallback_verified / other |  | Requested / Running / Returned / Failed / Cancelled |
 
 ## Agent 反馈日志
 
@@ -221,11 +234,20 @@
 - 整个项目继续策略：
 - 下一次状态写入检查点：
 
-## 终止状态
+## 结果合同
 
-| 层级 | 当前是否符合 | 原因 | 交付行为 |
-|---|---|---|---|
-| Ideal / Pragmatic / Forced | Yes / No / Unknown |  | 正常交付 / 带风险交付 / 保存恢复路径 |
+项目终态严格只有四种：`DONE`、`PARTIAL`、`BLOCKED`、`FAILED`。内部执行状态不是额外终态。
+
+- 合同 / Result ID：
+- 执行状态：DRAFT / PREFLIGHT / AWAITING_AUTHORIZATION / AUTHORIZED / PLANNING / EXECUTING / VERIFYING / REPLANNING / FINALIZING / DONE / PARTIAL / BLOCKED / FAILED
+- 终态：None / DONE / PARTIAL / BLOCKED / FAILED
+- Authorization Envelope 引用：
+- hard acceptance criteria 对账：
+- 当前轮次 / 尝试次数 / strategy ID：
+- 预算使用量 / hard-limit 状态：
+- 最后状态事件 / 直接证据：
+- 剩余工作：
+- 恢复点：
 
 ## 无人值守自动继续授权
 
@@ -273,15 +295,15 @@
 
 | 时间 | 范围 | 状态 | 报告位置 / 摘要 | 恢复点 |
 |---|---|---|---|---|
-|  | Task / Phase / Project | Completed / Partially Completed / Blocked / Failed |  |  |
+|  | Task / Phase / Project | DONE / PARTIAL / BLOCKED / FAILED |  |  |
 
 ## 成长候选
 
-这里只记录候选。写入长期记忆前必须经过过滤。
+L1 分析不创建 durable record；L2 项目维护需要当前项目写入授权；L3 系统晋升需要单独确认。来源观察不计为 future-use validation：默认进入 `VALIDATED` 需要两个独立未来任务的 helped 结果；高风险候选还需要 independent review、negative test 或 counterexample test。
 
-| 候选经验 | 来源 | 触发场景 | 是否可复用 | 建议去向 | 状态 |
-|---|---|---|---|---|---|---|
-|  | 成功 / 失败 / 决策 / 流程 |  | 是 / 否 / 不确定 | Skill / Checklist / 工具指令文件 / 仅本地 | 本地 / 提议全局 / 已晋升 / 已合并 / 已拒绝 |
+| Signal / Candidate | 证据 | Trigger / Action / Check / Boundary | 权限 | 风险 | 生命周期状态 | Future-Use Validations | 检索结果 | Challenge / Suspension | 晋升授权 |
+|---|---|---|---|---|---|---|---|---|---|
+|  |  |  | L1 / L2 / L3 | low / medium / high / critical | OBSERVED / CANDIDATE / PROJECT_EXPERIMENTAL / FUTURE_USE_VALIDATING / VALIDATED / CHALLENGED / SUSPENDED / SYSTEM_PROMOTION_PROPOSED / ACCEPTED / REJECTED / DEPRECATED / REMOVED | future task IDs、independence keys、outcomes、evidence | not_evaluated / helped / neutral / harmful / inconclusive | challenge refs、severity、replacement 或 review | 单独 L3 authorization ref / N/A |
 
 ## Token 与复杂度控制
 
@@ -313,6 +335,12 @@
 
 最低恢复单元：
 
+- Result 执行状态：
+- 终态：None / DONE / PARTIAL / BLOCKED / FAILED
+- 当前轮次 / 尝试次数：
+- 当前 strategy ID：
+- 预算使用量 / hard limits：
+- 最后状态事件 / 证据：
 - 当前目标：
 - 完成定义：
 - 当前任务队列：
