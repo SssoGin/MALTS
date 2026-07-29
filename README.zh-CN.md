@@ -82,7 +82,7 @@ LICENSE                 MIT 许可证
 THIRD_PARTY_NOTICES.md  必需的致谢说明
 ```
 
-安装代明确排除发布构建与发布控制、测试、fixture、candidate、本地交接、缓存、机器路径、凭据和用户私有状态。`MALTS_RELEASE.json` 是仅仓库身份元数据：它验证公开源码树，但不会复制到安装代。
+安装代明确排除发布构建与发布控制、测试、fixture、candidate、本地交接、缓存、机器路径、凭据和用户私有状态。`MALTS_RELEASE.json` 是仅仓库身份元数据：它验证公开源码树，但不会复制到安装代。公开仓库还只保留一个仅仓库 integrity workflow：`.github/workflows/ci.yml`；它校验已检出的公开源码，不会复制到安装代或可选归档。
 
 ## 文档地图
 

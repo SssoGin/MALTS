@@ -60,8 +60,9 @@ MALTS 1.0 is the first stable contract, lifecycle, long-workspace, and closed-pa
 - Added a closed ReleaseManifest that binds release notes, installed user payload, repository-only metadata, generation identity, artifact identity, and logical package identity.
 - Added deterministic single-ZIP archive construction, safe extraction, and exact-source bootstrap verification for explicit offline delivery.
 - Defined one optional uploaded Release asset: `MALTS-<version>.zip`; package notes and inventories remain inside that ZIP, while the GitHub Release body carries its public note.
-- Separated the installed user payload from repository-only `.gitattributes`, `.gitignore`, and `MALTS_RELEASE.json` while binding both surfaces in the release manifest.
-- Excluded release construction controls, local project controls, handoffs, evidence, test suites, test data, CI configuration, caches, temporary files, Git internals, and private machine state from installed generations.
+- Separated the installed user payload from repository-only `.gitattributes`, `.github/workflows/ci.yml`, `.gitignore`, and `MALTS_RELEASE.json` while binding both surfaces in the release manifest.
+- Added one self-contained public-repository integrity workflow that validates the checked-out source without entering an installed generation or optional archive; local qualification remains required for releases.
+- Excluded release construction controls, local project controls, handoffs, evidence, test suites, test data, CI support material, caches, temporary files, Git internals, and private machine state from installed generations.
 - Added default-deny path classification, dependency closure, byte provenance, privacy scanning, and machine-specific path rejection for the public user surface.
 
 ### Documentation and language

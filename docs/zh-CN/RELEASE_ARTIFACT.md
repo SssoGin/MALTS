@@ -56,6 +56,6 @@ bootstrap 验证后，明确使用解出的 release root：
 
 ## 归档中不包含什么
 
-归档不包含 release builder、发布控制、维护者指南、测试、fixture、candidate、本地证据、本地交接、缓存、`.malts` 残留、Git 内部文件、机器专属路径、凭据或用户数据。
+归档不包含仅仓库 integrity workflow、release builder、发布控制、维护者指南、测试、fixture、candidate、本地证据、本地交接、缓存、`.malts` 残留、Git 内部文件、机器专属路径、凭据或用户数据。
 
 另见[安装](INSTALL.md)、[安全](SECURITY.md)和[Agent 协助安装](AGENT_INSTALL.md)。

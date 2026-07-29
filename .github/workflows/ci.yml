@@ -1,0 +1,114 @@
+name: Public Integrity
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-integrity:
+    name: Public integrity
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify repository identity and boundary
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -B tools/malts_lifecycle.py verify-repository --repository-root .
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Repository identity verification failed.'
+          }
+
+          $identity = Get-Content -LiteralPath 'MALTS_RELEASE.json' -Raw -Encoding utf8 | ConvertFrom-Json
+          $expectedRepositoryOnly = @(
+            '.gitattributes',
+            '.github/workflows/ci.yml',
+            '.gitignore',
+            'MALTS_RELEASE.json'
+          )
+          $actualRepositoryOnly = @($identity.repository_only_paths | ForEach-Object { [string] $_ })
+          $identityDifference = @(Compare-Object -ReferenceObject $expectedRepositoryOnly -DifferenceObject $actualRepositoryOnly)
+          if ($identityDifference.Count -ne 0) {
+            throw "Repository-only identity boundary is invalid: $($identityDifference | Out-String)"
+          }
+
+          $tracked = @(& git ls-files)
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Unable to read the checked-out file inventory.'
+          }
+          $workflowPaths = @($tracked | Where-Object { $_ -like '.github/*' })
+          $workflowDifference = @(Compare-Object -ReferenceObject @('.github/workflows/ci.yml') -DifferenceObject $workflowPaths)
+          if ($workflowDifference.Count -ne 0) {
+            throw "Unexpected GitHub workflow path: $($workflowDifference | Out-String)"
+          }
+
+          $forbiddenPatterns = @(
+            '(^|/)(?:AGENTS|CLAUDE|LOCAL_LAYOUT)\.md$',
+            '(^|/)(?:Handoff|\.release-control|\.md)/',
+            '(^|/)scripts/(?:Build|Test)-.*\.ps1$',
+            '(^|/)tools/(?:test_.*|.*_lint|.*release).*\.py$',
+            '(^|/).*fixtures.*\.json$',
+            '(^|/)__pycache__/',
+            '\.pyc$',
+            '(^|/)\.malts/'
+          )
+          $forbidden = @(
+            foreach ($path in $tracked) {
+              if ($forbiddenPatterns | Where-Object { $path -match $_ }) {
+                $path
+              }
+            }
+          )
+          if ($forbidden.Count -ne 0) {
+            throw "Maintainer-only or generated paths are tracked: $($forbidden -join ', ')"
+          }
+
+      - name: Parse public PowerShell entry points
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $scripts = @(Get-ChildItem -LiteralPath 'scripts' -Filter '*.ps1' -File)
+          if ($scripts.Count -eq 0) {
+            throw 'No public PowerShell entry points were found.'
+          }
+          foreach ($script in $scripts) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($script.FullName, [ref] $tokens, [ref] $errors)
+            if ($errors.Count -ne 0) {
+              throw "PowerShell parse failure in $($script.Name): $($errors | ForEach-Object Message | Out-String)"
+            }
+          }
+
+      - name: Compile and smoke public Python tools
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          @'
+          from pathlib import Path
+
+          for path in sorted(Path("tools").glob("*.py"), key=lambda item: item.name.casefold()):
+              compile(path.read_text(encoding="utf-8-sig"), str(path), "exec")
+          print("Public Python tools compiled successfully.")
+          '@ | & python -B -
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Public Python compilation failed.'
+          }
+          python -B tools/long_workspace.py --help
+          python -B tools/malts_lifecycle.py --help
+          python -B tools/malts_user_tools.py --help

@@ -56,6 +56,6 @@ This still creates a review plan first. The archive does not bypass the plan-has
 
 ## What Is Not in the Archive
 
-The archive excludes release builders, publication controls, maintainer guides, tests, fixtures, candidates, local evidence, local handoffs, caches, `.malts` residue, Git internals, machine-specific paths, credentials, and user data.
+The archive excludes the repository-only integrity workflow, release builders, publication controls, maintainer guides, tests, fixtures, candidates, local evidence, local handoffs, caches, `.malts` residue, Git internals, machine-specific paths, credentials, and user data.
 
 See [Install](INSTALL.md), [Security](SECURITY.md), and [Agent-Assisted Installation](AGENT_INSTALL.md).

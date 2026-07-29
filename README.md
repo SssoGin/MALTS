@@ -82,7 +82,7 @@ LICENSE                 MIT license
 THIRD_PARTY_NOTICES.md  Required attribution notices
 ```
 
-The installed generation intentionally excludes release construction, release publication controls, tests, fixtures, candidates, local handoffs, caches, machine paths, credentials, and user-private state. `MALTS_RELEASE.json` is repository-only identity metadata: it verifies the public source tree but is not copied into an installed generation.
+The installed generation intentionally excludes release construction, release publication controls, tests, fixtures, candidates, local handoffs, caches, machine paths, credentials, and user-private state. `MALTS_RELEASE.json` is repository-only identity metadata: it verifies the public source tree but is not copied into an installed generation. The public repository also contains one repository-only integrity workflow at `.github/workflows/ci.yml`; it validates the checked-out source and is not copied into an installed generation or the optional archive.
 
 ## Documentation Map
 
