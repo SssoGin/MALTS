@@ -3,9 +3,6 @@ param(
     [Parameter(Mandatory)]
     [string] $ArchivePath,
 
-    [string] $TransportManifestPath,
-    [string] $ChecksumPath,
-    [string] $ReleaseNotesPath,
     [string] $ExtractOutput,
     [switch] $Apply
 )
@@ -15,7 +12,6 @@ Set-StrictMode -Version 2.0
 
 $script:BootstrapVersion = '1.0.0'
 $script:BootstrapTag = 'v1.0.0'
-$script:Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $script:ReservedNames = @('CON', 'PRN', 'AUX', 'NUL') + (1..9 | ForEach-Object { "COM$_" }) + (1..9 | ForEach-Object { "LPT$_" })
 
 function Fail-Bootstrap {
@@ -53,25 +49,6 @@ function Get-Sha256File {
     finally {
         $algorithm.Dispose()
         $stream.Dispose()
-    }
-}
-
-function Assert-ExactProperties {
-    param($Value, [string[]] $Expected, [string] $Context)
-    if ($null -eq $Value) {
-        Fail-Bootstrap 'MBV_MANIFEST_SHAPE' 'Required JSON object is null.' $Context
-    }
-    $actual = @($Value.PSObject.Properties | ForEach-Object { $_.Name } | Sort-Object)
-    $wanted = @($Expected | Sort-Object)
-    if (($actual -join "`n") -cne ($wanted -join "`n")) {
-        Fail-Bootstrap 'MBV_MANIFEST_SHAPE' "Unexpected properties. Expected: $($wanted -join ', '); actual: $($actual -join ', ')." $Context
-    }
-}
-
-function Assert-Sha256 {
-    param([string] $Value, [string] $Context)
-    if ($Value -cnotmatch '^[A-F0-9]{64}$') {
-        Fail-Bootstrap 'MBV_SHA256' 'Expected an uppercase SHA-256 value.' $Context
     }
 }
 
@@ -252,19 +229,6 @@ function Get-ZipRecords {
     return $records.ToArray()
 }
 
-function Escape-CanonicalJsonString {
-    param([string] $Value)
-    return $Value.Replace('\', '\\').Replace('"', '\"')
-}
-
-function Get-InventoryTreeSha256 {
-    param([object[]] $Records)
-    $parts = foreach ($record in $Records) {
-        '{"bytes":' + [string]$record.Bytes + ',"path":"' + (Escape-CanonicalJsonString $record.Path) + '","sha256":"' + $record.Sha256 + '"}'
-    }
-    return Get-Sha256Bytes ($script:Utf8NoBom.GetBytes('[' + ($parts -join ',') + ']'))
-}
-
 function Get-RecordMap {
     param([object[]] $Records)
     $map = @{}
@@ -322,111 +286,24 @@ $archive = Get-FullPath $ArchivePath
 if (-not [System.IO.File]::Exists($archive)) {
     Fail-Bootstrap 'MBV_INPUT_MISSING' 'Archive file was not found.' $archive
 }
-$assetRoot = [System.IO.Path]::GetDirectoryName($archive)
 $archiveName = [System.IO.Path]::GetFileName($archive)
-$archiveStem = [System.IO.Path]::GetFileNameWithoutExtension($archive)
-$transportPath = if ([string]::IsNullOrWhiteSpace($TransportManifestPath)) { Join-Path $assetRoot ($archiveStem + '.transport.json') } else { Get-FullPath $TransportManifestPath }
-$checksum = if ([string]::IsNullOrWhiteSpace($ChecksumPath)) { $archive + '.sha256' } else { Get-FullPath $ChecksumPath }
-foreach ($path in @($transportPath, $checksum)) {
-    if (-not [System.IO.File]::Exists($path)) {
-        Fail-Bootstrap 'MBV_INPUT_MISSING' 'Required adjacent transport input was not found.' $path
-    }
-}
-
-try {
-    $transport = [System.IO.File]::ReadAllText($transportPath, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
-}
-catch {
-    Fail-Bootstrap 'MBV_MANIFEST_JSON' "Transport manifest is invalid JSON: $($_.Exception.Message)" $transportPath
-}
-Assert-ExactProperties $transport @('schema_version','release_id','version','release_manifest_sha256','release_package_sha256','archive','checksum','expected_top_level_directory','exact_inventory','hosted_assets','created_at') 'transport'
-Assert-ExactProperties $transport.archive @('file','format','deterministic_profile','bytes','sha256') 'transport.archive'
-Assert-ExactProperties $transport.checksum @('file','algorithm','sha256') 'transport.checksum'
-Assert-ExactProperties $transport.exact_inventory @('file_count','tree_sha256','files') 'transport.exact_inventory'
-if ([int]$transport.schema_version -ne 1 -or $transport.release_id -cnotmatch '^MALTS-[0-9]+\.[0-9]+\.[0-9]+$' -or $transport.version -cne $script:BootstrapVersion -or $transport.release_id -cne ('MALTS-' + $transport.version) -or $transport.expected_top_level_directory -cne $transport.release_id) {
-    Fail-Bootstrap 'MBV_MANIFEST_IDENTITY' "Transport identity must match bootstrap tag $($script:BootstrapTag)." $transportPath
-}
-Assert-Sha256 ([string]$transport.release_manifest_sha256) 'release_manifest_sha256'
-Assert-Sha256 ([string]$transport.release_package_sha256) 'release_package_sha256'
-Assert-Sha256 ([string]$transport.archive.sha256) 'archive.sha256'
-Assert-Sha256 ([string]$transport.checksum.sha256) 'checksum.sha256'
-Assert-Sha256 ([string]$transport.exact_inventory.tree_sha256) 'exact_inventory.tree_sha256'
-if ($transport.archive.file -cne $archiveName -or $transport.archive.format -cne 'zip' -or $transport.archive.deterministic_profile -cne 'MALTS-ZIP-STORED-UTC-1980-v1' -or $transport.checksum.file -cne [System.IO.Path]::GetFileName($checksum) -or $transport.checksum.algorithm -cne 'SHA256') {
-    Fail-Bootstrap 'MBV_SIDECAR_BINDING' 'Archive or checksum names/profile do not match the transport manifest.' $transportPath
-}
-
-$hosted = @($transport.hosted_assets)
-if ($hosted.Count -ne 4) {
-    Fail-Bootstrap 'MBV_HOSTED_ASSETS' 'Transport must declare exactly four hosted assets.' $transportPath
-}
-$hostedMap = @{}
-foreach ($entry in $hosted) {
-    Assert-ExactProperties $entry @('kind','file') 'hosted_assets[]'
-    if ($hostedMap.ContainsKey([string]$entry.kind)) {
-        Fail-Bootstrap 'MBV_HOSTED_ASSETS' 'Hosted asset kinds must be unique.' ([string]$entry.kind)
-    }
-    $hostedMap[[string]$entry.kind] = [string]$entry.file
-}
-$actualHostedKinds = @(($hostedMap.Keys | Sort-Object)) -join ','
-$expectedHostedKinds = @('archive','checksum','release-notes','transport-manifest') -join ','
-if ($actualHostedKinds -cne $expectedHostedKinds -or $hostedMap.archive -cne $archiveName -or $hostedMap.checksum -cne [System.IO.Path]::GetFileName($checksum) -or $hostedMap.'transport-manifest' -cne [System.IO.Path]::GetFileName($transportPath)) {
-    Fail-Bootstrap 'MBV_HOSTED_ASSETS' 'Hosted assets do not match the exact four-asset contract.' $transportPath
-}
-$notes = if ([string]::IsNullOrWhiteSpace($ReleaseNotesPath)) { Join-Path $assetRoot $hostedMap.'release-notes' } else { Get-FullPath $ReleaseNotesPath }
-if (-not [System.IO.File]::Exists($notes) -or [System.IO.Path]::GetFileName($notes) -cne $hostedMap.'release-notes') {
-    Fail-Bootstrap 'MBV_INPUT_MISSING' 'Public release notes asset was not found under its hosted name.' $notes
+$expectedArchiveName = 'MALTS-' + $script:BootstrapVersion + '.zip'
+$releaseRootName = 'MALTS-' + $script:BootstrapVersion
+if ($archiveName -cne $expectedArchiveName) {
+    Fail-Bootstrap 'MBV_ARCHIVE_IDENTITY' "Optional release archive must be named $expectedArchiveName for bootstrap tag $($script:BootstrapTag)." $archive
 }
 
 $archiveHash = Get-Sha256File $archive
 $archiveLength = (Get-Item -LiteralPath $archive).Length
-if ($archiveLength -ne [long]$transport.archive.bytes -or $archiveHash -cne [string]$transport.archive.sha256) {
-    Fail-Bootstrap 'MBV_ARCHIVE_HASH' 'Archive bytes or SHA-256 do not match the transport manifest.' $archive
-}
-$checksumHash = Get-Sha256File $checksum
-if ($checksumHash -cne [string]$transport.checksum.sha256) {
-    Fail-Bootstrap 'MBV_CHECKSUM_HASH' 'Checksum sidecar hash does not match the transport manifest.' $checksum
-}
-$expectedChecksum = $script:Utf8NoBom.GetBytes($archiveHash + '  ' + $archiveName + "`n")
-$actualChecksum = [System.IO.File]::ReadAllBytes($checksum)
-if ([System.Convert]::ToBase64String($expectedChecksum) -cne [System.Convert]::ToBase64String($actualChecksum)) {
-    Fail-Bootstrap 'MBV_CHECKSUM_CONTENT' 'Checksum sidecar content is not canonical or does not bind the archive.' $checksum
-}
-
-$records = @(Get-ZipRecords $archive ([string]$transport.expected_top_level_directory))
-$manifestRecords = @($transport.exact_inventory.files)
-if ($records.Count -ne [int]$transport.exact_inventory.file_count -or $records.Count -ne $manifestRecords.Count) {
-    Fail-Bootstrap 'MBV_INVENTORY_COUNT' 'Archive and manifest inventory counts differ.' $archive
-}
-for ($index = 0; $index -lt $records.Count; $index++) {
-    Assert-ExactProperties $manifestRecords[$index] @('path','bytes','sha256') "exact_inventory.files[$index]"
-    Assert-Sha256 ([string]$manifestRecords[$index].sha256) "exact_inventory.files[$index].sha256"
-    if ($records[$index].Path -cne [string]$manifestRecords[$index].path -or $records[$index].Bytes -ne [long]$manifestRecords[$index].bytes -or $records[$index].Sha256 -cne [string]$manifestRecords[$index].sha256) {
-        Fail-Bootstrap 'MBV_INVENTORY_MISMATCH' 'Archive member does not match the exact ordered inventory.' $records[$index].Path
-    }
-}
-$treeHash = Get-InventoryTreeSha256 $records
-if ($treeHash -cne [string]$transport.exact_inventory.tree_sha256) {
-    Fail-Bootstrap 'MBV_TREE_HASH' 'Exact inventory tree hash is invalid.' $transportPath
-}
+$records = @(Get-ZipRecords $archive $releaseRootName)
 $recordMap = Get-RecordMap $records
-$releaseRootName = [string]$transport.expected_top_level_directory
 $notesKey = ($releaseRootName + '/RELEASE_NOTES.md').ToLowerInvariant()
 $manifestKey = ($releaseRootName + '/release_manifest.json').ToLowerInvariant()
 $inventoryKey = ($releaseRootName + '/release_inventory.json').ToLowerInvariant()
 foreach ($key in @($notesKey, $manifestKey, $inventoryKey)) {
     if (-not $recordMap.ContainsKey($key)) {
-        Fail-Bootstrap 'MBV_PACKAGE_LAYOUT' 'Required outer release file is absent from the exact inventory.' $key
+        Fail-Bootstrap 'MBV_PACKAGE_LAYOUT' 'Required immutable release file is absent from the archive.' $key
     }
-}
-if ((Get-Sha256File $notes) -cne $recordMap[$notesKey].Sha256) {
-    Fail-Bootstrap 'MBV_RELEASE_NOTES' 'External public release notes do not match the archive-bound notes.' $notes
-}
-if ($recordMap[$manifestKey].Sha256 -cne [string]$transport.release_manifest_sha256) {
-    Fail-Bootstrap 'MBV_RELEASE_MANIFEST' 'Transport does not bind the exact outer ReleaseManifest.' $transportPath
-}
-$identity = '{"algorithm":"MALTS-RELEASE-PACKAGE-v1","release_inventory_sha256":"' + $recordMap[$inventoryKey].Sha256 + '","release_manifest_sha256":"' + $recordMap[$manifestKey].Sha256 + '"}'
-if ((Get-Sha256Bytes $script:Utf8NoBom.GetBytes($identity)) -cne [string]$transport.release_package_sha256) {
-    Fail-Bootstrap 'MBV_RELEASE_PACKAGE' 'Logical release-package identity does not match the transport manifest.' $transportPath
 }
 
 $temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('MALTS-bootstrap-' + [System.Guid]::NewGuid().ToString('N'))
@@ -483,12 +360,11 @@ elseif ($Apply) {
     status = 'PASS'
     bootstrap_tag = $script:BootstrapTag
     bootstrap_version = $script:BootstrapVersion
-    release_id = $transport.release_id
+    release_id = $releaseRootName
     archive_sha256 = $archiveHash
-    release_manifest_sha256 = $transport.release_manifest_sha256
-    release_package_sha256 = $transport.release_package_sha256
+    archive_bytes = $archiveLength
     inventory_file_count = $records.Count
-    exact_four_hosted_assets = $true
+    exact_one_hosted_archive = $true
     isolated_user_verification_cleaned = $true
     mode = $mode
     writes_performed = $writesPerformed

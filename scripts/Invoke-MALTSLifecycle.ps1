@@ -13,6 +13,7 @@ param(
     [string] $Operation,
 
     [string] $ReleaseRoot,
+    [string] $RepositoryRoot,
     [string[]] $LegacyRoot = @(),
     [string] $DefaultLegacyRoot = (Join-Path $env:USERPROFILE '.malts'),
     [string] $OperationId,
@@ -85,6 +86,7 @@ switch ($Command) {
         Add-RequiredValue $arguments '--lifecycle-root' $LifecycleRoot
         Add-ToolRoots $arguments
         Add-OptionalValue $arguments '--release-root' $ReleaseRoot
+        Add-OptionalValue $arguments '--repository-root' $RepositoryRoot
         foreach ($legacy in $LegacyRoot) {
             Add-OptionalValue $arguments '--legacy-root' $legacy
         }

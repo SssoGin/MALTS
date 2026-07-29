@@ -9,7 +9,7 @@
 
 - Project:
 - Control version: <MALTS_VERSION>
-- Version source: active boot file -> <MALTS_ROOT>/VERSION; do not copy current MALTS versions from old control/report/handoff/template files.
+- Version source: resolve `MALTS_BOOT.md` first, then read the active `MALTS_ROOT` `VERSION`; do not copy a physical generation path or current MALTS version from old control/report/handoff/template files.
 - Current round:
 - Last updated:
 - Project owner: Main Controller

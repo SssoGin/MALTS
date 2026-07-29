@@ -1,28 +1,34 @@
 # Security
 
-## Verify before use
+## Verify Before Use
 
-Use the bootstrap verifier before extracting a downloaded package. It checks the
-ZIP, checksum, transport manifest, public notes, exact inventory, safe Windows
-paths, and the inner lifecycle artifact.
+For repository installation, validate `MALTS_RELEASE.json` and `VERSION` before creating a plan. The repository identity binds the expected user file count and source-tree SHA-256; an unexpected file, cache, `.malts` residue, missing required entry point, or hash mismatch fails closed.
 
-## Keep local data local
+When Git metadata is available, compare the checked-out tag with the identity file's `release_tag`. This is an additional provenance check; the repository identity remains the package-level source binding.
 
-Do not place credentials, tokens, session data, user-profile paths, private
-project files, cache directories, or generated runtime state inside a MALTS
-user payload or tool projection.
+For an explicitly requested offline archive, use `Verify-MALTSBootstrap.ps1` before extraction. It verifies the one ZIP's deterministic structure, safe Windows paths, duplicate/case-colliding members, required package files, isolated extraction, and the immutable package verifier inside the archive.
 
-Use environment variables or the selected tool's normal secure configuration
-mechanism for credentials. Do not put secret values in `PROJECT_CONTROL.md`,
-`WORK_TASK_REPORT.md`, handoff files, prompts, or command history.
+## Installed Provenance Privacy
 
-## Lifecycle safety
+The three installed-generation envelope files are verified as part of the user
+surface. Current envelopes contain only release hashes, generation identity,
+and the source kind (`repository` or `release-package`); they contain no local
+source locator. A legacy envelope with an absolute source locator is accepted
+only as update input and fails the user-purity check until a verified update
+replaces it.
 
-Review every lifecycle plan before applying it. The plan identifies the exact
-roots, operations, and generation identity. Stop if a target is unexpected,
-contains a link or reparse point, or no longer matches the reviewed plan.
+## Keep Local Data Local
 
-## Report a vulnerability
+Do not place credentials, tokens, session data, user-profile paths, private project files, cache directories, generated runtime state, plans, transaction journals, or handoffs inside a public MALTS repository or user payload.
 
-Share only the minimum reproducible information needed to describe the issue.
-Remove secrets and private machine details before sending a report.
+Use environment variables or the selected tool's normal secure configuration mechanism for credentials. Do not put secret values in `PROJECT_CONTROL.md`, `WORK_TASK_REPORT.md`, handoff files, prompts, or command history.
+
+## Review Before Mutation
+
+Installation and update plans are hash-bound. Read the full plan before providing `-Apply` and the exact plan hash. Inspect selected roots, modified files, cleanup, rollback, and post-validation actions.
+
+Do not approve a plan after its source, version, roots, or expected actions have changed. Create a fresh plan instead.
+
+## Report Security Issues
+
+Do not publish secrets in a public issue, discussion, release note, or task log. Use the repository's private security contact or another private channel agreed with the maintainer.

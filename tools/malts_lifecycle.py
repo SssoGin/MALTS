@@ -17,7 +17,9 @@ import re
 import shutil
 import stat
 import sys
+import tempfile
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -37,12 +39,24 @@ AUDIT_RELATIVE = Path("state") / "audit"
 LEGACY_RESIDUE_RELATIVE = Path("state") / "legacy_residue.json"
 PLAN_ALGORITHM = "SHA256-UTF8-CANONICAL-JSON-v1-EXCLUDING-plan_hash"
 ARTIFACT_ALGORITHM = "MALTS-IMMUTABLE-ARTIFACT-v1"
+PUBLIC_REPOSITORY_PROFILE = "MALTS-USER-PAYLOAD-PLUS-REPOSITORY-ONLY-v1"
+REPOSITORY_IDENTITY_NAME = "MALTS_RELEASE.json"
+REPOSITORY_IDENTITY_SCHEMA_VERSION = 1
+REPOSITORY_IDENTITY_REPOSITORY_ONLY = (".gitattributes", ".gitignore", REPOSITORY_IDENTITY_NAME)
+REPOSITORY_ARTIFACT_PROFILE = "MALTS-REPOSITORY-SOURCE-v1"
 PLAN_ENVELOPE_VERSION = 1
+WINDOWS_MAX_PATH = 259
+ATOMIC_TEMP_PROBE = ".~00000000"
 HASH_PATTERN = re.compile(r"^[A-Fa-f0-9]{64}$")
 ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 MANAGED_START = "<!-- MALTS:BEGIN managed instruction -->"
 MANAGED_END = "<!-- MALTS:END managed instruction -->"
 ACTIVE_GENERATION_TOKEN = "{{MALTS_ACTIVE_GENERATION_ROOT}}"
+GLOBAL_BOOT_FILENAME = "GLOBAL_BOOT.md"
+GLOBAL_BOOT_POINTER_PATTERN = re.compile(
+    r"(?ms)(^Resolved `MALTS_ROOT` on this machine:\s*\r?\n\s*```text\s*\r?\n)(.+?)(\r?\n\s*```)",
+)
+GLOBAL_BOOT_UNINSTALLED = "UNINSTALLED — no active MALTS generation; reinstall MALTS before use."
 SECRET_PATTERN = re.compile(r"(?i)(?:api[_-]?key|access[_-]?token|password|secret)\s*[:=]\s*\S+")
 RESERVED_NAMES = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}
 STATES = ("DISCOVER", "LOCK", "PLAN", "STAGE", "SNAPSHOT", "PREVALIDATE", "ACTIVATE", "POSTVALIDATE", "CLEAN", "COMMIT")
@@ -51,6 +65,27 @@ INSTALLED_GENERATION_METADATA = (
     "generation_manifest.json",
     "release_identity.json",
 )
+INSTALLED_RELEASE_IDENTITY_SCHEMA_VERSION = 2
+INSTALLED_RELEASE_IDENTITY_FIELDS = {
+    "schema_version",
+    "source_kind",
+    "release_id",
+    "release_manifest_sha256",
+    "release_package_sha256",
+    "artifact_sha256",
+    "generation_id",
+    "generation_manifest_sha256",
+}
+LEGACY_INSTALLED_RELEASE_IDENTITY_FIELDS = {
+    "release_root",
+    "release_id",
+    "release_manifest_sha256",
+    "release_package_sha256",
+    "artifact_sha256",
+    "generation_id",
+    "generation_manifest_sha256",
+}
+INSTALLED_RELEASE_SOURCE_KINDS = {"release-package", "repository"}
 RELEASE_ROOT_ENTRIES = {
     "lifecycle_artifact",
     "RELEASE_NOTES.md",
@@ -116,7 +151,10 @@ def json_bytes(value: Any) -> bytes:
 
 def _atomic_write(path: Path, payload: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.parent / f".malts-{uuid.uuid4().hex[:12]}.tmp"
+    # Keep the same-directory atomic temporary name shorter than typical target
+    # file names. This prevents the safety wrapper itself from crossing the
+    # traditional Win32 260-character boundary for otherwise valid targets.
+    temporary = path.parent / f".~{uuid.uuid4().hex[:8]}"
     try:
         with temporary.open("xb") as stream:
             stream.write(payload)
@@ -204,6 +242,66 @@ def _path_digest(path: Path) -> str:
         _assert_no_reparse(path, item)
         records.append({"path": item.relative_to(path).as_posix(), "bytes": item.stat().st_size, "sha256": file_sha256(item)})
     return sha256_bytes(canonical_json(records))
+
+
+def _global_boot_context(root: Path) -> dict[str, Any]:
+    """Describe the optional local discovery boot beside a lifecycle root.
+
+    A global boot is local machine state, not a release payload.  When an
+    existing installation has configured one, bind it into the transaction so
+    activation cannot leave it pointing at a retired generation.
+    """
+    path = _absolute(root.parent / GLOBAL_BOOT_FILENAME)
+    if not path.exists():
+        return {"mode": "absent", "locator": str(path), "sha256": "MISSING"}
+    if not path.is_file() or path.is_symlink() or (_file_attributes(path) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)):
+        raise LifecycleError("TX_GLOBAL_BOOT_TYPE", "Configured global boot must be a regular non-reparse file.", str(path))
+    try:
+        text = path.read_text(encoding="utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise LifecycleError("TX_GLOBAL_BOOT_ENCODING", "Configured global boot must be valid UTF-8.", str(path)) from exc
+    if len(GLOBAL_BOOT_POINTER_PATTERN.findall(text)) != 1:
+        raise LifecycleError("TX_GLOBAL_BOOT_FORMAT", "Configured global boot must contain exactly one resolved MALTS_ROOT text block.", str(path))
+    return {"mode": "refresh", "locator": str(path), "sha256": file_sha256(path)}
+
+
+def _refresh_global_boot(context: dict[str, Any], active_generation_root: Path | None, operation: str) -> None:
+    if context["mode"] == "absent":
+        return
+    if operation != "uninstall" and active_generation_root is None:
+        raise LifecycleError("TX_GLOBAL_BOOT_TARGET", "Global boot refresh requires an active generation.", context["locator"])
+    path = Path(context["locator"])
+    payload = path.read_bytes()
+    bom = payload.startswith(b"\xef\xbb\xbf")
+    try:
+        text = payload.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise LifecycleError("TX_GLOBAL_BOOT_ENCODING", "Configured global boot must be valid UTF-8.", str(path)) from exc
+    matches = list(GLOBAL_BOOT_POINTER_PATTERN.finditer(text))
+    if len(matches) != 1:
+        raise LifecycleError("TX_GLOBAL_BOOT_FORMAT", "Configured global boot must contain exactly one resolved MALTS_ROOT text block.", str(path))
+    match = matches[0]
+    target = GLOBAL_BOOT_UNINSTALLED if operation == "uninstall" else str(_absolute(active_generation_root))
+    replacement = f"{match.group(1)}{target}{match.group(3)}"
+    refreshed = text[:match.start()] + replacement + text[match.end():]
+    encoded = refreshed.encode("utf-8")
+    _atomic_write(path, (b"\xef\xbb\xbf" + encoded) if bom else encoded)
+
+
+def _verify_global_boot(context: dict[str, Any], active_generation_root: Path | None, operation: str) -> None:
+    if context["mode"] == "absent":
+        return
+    if operation != "uninstall" and active_generation_root is None:
+        raise LifecycleError("TX_GLOBAL_BOOT_TARGET", "Global boot verification requires an active generation.", context["locator"])
+    path = Path(context["locator"])
+    actual = _global_boot_context(_absolute(path).parent / "lifecycle")
+    if actual["mode"] != "refresh" or actual["locator"] != context["locator"]:
+        raise LifecycleError("TX_GLOBAL_BOOT_VERIFY", "Configured global boot disappeared or changed type during activation.", str(path))
+    text = path.read_text(encoding="utf-8-sig")
+    match = GLOBAL_BOOT_POINTER_PATTERN.search(text)
+    expected = GLOBAL_BOOT_UNINSTALLED if operation == "uninstall" else str(_absolute(active_generation_root))
+    if match is None or match.group(2).strip() != expected:
+        raise LifecycleError("TX_GLOBAL_BOOT_VERIFY", "Configured global boot does not resolve to the active generation.", str(path))
 
 
 def _remove_managed(root: Path, path: Path) -> None:
@@ -403,6 +501,36 @@ def _verify_user_purity(manifest: dict[str, Any], records: list[dict[str, Any]],
         )
 
 
+def _verify_public_repository(manifest: dict[str, Any], user_records: list[dict[str, Any]], context: str) -> None:
+    repository = manifest["public_repository"]
+    repository_records = repository["repository_only_files"]
+    if repository_records != sorted(repository_records, key=lambda item: item["path"].casefold()):
+        raise LifecycleError("TX_PUBLIC_REPOSITORY_ORDER", "Repository-only records are not canonically ordered.", context)
+    user_folded = {record["path"].casefold() for record in user_records}
+    repository_folded: set[str] = set()
+    for record in repository_records:
+        relative = _validate_relative(record["path"])
+        folded = relative.casefold()
+        if folded in user_folded or folded in repository_folded:
+            raise LifecycleError(
+                "TX_PUBLIC_REPOSITORY_OVERLAP",
+                "Repository-only paths must be unique and disjoint from the installed user payload.",
+                relative,
+            )
+        repository_folded.add(folded)
+    repository_tree = sha256_bytes(canonical_json(repository_records))
+    if (
+        repository["profile"] != PUBLIC_REPOSITORY_PROFILE
+        or repository["repository_only_file_count"] != len(repository_records)
+        or repository["repository_only_tree_sha256"].upper() != repository_tree
+    ):
+        raise LifecycleError("TX_PUBLIC_REPOSITORY_BINDING", "Repository-only summary does not bind its exact records.", context)
+    public_records = sorted([*user_records, *repository_records], key=lambda item: item["path"].casefold())
+    public_tree = sha256_bytes(canonical_json(public_records))
+    if repository["file_count"] != len(public_records) or repository["tree_sha256"].upper() != public_tree:
+        raise LifecycleError("TX_PUBLIC_REPOSITORY_BINDING", "Public repository summary does not bind its exact inventory.", context)
+
+
 def verify_release_package(root_value: str | Path) -> dict[str, Any]:
     root = _absolute(root_value)
     if not root.is_dir() or _is_reparse(root):
@@ -443,7 +571,9 @@ def verify_release_package(root_value: str | Path) -> dict[str, Any]:
         raise LifecycleError("TX_RELEASE_SOURCE_BINDING", "Release source tree does not match generation provenance.", str(manifest_path))
     if manifest["user_purity"] != generation["user_purity"]:
         raise LifecycleError("TX_RELEASE_USER_PURITY", "Release and generation manifests disagree on user-purity binding.", str(manifest_path))
-    _verify_user_purity(generation, _user_records(root / "lifecycle_artifact" / "payload"), str(manifest_path))
+    user_records = _user_records(root / "lifecycle_artifact" / "payload")
+    _verify_user_purity(generation, user_records, str(manifest_path))
+    _verify_public_repository(manifest, user_records, str(manifest_path))
     if file_sha256(root / manifest["release_notes"]["path"]) != manifest["release_notes"]["sha256"].upper():
         raise LifecycleError("TX_RELEASE_NOTES_BINDING", "Release notes hash does not match ReleaseManifest.", str(root / "RELEASE_NOTES.md"))
     return {
@@ -502,25 +632,49 @@ def verify_installed_generation_envelope(root_value: str | Path) -> dict[str, An
         ) from exc
 
     artifact_fields = {"artifact_sha256", "package_tree_sha256"}
-    release_fields = {
-        "release_root",
-        "release_id",
-        "release_manifest_sha256",
-        "release_package_sha256",
-        "artifact_sha256",
-        "generation_id",
-        "generation_manifest_sha256",
-    }
     if not isinstance(artifact_identity, dict) or set(artifact_identity) != artifact_fields:
         raise LifecycleError(
             "TX_INSTALLED_ENVELOPE_CONTRACT",
             "artifact_identity.json must use the exact installed-generation identity shape.",
             str(root / "artifact_identity.json"),
         )
-    if not isinstance(release_identity, dict) or set(release_identity) != release_fields:
+    if not isinstance(release_identity, dict):
         raise LifecycleError(
             "TX_INSTALLED_ENVELOPE_CONTRACT",
-            "release_identity.json must use the exact installed-generation release identity shape.",
+            "release_identity.json must be an object.",
+            str(root / "release_identity.json"),
+        )
+    release_identity_fields = set(release_identity)
+    if release_identity_fields == INSTALLED_RELEASE_IDENTITY_FIELDS:
+        if release_identity.get("schema_version") != INSTALLED_RELEASE_IDENTITY_SCHEMA_VERSION:
+            raise LifecycleError(
+                "TX_INSTALLED_ENVELOPE_CONTRACT",
+                "Installed release identity schema_version is unsupported.",
+                str(root / "release_identity.json"),
+            )
+        source_kind = release_identity.get("source_kind")
+        if source_kind not in INSTALLED_RELEASE_SOURCE_KINDS:
+            raise LifecycleError(
+                "TX_INSTALLED_ENVELOPE_CONTRACT",
+                "Installed release identity source_kind must be release-package or repository.",
+                str(root / "release_identity.json"),
+            )
+        release_identity_schema_version = INSTALLED_RELEASE_IDENTITY_SCHEMA_VERSION
+        release_identity_provenance = "redacted-v2"
+    elif release_identity_fields == LEGACY_INSTALLED_RELEASE_IDENTITY_FIELDS:
+        release_root = release_identity.get("release_root")
+        if not isinstance(release_root, str) or not Path(release_root).is_absolute():
+            raise LifecycleError(
+                "TX_INSTALLED_ENVELOPE_CONTRACT",
+                "Legacy installed release identity release_root must retain an absolute provenance locator.",
+                str(root / "release_identity.json"),
+            )
+        release_identity_schema_version = 1
+        release_identity_provenance = "legacy-absolute-root"
+    else:
+        raise LifecycleError(
+            "TX_INSTALLED_ENVELOPE_CONTRACT",
+            "release_identity.json must use either the legacy v1 or redacted v2 installed-generation identity shape.",
             str(root / "release_identity.json"),
         )
 
@@ -538,14 +692,6 @@ def verify_installed_generation_envelope(root_value: str | Path) -> dict[str, An
             "Installed generation identity hash fields must be SHA-256 values.",
             str(root),
         )
-    release_root = release_identity.get("release_root")
-    if not isinstance(release_root, str) or not Path(release_root).is_absolute():
-        raise LifecycleError(
-            "TX_INSTALLED_ENVELOPE_CONTRACT",
-            "Installed generation release_root must retain an absolute provenance locator.",
-            str(root / "release_identity.json"),
-        )
-
     version = generation_manifest["version"]
     generation_id = generation_manifest["generation_id"]
     source_revision = generation_manifest["source_revision"]
@@ -598,6 +744,8 @@ def verify_installed_generation_envelope(root_value: str | Path) -> dict[str, An
         "artifact_identity": artifact_identity,
         "generation_manifest": generation_manifest,
         "release_identity": release_identity,
+        "release_identity_schema_version": release_identity_schema_version,
+        "release_identity_provenance": release_identity_provenance,
         "metadata_files": list(INSTALLED_GENERATION_METADATA),
     }
 
@@ -619,6 +767,276 @@ def verify_release_root(root_value: str | Path) -> dict[str, Any]:
     if set(manifest.get("supported_tools", [])) != set(TOOLS):
         raise LifecycleError("TX_RELEASE_TOOL_SUPPORT", "The release root must support Codex, Claude Code, and OpenCode.", str(root))
     return {"root": root, "manifest": manifest, "artifact": artifact, "identity": identity, "verified": verified}
+
+
+def verify_repository_root(root_value: str | Path) -> dict[str, Any]:
+    """Verify a public repository as an installable MALTS source.
+
+    Repository mode deliberately validates only the user tree plus the small
+    repository identity document.  Local release controls, Git internals, and
+    maintainer tooling are neither required nor accepted as install inputs.
+    """
+    root = _absolute(root_value)
+    if not root.is_dir() or _is_reparse(root):
+        raise LifecycleError("TX_REPOSITORY_ROOT", "Repository root is missing or is a reparse point.", str(root))
+    identity_path = root / REPOSITORY_IDENTITY_NAME
+    if not identity_path.is_file() or _is_reparse(identity_path):
+        raise LifecycleError("TX_REPOSITORY_IDENTITY", "Repository identity file is missing or is a reparse point.", str(identity_path))
+    identity = load_json(identity_path)
+    expected_fields = {
+        "schema_version",
+        "release_id",
+        "version",
+        "release_tag",
+        "source_tree_sha256",
+        "user_file_count",
+        "repository_only_paths",
+        "created_at",
+    }
+    if not isinstance(identity, dict) or set(identity) != expected_fields:
+        raise LifecycleError("TX_REPOSITORY_IDENTITY", "Repository identity has an invalid closed shape.", str(identity_path))
+    version = identity.get("version")
+    release_id = identity.get("release_id")
+    release_tag = identity.get("release_tag")
+    if (
+        identity.get("schema_version") != REPOSITORY_IDENTITY_SCHEMA_VERSION
+        or not isinstance(version, str)
+        or re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) is None
+        or release_id != f"MALTS-{version}"
+        or release_tag != f"v{version}"
+        or not isinstance(identity.get("user_file_count"), int)
+        or identity["user_file_count"] < 1
+        or not isinstance(identity.get("source_tree_sha256"), str)
+        or HASH_PATTERN.fullmatch(identity["source_tree_sha256"]) is None
+        or identity.get("repository_only_paths") != list(REPOSITORY_IDENTITY_REPOSITORY_ONLY)
+    ):
+        raise LifecycleError("TX_REPOSITORY_IDENTITY", "Repository identity has invalid version, hash, or boundary fields.", str(identity_path))
+    created_at = _now(identity.get("created_at"))
+    version_path = root / "VERSION"
+    if not version_path.is_file() or version_path.read_text(encoding="utf-8-sig").strip() != version:
+        raise LifecycleError("TX_REPOSITORY_VERSION", "Repository VERSION does not match its identity document.", str(version_path))
+
+    for relative in REPOSITORY_IDENTITY_REPOSITORY_ONLY:
+        path = root / relative
+        if not path.is_file() or _is_reparse(path):
+            raise LifecycleError("TX_REPOSITORY_LAYOUT", "Repository source lacks a required regular repository-only file.", str(path))
+
+    excluded = {item.casefold() for item in REPOSITORY_IDENTITY_REPOSITORY_ONLY}
+    records: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for path in sorted((item for item in root.rglob("*") if item.is_file()), key=lambda item: item.relative_to(root).as_posix().casefold()):
+        relative = _validate_relative(path.relative_to(root).as_posix())
+        if relative.split("/", 1)[0].casefold() == ".git":
+            continue
+        # These ignored maintainer controls may live beside a public checkout,
+        # but are never part of the repository install source.
+        if relative == "AGENTS.md" or relative.startswith(".release-control/"):
+            continue
+        if relative.casefold() in excluded:
+            continue
+        if _is_reparse(path):
+            raise LifecycleError("TX_REPOSITORY_REPARSE", "Repository source cannot contain links or reparse points.", relative)
+        if path.suffix.casefold() == ".pyc" or "__pycache__" in {part.casefold() for part in Path(relative).parts}:
+            raise LifecycleError("TX_REPOSITORY_CACHE", "Repository source cannot contain Python cache files.", relative)
+        if any(part.casefold() == ".malts" for part in Path(relative).parts):
+            raise LifecycleError("TX_REPOSITORY_RESIDUE", "Repository source cannot contain legacy .malts state.", relative)
+        folded = relative.casefold()
+        if folded in seen:
+            raise LifecycleError("TX_REPOSITORY_CASE_COLLISION", "Repository paths collide under Windows case folding.", relative)
+        seen.add(folded)
+        records.append({"path": relative, "bytes": path.stat().st_size, "sha256": file_sha256(path)})
+    tree_sha256 = sha256_bytes(canonical_json(records))
+    if identity["user_file_count"] != len(records) or identity["source_tree_sha256"].upper() != tree_sha256:
+        raise LifecycleError(
+            "TX_REPOSITORY_IDENTITY_BINDING",
+            "Repository files do not match the identity document. Refresh from an exact released source or use a verified Release package.",
+            str(identity_path),
+        )
+    required = ("scripts/Install-MALTS.ps1", "scripts/Update-MALTS.ps1", "tools/malts_lifecycle.py")
+    missing = [relative for relative in required if relative not in {record["path"] for record in records}]
+    if missing:
+        raise LifecycleError("TX_REPOSITORY_LAYOUT", f"Repository install source lacks required entry points: {missing}", str(root))
+    return {
+        "root": root,
+        "identity": {**identity, "created_at": created_at, "source_tree_sha256": tree_sha256},
+        "identity_sha256": file_sha256(identity_path),
+        "records": records,
+    }
+
+
+def _repository_projection_sources(source: Path, tool: str) -> list[tuple[str, str, str]]:
+    instruction = {
+        "codex": "adapters/codex/AGENTS.example.md",
+        "claude-code": "adapters/claude-code/CLAUDE.example.md",
+        "opencode": "adapters/opencode/AGENTS.example.md",
+    }[tool]
+    instruction_target = "CLAUDE.md" if tool == "claude-code" else "AGENTS.md"
+    items: list[tuple[str, str, str]] = [(instruction, instruction_target, "managed-block")]
+    support_root = {
+        "codex": source / "adapters" / "codex" / ".codex",
+        "claude-code": source / "adapters" / "claude-code" / ".claude",
+        "opencode": source / "adapters" / "opencode" / ".opencode",
+    }[tool]
+    bridge_root = source / "adapters" / "skill-bridges"
+    for root in (support_root, bridge_root):
+        if not root.is_dir():
+            raise LifecycleError("TX_REPOSITORY_LAYOUT", "Repository install source lacks required adapter files.", str(root))
+    for path in sorted((item for item in support_root.rglob("*") if item.is_file()), key=lambda item: item.relative_to(support_root).as_posix().casefold()):
+        relative = path.relative_to(support_root).as_posix()
+        if tool == "codex" and relative.casefold() == "config.toml":
+            continue
+        items.append((path.relative_to(source).as_posix(), relative, "replace"))
+    for path in sorted((item for item in bridge_root.rglob("*") if item.is_file()), key=lambda item: item.relative_to(bridge_root).as_posix().casefold()):
+        relative = path.relative_to(bridge_root).as_posix()
+        items.append((path.relative_to(source).as_posix(), f"skills/{relative}", "replace"))
+    return items
+
+
+def _build_repository_artifact(repository: dict[str, Any], artifact_root: Path) -> dict[str, Any]:
+    """Materialize a deterministic, temporary lifecycle artifact from a verified repo."""
+    source = repository["root"]
+    identity = repository["identity"]
+    if artifact_root.exists():
+        raise LifecycleError("TX_REPOSITORY_ARTIFACT", "Temporary repository artifact path already exists.", str(artifact_root))
+    payload = artifact_root / "payload"
+    payload.mkdir(parents=True)
+    for record in repository["records"]:
+        relative = record["path"]
+        destination = payload / Path(relative)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source / Path(relative), destination)
+    payload_records = _user_records(payload)
+    if payload_records != repository["records"]:
+        raise LifecycleError("TX_REPOSITORY_COPY_BINDING", "Repository payload changed while the lifecycle artifact was prepared.", str(source))
+
+    for tool in TOOLS:
+        projection_root = artifact_root / "projections" / tool
+        entries: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for source_relative, target_relative, mode in _repository_projection_sources(source, tool):
+            target = _validate_relative(target_relative)
+            if target.casefold() in seen:
+                raise LifecycleError("TX_REPOSITORY_PROJECTION", "Repository projection target is duplicated.", f"{tool}:{target}")
+            seen.add(target.casefold())
+            stored_relative = f"files/{target}"
+            stored = projection_root / Path(stored_relative)
+            stored.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source / Path(source_relative), stored)
+            entries.append({"path": target, "source": stored_relative, "mode": mode, "sha256": file_sha256(stored)})
+        boot_relative = "files/MALTS_BOOT.template.md"
+        boot_path = projection_root / Path(boot_relative)
+        boot_path.parent.mkdir(parents=True, exist_ok=True)
+        display = {"codex": "Codex", "claude-code": "Claude Code", "opencode": "OpenCode"}[tool]
+        boot_path.write_text(
+            "# MALTS_BOOT\n\n"
+            "SchemaVersion: 2\n"
+            f"Tool: {display}\n"
+            f"MALTS_ROOT: {ACTIVE_GENERATION_TOKEN}\n"
+            "Source: verified immutable MALTS active generation\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        entries.append({"path": "MALTS_BOOT.md", "source": boot_relative, "mode": "boot-pointer", "sha256": file_sha256(boot_path)})
+        entries.sort(key=lambda item: item["path"].casefold())
+        write_json(projection_root / "projection_files.json", {"schema_version": 1, "tool": tool, "entries": entries})
+
+    records = _inventory_records(artifact_root)
+    inventory = {"schema_version": 1, "files": records}
+    write_json(artifact_root / "package_inventory.json", inventory)
+    inventory_sha256 = file_sha256(artifact_root / "package_inventory.json")
+    package_tree_sha256 = sha256_bytes(canonical_json(records))
+    version = identity["version"]
+    artifact_sha256 = artifact_digest(version, inventory_sha256, package_tree_sha256)
+    manifest = {
+        "schema_version": 1,
+        "generation_id": f"malts-{version}-{identity['source_tree_sha256'][:12].lower()}",
+        "version": version,
+        "artifact_sha256": artifact_sha256,
+        "source_revision": f"local-tree-sha256:{identity['source_tree_sha256']}",
+        "package_tree_sha256": package_tree_sha256,
+        "package_inventory_sha256": inventory_sha256,
+        "supported_platforms": ["windows"],
+        "supported_tools": list(TOOLS),
+        "migration_handlers": ["A", "B", "C", "D"],
+        "minimum_prerequisites": [
+            {"name": "Windows", "version_constraint": "10-or-later", "required": True, "applicability": "always"},
+            {"name": "PowerShell", "version_constraint": ">=5.1", "required": True, "applicability": "always"},
+            {"name": "Python", "version_constraint": ">=3.11", "required": True, "applicability": "always"},
+            {"name": "Codex", "version_constraint": "runtime-probed", "required": True, "applicability": "selected-tool", "tool": "codex"},
+            {"name": "Claude Code", "version_constraint": "runtime-probed", "required": True, "applicability": "selected-tool", "tool": "claude-code"},
+            {"name": "OpenCode", "version_constraint": "runtime-probed", "required": True, "applicability": "selected-tool", "tool": "opencode"},
+        ],
+        "projection_classification": {
+            "public_contract_paths": ["payload/*", "projections/*"],
+            "generated_state_paths": [
+                "registry/installation_registry.json",
+                "registry/active_generation.json",
+                "runtime/transactions/*",
+                "state/audit/*",
+                "<tool-root>/.malts-v1-projection.json",
+            ],
+        },
+        "user_purity": {
+            "policy_id": "MALTS-REPOSITORY-IDENTITY-V1",
+            "policy_sha256": repository["identity_sha256"],
+            "file_count": len(repository["records"]),
+            "tree_sha256": identity["source_tree_sha256"],
+            "identity_release_status": "REPOSITORY_VERIFIED",
+        },
+        "created_at": identity["created_at"],
+    }
+    _validate_contract("generation-manifest", manifest)
+    write_json(artifact_root / "generation_manifest.json", manifest)
+    return verify_artifact(artifact_root)
+
+
+def _repository_release_identity(repository: dict[str, Any], artifact: dict[str, Any]) -> dict[str, Any]:
+    identity_sha256 = repository["identity_sha256"]
+    package_sha256 = sha256_bytes(canonical_json({
+        "algorithm": REPOSITORY_ARTIFACT_PROFILE,
+        "repository_identity_sha256": identity_sha256,
+        "source_tree_sha256": repository["identity"]["source_tree_sha256"],
+    }))
+    return {
+        "release_root": str(repository["root"]),
+        "release_id": repository["identity"]["release_id"],
+        "release_manifest_sha256": identity_sha256,
+        "release_package_sha256": package_sha256,
+        "artifact_sha256": artifact["artifact_sha256"],
+        "generation_id": artifact["manifest"]["generation_id"],
+        "generation_manifest_sha256": file_sha256(artifact["root"] / "generation_manifest.json"),
+    }
+
+
+@contextmanager
+def _source_artifact_scope(
+    *,
+    release_root: str | Path | None = None,
+    repository_root: str | Path | None = None,
+) -> Iterable[dict[str, Any] | None]:
+    if release_root is not None and repository_root is not None:
+        raise LifecycleError("TX_SOURCE_INPUT", "Choose exactly one ReleaseRoot or RepositoryRoot.")
+    if release_root is not None:
+        yield verify_release_root(release_root)
+        return
+    if repository_root is None:
+        yield None
+        return
+    repository = verify_repository_root(repository_root)
+    with tempfile.TemporaryDirectory(prefix="malts-repository-artifact-") as temporary:
+        artifact = _build_repository_artifact(repository, Path(temporary) / "artifact")
+        yield {
+            "root": repository["root"],
+            "manifest": repository["identity"],
+            "artifact": artifact,
+            "identity": _repository_release_identity(repository, artifact),
+            "verified": {
+                "status": "PASS",
+                "release_id": repository["identity"]["release_id"],
+                "version": repository["identity"]["version"],
+                "source_kind": "repository",
+            },
+        }
 
 
 def _registry_path(root: Path) -> Path:
@@ -1472,6 +1890,17 @@ def _operation_actions(context_hash: str, context: dict[str, Any], operation: st
         {"action_id": "ACT-ACTIVATE", "kind": "activate", "target": context.get("generation_root") or context["lifecycle_root"], "dependencies": ["ACT-PREVALIDATE"], "destructive": operation in {"update", "repair", "uninstall"}},
     ]
     previous = "ACT-ACTIVATE"
+    if context["global_boot"]["mode"] == "refresh":
+        actions.append(
+            {
+                "action_id": "ACT-GLOBAL-BOOT",
+                "kind": "merge",
+                "target": context["global_boot"]["locator"],
+                "dependencies": [previous],
+                "destructive": False,
+            }
+        )
+        previous = "ACT-GLOBAL-BOOT"
     for index, tool in enumerate(targets, start=1):
         action_id = f"ACT-PROJECT-{index}"
         actions.append({"action_id": action_id, "kind": "merge", "target": targets[tool], "dependencies": [previous], "destructive": operation == "uninstall"})
@@ -1484,12 +1913,80 @@ def _operation_actions(context_hash: str, context: dict[str, Any], operation: st
     return actions
 
 
-def make_plan(
+def _validate_planned_write_path_bounds(
+    context: dict[str, Any],
+    artifact: dict[str, Any] | None,
+    modifications: list[dict[str, Any]],
+) -> None:
+    """Fail planning before writes if a Windows target exceeds the supported bound."""
+    root = Path(context["lifecycle_root"])
+    transaction_root = Path(context["transaction_root"])
+    staging_root = Path(context["staging_root"])
+    snapshot_root = Path(context["snapshot_root"])
+    direct_targets: list[tuple[str, Path]] = [
+        ("transaction root", transaction_root),
+        ("staging root", staging_root),
+        ("snapshot root", snapshot_root),
+    ]
+    atomic_targets: list[tuple[str, Path]] = [
+        ("installation registry", root / REGISTRY_RELATIVE),
+        ("active-generation pointer", root / POINTER_RELATIVE),
+        ("lifecycle lock", root / LOCK_RELATIVE),
+        ("transaction plan", _plan_path(transaction_root)),
+        ("transaction journal", _journal_path(transaction_root)),
+        ("snapshot metadata", snapshot_root / "snapshot_meta.json"),
+        ("audit plan", root / AUDIT_RELATIVE / f"{context['operation_id']}.plan.json"),
+        ("audit journal", root / AUDIT_RELATIVE / f"{context['operation_id']}.journal.json"),
+    ]
+    if context["global_boot"]["mode"] == "refresh":
+        atomic_targets.append(("global discovery boot", Path(context["global_boot"]["locator"])))
+
+    generation_root = Path(context["generation_root"]) if context["generation_root"] else None
+    if artifact is not None and generation_root is not None:
+        direct_targets.append(("generation root", generation_root))
+        for record in artifact["records"]:
+            if not record["path"].startswith("payload/"):
+                continue
+            relative = Path(record["path"][len("payload/") :])
+            direct_targets.append(("staged user payload", staging_root / relative))
+            direct_targets.append(("installed user payload", generation_root / relative))
+        for name in INSTALLED_GENERATION_METADATA:
+            atomic_targets.append(("staged generation metadata", staging_root / name))
+            atomic_targets.append(("installed generation metadata", generation_root / name))
+        for tool in context["selected_tools"]:
+            tool_root = Path(context["tool_roots"][tool])
+            atomic_targets.append((f"{tool} projection manifest", tool_root / PROJECTION_MANIFEST))
+            for entry in artifact["projections"][tool]["entries"]:
+                atomic_targets.append((f"{tool} projection", tool_root / Path(entry["path"])))
+
+    for modification in modifications:
+        atomic_targets.append(("planned user modification", Path(modification["locator"])))
+
+    for purpose, path in [*direct_targets, *atomic_targets]:
+        absolute = _absolute(path)
+        if len(str(absolute)) > WINDOWS_MAX_PATH:
+            raise LifecycleError(
+                "TX_PATH_TOO_LONG",
+                f"Planned {purpose} exceeds the supported Windows path bound before execution ({len(str(absolute))} > {WINDOWS_MAX_PATH}). Choose shorter lifecycle and tool roots.",
+                str(absolute),
+            )
+    for purpose, path in atomic_targets:
+        temporary = _absolute(path).parent / ATOMIC_TEMP_PROBE
+        if len(str(temporary)) > WINDOWS_MAX_PATH:
+            raise LifecycleError(
+                "TX_PATH_TOO_LONG",
+                f"Planned atomic write for {purpose} exceeds the supported Windows path bound before execution ({len(str(temporary))} > {WINDOWS_MAX_PATH}). Choose shorter lifecycle and tool roots.",
+                str(path),
+            )
+
+
+def _make_plan_resolved(
     *,
     operation: str,
     lifecycle_root: str | Path,
     tool_roots: dict[str, str | Path],
-    release_root: str | Path | None = None,
+    release: dict[str, Any] | None,
+    source_kind: str,
     legacy_roots: Iterable[str | Path] | None = None,
     default_legacy_root: str | Path | None = None,
     operation_id: str | None = None,
@@ -1508,11 +2005,10 @@ def make_plan(
         if _is_inside(root, tool_root) or _is_inside(tool_root, root):
             raise LifecycleError("TX_ROOT_OVERLAP", "Lifecycle and tool roots must be separate.", str(tool_root))
 
-    if operation == "uninstall" and release_root is not None:
-        raise LifecycleError("TX_RELEASE_ROOT", "Uninstall must not consume a release root.")
-    if operation != "uninstall" and release_root is None:
-        raise LifecycleError("TX_RELEASE_ROOT", "Install, update, and repair require a verified closed release root.")
-    release = None if operation == "uninstall" else verify_release_root(release_root or "")
+    if operation == "uninstall" and release is not None:
+        raise LifecycleError("TX_RELEASE_ROOT", "Uninstall must not consume a source root.")
+    if operation != "uninstall" and release is None:
+        raise LifecycleError("TX_RELEASE_ROOT", "Install, update, and repair require a verified ReleaseRoot or RepositoryRoot.")
     artifact = release["artifact"] if release is not None else None
     registry = _load_registry(root)
     selected_tools = list(normalized_tools)
@@ -1578,8 +2074,10 @@ def make_plan(
         "schema_version": 1,
         "operation_id": operation_id,
         "operation": operation,
+        "source_kind": source_kind,
         "lifecycle_root": str(root),
         "release_root": release_identity["release_root"],
+        "repository_root": release_identity["release_root"] if source_kind == "repository" else None,
         "release_identity": release_identity,
         "artifact_sha256": release_identity["artifact_sha256"],
         "target_generation_id": target_generation_id,
@@ -1593,6 +2091,7 @@ def make_plan(
         "transaction_root": str(transaction_root),
         "staging_root": str(transaction_root / "staging" / target_generation_id) if target_generation_id else str(transaction_root / "staging"),
         "snapshot_root": str(transaction_root / "snapshot"),
+        "global_boot": _global_boot_context(root),
     }
     residue_records = [_record_digest_reference(record, root) for record in legacy_residue_records]
     legacy_ledger = root / LEGACY_RESIDUE_RELATIVE
@@ -1645,6 +2144,7 @@ def make_plan(
         operation,
         target_version or "1.0.0",
     )
+    _validate_planned_write_path_bounds(context, artifact, modifications)
     residue_records.extend(_record_digest_reference(record, root) for record in legacy_projection_records)
     for record in residue_records:
         _validate_contract("residue-tombstone", record)
@@ -1686,6 +2186,42 @@ def make_plan(
     }
 
 
+def make_plan(
+    *,
+    operation: str,
+    lifecycle_root: str | Path,
+    tool_roots: dict[str, str | Path],
+    release_root: str | Path | None = None,
+    repository_root: str | Path | None = None,
+    legacy_roots: Iterable[str | Path] | None = None,
+    default_legacy_root: str | Path | None = None,
+    operation_id: str | None = None,
+    created_at: str | None = None,
+    modification_overrides: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    if operation == "uninstall":
+        if release_root is not None or repository_root is not None:
+            raise LifecycleError("TX_SOURCE_INPUT", "Uninstall cannot consume ReleaseRoot or RepositoryRoot.")
+        source_kind = "installed-generation"
+    else:
+        if (release_root is None) == (repository_root is None):
+            raise LifecycleError("TX_SOURCE_INPUT", "Install, update, and repair require exactly one ReleaseRoot or RepositoryRoot.")
+        source_kind = "repository" if repository_root is not None else "release-package"
+    with _source_artifact_scope(release_root=release_root, repository_root=repository_root) as release:
+        return _make_plan_resolved(
+            operation=operation,
+            lifecycle_root=lifecycle_root,
+            tool_roots=tool_roots,
+            release=release,
+            source_kind=source_kind,
+            legacy_roots=legacy_roots,
+            default_legacy_root=default_legacy_root,
+            operation_id=operation_id,
+            created_at=created_at,
+            modification_overrides=modification_overrides,
+        )
+
+
 def validate_plan_envelope(envelope: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     if not isinstance(envelope, dict) or set(envelope) != {"schema_version", "plan_contract", "execution_context", "context_sha256"}:
         raise LifecycleError("TX_PLAN_ENVELOPE", "Lifecycle plan envelope has an invalid closed shape.")
@@ -1725,18 +2261,37 @@ def _modification_digest_ref(modification: dict[str, Any]) -> str:
     return refs[0].split(":", 1)[1]
 
 
-def _verify_plan_inputs(plan: dict[str, Any], context: dict[str, Any], expected_plan_hash: str) -> dict[str, Any] | None:
+def _verify_plan_inputs(
+    plan: dict[str, Any],
+    context: dict[str, Any],
+    expected_plan_hash: str,
+    artifact: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
     if plan["plan_hash"] != expected_plan_hash.upper():
         raise LifecycleError("TX_EXPECTED_PLAN_HASH", "Explicit expected plan hash does not match the plan.")
     root = _absolute(context["lifecycle_root"])
     if _registry_digest(root) != context["registry_sha256"]:
         raise LifecycleError("TX_INPUT_DRIFT", "Installation registry changed after planning.", str(_registry_path(root)))
-    artifact = None
-    if context["release_root"] is not None:
+    if _global_boot_context(root) != context["global_boot"]:
+        raise LifecycleError("TX_INPUT_DRIFT", "Configured global boot changed after planning.", context["global_boot"]["locator"])
+    source_kind = context.get("source_kind", "release-package" if context.get("release_root") is not None else "installed-generation")
+    if source_kind == "release-package":
         release = verify_release_root(context["release_root"])
         if canonical_json(release["identity"]) != canonical_json(context["release_identity"]):
             raise LifecycleError("TX_INPUT_DRIFT", "Closed release identity changed after planning.", context["release_root"])
         artifact = release["artifact"]
+    elif source_kind == "repository":
+        repository_root = context.get("repository_root")
+        if not isinstance(repository_root, str) or not Path(repository_root).is_absolute():
+            raise LifecycleError("TX_CONTEXT_BINDING", "Repository plan lacks an absolute RepositoryRoot.")
+        if artifact is None:
+            raise LifecycleError("TX_REPOSITORY_ARTIFACT", "Repository source artifact was not materialized for plan verification.", repository_root)
+        repository = verify_repository_root(repository_root)
+        identity = _repository_release_identity(repository, artifact)
+        if canonical_json(identity) != canonical_json(context["release_identity"]):
+            raise LifecycleError("TX_INPUT_DRIFT", "Repository identity or generated artifact changed after planning.", repository_root)
+        if artifact["artifact_sha256"] != context["artifact_sha256"]:
+            raise LifecycleError("TX_INPUT_DRIFT", "Repository artifact hash changed after planning.", repository_root)
     else:
         registry = _load_registry(root)
         active = next((item for item in registry["generations"] if item["state"] == "active"), None) if registry else None
@@ -1868,6 +2423,7 @@ def _snapshot(
     modifications: list[dict[str, Any]],
     residue_records: list[dict[str, Any]],
     legacy_root_observations: list[dict[str, Any]],
+    global_boot: dict[str, Any],
 ) -> None:
     snapshot = transaction_root / "snapshot"
     snapshot.mkdir(parents=True, exist_ok=False)
@@ -1876,11 +2432,14 @@ def _snapshot(
         "pointer_exists": _pointer_path(root).is_file(),
         "tools": {},
         "external_residue": [],
+        "global_boot": global_boot,
     }
     if meta["registry_exists"]:
         shutil.copyfile(_registry_path(root), snapshot / "registry.json")
     if meta["pointer_exists"]:
         shutil.copyfile(_pointer_path(root), snapshot / "pointer.json")
+    if global_boot["mode"] == "refresh":
+        shutil.copyfile(Path(global_boot["locator"]), snapshot / "global_boot.md")
     generations = root / "generations"
     if generations.is_dir():
         _copy_tree(generations, snapshot / "generations")
@@ -1957,14 +2516,42 @@ def _snapshot(
     write_json(snapshot / "snapshot_meta.json", meta)
 
 
-def _stage_artifact(artifact: dict[str, Any], release_identity: dict[str, Any], staging_root: Path) -> None:
+def _installed_release_identity(release_identity: dict[str, Any], source_kind: str) -> dict[str, Any]:
+    if source_kind not in INSTALLED_RELEASE_SOURCE_KINDS:
+        raise LifecycleError(
+            "TX_INSTALLED_ENVELOPE_CONTRACT",
+            "Only release-package and repository sources can create an installed generation.",
+        )
+    return {
+        "schema_version": INSTALLED_RELEASE_IDENTITY_SCHEMA_VERSION,
+        "source_kind": source_kind,
+        "release_id": release_identity["release_id"],
+        "release_manifest_sha256": release_identity["release_manifest_sha256"],
+        "release_package_sha256": release_identity["release_package_sha256"],
+        "artifact_sha256": release_identity["artifact_sha256"],
+        "generation_id": release_identity["generation_id"],
+        "generation_manifest_sha256": release_identity["generation_manifest_sha256"],
+    }
+
+
+def _stage_artifact(
+    artifact: dict[str, Any],
+    release_identity: dict[str, Any],
+    source_kind: str,
+    staging_root: Path,
+) -> None:
     _copy_tree(artifact["root"] / "payload", staging_root)
     shutil.copyfile(artifact["root"] / "generation_manifest.json", staging_root / "generation_manifest.json")
     write_json(staging_root / "artifact_identity.json", {"artifact_sha256": artifact["artifact_sha256"], "package_tree_sha256": artifact["manifest"]["package_tree_sha256"]})
-    write_json(staging_root / "release_identity.json", release_identity)
+    write_json(staging_root / "release_identity.json", _installed_release_identity(release_identity, source_kind))
 
 
-def _verify_stage(artifact: dict[str, Any], release_identity: dict[str, Any], staging_root: Path) -> None:
+def _verify_stage(
+    artifact: dict[str, Any],
+    release_identity: dict[str, Any],
+    source_kind: str,
+    staging_root: Path,
+) -> None:
     payload_records = [record for record in artifact["records"] if record["path"].startswith("payload/")]
     actual: list[dict[str, Any]] = []
     metadata_names = {"generation_manifest.json", "artifact_identity.json", "release_identity.json"}
@@ -1972,7 +2559,7 @@ def _verify_stage(artifact: dict[str, Any], release_identity: dict[str, Any], st
         actual.append({"path": f"payload/{path.relative_to(staging_root).as_posix()}", "bytes": path.stat().st_size, "sha256": file_sha256(path)})
     if actual != payload_records:
         raise LifecycleError("TX_STAGE_VERIFY", "Staged generation differs from the verified artifact.", str(staging_root))
-    if load_json(staging_root / "release_identity.json") != release_identity:
+    if load_json(staging_root / "release_identity.json") != _installed_release_identity(release_identity, source_kind):
         raise LifecycleError("TX_STAGE_VERIFY", "Staged generation release identity differs from the bound plan.", str(staging_root))
     if file_sha256(staging_root / "generation_manifest.json") != release_identity["generation_manifest_sha256"]:
         raise LifecycleError("TX_STAGE_VERIFY", "Staged generation manifest differs from the bound release identity.", str(staging_root))
@@ -2310,6 +2897,12 @@ def _restore_snapshot(root: Path, tool_roots: dict[str, Path], transaction_root:
         _atomic_write(pointer_path, (snapshot / "pointer.json").read_bytes())
     elif pointer_path.exists():
         pointer_path.unlink()
+    global_boot = meta.get("global_boot")
+    if isinstance(global_boot, dict) and global_boot.get("mode") == "refresh":
+        source = snapshot / "global_boot.md"
+        if not source.is_file():
+            raise LifecycleError("TX_ROLLBACK_SNAPSHOT", "Global boot snapshot is missing.", str(source))
+        _atomic_write(Path(global_boot["locator"]), source.read_bytes())
     for tool in meta["tools"]:
         tool_root = tool_roots[tool]
         current = _projection_manifest(tool_root)
@@ -2491,9 +3084,16 @@ def scan_residue(
     }
 
 
-def execute_plan(envelope: dict[str, Any], expected_plan_hash: str, *, apply: bool, fault_at: str | None = None) -> dict[str, Any]:
+def _execute_plan_with_artifact(
+    envelope: dict[str, Any],
+    expected_plan_hash: str,
+    *,
+    apply: bool,
+    artifact: dict[str, Any] | None,
+    fault_at: str | None = None,
+) -> dict[str, Any]:
     plan, context = validate_plan_envelope(envelope)
-    artifact = _verify_plan_inputs(plan, context, expected_plan_hash)
+    artifact = _verify_plan_inputs(plan, context, expected_plan_hash, artifact)
     if not apply:
         return {"status": "PASS", "mode": "DRY_RUN", "operation_id": plan["operation_id"], "plan_hash": plan["plan_hash"], "writes_performed": False}
     root = _absolute(context["lifecycle_root"])
@@ -2511,10 +3111,15 @@ def execute_plan(envelope: dict[str, Any], expected_plan_hash: str, *, apply: bo
         _set_state(transaction_root, journal, "DISCOVER", evidence="lifecycle:discover", fault_at=fault_at)
         lock_result = _acquire_lock(root, plan["operation_id"], _now())
         _set_state(transaction_root, journal, "LOCK", evidence="lifecycle:lock", fault_at=fault_at)
-        _verify_plan_inputs(plan, context, expected_plan_hash)
+        _verify_plan_inputs(plan, context, expected_plan_hash, artifact)
         _set_state(transaction_root, journal, "PLAN", evidence="lifecycle:plan-hash", fault_at=fault_at)
         if artifact is not None:
-            _stage_artifact(artifact, context["release_identity"], Path(context["staging_root"]))
+            _stage_artifact(
+                artifact,
+                context["release_identity"],
+                context["source_kind"],
+                Path(context["staging_root"]),
+            )
         else:
             Path(context["staging_root"]).mkdir(parents=True, exist_ok=True)
         _set_state(transaction_root, journal, "STAGE", evidence="lifecycle:stage", fault_at=fault_at)
@@ -2525,24 +3130,33 @@ def execute_plan(envelope: dict[str, Any], expected_plan_hash: str, *, apply: bo
             plan["user_modifications"],
             context["residue_records"],
             context["legacy_root_observations"],
+            context["global_boot"],
         )
         _set_state(transaction_root, journal, "SNAPSHOT", evidence="lifecycle:snapshot", fault_at=fault_at)
         if artifact is not None:
-            _verify_stage(artifact, context["release_identity"], Path(context["staging_root"]))
-        _verify_plan_inputs(plan, context, expected_plan_hash)
+            _verify_stage(
+                artifact,
+                context["release_identity"],
+                context["source_kind"],
+                Path(context["staging_root"]),
+            )
+        _verify_plan_inputs(plan, context, expected_plan_hash, artifact)
         _set_state(transaction_root, journal, "PREVALIDATE", evidence="lifecycle:prevalidate", fault_at=fault_at)
         _activate(root, artifact, context, plan["operation"], transaction_root)
         _set_state(transaction_root, journal, "ACTIVATE", evidence="lifecycle:activate", fault_at=fault_at)
+        active_generation_root = Path(context["generation_root"]) if context["generation_root"] else None
+        _refresh_global_boot(context["global_boot"], active_generation_root, plan["operation"])
         tool_paths = {tool: Path(value) for tool, value in context["tool_roots"].items()}
         _apply_projections(
             artifact,
             context["target_generation_id"],
-            Path(context["generation_root"]) if context["generation_root"] else None,
+            active_generation_root,
             tool_paths,
             plan["operation"],
             plan["user_modifications"],
         )
         _verify_projections(artifact, tool_paths, plan["operation"])
+        _verify_global_boot(context["global_boot"], active_generation_root, plan["operation"])
         _set_state(transaction_root, journal, "POSTVALIDATE", evidence="lifecycle:postvalidate", fault_at=fault_at)
         _set_state(transaction_root, journal, "CLEAN", evidence="lifecycle:clean-ready", fault_at=fault_at)
         cleanup_result = _clean(root, context, plan["operation"], transaction_root)
@@ -2596,6 +3210,22 @@ def execute_plan(envelope: dict[str, Any], expected_plan_hash: str, *, apply: bo
             "TX_INTERNAL_ERROR",
             f"Lifecycle operation failed and the prior state was restored: {type(operation_exc).__name__}: {operation_exc}",
         ) from operation_exc
+
+
+def execute_plan(envelope: dict[str, Any], expected_plan_hash: str, *, apply: bool, fault_at: str | None = None) -> dict[str, Any]:
+    _, context = validate_plan_envelope(envelope)
+    source_kind = context.get("source_kind", "release-package" if context.get("release_root") is not None else "installed-generation")
+    release_root = context.get("release_root") if source_kind == "release-package" else None
+    repository_root = context.get("repository_root") if source_kind == "repository" else None
+    with _source_artifact_scope(release_root=release_root, repository_root=repository_root) as release:
+        artifact = release["artifact"] if release is not None else None
+        return _execute_plan_with_artifact(
+            envelope,
+            expected_plan_hash,
+            apply=apply,
+            artifact=artifact,
+            fault_at=fault_at,
+        )
 
 
 def _load_transaction(root: Path, operation_id: str | None = None) -> tuple[Path, dict[str, Any], dict[str, Any], dict[str, Any]]:
@@ -2699,6 +3329,7 @@ def build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--lifecycle-root", required=True)
     plan.add_argument("--tool-root", action="append", default=[], required=True)
     plan.add_argument("--release-root")
+    plan.add_argument("--repository-root")
     plan.add_argument("--legacy-root", action="append", default=[])
     plan.add_argument("--default-legacy-root", default=str(Path.home() / ".malts"))
     plan.add_argument("--operation-id")
@@ -2729,6 +3360,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     verify_release = subparsers.add_parser("verify-release")
     verify_release.add_argument("--release-root", required=True)
+    verify_repository = subparsers.add_parser("verify-repository")
+    verify_repository.add_argument("--repository-root", required=True)
     return parser
 
 
@@ -2742,6 +3375,7 @@ def main(argv: list[str] | None = None) -> int:
                 lifecycle_root=args.lifecycle_root,
                 tool_roots=_parse_tool_roots(args.tool_root),
                 release_root=args.release_root,
+                repository_root=args.repository_root,
                 legacy_roots=args.legacy_root,
                 default_legacy_root=args.default_legacy_root,
                 operation_id=args.operation_id,
@@ -2774,6 +3408,18 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "verify-release":
             result = verify_release_root(args.release_root)
             result = {**result["verified"], "mode": "READ_ONLY", "writes_performed": False}
+        elif args.command == "verify-repository":
+            verified = verify_repository_root(args.repository_root)
+            result = {
+                "status": "PASS",
+                "mode": "READ_ONLY",
+                "writes_performed": False,
+                "repository_root": str(verified["root"]),
+                "release_id": verified["identity"]["release_id"],
+                "version": verified["identity"]["version"],
+                "user_file_count": len(verified["records"]),
+                "source_tree_sha256": verified["identity"]["source_tree_sha256"],
+            }
         else:
             result = semantic_state(args.lifecycle_root, _parse_tool_roots(args.tool_root))
             result.update({"status": "PASS", "mode": "READ_ONLY", "writes_performed": False})

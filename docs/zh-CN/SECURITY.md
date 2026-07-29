@@ -2,18 +2,28 @@
 
 ## 使用前验证
 
-解包下载 package 前使用 bootstrap verifier。它会检查 ZIP、checksum、transport manifest、公开说明、精确 inventory、安全 Windows 路径和内部 lifecycle artifact。
+仓库安装时，在创建计划前验证 `MALTS_RELEASE.json` 与 `VERSION`。仓库身份文件会绑定预期用户文件数量和源码树 SHA-256；任何意外文件、缓存、`.malts` 残留、必需入口缺失或哈希不匹配都会关闭式失败。
+
+Git 元数据可用时，将当前检出 tag 与身份文件的 `release_tag` 比较。这是额外的来源检查；仓库身份文件仍是包级来源绑定。
+
+明确请求离线归档时，解包前使用 `Verify-MALTSBootstrap.ps1`。它会验证单一 ZIP 的确定性结构、安全 Windows 路径、重复/大小写冲突成员、必需 package 文件、隔离解出和归档内的不可变 package 验证器。
+
+## 安装来源信息隐私
+
+三个安装代 envelope 文件也是用户表面的一部分，会被验证。当前 envelope 只包含 release 哈希、generation 身份和来源类型（`repository` 或 `release-package`），不包含任何本地来源 locator。带绝对来源 locator 的 legacy envelope 只能作为更新输入；在已验证更新替换它前，用户纯净度检查会关闭式失败。
 
 ## 保持本地数据只在本地
 
-不要把凭据、token、session data、用户 profile 路径、私有项目文件、缓存目录或生成的 runtime state 放进 MALTS 用户 payload 或工具 projection。
+不要把凭据、令牌、会话数据、用户配置文件路径、私有项目文件、缓存目录、生成 runtime 状态、计划、transaction journal 或交接放入公开 MALTS 仓库或用户 payload。
 
-凭据应通过环境变量或所选工具通常的安全配置机制提供。不要把 secret value 写入 `PROJECT_CONTROL.md`、`WORK_TASK_REPORT.md`、交接文件、prompt 或命令历史。
+凭据使用环境变量或所选工具的正常安全配置机制。不要把秘密值写入 `PROJECT_CONTROL.md`、`WORK_TASK_REPORT.md`、交接文件、提示词或命令历史。
 
-## 生命周期安全
+## 变更前审阅
 
-应用前审阅每一个生命周期计划。计划会标识精确根、操作和 generation 身份。如果目标不符合预期、包含链接或 reparse point，或不再匹配已审阅计划，应立即停止。
+安装与更新计划受哈希绑定。提供 `-Apply` 和精确计划哈希前，完整阅读计划。检查选定根目录、修改文件、清理、回滚和后置验证动作。
 
-## 报告漏洞
+来源、版本、根目录或预期动作改变后，不要批准旧计划；请创建新计划。
 
-只分享描述问题所需的最少可复现信息。发送报告前移除 secret 和私有机器细节。
+## 报告安全问题
+
+不要在公开 issue、讨论、Release note 或任务日志中发布秘密信息。请使用仓库提供的私密安全联系方式，或与维护者约定的其他私密渠道。

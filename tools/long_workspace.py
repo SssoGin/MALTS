@@ -33,6 +33,9 @@ PROTECTED_HISTORY_SECTION = re.compile(
     r"acceptance-criteria|current-stage|current-state|task-queue|risks?|recovery[^ ]*)",
     re.IGNORECASE,
 )
+STATIC_GENERATION_REFERENCE = re.compile(
+    r"(?i)[A-Z]:[\\/][^\r\n`\"']*?[\\/]lifecycle[\\/]generations[\\/]malts-[A-Za-z0-9._-]+"
+)
 DEFAULT_BUDGET = {
     "max_root_lines": 1200,
     "max_root_bytes": 262144,
@@ -258,7 +261,7 @@ def _replace_metadata(text: str, language: str, project_id: str, now: str) -> st
     }[language]
     for source, target in replacements.items():
         text = text.replace(source, target, 1)
-    return text.replace("<MALTS_ROOT>", str(MALTS_ROOT))
+    return text
 
 
 def _insert_locked_goal(text: str, goal: str) -> str:
@@ -760,6 +763,29 @@ def _budget_assessment(metrics: dict[str, Any], budget: dict[str, Any]) -> tuple
     return "clean", breaches
 
 
+def _runtime_reference_warnings(root: Path, state: dict[str, Any]) -> list[dict[str, str]]:
+    references = ["PROJECT_CONTROL.md", "WORK_TASK_REPORT.md", "AGENTS.md", "CLAUDE.md"]
+    references.extend(entry["path"] for entry in state["phase_controls"])
+    references.extend(entry["path"] for entry in state["session_controls"])
+    warnings: list[dict[str, str]] = []
+    for relative in dict.fromkeys(references):
+        path = _target(root, relative)
+        if not path.is_file():
+            continue
+        text, _ = _decode_markdown(path.read_bytes())
+        for line_number, line in enumerate(text.splitlines(), start=1):
+            if STATIC_GENERATION_REFERENCE.search(line):
+                warnings.append(
+                    {
+                        "code": "WS_STALE_RUNTIME_REFERENCE",
+                        "path": relative,
+                        "line": str(line_number),
+                        "message": "A physical MALTS generation path is stale-prone; resolve MALTS_BOOT.md dynamically instead.",
+                    }
+                )
+    return warnings
+
+
 def _validate_workspace(root: Path, state: dict[str, Any]) -> tuple[list[dict[str, str]], dict[str, Any], list[dict[str, Any]]]:
     issues: list[dict[str, str]] = []
     for relative in (*FIXED_FILES, "runtime"):
@@ -796,7 +822,22 @@ def command_validate(args: argparse.Namespace) -> dict[str, Any]:
     root = _workspace(args.workspace)
     state = _load_state(root)
     issues, metrics, breaches = _validate_workspace(root, state)
+    runtime_reference_warnings = _runtime_reference_warnings(root, state)
+    runtime_reference_issues = [
+        {
+            "code": item["code"],
+            "path": item["path"],
+            "message": item["message"],
+        }
+        for item in runtime_reference_warnings
+    ]
+    issues = [*issues, *runtime_reference_issues]
     initialization_status = "READY" if state["phase_controls"] else "NEEDS_INITIAL_PHASE"
+    required_actions: list[str] = []
+    if initialization_status != "READY":
+        required_actions.append("Create the initial Phase before treating this as an initialized long-project workspace.")
+    if runtime_reference_warnings:
+        required_actions.append("Refresh generated PROJECT_CONTROL runtime metadata, or manually review every static generation reference outside that generated metadata.")
     return {
         "status": "PASS" if not issues else "FAIL",
         "operation": "validate",
@@ -804,18 +845,62 @@ def command_validate(args: argparse.Namespace) -> dict[str, Any]:
         "workspace": str(root),
         "writes_performed": False,
         "issues": issues,
+        "runtime_reference_warnings": runtime_reference_warnings,
         "capacity_warnings": breaches,
         "metrics": metrics,
         "active_phase_id": state["active_phase_id"],
         "active_session_id": state["active_session_id"],
         "initialization_status": initialization_status,
-        "required_action": (
-            None
-            if initialization_status == "READY"
-            else "Create the initial Phase before treating this as an initialized long-project workspace."
-        ),
+        "required_action": " ".join(required_actions) if required_actions else None,
         "implicit_session_created": False,
     }
+
+
+def command_refresh_runtime_references(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state = _load_state(root)
+    warnings = _runtime_reference_warnings(root, state)
+    unsupported = [item for item in warnings if item["path"] != "PROJECT_CONTROL.md"]
+    if unsupported:
+        raise WorkspaceError(
+            "WS_RUNTIME_REFERENCE_SCOPE",
+            "Only generated PROJECT_CONTROL metadata can be refreshed automatically; review other static generation references manually.",
+            unsupported[0]["path"],
+        )
+    control = _target(root, "PROJECT_CONTROL.md")
+    text, has_bom = _decode_markdown(control.read_bytes())
+    replacement_en = "- Version source: resolve `MALTS_BOOT.md` first, then read the active `MALTS_ROOT` `VERSION`; do not copy a physical generation path or current MALTS version from old control/report/handoff/template files."
+    replacement_zh = "- 版本来源：先解析 `MALTS_BOOT.md`，再读取 active `MALTS_ROOT` 的 `VERSION`；不要从旧 control/report/handoff/template 文件复制物理 generation 路径或当前 MALTS 版本。"
+    lines = text.splitlines(keepends=True)
+    changed = False
+    for index, line in enumerate(lines):
+        body = line.rstrip("\r\n")
+        suffix = line[len(body):]
+        if body.startswith("- Version source:") and STATIC_GENERATION_REFERENCE.search(body):
+            lines[index] = replacement_en + suffix
+            changed = True
+        elif body.startswith("- 版本来源：") and STATIC_GENERATION_REFERENCE.search(body):
+            lines[index] = replacement_zh + suffix
+            changed = True
+    if warnings and not changed:
+        raise WorkspaceError(
+            "WS_RUNTIME_REFERENCE_SCOPE",
+            "Static generation reference exists outside a generated version-source metadata line and requires manual review.",
+            "PROJECT_CONTROL.md",
+        )
+    changes = {control: _encode_markdown("".join(lines), has_bom)} if changed else {}
+    result = _plan(
+        "refresh-runtime-references",
+        root,
+        changes,
+        args.apply,
+        detected_warning_count=len(warnings),
+        unresolved_warning_count=0,
+        dynamic_boot_reference="MALTS_BOOT.md -> active MALTS_ROOT -> VERSION",
+    )
+    if args.apply and changes:
+        _transaction_write(root, changes)
+    return result
 
 
 def command_maintain(args: argparse.Namespace) -> dict[str, Any]:
@@ -1029,6 +1114,10 @@ def build_parser() -> argparse.ArgumentParser:
     validate = subparsers.add_parser("validate")
     validate.add_argument("--workspace", required=True)
     validate.set_defaults(handler=command_validate)
+
+    refresh_runtime_references = subparsers.add_parser("refresh-runtime-references")
+    _add_common_write_arguments(refresh_runtime_references)
+    refresh_runtime_references.set_defaults(handler=command_refresh_runtime_references)
 
     maintain = subparsers.add_parser("maintain")
     _add_common_write_arguments(maintain)

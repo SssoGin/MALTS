@@ -1,18 +1,37 @@
 # Agent-Assisted Installation
 
-Use these rules when an Agent helps a user install MALTS.
+This policy applies when an AI Agent helps a user verify, install, update, repair, recover, or uninstall MALTS.
 
-1. Read [Install](INSTALL.md), [Lifecycle](LIFECYCLE.md), and [Security](SECURITY.md).
-2. Confirm the user selected one or more tool roots and a separate lifecycle
-   root.
-3. Verify the downloaded package before extraction.
-4. Generate a dry-run lifecycle plan and show its targets, destructive actions,
-   and `plan_hash` to the user.
-5. Wait for explicit authorization before executing that plan.
-6. After execution, inspect the lifecycle state and the selected projections.
+## Source Selection
 
-An Agent must not add an unselected tool, infer a tool root, reuse a stale plan
-hash, or write live project files into the immutable user payload.
+The public repository is the primary source. An Agent must not automatically download the optional Release ZIP merely because it is available.
 
-For ordinary project work after installation, follow the installed MALTS boot
-pointer and the nearest project instructions.
+Before repository installation or update, the Agent must:
+
+1. Read `MALTS_RELEASE.json` and `VERSION` from the selected repository root.
+2. Verify that their version, release ID, source-tree hash, file count, and repository-only boundary are internally consistent.
+3. If Git metadata is available, report whether the checked-out tag matches `release_tag`.
+4. Stop if the repository contains unexpected files, cache, `.malts` residue, a reparse point, or an identity mismatch.
+
+The optional single ZIP is permitted only when the user explicitly chooses an offline/fixed archive path or the verified repository source is unavailable. Verify it with the exact-source `Verify-MALTSBootstrap.ps1` before extraction.
+
+## Required Sequence
+
+1. Read [Install](INSTALL.md), [Lifecycle](LIFECYCLE.md), [Security](SECURITY.md), and the relevant source-specific guidance.
+2. Confirm the selected source: verified repository or explicitly requested verified ZIP.
+3. Ask which tools and roots are in scope; do not infer an unspoken target.
+4. Create a new plan without executing it.
+5. Show the plan path, exact hash, selected roots, destructive actions, user modifications, cleanup, rollback, and stop conditions.
+6. Wait for explicit user authorization of that exact plan.
+7. Execute using the reviewed plan path and exact hash.
+8. Inspect the registry, active generation, selected projections, boot pointers, and residue after execution. If an existing local `GLOBAL_BOOT.md` is configured beside the lifecycle root, the reviewed plan must bind, refresh, and verify only its active-generation pointer (or write an explicit uninstalled state); this local discovery file is never public payload.
+
+## Authorization Boundary
+
+Reading a repository, validating identity, inspecting a ZIP, or creating a review plan is not authorization to install. Installation, update, repair, recovery, uninstall, deletion, configuration change, Git mutation, and remote publication each require the user to authorize the concrete action in scope.
+
+Do not substitute a newer repository or Release package after the plan is shown. Source drift invalidates the plan and requires a new review.
+
+## Privacy and Purity
+
+Do not place local paths, credentials, tokens, user configuration, transaction journals, plans, handoffs, test data, or caches in the public repository or the installed payload. Keep these as local user state only.

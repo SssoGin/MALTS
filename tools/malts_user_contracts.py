@@ -815,8 +815,10 @@ def _semantic_release(value: dict[str, Any]) -> list[ContractIssue]:
     transport = value.get("transport_contract", {})
     if transport.get("top_level_directory") != value.get("release_id"):
         issues.append(_issue("REL_TRANSPORT_ROOT", "$.transport_contract.top_level_directory", "Transport top-level directory must equal release_id."))
-    if set(transport.get("hosted_asset_kinds", [])) != {"archive", "checksum", "transport-manifest", "release-notes"}:
-        issues.append(_issue("REL_TRANSPORT_ASSETS", "$.transport_contract.hosted_asset_kinds", "Hosted asset policy must contain archive, checksum, transport-manifest, and release-notes exactly once."))
+    if transport.get("verification_mode") != "extract-and-verify-release-package":
+        issues.append(_issue("REL_TRANSPORT_VERIFY", "$.transport_contract.verification_mode", "Transport verification must extract the archive and verify the embedded release package."))
+    if transport.get("hosted_asset_kinds") != ["archive"]:
+        issues.append(_issue("REL_TRANSPORT_ASSETS", "$.transport_contract.hosted_asset_kinds", "Hosted asset policy must contain exactly one archive."))
 
     gates = value.get("gates", [])
     gate_ids = [item.get("gate_id", "") for item in gates]
