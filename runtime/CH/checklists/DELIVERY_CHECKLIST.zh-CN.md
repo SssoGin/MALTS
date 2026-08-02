@@ -54,6 +54,8 @@
 - [ ] 缺少必要批准的候选文档改动以 `Draft` 或 `Unverified` 交付，而不是作为完成工作。
 - [ ] 对非琐碎启动，报告或 `PROJECT_CONTROL` 已说明 MALTS 原生 Grill-Me 启动盘问是已提醒、已接受、已拒绝还是 N/A。
 - [ ] 如果使用多 Agent 调度，用户已在分派前审阅启动包并明确回复 `确认运行`。
+- [ ] 如果使用 Codex peer task，交付记录包含 task/thread ID、parent task、same-directory 工作区、生效模型 / effort 证据、lifecycle、Main 决策与归档结果。
+- [ ] Peer-task 窗口在返工时被复用，并在接受或终止闭合后归档；没有遗留无人管理的 MALTS task。
 - [ ] 本次工作按有边界、可恢复轮次设计，而不是承诺固定一次性运行时长。
 - [ ] 长任务开始时，已询问用户是否启用无人值守自动继续。
 - [ ] 如果用户没有明确授权无人值守自动继续，未启动或安排任何无人自动运行。

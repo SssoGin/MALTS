@@ -54,6 +54,8 @@
 - [ ] Candidate documentation changes without required approval were delivered as `Draft` or `Unverified`, not completed work.
 - [ ] For non-trivial starts, the report or `PROJECT_CONTROL` states whether MALTS-native Grill-Me Preflight was offered, accepted, declined, or N/A.
 - [ ] If multi-agent scheduling was used, the user reviewed the launch packet and explicitly replied `确认运行` before dispatch.
+- [ ] If a Codex peer task was used, the delivery record identifies its task/thread ID, parent task, same-directory workspace, effective model/effort evidence, lifecycle, Main decision, and archive result.
+- [ ] Peer-task windows were reused for rework and archived after acceptance or terminal closure; none were left as unmanaged MALTS work.
 - [ ] The work was designed as bounded recoverable rounds, not as a promised fixed one-shot runtime.
 - [ ] At long-task start, the user was asked whether to enable unattended auto-continue.
 - [ ] If the user did not explicitly authorize unattended auto-continue, no unattended automatic running was started or scheduled.

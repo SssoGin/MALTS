@@ -10,16 +10,14 @@ For an explicitly requested offline archive, use `Verify-MALTSBootstrap.ps1` bef
 
 ## Installed Provenance Privacy
 
-The three installed-generation envelope files are verified as part of the user
-surface. Current envelopes contain only release hashes, generation identity,
+The installed provenance records contain only release hashes, version identity,
 and the source kind (`repository` or `release-package`); they contain no local
-source locator. A legacy envelope with an absolute source locator is accepted
-only as update input and fails the user-purity check until a verified update
-replaces it.
+source locator. A legacy record with an absolute source locator is accepted
+only as update input and blocks use until a verified update replaces it.
 
 ## Keep Local Data Local
 
-Do not place credentials, tokens, session data, user-profile paths, private project files, cache directories, generated runtime state, plans, transaction journals, or handoffs inside a public MALTS repository or user payload.
+Do not place credentials, tokens, session data, user-profile paths, private project files, cache directories, generated runtime state, plans, transaction journals, or handoffs inside a MALTS repository or installed version.
 
 Use environment variables or the selected tool's normal secure configuration mechanism for credentials. Do not put secret values in `PROJECT_CONTROL.md`, `WORK_TASK_REPORT.md`, handoff files, prompts, or command history.
 
@@ -31,4 +29,4 @@ Do not approve a plan after its source, version, roots, or expected actions have
 
 ## Report Security Issues
 
-Do not publish secrets in a public issue, discussion, release note, or task log. Use the repository's private security contact or another private channel agreed with the maintainer.
+Do not publish secrets in a public issue, discussion, release note, or task log. Use the repository's private security contact or another private channel agreed with the project team.

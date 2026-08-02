@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:malts:schema:lifecycle-doctor-report:1",
+  "title": "MALTS Lifecycle Doctor Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "status", "mode", "writes_performed", "lifecycle_root", "selected_tools",
+    "active_generation_id", "core_trust", "trusted_repair_source", "mismatches", "evidence",
+    "suggested_commands", "checked_at"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "status": {"enum": ["HEALTHY", "DEGRADED", "UNTRUSTED", "NOT_INSTALLED"]},
+    "mode": {"const": "READ_ONLY"},
+    "writes_performed": {"const": false},
+    "lifecycle_root": {"$ref": "#/$defs/absolutePath"},
+    "selected_tools": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"enum": ["codex", "claude-code", "opencode"]}
+    },
+    "active_generation_id": {"type": ["string", "null"], "minLength": 1},
+    "core_trust": {"enum": ["LOCALLY_CONSISTENT", "EXTERNAL_SOURCE_REQUIRED", "UNAVAILABLE"]},
+    "trusted_repair_source": {"enum": ["ACTIVE_GENERATION", "VERIFIED_EXTERNAL_REQUIRED", "NONE"]},
+    "mismatches": {"type": "array", "items": {"$ref": "#/$defs/mismatch"}},
+    "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}},
+    "suggested_commands": {
+      "type": "array", "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "checked_at": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {
+    "absolutePath": {"type": "string", "pattern": "^(?:[A-Za-z]:[\\\\/]|\\\\\\\\)[^<>|?*]+$"},
+    "mismatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code", "severity", "surface", "expected_locator", "observed_locator", "expected", "observed",
+        "trust_impact", "suggested_command"
+      ],
+      "properties": {
+        "code": {"type": "string", "pattern": "^DOC_[A-Z0-9_]+$"},
+        "severity": {"enum": ["INFO", "WARNING", "ERROR", "CRITICAL"]},
+        "surface": {"type": "string", "minLength": 1},
+        "expected_locator": {"anyOf": [{"$ref": "#/$defs/absolutePath"}, {"type": "null"}]},
+        "observed_locator": {"anyOf": [{"$ref": "#/$defs/absolutePath"}, {"type": "null"}]},
+        "expected": {"type": ["string", "null"]},
+        "observed": {"type": ["string", "null"]},
+        "trust_impact": {"enum": ["DERIVED_ONLY", "CORE_INVALID", "INFORMATIONAL"]},
+        "suggested_command": {"type": "string", "minLength": 1}
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["surface", "path", "sha256", "status"],
+      "properties": {
+        "surface": {"type": "string", "minLength": 1},
+        "path": {"$ref": "#/$defs/absolutePath"},
+        "sha256": {
+          "anyOf": [
+            {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+            {"enum": ["MISSING", "UNTRUSTED", "UNSUPPORTED"]}
+          ]
+        },
+        "status": {"enum": ["PASS", "MISSING", "DRIFT", "INVALID", "UNTRUSTED"]}
+      }
+    }
+  }
+}

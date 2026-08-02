@@ -31,7 +31,7 @@ Registry 可以引用：
 - `adapters/skill-bridges/` 继续作为 MALTS 自有原生发现 bridge 的 source。
 - 事务 lifecycle 只管理经过验证的 MALTS 内容与 MALTS-owned 薄 projection。
 - 第三方 Skill 的发现和 lifecycle 继续由用户的 Agent 工具及其现有安装机制负责。
-- 用户 payload 包含验证所需的 Registry Schema；生成后的 Registry 与本地验证 example 属于用户或项目本地状态，不属于安装 package 内容。
+- 已安装版本包含验证所需的 Registry Schema；生成后的 Registry 与本地验证 example 属于用户或项目本地状态，不属于已安装版本内容。
 
 只有完整 installation metadata 与已验证 lifecycle evidence 绑定时，文档才可描述 MALTS-owned projection 已激活；不得暗示生成式 external Catalog state 或 Resolver 会执行 Skill，也不得暗示 MALTS 管理第三方 Skill lifecycle。
 
@@ -83,7 +83,7 @@ Capability Catalog 必须从这些输入与 source hash 生成，不能手工维
 
 物理可移植不等于允许向所有工具显示。每项 capability 都必须有每工具 exposure 决策。
 
-修改共享 Skill source 或 projection 前，维护者必须记录每个受影响工具的预期可见集合，并与修改后的实际 catalog 对比。出现以下情况时必须阻断：
+修改共享 Skill source 或 projection 前，记录每个受影响工具的预期可见集合，并与修改后的实际 catalog 对比。出现以下情况时必须阻断：
 
 - 未经审阅的 catalog 新增或移除
 - 存在优先级不明确的重复语义 capability

@@ -8,6 +8,9 @@
 - Agent role:
 - Runtime agent ID:
 - Dispatch mechanism:
+- Delegation mode: sub-agent / nested / peer-task / N/A
+- Parent task/thread reference and verified workspace, if peer-task:
+- Peer-task lifecycle transition and archive state, if applicable:
 - Batch ID and launch review reference:
 - Model and runtime effort policy from contract:
 - Requested / recommended / configured selection:

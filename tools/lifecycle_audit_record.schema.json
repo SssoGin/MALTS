@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:malts:schema:lifecycle-audit-record:1",
+  "title": "MALTS Lifecycle Audit Record v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "record_type",
+    "record_id",
+    "owner",
+    "created_at",
+    "month",
+    "operation_id",
+    "operation",
+    "outcome",
+    "details",
+    "record_sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "record_type": {"enum": ["current-binding", "operation-receipt", "failure-bundle", "monthly-summary"]},
+    "record_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$"},
+    "owner": {"const": "MALTS"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "month": {"type": "string", "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$"},
+    "operation_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "operation": {"type": ["string", "null"], "enum": ["install", "update", "repair", "uninstall", null]},
+    "outcome": {"enum": ["ACTIVE", "SUCCESS", "RECOVERED", "UNINSTALLED", "SUMMARY"]},
+    "details": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "plan_hash",
+        "generation_id",
+        "binding_sha256",
+        "plan_sha256",
+        "journal_sha256",
+        "success_count",
+        "failure_count",
+        "uninstall_count",
+        "last_operation_id"
+      ],
+      "properties": {
+        "plan_hash": {"type": ["string", "null"], "pattern": "^[A-Fa-f0-9]{64}$"},
+        "generation_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+        "binding_sha256": {"type": ["string", "null"], "pattern": "^[A-Fa-f0-9]{64}$"},
+        "plan_sha256": {"type": ["string", "null"], "pattern": "^[A-Fa-f0-9]{64}$"},
+        "journal_sha256": {"type": ["string", "null"], "pattern": "^[A-Fa-f0-9]{64}$"},
+        "success_count": {"type": ["integer", "null"], "minimum": 0},
+        "failure_count": {"type": ["integer", "null"], "minimum": 0},
+        "uninstall_count": {"type": ["integer", "null"], "minimum": 0},
+        "last_operation_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"}
+      }
+    },
+    "record_sha256": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"}
+  }
+}

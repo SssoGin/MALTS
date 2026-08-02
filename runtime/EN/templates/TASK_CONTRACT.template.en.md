@@ -14,6 +14,11 @@
 
 - Runtime / adapter: Codex / Claude Code / OpenCode / Other
 - Dispatch mechanism: e.g. Codex `spawn_agent`
+- Delegation mode: main / single-agent / sub-agent / nested / peer-task
+- Parent task/thread reference, if peer-task:
+- Current-project same-directory route and verified workspace, if peer-task:
+- Peer-task lifecycle state: PLANNED / CREATED / RUNNING / RETURNED / ACCEPTED / REWORK / BLOCKED / ARCHIVED / N/A
+- Rework reuse and archival rule, if peer-task:
 - Model policy: Inherit current main-controller session / Explicit model / Runtime default
 - Runtime effort policy: Inherit / Explicit runtime effort ID / Runtime default
 - Normalized reasoning tier: none / light / standard / deep / maximum / unknown

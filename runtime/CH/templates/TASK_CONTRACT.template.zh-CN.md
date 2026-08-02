@@ -14,6 +14,11 @@
 
 - 运行时 / 适配器：Codex / Claude Code / OpenCode / Other
 - 分派机制：例如 Codex `spawn_agent`
+- Delegation mode：main / single-agent / sub-agent / nested / peer-task
+- Parent task/thread 引用（peer-task 时）：
+- 当前项目 same-directory 路由与已验证工作区（peer-task 时）：
+- Peer-task lifecycle 状态：PLANNED / CREATED / RUNNING / RETURNED / ACCEPTED / REWORK / BLOCKED / ARCHIVED / N/A
+- Rework 复用与归档规则（peer-task 时）：
 - 模型策略：继承当前 Main Controller 会话 / 显式指定模型 / 运行时默认
 - 运行时 effort 策略：继承 / 显式 runtime effort ID / 运行时默认
 - 归一化推理等级：none / light / standard / deep / maximum / unknown

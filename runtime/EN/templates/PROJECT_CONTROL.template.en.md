@@ -81,6 +81,17 @@ This project is complete only when:
 - Stage goal:
 - Exit condition:
 
+<!-- MALTS:section=plan-recheck-index -->
+## Plan Recheck Index
+
+- Active plan: `N/A`
+- Active Phase owner: `N/A`
+- Plan revision: `N/A`
+- Plan content SHA-256: `N/A`
+- Latest recheck trigger: `N/A`
+- Latest recheck result: `N/A`
+- Launch review invalidated: `No`
+
 <!-- MALTS:section=task-queue -->
 ## Task Queue
 
@@ -167,7 +178,7 @@ Record every real sub-agent dispatch. If no sub-agent was dispatched, write `N/A
 
 | Time | Round | Batch ID | Task ID | Responsibility | Dispatch Mechanism | Runtime Agent ID | Effective Model / Effort | Binding Status | Contract / Route Evidence | Status |
 |---|---|---|---|---|---|---|---|---|---|---|
-|  |  |  |  | Planner / Explorer / Worker / Verifier / Memory Curator / Other | e.g. Codex `spawn_agent` |  | Known value / Unknown | effective_verified / fallback_verified / other |  | Requested / Running / Returned / Failed / Cancelled |
+|  |  |  |  | Planner / Explorer / Worker / Verifier / Memory Curator / Other | native spawn / `codex-peer-task` / other |  | Known value / Unknown | effective_verified / fallback_verified / other |  | PLANNED / CREATED / RUNNING / RETURNED / ACCEPTED / REWORK / BLOCKED / ARCHIVED |
 
 ## Agent Feedback Log
 

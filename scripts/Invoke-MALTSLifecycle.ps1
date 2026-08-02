@@ -1,19 +1,23 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('Plan', 'Execute', 'Recover', 'Scan', 'Inspect')]
+    [ValidateSet('Plan', 'PreviewPlan', 'Execute', 'Recover', 'Scan', 'Inspect', 'Doctor', 'DoctorRepairPlan')]
     [string] $Command,
 
     [string] $LifecycleRoot,
     [string] $ToolRootCodex,
     [string] $ToolRootClaudeCode,
     [string] $ToolRootOpenCode,
+    [ValidateSet('codex', 'claude-code', 'opencode')]
+    [string[]] $Tool = @(),
 
     [ValidateSet('install', 'update', 'repair', 'uninstall')]
     [string] $Operation,
 
     [string] $ReleaseRoot,
     [string] $RepositoryRoot,
+    [string] $PreviewRoot,
+    [string[]] $ProtectedRoot = @(),
     [string[]] $LegacyRoot = @(),
     [string] $DefaultLegacyRoot = (Join-Path $env:USERPROFILE '.malts'),
     [string] $OperationId,
@@ -23,7 +27,7 @@ param(
     [string] $ExpectedPlanHash,
     [string] $OutPath,
 
-    [ValidateSet('DISCOVER', 'LOCK', 'PLAN', 'STAGE', 'SNAPSHOT', 'PREVALIDATE', 'ACTIVATE', 'POSTVALIDATE', 'CLEAN', 'COMMIT', 'ROLLBACK')]
+    [ValidateSet('DISCOVER', 'LOCK', 'PLAN', 'STAGE', 'SNAPSHOT', 'PREVALIDATE', 'ACTIVATE', 'POSTVALIDATE', 'CLEAN', 'COMMIT', 'ROLLBACK', 'AUDIT_WRITE', 'AUDIT_PRUNE')]
     [string] $FaultAt,
 
     [switch] $Apply
@@ -78,7 +82,12 @@ function Add-ToolRoots {
 
 $arguments = [System.Collections.Generic.List[string]]::new()
 $arguments.Add($engine)
-$arguments.Add($Command.ToLowerInvariant())
+$cliCommand = switch ($Command) {
+    'PreviewPlan' { 'preview-plan' }
+    'DoctorRepairPlan' { 'doctor-repair-plan' }
+    default { $Command.ToLowerInvariant() }
+}
+$arguments.Add($cliCommand)
 
 switch ($Command) {
     'Plan' {
@@ -96,6 +105,20 @@ switch ($Command) {
         Add-OptionalValue $arguments '--modification-overrides' $ModificationOverrides
         Add-OptionalValue $arguments '--out' $OutPath
     }
+    'PreviewPlan' {
+        Add-RequiredValue $arguments '--preview-root' $PreviewRoot
+        Add-OptionalValue $arguments '--release-root' $ReleaseRoot
+        Add-OptionalValue $arguments '--repository-root' $RepositoryRoot
+        foreach ($protected in $ProtectedRoot) {
+            Add-OptionalValue $arguments '--protected-root' $protected
+        }
+        foreach ($selectedTool in $Tool) {
+            Add-OptionalValue $arguments '--tool' $selectedTool
+        }
+        Add-OptionalValue $arguments '--operation-id' $OperationId
+        Add-OptionalValue $arguments '--timestamp' $Timestamp
+        Add-OptionalValue $arguments '--out' $OutPath
+    }
     'Execute' {
         Add-RequiredValue $arguments '--plan' $PlanPath
         Add-RequiredValue $arguments '--expected-plan-hash' $ExpectedPlanHash
@@ -106,9 +129,21 @@ switch ($Command) {
         Add-OptionalValue $arguments '--operation-id' $OperationId
         Add-OptionalValue $arguments '--fault-at' $FaultAt
     }
-    { $_ -in @('Scan', 'Inspect') } {
+    { $_ -in @('Scan', 'Inspect', 'Doctor') } {
         Add-RequiredValue $arguments '--lifecycle-root' $LifecycleRoot
         Add-ToolRoots $arguments
+        if ($Command -eq 'Doctor') {
+            Add-OptionalValue $arguments '--timestamp' $Timestamp
+        }
+    }
+    'DoctorRepairPlan' {
+        Add-RequiredValue $arguments '--lifecycle-root' $LifecycleRoot
+        Add-ToolRoots $arguments
+        Add-OptionalValue $arguments '--release-root' $ReleaseRoot
+        Add-OptionalValue $arguments '--repository-root' $RepositoryRoot
+        Add-OptionalValue $arguments '--operation-id' $OperationId
+        Add-OptionalValue $arguments '--timestamp' $Timestamp
+        Add-OptionalValue $arguments '--out' $OutPath
     }
 }
 

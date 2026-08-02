@@ -42,6 +42,13 @@
 - Last status event ID / direct evidence:
 - Recovery summary / next action:
 
+## Plan Recheck Recovery
+
+- Active plan / revision / SHA-256:
+- Last trigger / recorded result / observed gate result:
+- Launch review invalidated: Yes / No / N/A
+- Owning Phase / inherited Session:
+
 ## Verification
 
 | Check | Result | Evidence |

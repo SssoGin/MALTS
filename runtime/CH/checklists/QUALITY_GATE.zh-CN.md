@@ -58,6 +58,9 @@
 - [ ] 每个 fallback 都记录 hard/soft 约束处理、原因、binding 状态和 usage evidence。
 - [ ] `N > 1` 同时受已批准 Agent 数、契约并发上限、生效运行时容量和无冲突 locator lease 限制。
 - [ ] `agent_route_planner.py` 与 `result_controller.py` 仅作为建议 / 校验组件，没有冒充真实分派证据。
+- [ ] 如果使用 Codex peer task，已记录为 `codex-peer-task` / `delegation_mode=peer-task`，优先使用当前任务工作区，且没有描述成原生 `spawn_agent`。
+- [ ] Peer-task lifecycle 证据覆盖 PLANNED、RETURNED、Main 接受 / 返工 / 阻塞直至 ARCHIVED；除非明确允许替换，返工复用原任务。
+- [ ] 已验证 peer-task 的 hard model / effort / no-fallback 约束及生效工作区 / 模型证据；没有把任务创建或配置本身当成生效证明。
 - [ ] 真实 Agent/provider 验证明确标为 `G4 PASS`、`G4 FAIL` 或 `G4 NOT RUN`；component 测试没有冒充 G4。
 - [ ] Agent 分派日志、任务契约、返回报告和 Agent 反馈日志在任务 ID、角色、运行时 Agent ID（如有）、模型策略和 Main Controller 决策上互相一致。
 

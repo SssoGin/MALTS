@@ -40,6 +40,20 @@ reports `WS_INITIAL_PHASE_MISSING`. Supply its initial Phase through the
 initializer or explicitly open its first Phase; existing user files are
 preserved.
 
+## When MALTS Requests An Isolated Preview
+
+For a candidate that can change runtime, boot, registry, or tool discovery,
+the Agent should show the preview scope, explicit absolute root, verification,
+and cleanup boundary and wait for confirmation. You do not need to guess when
+the sandbox is required: release preparation reports `PREVIEW_REQUIRED` and
+the Agent must surface that state before running it.
+
+The preview uses fresh processes with process-local isolated configuration for
+Codex, Claude Code, and OpenCode. If any tool cannot be isolated, it is
+reported `BLOCKED`; the Agent must not fall back to the real tool root. You may
+explicitly waive the preview, but the result records real-tool integration as
+`NOT RUN` and is not fully release-qualified.
+
 ## Verify project control
 
 The user helper validates the stable project-control structure and, when a
@@ -51,9 +65,23 @@ python -B <MALTS_ROOT>\tools\malts_user_tools.py check-project-control `
   --malts-root <MALTS_ROOT>
 ```
 
+## Diagnose Without Changing State
+
+Use `scripts\Invoke-MALTSLifecycle.ps1 -Command Doctor` with the lifecycle root
+and each selected tool root to inspect an installation. Doctor reports exact
+drift and trust evidence with `writes_performed=false`. It does not repair,
+update, clean, or start a background check. A suggested repair must enter a
+separate review-only plan and exact plan-hash authorization flow.
+
 ## Safety defaults
 
 Plan before writing. Keep tool-root changes inside the user's approved scope.
 Verify before reporting completion, and do not enable unattended continuation
 unless the user explicitly authorizes its objective, limits, stop conditions,
 and recovery behavior.
+
+## Plan Recheck And Codex Peer Tasks
+
+For an active S3/S4 long-project Phase, bind the active plan path, revision, and raw-byte SHA-256 in `PHASE_CONTROL.md`. Run read-only `long_workspace.py plan-recheck` at the applicable event before new write scope, launch review, verifier, recovery/rollback, or final delivery. The root control is only an index, and a Session only inherits the binding. `BLOCKED` stops the action; the command never edits controls or creates authorization.
+
+Codex can use a governed peer task when native sub-agent dispatch cannot satisfy an approved hard model/effort contract and the official task/thread interface can. The task uses the current project workspace, is recorded as `codex-peer-task` / `peer-task`, has no silent fallback, reuses the same task for rework, and is archived only after Main Controller acceptance or terminal closure. This is part of the existing multi-agent Skill, not a separate Skill or hidden child Agent.

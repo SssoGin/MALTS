@@ -8,6 +8,9 @@
 - Agent 角色：
 - 运行时 Agent ID：
 - 分派机制：
+- Delegation mode：sub-agent / nested / peer-task / N/A
+- Parent task/thread 引用与已验证工作区（peer-task 时）：
+- Peer-task lifecycle 转换与归档状态（如适用）：
 - 批次 ID 与启动审阅引用：
 - 契约中的模型与 runtime effort 策略：
 - requested / recommended / configured 选择：

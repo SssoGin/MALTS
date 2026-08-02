@@ -1,6 +1,6 @@
 # Install MALTS
 
-MALTS installs from a verified public repository by default. Installation is review-first: the first command writes a plan, and no files are changed until the user supplies the exact reviewed plan hash with `-Apply`.
+MALTS installation is review-first. The first command writes a plan, and no files are changed until you review the plan and supply its exact hash with `-Apply`.
 
 ## Prerequisites
 
@@ -10,11 +10,11 @@ MALTS installs from a verified public repository by default. Installation is rev
 - At least one of Codex, Claude Code, or OpenCode
 - A lifecycle root outside every selected tool root
 
-The lifecycle root stores immutable MALTS generations, the active-generation registry, plans, and transaction state. Each selected tool root receives only its projection and boot pointer.
+The lifecycle root stores installed MALTS versions, registry state, plans, and transaction state. Each selected tool root receives only its adapter files and boot pointer.
 
 ## Repository Installation (Primary)
 
-1. Open the public repository root.
+1. Open the repository root.
 2. Read `MALTS_RELEASE.json` and confirm its `version` equals `VERSION`.
 3. When Git metadata is present, confirm its `release_tag` matches the checked-out tag.
 4. Create a plan.
@@ -30,7 +30,7 @@ For explicit paths:
 
 ```powershell
 .\scripts\Install-MALTS.ps1 `
-  -RepositoryRoot <PUBLIC_REPOSITORY_ROOT> `
+  -RepositoryRoot <REPOSITORY_ROOT> `
   -LifecycleRoot <LIFECYCLE_ROOT> `
   -Tool Codex `
   -ToolRootCodex <CODEX_ROOT> `
@@ -39,11 +39,13 @@ For explicit paths:
 
 Supported `-Tool` values are `Codex`, `ClaudeCode`, `OpenCode`, and `AllIncluded`.
 
-The repository is validated as an exact user source before the plan is written. Any unexpected file, cache, `.malts` residue, missing identity file, version mismatch, or source-tree hash mismatch stops before installation.
+The repository is validated as an exact source before the plan is written. Any unexpected file, cache, `.malts` residue, missing identity file, version mismatch, or source-tree hash mismatch stops before installation.
 
-## Review and Execute
+Installed version IDs are semantic: v1.1.0 installs as `malts-v1.1.0`. Reinstalling the same version with identical content reports `NO_OP`; the same version with different content, or an unbound same-name directory, fails before any transaction state is created.
 
-The plan contains selected roots, intended generation identity, planned changes, user-modification classifications, migration or cleanup actions, rollback, and post-validation checks. Review it before execution.
+## Review And Execute
+
+The plan contains selected roots, intended version identity, planned changes, user-modification classifications, migration or cleanup actions, rollback, and post-validation checks. Review it before execution.
 
 ```powershell
 .\scripts\Install-MALTS.ps1 `
@@ -56,13 +58,13 @@ Changing the source, roots, or plan invalidates the hash. A missing or mismatche
 
 ## Optional Offline Archive
 
-The Release page may offer one optional archive named `MALTS-<version>.zip`. It is not required for repository installation and is never downloaded automatically by the installer.
+The Release page may offer one optional archive named `MALTS-<version>.zip`. It is not required for normal installation and is never downloaded automatically by the installer.
 
-To use it, obtain `scripts/Verify-MALTSBootstrap.ps1` from the same reviewed public source/tag, then verify and extract the ZIP:
+To use it, obtain `scripts/Verify-MALTSBootstrap.ps1` from the same reviewed source or tag, then verify and extract the ZIP:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Verify-MALTSBootstrap.ps1 `
-  -ArchivePath .\MALTS-1.0.0.zip `
+  -ArchivePath .\MALTS-1.1.0.zip `
   -ExtractOutput <EXTRACTED_RELEASE_ROOT> `
   -Apply
 ```
@@ -78,8 +80,27 @@ Then create the normal review plan from the extracted package:
 
 The bootstrap verifier checks deterministic ZIP structure, safe paths, and the extracted immutable package before it writes the final extraction.
 
+## Verify The Installed Runtime
+
+Run the read-only doctor with the lifecycle root and every selected tool root:
+
+```powershell
+.\scripts\Invoke-MALTSLifecycle.ps1 `
+  -Command Doctor `
+  -LifecycleRoot <LIFECYCLE_ROOT> `
+  -ToolRootCodex <CODEX_ROOT> `
+  -ToolRootClaudeCode <CLAUDE_CODE_ROOT> `
+  -ToolRootOpenCode <OPENCODE_ROOT>
+```
+
+`doctor` reports exact expected and observed locators, severity, core trust, and suggested commands. It is always read-only and does not repair anything. If repair is needed, create a separate `DoctorRepairPlan` review using the exact trusted source, then execute only the reviewed plan hash.
+
+Lifecycle operations also keep bounded audit records (one current binding plus recent success, failure/recovery, and monthly summaries). See [Lifecycle](LIFECYCLE.md).
+
 ## First Use
 
-After installation, each selected tool reads its `MALTS_BOOT.md` pointer to resolve the active immutable generation. Do not copy runtime files into a project manually. Use an installed `malts-*` Skill entry point instead.
+After installation, each selected tool reads its `MALTS_BOOT.md` pointer to resolve the active installed version. Do not copy runtime files into a project manually. Use an installed `malts-*` Skill entry point instead.
+
+Verify the binding with the read-only discovery command. It parses the tool boot and cross-checks the lifecycle registry, active pointer, `VERSION`, and optional machine-global recovery boot; any inconsistency blocks use.
 
 See [Getting Started](GETTING_STARTED.md), [Lifecycle](LIFECYCLE.md), and [Security](SECURITY.md).

@@ -10,11 +10,11 @@ Git 元数据可用时，将当前检出 tag 与身份文件的 `release_tag` �
 
 ## 安装来源信息隐私
 
-三个安装代 envelope 文件也是用户表面的一部分，会被验证。当前 envelope 只包含 release 哈希、generation 身份和来源类型（`repository` 或 `release-package`），不包含任何本地来源 locator。带绝对来源 locator 的 legacy envelope 只能作为更新输入；在已验证更新替换它前，用户纯净度检查会关闭式失败。
+已安装版本来源记录只包含 release 哈希、版本身份和来源类型（`repository` 或 `release-package`），不包含任何本地来源 locator。带绝对来源 locator 的 legacy 记录只能作为更新输入；在已验证更新替换它前，使用会被阻断。
 
 ## 保持本地数据只在本地
 
-不要把凭据、令牌、会话数据、用户配置文件路径、私有项目文件、缓存目录、生成 runtime 状态、计划、transaction journal 或交接放入公开 MALTS 仓库或用户 payload。
+不要把凭据、令牌、会话数据、用户配置文件路径、私有项目文件、缓存目录、生成 runtime 状态、计划、transaction journal 或交接放入 MALTS 仓库或已安装版本。
 
 凭据使用环境变量或所选工具的正常安全配置机制。不要把秘密值写入 `PROJECT_CONTROL.md`、`WORK_TASK_REPORT.md`、交接文件、提示词或命令历史。
 
@@ -26,4 +26,4 @@ Git 元数据可用时，将当前检出 tag 与身份文件的 `release_tag` �
 
 ## 报告安全问题
 
-不要在公开 issue、讨论、Release note 或任务日志中发布秘密信息。请使用仓库提供的私密安全联系方式，或与维护者约定的其他私密渠道。
+不要在公开 issue、讨论、Release note 或任务日志中发布秘密信息。请使用仓库提供的私密安全联系方式，或与项目团队约定的其他私密渠道。

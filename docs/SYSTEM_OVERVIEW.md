@@ -165,6 +165,10 @@ The public release repository contains:
 
 The release repository should not contain handoff outputs, project-specific control files, user-specific archives, raw sessions, caches, credentials, or generated migration packages.
 
-## 11. Relationship To Detailed Design
+## 11. v1.1 Coherence Gates
+
+MALTS v1.1 adds three related safeguards: event-triggered Plan Recheck binds active plan bytes to the owning Phase; governed Codex peer tasks preserve approved model/effort, current-workspace, lifecycle, and archival evidence; and tool-local discovery cross-checks registry, active pointer, `VERSION`, and optional machine-global recovery boot. All three are read/review first and fail closed on drift.
+
+## 12. Relationship To Detailed Design
 
 This overview explains what MALTS does and how a user should evaluate it. `docs/CORE_DESIGN.md` provides the detailed design baseline, operating commitments, task sizing model, project state model, multi-agent protocol, memory pipeline, and release boundaries.

@@ -6,6 +6,61 @@ All notable public changes to MALTS are documented here.
 
 No unreleased user changes.
 
+## 1.1.0
+
+MALTS 1.1.0 adds safer runtime lifecycle handling, Plan Recheck, governed peer-task routing, stronger startup discovery, and clearer install and update behavior.
+
+### Semantic generations and migration
+
+- Uses stable IDs such as `malts-v1.1.0` and preview IDs such as `malts-v1.1.0-preview.1` from one shared lifecycle identity function.
+- Treats an identical installed stable generation as an explicit no-op, rejects same-version content conflicts and unbound same-name directories before writes, and migrates recognized legacy generation IDs transactionally.
+- Requires zero authoritative references to the old generation before cleanup and preserves rollback/recovery across process loss.
+
+### Isolated preview verification
+
+- Adds explicit absolute preview-root planning with overlap, reparse-point, and unsafe-root rejection.
+- Keeps preview lifecycle, registry, boot, and Codex/Claude Code/OpenCode config, home, cache, and temp roots inside the preview boundary.
+- Records preview verification honestly: a preview not verified with real tool integration is marked as such and cannot be treated as fully qualified.
+
+### Doctor, repair trust, and diagnostics
+
+- Adds a closed read-only doctor report with exact mismatch locators, severity, trust classification, and suggested commands.
+- Separates diagnosis from repair: derived drift may be scoped from a locally consistent active generation, while an executable repair remains a separately reviewed, hash-bound transaction using an exact trusted source.
+- Preserves nested residue and diagnostic failures instead of overwriting them with an unconditional top-level success.
+
+### Bounded audit records
+
+- Keeps one current binding receipt, the newest 20 successful-operation receipts, the newest 10 complete failure/recovery plan-and-journal bundles, and the newest 12 monthly summaries.
+- Never prunes incomplete recoverable transactions; unknown names, hash drift, forbidden payload copies, or cleanup failures are preserved and block a stable/zero-residue result.
+- Adds idempotent audit write/prune recovery and a final uninstall receipt without retaining a current binding.
+- Migrates only the exact closed pre-retention v1 audit contract into a raw-byte-preserving archive; missing/extra fields, drift, reparse points, and unmatched historic content remain blocking.
+- Corrects standard legacy-audit receipt compaction to use its already bound release identity, preserves post-`COMMIT` snapshot rollback, and restores a current binding when rollback returns to a stable active registry.
+
+### Wrappers and documentation
+
+- Exposes preview, doctor, repair-review, and preview-qualification options through the PowerShell wrappers.
+- Synchronizes English and Simplified Chinese lifecycle guidance plus Codex, Claude Code, and OpenCode isolated-discovery rules.
+
+### Plan, delegation, and discovery coherence
+
+- Adds read-only event-triggered `plan-recheck` gates with Phase-owned plan path, revision, raw-byte SHA-256, Session inheritance, root indexing, canonical triggers/results, and fail-closed launch-review invalidation.
+- Adds `peer-task` to runtime route evidence and governs Codex same-directory task windows inside the existing multi-agent Skill, including hard model/effort binding, no silent fallback, rework reuse, acceptance, and archival evidence.
+- Makes tool-adjacent `MALTS_BOOT.md` the ordinary startup authority, keeps `GLOBAL_BOOT.md` as a separate machine-global/recovery schema, and adds a read-only discovery command that cross-checks registry, active pointer, active `VERSION`, and split-brain conditions.
+
+## 1.0.1
+
+MALTS 1.0.1 is a focused stability and maintainability update for the v1.0 contract.
+
+### Long-workspace correctness
+
+- Detects and blocks control-state drift when runtime metadata still marks a Phase active but its canonical Phase document is already terminal, and reports the exact `close-phase` reconciliation command.
+- Corrects capacity metrics so closed or empty decision placeholders are not counted as open decisions, limits current-state metrics to the root control plus the active Phase and active Session, and scopes task/decision table statuses to their canonical sections so unrelated risk, checkpoint, acceptance, or evidence cells do not inflate the counts.
+- Corrects managed-block residue inspection so user-owned content outside the managed block does not create a false drift result, while real managed-content changes still fail verification.
+
+### Documentation validation
+
+- Adds deterministic offline Markdown link validation for local targets, missing files, and root escapes, while ignoring external URLs, pure fragments, and fenced examples.
+
 ## 1.0.0
 
 MALTS 1.0 is the first stable contract, lifecycle, long-workspace, and closed-package release.

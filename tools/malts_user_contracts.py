@@ -33,6 +33,8 @@ USER_CONTRACTS = {
     "release-manifest": "release_manifest.schema.json",
     "installation-registry": "installation_registry.schema.json",
     "update-plan": "update_plan.schema.json",
+    "lifecycle-doctor-report": "lifecycle_doctor_report.schema.json",
+    "lifecycle-audit-record": "lifecycle_audit_record.schema.json",
     "transaction-journal": "transaction_journal.schema.json",
     "residue-tombstone": "residue_tombstone.schema.json",
 }
@@ -43,6 +45,10 @@ PRIVATE_PATH_LITERAL = re.compile(r"(?:[A-Za-z]:[\/]|\\)")
 SECRET_ASSIGNMENT = re.compile(r"(?i)(?:api[_-]?key|access[_-]?token|password|secret)\s*[:=]\s*\S+")
 RELEASE_TOOL_NAMES = {"codex": "Codex", "claude-code": "Claude Code", "opencode": "OpenCode"}
 RELEASE_HOST_PREREQUISITES = {"windows", "powershell", "python"}
+SEMANTIC_GENERATION_ID = re.compile(
+    r"^malts-v(?P<version>(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))"
+    r"(?:-preview\.(?P<sequence>[1-9][0-9]*))?$"
+)
 
 
 @dataclass(frozen=True)
@@ -580,12 +586,12 @@ def _semantic_runtime(value: dict[str, Any]) -> list[ContractIssue]:
         issues.append(_issue("RT_UNSUPPORTED_STATE", "$", "Unsupported binding, test, and effective outcome states must agree."))
     if test_state == "provider_unconfigured" and effective.get("outcome") != "effective_unknown":
         issues.append(_issue("RT_PROVIDER_UNCONFIGURED_STATE", "$.effective.outcome", "Unconfigured providers must record effective_unknown."))
-    if effective.get("delegation_mode") in {"sub-agent", "nested"} and binding_status in verified_bindings and value.get("effective_concurrency") is None:
+    if effective.get("delegation_mode") in {"sub-agent", "nested", "peer-task"} and binding_status in verified_bindings and value.get("effective_concurrency") is None:
         issues.append(_issue("RT_EFFECTIVE_CONCURRENCY", "$.effective_concurrency", "Verified delegated routing requires effective concurrency evidence."))
     if effective.get("reasoning_effort") == "ultra":
         authorization = value.get("ultra_authorization", {})
         if not all(authorization.get(key) for key in ("explicitly_authorized", "observable", "budgeted")):
-            code = "RT_ULTRA_NESTED_POLICY" if effective.get("delegation_mode") in {"sub-agent", "nested"} else "RT_ULTRA_POLICY"
+            code = "RT_ULTRA_NESTED_POLICY" if effective.get("delegation_mode") in {"sub-agent", "nested", "peer-task"} else "RT_ULTRA_POLICY"
             issues.append(_issue(code, "$.ultra_authorization", "ultra requires explicit, observable, budgeted authorization."))
     return issues
 
@@ -793,6 +799,12 @@ def _semantic_prerequisites(value: dict[str, Any], prefix: str) -> list[Contract
 
 def _semantic_generation(value: dict[str, Any]) -> list[ContractIssue]:
     issues: list[ContractIssue] = []
+    if value.get("schema_version") == 2:
+        match = SEMANTIC_GENERATION_ID.fullmatch(str(value.get("generation_id", "")))
+        if match is None:
+            issues.append(_issue("GEN_SEMANTIC_ID", "$.generation_id", "Schema v2 requires a canonical stable or preview semantic generation ID."))
+        elif match.group("version") != value.get("version"):
+            issues.append(_issue("GEN_ID_VERSION", "$.generation_id", "Semantic generation ID must bind the declared version."))
     if set(value.get("supported_tools", [])) != {"codex", "claude-code", "opencode"}:
         issues.append(_issue("GEN_TOOL_COVERAGE", "$.supported_tools", "Generation manifest must cover all three release tools."))
     if set(value.get("migration_handlers", [])) != {"A", "B", "C", "D"}:
@@ -898,6 +910,12 @@ def _semantic_installation(value: dict[str, Any]) -> list[ContractIssue]:
 
 def _semantic_update_plan(value: dict[str, Any]) -> list[ContractIssue]:
     issues: list[ContractIssue] = []
+    disposition = value.get("disposition")
+    if disposition == "NO_OP":
+        if value.get("expected_cleanup"):
+            issues.append(_issue("TX_NO_OP_CLEANUP", "$.expected_cleanup", "NO_OP plans cannot retain cleanup targets."))
+        if any(action.get("kind") != "verify" for action in value.get("actions", [])):
+            issues.append(_issue("TX_NO_OP_ACTION", "$.actions", "NO_OP plans may contain verification actions only."))
     if value.get("operation") != "uninstall" and value.get("source_artifact_sha256") is None:
         issues.append(_issue("TX_SOURCE_ARTIFACT", "$.source_artifact_sha256", "Install/update/repair require a source artifact hash."))
     release_identity = value.get("release_identity", {})
@@ -968,13 +986,76 @@ def _semantic_journal(value: dict[str, Any]) -> list[ContractIssue]:
         "ACTIVATE": {"POSTVALIDATE", "ROLLBACK", "FAILED"},
         "POSTVALIDATE": {"CLEAN", "ROLLBACK", "FAILED"},
         "CLEAN": {"COMMIT", "ROLLBACK", "FAILED"},
+        "COMMIT": {"ROLLBACK", "FAILED"},
         "ROLLBACK": {"FAILED"},
+        "FAILED": {"ROLLBACK"},
     }
     for previous, current in zip(history, history[1:]):
         if current.get("state") not in allowed.get(previous.get("state"), set()):
             issues.append(_issue("TX_STATE_TRANSITION", "$.state_history", f"Invalid transaction transition {previous.get('state')} -> {current.get('state')}."))
             break
     return issues
+
+
+def _semantic_audit_record(value: dict[str, Any]) -> list[ContractIssue]:
+    issues: list[ContractIssue] = []
+    payload = copy.deepcopy(value)
+    observed_hash = payload.pop("record_sha256", None)
+    expected_hash = hashlib.sha256(canonical_json(payload)).hexdigest().upper()
+    if observed_hash != expected_hash:
+        issues.append(_issue("AUDIT_RECORD_HASH", "$.record_sha256", "record_sha256 does not bind the canonical audit record."))
+    created_at = value.get("created_at")
+    if isinstance(created_at, str) and value.get("month") != created_at[:7]:
+        issues.append(_issue("AUDIT_MONTH", "$.month", "month must match the UTC created_at calendar month."))
+    details = value.get("details")
+    if not isinstance(details, dict):
+        return issues
+    record_type = value.get("record_type")
+    operation_id = value.get("operation_id")
+    operation = value.get("operation")
+    outcome = value.get("outcome")
+    plan_hash = details.get("plan_hash")
+    generation_id = details.get("generation_id")
+    binding_sha256 = details.get("binding_sha256")
+    plan_sha256 = details.get("plan_sha256")
+    journal_sha256 = details.get("journal_sha256")
+    counts = (details.get("success_count"), details.get("failure_count"), details.get("uninstall_count"))
+    last_operation_id = details.get("last_operation_id")
+    valid = False
+    if record_type == "current-binding":
+        valid = (
+            operation_id is not None and operation in {"install", "update", "repair"} and outcome == "ACTIVE"
+            and plan_hash is not None and generation_id is not None and binding_sha256 is not None
+            and plan_sha256 is None and journal_sha256 is None and counts == (None, None, None)
+            and last_operation_id is None
+        )
+    elif record_type == "operation-receipt":
+        valid = (
+            operation_id is not None and operation in {"install", "update", "repair", "uninstall"}
+            and outcome in {"SUCCESS", "UNINSTALLED"} and plan_hash is not None
+            and ((outcome == "SUCCESS" and generation_id is not None and binding_sha256 is not None)
+                 or (outcome == "UNINSTALLED" and generation_id is None and binding_sha256 is None))
+            and plan_sha256 is None and journal_sha256 is None and counts == (None, None, None)
+            and last_operation_id is None
+        )
+    elif record_type == "failure-bundle":
+        valid = (
+            operation_id is not None and operation in {"install", "update", "repair", "uninstall"}
+            and outcome == "RECOVERED" and plan_hash is not None and generation_id is None
+            and binding_sha256 is None and plan_sha256 is not None and journal_sha256 is not None
+            and counts == (None, None, None) and last_operation_id is None
+        )
+    elif record_type == "monthly-summary":
+        valid = (
+            operation_id is None and operation is None and outcome == "SUMMARY" and plan_hash is None
+            and generation_id is None and binding_sha256 is None and plan_sha256 is None
+            and journal_sha256 is None and all(isinstance(item, int) for item in counts)
+            and last_operation_id is not None
+        )
+    if not valid:
+        issues.append(_issue("AUDIT_RECORD_SHAPE", "$", "Audit record fields do not match record_type and outcome semantics."))
+    return issues
+
 
 def _semantic_residue(value: dict[str, Any]) -> list[ContractIssue]:
     owner = value.get("owner")
@@ -1014,6 +1095,7 @@ SEMANTIC_VALIDATORS = {
     "release-manifest": _semantic_release,
     "installation-registry": _semantic_installation,
     "update-plan": _semantic_update_plan,
+    "lifecycle-audit-record": _semantic_audit_record,
     "transaction-journal": _semantic_journal,
     "residue-tombstone": _semantic_residue,
 }
@@ -1029,7 +1111,18 @@ def validate_instance(
     if schema_file is None:
         return [_issue("USER_CONTRACT_UNKNOWN", "$", f"Unknown user-runtime contract_id: {contract_id}")]
     schema = schema_override or load_json(malts_root / "tools" / schema_file)
-    issues = validate_against_schema(instance, schema)
+    validation_schema = schema
+    if (
+        schema_override is None
+        and contract_id == "generation-manifest"
+        and isinstance(instance, dict)
+        and instance.get("schema_version") == 1
+    ):
+        # v1 hash-suffix/opaque manifests remain readable migration inputs.
+        # v1.1.0 writes only the indexed canonical v2 semantic contract.
+        validation_schema = copy.deepcopy(schema)
+        validation_schema["properties"]["schema_version"] = {"const": 1}
+    issues = validate_against_schema(instance, validation_schema)
     if isinstance(instance, dict):
         validator = SEMANTIC_VALIDATORS.get(contract_id)
         if validator is not None:

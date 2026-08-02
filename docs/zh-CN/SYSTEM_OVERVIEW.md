@@ -168,6 +168,10 @@ MALTS 不做以下事情：
 
 发布仓库不应包含 handoff outputs、project-specific control files、user-specific archives、raw sessions、caches、credentials 或 generated migration packages。
 
-## 11. 与详细设计的关系
+## 11. v1.1 一致性门禁
+
+MALTS v1.1 增加三项关联保护：事件触发的 Plan Recheck 把 active plan bytes 绑定到 owning Phase；受治理的 Codex peer task 保存已批准 model / effort、当前工作区、lifecycle 与归档证据；tool-local discovery 交叉核对 registry、active pointer、`VERSION` 与可选机器全局恢复 boot。三者均先读 / 审阅，并在漂移时 fail closed。
+
+## 12. 与详细设计的关系
 
 本文说明 MALTS 做什么，以及用户如何评估它。[核心设计](CORE_DESIGN.md) 提供详细 design baseline、operating commitments、task sizing model、project state model、multi-agent protocol、memory pipeline 和 release boundaries。

@@ -81,6 +81,17 @@
 - 阶段目标：
 - 退出条件：
 
+<!-- MALTS:section=plan-recheck-index -->
+## Plan Recheck Index
+
+- Active plan: `N/A`
+- Active Phase owner: `N/A`
+- Plan revision: `N/A`
+- Plan content SHA-256: `N/A`
+- Latest recheck trigger: `N/A`
+- Latest recheck result: `N/A`
+- Launch review invalidated: `No`
+
 <!-- MALTS:section=task-queue -->
 ## 任务队列
 
@@ -167,7 +178,7 @@
 
 | 时间 | 轮次 | 批次 ID | 任务 ID | 职责 | 分派机制 | 运行时 Agent ID | 生效模型 / Effort | Binding 状态 | 契约 / 路由证据 | 状态 |
 |---|---|---|---|---|---|---|---|---|---|---|
-|  |  |  |  | Planner / Explorer / Worker / Verifier / Memory Curator / Other | 例如 Codex `spawn_agent` |  | 已知值 / Unknown | effective_verified / fallback_verified / other |  | Requested / Running / Returned / Failed / Cancelled |
+|  |  |  |  | Planner / Explorer / Worker / Verifier / Memory Curator / Other | native spawn / `codex-peer-task` / other |  | 已知值 / Unknown | effective_verified / fallback_verified / other |  | PLANNED / CREATED / RUNNING / RETURNED / ACCEPTED / REWORK / BLOCKED / ARCHIVED |
 
 ## Agent 反馈日志
 

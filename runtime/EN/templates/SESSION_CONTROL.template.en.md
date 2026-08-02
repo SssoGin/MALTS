@@ -10,6 +10,15 @@
 - Created at: <TIMESTAMP>
 - Updated at: <TIMESTAMP>
 
+<!-- MALTS:section=session-plan-binding -->
+## Plan Binding
+
+- Active plan reference: `<ACTIVE_PLAN_REFERENCE>`
+- Plan revision: `<PLAN_REVISION>`
+- Plan content SHA-256: `<PLAN_SHA256>`
+- Authorization/scope rechecked: `<AUTHORIZATION_SCOPE_RECHECKED>`
+- Launch review reference: `<LAUNCH_REVIEW_REFERENCE>`
+
 <!-- MALTS:section=session-scope -->
 ## Bounded Scope
 

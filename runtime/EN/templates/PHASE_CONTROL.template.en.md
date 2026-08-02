@@ -13,6 +13,20 @@
 
 <PHASE_GOAL>
 
+<!-- MALTS:section=phase-plan-recheck -->
+## Active Plan And Recheck
+
+- Active plan: `N/A`
+- Plan revision: `N/A`
+- Plan content SHA-256: `N/A`
+- Plan updated at: `N/A`
+- Supersedes: `N/A`
+- Plan status: `N/A`
+- Last recheck trigger: `N/A`
+- Last recheck result: `N/A`
+- Last rechecked at: `N/A`
+- Launch review invalidated: `No`
+
 <!-- MALTS:section=phase-queue -->
 ## Active Queue
 

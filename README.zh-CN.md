@@ -14,12 +14,12 @@ MALTS 坚持单 Agent 优先。主 Agent 是默认执行者；多 Agent 只是�
 
 | 需求 | 阅读 |
 |---|---|
-| 从本公开仓库安装 MALTS 并完成第一个任务 | [快速开始](docs/zh-CN/GETTING_STARTED.md) |
+| 安装 MALTS 并完成第一个任务 | [快速开始](docs/zh-CN/GETTING_STARTED.md) |
 | 了解 MALTS 的作用和适用边界 | [系统概览](docs/zh-CN/SYSTEM_OVERVIEW.md) |
 | 审阅完整操作模型和边界 | [核心设计](docs/zh-CN/CORE_DESIGN.md) |
 | 安装或更新指定 Agent 工具 | [安装](docs/zh-CN/INSTALL.md) 与 [更新](docs/zh-CN/UPDATE.md) |
 | 让 Agent 安全协助安装 | [Agent 安装](docs/zh-CN/AGENT_INSTALL.md) |
-| 使用可选离线 ZIP | [发布产物](docs/zh-CN/RELEASE_ARTIFACT.md) |
+| 使用可选离线归档 | [发布产物](docs/zh-CN/RELEASE_ARTIFACT.md) |
 
 ## 它解决什么问题
 
@@ -33,12 +33,16 @@ MALTS 通过外置关键任务状态、定义完成与验证标准、保留可�
 - 通过 `WORK_TASK_REPORT.md` 保存 Phase 或最终交付证据
 - 通过 `PROJECT_HANDOFF.md` 提供 Agent 面向的续接上下文
 - 为有边界的长期项目提供显式 Phase 与 Session 控制
+- 提供事件触发、只读的 Plan Recheck，以 Phase 绑定 plan revision 与 SHA-256
 - 用 Grill-Me Preflight 暴露假设、边界、取舍和验收标准
 - 提供可选多 Agent 启动审阅、任务合同和责任边界
+- 当原生子 Agent 无法满足已批准的 hard model / effort 契约时，提供受治理的 Codex peer-task 路由
 - 提供交付、质量和记忆写入检查清单
 - 提供英文与简体中文 runtime 模板
 - 为 Codex、Claude Code、OpenCode 提供原生 `malts-*` Skill 桥接
 - 提供先审阅、再执行的安装、更新、恢复、回滚与残留处理
+- 启动时与已安装运行状态交叉核对，发现不一致时关闭式失败
+- 提供稳定版与预览版运行身份、只读 doctor 诊断、有界审计保留与安全旧版迁移
 - 识别并迁移已知 MALTS `v0.1.0` 至 `v0.1.9` 布局
 
 ## 核心与可选能力
@@ -51,6 +55,7 @@ MALTS 通过外置关键任务状态、定义完成与验证标准、保留可�
 | `PROJECT_HANDOFF.md` | 需要续接或上下文风险交接时使用 | 为后续 Agent 提供可恢复的当前状态。 |
 | Grill-Me Preflight | 不清晰或非简单任务时建议 | 在实现前明确假设和验收标准。 |
 | 多 Agent 调度 | 关闭 | 仅在有明确价值时增加受控委派。 |
+| Plan Recheck | Active S3/S4 plan 按事件运行 | 在门禁动作前发现 plan、scope、Session 与 launch-review 漂移。 |
 | 经验审阅 | 可用 | 在经验进入长期规则前进行筛选。 |
 | 双语文档 | 可用 | 提供中英文参考，不复制项目状态。 |
 
@@ -76,20 +81,17 @@ adapters/               Codex、Claude Code、OpenCode adapter 内容
 scripts/                用户安装、更新、生命周期和 ZIP 验证入口
 tools/                  runtime 控制器、Schema 和用户操作工具
 docs/                   用户指南、设计参考和安全说明
-MALTS_RELEASE.json      先审阅仓库安装使用的仓库身份文件
 VERSION                 当前包版本
 LICENSE                 MIT 许可证
 THIRD_PARTY_NOTICES.md  必需的致谢说明
 ```
 
-安装代明确排除发布构建与发布控制、测试、fixture、candidate、本地交接、缓存、机器路径、凭据和用户私有状态。`MALTS_RELEASE.json` 是仅仓库身份元数据：它验证公开源码树，但不会复制到安装代。公开仓库还只保留一个仅仓库 integrity workflow：`.github/workflows/ci.yml`；它校验已检出的公开源码，不会复制到安装代或可选归档。
-
 ## 文档地图
 
 - [快速开始](docs/zh-CN/GETTING_STARTED.md)：安装与首次使用路径。
-- [安装](docs/zh-CN/INSTALL.md)：仓库优先的安装命令与根目录选择。
+- [安装](docs/zh-CN/INSTALL.md)：安装命令与根目录选择。
 - [更新](docs/zh-CN/UPDATE.md)：先审阅再替换已有安装。
-- [生命周期](docs/zh-CN/LIFECYCLE.md)：安装代、计划哈希、回滚、恢复和清理。
+- [生命周期](docs/zh-CN/LIFECYCLE.md)：运行版本、恢复、回滚、doctor 诊断与清理。
 - [使用](docs/zh-CN/USAGE.md)：普通任务、长期任务、多 Agent、经验与交接。
 - [系统概览](docs/zh-CN/SYSTEM_OVERVIEW.md)：目标、能力与边界的公开说明。
 - [核心设计](docs/zh-CN/CORE_DESIGN.md)：详细操作模型与不变量。
@@ -109,66 +111,55 @@ MALTS 包含面向公开使用的 Agent 行为模式改写，灵感来自：
 
 ## 安装预览
 
-公开仓库是主要安装来源。Agent 通常读取已检出的公开仓库，验证 `MALTS_RELEASE.json` 和 `VERSION`，创建仅供审阅的计划，并等待用户批准该精确计划。它不会默认下载 Release 资产。
-
-在公开仓库根目录运行：
+安装先审阅。安装器先写入计划，只有你审阅计划并使用匹配的精确哈希加上 `-Apply` 后才会改变文件。
 
 ```powershell
-.\scripts\Install-MALTS.ps1 `
-  -RepositoryRoot (Get-Location).Path `
-  -UseDefaultRoots `
-  -Tool Codex
+.\scripts\Install-MALTS.ps1 -Tool Codex
+.\scripts\Install-MALTS.ps1 -Tool Codex -Apply
+.\scripts\Install-MALTS.ps1 -Tool AllIncluded -InstructionMode Skip
+.\scripts\Install-MALTS.review.cmd -Tool AllIncluded
 ```
 
-使用显式根目录：
+支持的工具：
+
+```text
+Codex
+ClaudeCode
+OpenCode
+AllIncluded
+```
+
+如果 Windows PowerShell 阻止脚本执行，请使用进程级执行策略覆盖运行同一命令：
 
 ```powershell
-.\scripts\Install-MALTS.ps1 `
-  -RepositoryRoot <PUBLIC_REPOSITORY_ROOT> `
-  -LifecycleRoot <LIFECYCLE_ROOT> `
-  -Tool Codex `
-  -ToolRootCodex <CODEX_ROOT> `
-  -PlanPath <NEW_PLAN_PATH>
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-MALTS.ps1 -Tool Codex
 ```
 
-命令会写入新审阅计划并显示其精确 SHA-256。只有审阅计划并使用匹配哈希加上 `-Apply` 后才会安装。完整步骤见[安装](docs/zh-CN/INSTALL.md)。
-
-### 可选离线归档
-
-可选 Release 交付只有一个文件：`MALTS-<version>.zip`。其中包含不可变 release package、`RELEASE_NOTES.md` 和自身的 package inventory。只有需要固定离线归档或无法获得已验证仓库来源时才使用它。
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Verify-MALTSBootstrap.ps1 `
-  -ArchivePath .\MALTS-1.0.0.zip `
-  -ExtractOutput <EXTRACTED_RELEASE_ROOT> `
-  -Apply
-```
-
-验证器会先检查确定性 ZIP 结构与安全路径，再验证解出的不可变 release package，最后才写入目标目录。
+完整步骤见[安装](docs/zh-CN/INSTALL.md)与[Agent 安装](docs/zh-CN/AGENT_INSTALL.md)。
 
 ## 更新预览
 
-更新时，把更新器指向一个经过独立审阅的当前公开仓库来源。更新器不会执行 Git 拉取、后台检查更新，也不会下载 Release 包。
+已安装用户可以从当前仓库 checkout 更新，无需手动下载新归档。更新脚本同样先审阅：它打印计划，只有提供 `-Apply` 后才会拉取或写入文件。
 
 ```powershell
-.\scripts\Update-MALTS.ps1 `
-  -RepositoryRoot <PUBLIC_REPOSITORY_ROOT> `
-  -UseDefaultRoots `
-  -Tool Codex
+.\scripts\Update-MALTS.ps1 -Tool Codex
+.\scripts\Update-MALTS.ps1 -Tool Codex -Apply
+.\scripts\Update-MALTS.ps1 -Tool AllIncluded -Strategy MergeSafe
+.\scripts\Update-MALTS.review.cmd -Tool Codex
 ```
 
-与安装相同，第一步只创建审阅计划。检查选择的根目录、用户修改、清理、回滚和后置验证后，只执行精确的计划哈希。可选离线 ZIP 在 bootstrap 验证和解出后也可作为明确指定的更新来源。
+`MergeSafe` 默认使用 `InstructionMode ManagedMerge`：更新 MALTS 管理指令块，同时保留周围用户规则。使用 `InstructionMode Skip` 可完全不修改指令文件。
 
 ## 文档语言
 
-公开仓库默认以英文为技术参考。简体中文文档位于 `README.zh-CN.md` 与 `docs/zh-CN/`，本地化 runtime 参考位于 `runtime/CH/`。项目 runtime 产物默认保持单一标准文件。见[双语文档](docs/zh-CN/BILINGUAL_DOCS.md)。
+仓库默认以英文为技术参考。简体中文文档位于 `README.zh-CN.md` 与 `docs/zh-CN/`，本地化 runtime 参考位于 `runtime/CH/`。项目 runtime 产物默认保持单一标准文件。见[双语文档](docs/zh-CN/BILINGUAL_DOCS.md)。
 
 ## 版本
 
 当前发布版本：
 
 ```text
-1.0.0
+1.1.0
 ```
 
 ## License

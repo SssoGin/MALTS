@@ -31,6 +31,14 @@
 - Grill-Me 启动盘问：已提醒 / 已接受 / 已拒绝 / N/A；已解决的决策：
 - 动态 Agent 路由：0 / 1 / N；如有，使用了哪些职责通道：
 - 路由原因、启动审阅引用和已批准批次 ID：
+- Peer-task lifecycle 与归档证据（如使用）：
+
+## Plan Recheck
+
+- Active plan / revision / SHA-256：
+- Trigger / recorded result / observed gate result：
+- Launch review invalidated：Yes / No / N/A
+- 对账或 blocker：
 
 ## 验证
 

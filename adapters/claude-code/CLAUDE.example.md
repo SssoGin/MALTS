@@ -168,6 +168,8 @@ Portable discovery rules:
 - Read `MALTS_BOOT.md` next to this tool-level instruction file and resolve `MALTS_ROOT` from its `MALTS_ROOT:` line.
 - Treat that boot pointer as the active-generation locator. Do not treat copied absolute paths in examples, wrappers, handoffs, or reports as authoritative.
 - If `MALTS_BOOT.md` is missing or its target cannot be verified, stop and report the exact missing path; do not guess another installation.
+- Require exactly one absolute `MALTS_ROOT:` value and a regular, non-reparse target. Cross-check the lifecycle registry, sole active record, `active_generation.json`, generation identity, and active `VERSION`; any mismatch is `split_brain` and must fail closed.
+- A separately configured `GLOBAL_BOOT.md` uses a different fenced-block schema and is only an optional machine-global recovery cross-check. It must agree when present, but it never replaces the tool-local boot pointer.
 
 - MALTS version metadata must be read from the active boot file and `<MALTS_ROOT>/VERSION`; never copy the current version from old control/report/handoff/template files.
 
@@ -182,7 +184,7 @@ At the start of each new project or new window:
 - Do not invoke subagents until a launch review is shown and the user replies `确认运行`.
 - Do not enable unattended auto-continue unless the user explicitly authorizes it and the authorization is recorded.
 
-When activated, resolve `MALTS_ROOT` from `MALTS_BOOT.md`, verify its immutable generation metadata and `VERSION`, then load only the minimum needed runtime docs relative to that root. Read a separately configured global memory file only when a nearer user or project instruction requires it.
+When activated, resolve and cross-check `MALTS_ROOT` through the strict tool-local discovery contract, verify its immutable generation metadata and `VERSION`, then load only the minimum needed runtime docs relative to that root. Read a separately configured global memory file only when a nearer user or project instruction requires it.
 
 When project initialization selects Simplified Chinese as `NarrativeLanguage`, use `runtime\CH\templates\PROJECT_CONTROL.template.zh-CN.md` and `runtime\CH\templates\WORK_TASK_REPORT.template.zh-CN.md` as localized drafting references for the canonical files while preserving stable schema markers and values.
 
@@ -200,6 +202,7 @@ Cross-project stable rules learned from experience. These apply in every project
 7. **Use MALTS-prefixed native skill names.** When referring to tool-native slash-command or skill-picker entries, use the installed `malts-*` bridge names such as `malts-project-init`, `malts-grill-me-preflight`, and `malts-multi-agent-long-task-scheduling`. Do not suggest unprefixed native MALTS skill entries. Canonical implementation paths under `<MALTS_ROOT>/skills/...` remain unchanged.
 8. **Classify third-party Skill placement before installation.** Inspect the candidate `SKILL.md` and bundled files, follow an explicit user destination when provided, and wait for write authorization before installing. Do not silently duplicate third-party Skills across tools.
 9. **Route Agents dynamically.** Choose `0`, `1`, or `N` sub-agents from actual responsibility lanes, authorization, conflict-free locator leases, and effective runtime capacity. Do not impose a fixed role chain or derive reasoning effort from a role name.
+10. **Recheck the active plan at defined boundaries.** When an active Phase has a plan, run read-only `long_workspace.py plan-recheck` at Phase switch, before launch review or a new write scope, after delegated returns, before and after verification, after user change, during context recovery, after failure or rollback, and before final delivery. A required missing plan, hash drift, or invalidated binding is `BLOCKED` until reconciled.
 
 ## Claude Code Long-Task Mode
 
@@ -215,16 +218,20 @@ When the user explicitly enables long-task or multi-agent mode:
 4. Build a task queue.
 5. Use task contracts for delegated work.
 6. Ask whether the user wants to specify sub-agent model and effort choices and show the provider-neutral format: `responsibility=model-id@runtime-effort; responsibility=inherit@runtime-default; default=inherit@runtime-default`.
-7. Before any sub-agent dispatch, show the launch review packet: overall goal, total plan, dynamic Agent count, responsibility lanes, requested/recommended/configured/effective model-and-effort evidence, binding status, each task, and each short plan.
-8. Wait for the user's explicit `确认运行`.
-9. Before each sub-agent dispatch, expose or record the task contract.
-10. Record visible dispatch evidence, runtime agent ID when available, route evidence reference, effective model/effort when observable, binding status, and recycled feedback in `PROJECT_CONTROL.md`.
-11. Reconcile dispatch evidence, task contracts, reports, dispatch log, and feedback log before claiming multi-agent validation.
-12. Verify before marking tasks `DONE`.
-13. Update state after each round.
-14. If unattended continuation needs a new sub-agent batch that was not pre-confirmed, stop and ask for the normal launch review confirmation.
+7. Run `BEFORE_LAUNCH_REVIEW` Plan Recheck when the active Phase owns a plan.
+8. Before any sub-agent dispatch, show the launch review packet: overall goal, total plan, dynamic Agent count, responsibility lanes, requested/recommended/configured/effective model-and-effort evidence, binding status, each task, and each short plan.
+9. Wait for the user's explicit `确认运行`.
+10. Before each sub-agent dispatch, expose or record the task contract.
+11. Record visible dispatch evidence, runtime agent ID when available, route evidence reference, effective model/effort when observable, binding status, and recycled feedback in `PROJECT_CONTROL.md`.
+12. After each delegated return, run `AFTER_WORKER_RETURN`; run `BEFORE_VERIFIER` and `AFTER_VERIFIER` around independent verification.
+13. Reconcile dispatch evidence, task contracts, reports, dispatch log, and feedback log before claiming multi-agent validation.
+14. Verify before marking tasks `DONE`.
+15. Update state after each round and run `FINAL_DELIVERY` before final handoff.
+16. If unattended continuation needs a new sub-agent batch that was not pre-confirmed, stop and ask for the normal launch review confirmation.
 
 Do not promise a fixed one-shot runtime. Design long work as bounded rounds with recovery points.
+
+The Codex-specific `codex-peer-task` route is not a portable Claude Code provider API. Use Claude Code's own user-visible native dispatch surface and record equivalent task, route, binding, return, acceptance, and closure evidence.
 
 ## Model And Effort Policy
 

@@ -57,8 +57,8 @@ A legacy workspace with root controls but zero registered Phases is `NEEDS_INITI
 | Layer | Owns | Must not own |
 |---|---|---|
 | Project | Original goal, global acceptance, active phase index, cross-phase decisions | Per-turn logs |
-| Phase | Phase goal, queue, deliverables, evidence, close and growth | Other phases' active state |
-| Session | Bounded scope, commands, touch set, checkpoint, next step | Canonical project goal |
+| Phase | Phase goal, active plan path/revision/hash, Plan Recheck state, queue, deliverables, evidence, close and growth | Other phases' active state |
+| Session | Inherited plan binding, bounded scope, commands, touch set, checkpoint, next step | Canonical project goal or plan authority |
 | `runtime/` | Cache, generated state, lock, journal and measurements | Canonical truth |
 
 `runtime/workspace_control.json` is an index and recovery aid. Canonical Markdown controls remain authoritative.
@@ -75,12 +75,22 @@ python -B <MALTS_ROOT>\tools\long_workspace.py close-phase --workspace <workspac
 python -B <MALTS_ROOT>\tools\long_workspace.py open-session --workspace <workspace> --session-id <id> --goal <goal> --reason bounded-work-session --apply
 python -B <MALTS_ROOT>\tools\long_workspace.py close-session --workspace <workspace> --status DONE --next-action <action> --apply
 python -B <MALTS_ROOT>\tools\long_workspace.py validate --workspace <workspace>
+python -B <MALTS_ROOT>\tools\long_workspace.py plan-recheck --workspace <workspace> --trigger CONTEXT_RECOVERY
+python -B <MALTS_ROOT>\tools\long_workspace.py plan-recheck --workspace <workspace> --trigger BEFORE_NEW_WRITE_SCOPE --require-active-plan
 python -B <MALTS_ROOT>\tools\long_workspace.py maintain --workspace <workspace>
 python -B <MALTS_ROOT>\tools\long_workspace.py compact --workspace <workspace>
 python -B <MALTS_ROOT>\tools\long_workspace.py recover --workspace <workspace>
 ```
 
 If either initial Phase argument is missing, `init` fails closed with `WS_INITIAL_PHASE_REQUIRED` and writes nothing. Use `--apply` only after the corresponding write scope is authorized. `close-phase` requires no active Session. A new Phase or Session cannot be opened while one at the same layer is active.
+
+## Plan Recheck contract
+
+Plan Recheck is event-triggered and read-only; it is not a daemon, timer, background watcher, or second plan registry. The active Phase owns the active plan reference, revision, raw-byte SHA-256, timestamps, supersession, status, last trigger/result, and launch-review invalidation. Root `PROJECT_CONTROL.md` keeps only an index. An active Session inherits the Phase plan reference/revision/hash and records authorization/scope recheck plus launch-review evidence without becoming plan authority.
+
+Canonical triggers are `PHASE_SWITCH`, `BEFORE_LAUNCH_REVIEW`, `BEFORE_NEW_WRITE_SCOPE`, `AFTER_WORKER_RETURN`, `BEFORE_VERIFIER`, `AFTER_VERIFIER`, `USER_CHANGE`, `CONTEXT_RECOVERY`, `FAILURE_OR_ROLLBACK`, and `FINAL_DELIVERY`. Canonical recorded results are `PASS`, `UPDATED`, `BLOCKED`, and `N/A`.
+
+Use `--require-active-plan` for S3/S4 implementation, launch review, verifier, recovery/rollback, and final delivery gates. A missing plan, byte drift, stale trigger, invalid binding, split Session/root index, or invalidated launch review returns `BLOCKED`; stop and reconcile the canonical controls. S0/S1 work without a bound Phase plan may return `N/A`. The command never writes controls or creates authorization.
 
 ## Capacity and semantic compaction
 
@@ -118,3 +128,4 @@ Before reporting success:
 4. Run `python -B <MALTS_ROOT>\tools\malts_user_tools.py check-project-control --project-control PROJECT_CONTROL.md --malts-root <MALTS_ROOT>`.
 5. For recovery-sensitive delivery, run `recover` from a fresh process and record its ordered read evidence.
 6. Keep full three-tool discovery/invocation/behavior verification for the G4 runtime gate; component tests alone are not G4.
+7. For an active S3/S4 Phase, run the matching `plan-recheck` trigger and require `recheck_result=PASS` before the gated action or completion claim.

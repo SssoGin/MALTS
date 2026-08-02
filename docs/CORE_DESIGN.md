@@ -564,3 +564,11 @@ The first complete MALTS release is acceptable when:
 - bilingual docs are structurally synchronized when enabled
 - no-Git projects still have basic recovery insurance
 - token and coordination cost controls are documented and applied
+
+## Plan Recheck, Peer Tasks, And Discovery Authority
+
+The active Phase is the sole owner of the active plan reference, revision, raw-byte SHA-256, timestamps, recheck trigger/result, and launch-review invalidation. Root control is an index and an active Session inherits the binding. `plan-recheck` is a read-only event gate with canonical results `PASS`, `UPDATED`, `BLOCKED`, and `N/A`; it is not a watcher, writer, permission source, or duplicate plan registry.
+
+Codex peer tasks are a provider-specific execution route inside the existing multi-agent protocol. The official Codex task/thread interface executes the task; MALTS governs current-project same-directory routing, task contract, hard model/effort/no-fallback evidence, lifecycle, rework reuse, Main acceptance, and archive closure. Native spawn and peer-task evidence must never be conflated.
+
+Ordinary runtime discovery starts from one strict tool-adjacent `MALTS_BOOT.md` `MALTS_ROOT:` line. The lifecycle registry, sole active record, exact active pointer, `VERSION`, generation identity, and optional separately parsed machine-global/recovery `GLOBAL_BOOT.md` must agree. Split brain fails closed; ordinary discovery remains read-only and avoids a full-tree hash.

@@ -43,3 +43,7 @@ PROJECT_HANDOFF.md
 ```text
 runtime/EN/templates/PROJECT_HANDOFF.template.en.md
 ```
+
+## Plan Binding
+
+Active S3/S4 Phase 的交接必须包含 Phase-owned active plan path、revision、raw-byte SHA-256、last trigger/result、launch-review invalidation 与继承的 Session binding。在声称 handoff-ready 前运行只读 `FINAL_DELIVERY` Plan Recheck；若结果 `BLOCKED`，保留该结果与对账动作，不得掩盖漂移。

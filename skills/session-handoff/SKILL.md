@@ -42,9 +42,10 @@ For public examples, use placeholders such as:
 2. Check git status when the workspace is a git repository.
 3. Read relevant project instructions, `PROJECT_CONTROL.md`, current handoff, and key files.
 4. Distinguish verified current facts from historical claims.
-5. Write `PROJECT_HANDOFF.md`.
-6. Optionally write `项目交接.md` only when explicitly requested.
-7. Verify the output files exist before answering.
+5. If an active S3/S4 Phase binds a plan, run read-only `long_workspace.py plan-recheck --trigger FINAL_DELIVERY --require-active-plan`; a blocked result stops the handoff-ready claim until controls are reconciled.
+6. Write `PROJECT_HANDOFF.md`.
+7. Optionally write `项目交接.md` only when explicitly requested.
+8. Verify the output files exist before answering.
 
 ## Required Content
 
@@ -57,4 +58,5 @@ For public examples, use placeholders such as:
 - pending work
 - known risks
 - verification already performed
+- active plan path, revision, SHA-256, latest Plan Recheck trigger/result, and launch-review invalidation state when applicable
 - next recommended steps

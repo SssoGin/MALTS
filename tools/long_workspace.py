@@ -28,6 +28,13 @@ ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 HISTORY_TOKEN = re.compile(
     r"<!-- MALTS:history:(?:start id=(?P<id>[A-Za-z0-9][A-Za-z0-9._-]{0,127})|(?P<end>end)) -->"
 )
+SECTION_LINE = re.compile(
+    r"^[ \t]*<!-- MALTS:section=(?P<name>[a-z0-9-]+) -->[ \t]*\r?$",
+    re.IGNORECASE,
+)
+TASK_QUEUE_SECTIONS = frozenset({"task-queue", "phase-queue", "session-queue"})
+DECISION_SECTIONS = frozenset({"decisions", "phase-decisions", "session-decisions"})
+ACTIVE_TASK_STATES = frozenset({"TODO", "READY", "IN_PROGRESS", "ACTIVE", "BLOCKED"})
 PROTECTED_HISTORY_SECTION = re.compile(
     r"MALTS:section=(?:user-original-goal|current-interpreted-goal|completion-definition|"
     r"acceptance-criteria|current-stage|current-state|task-queue|risks?|recovery[^ ]*)",
@@ -44,6 +51,21 @@ DEFAULT_BUDGET = {
     "max_evidence_refs": 500,
     "max_stale_history_ratio": 0.65,
 }
+PLAN_RECHECK_TRIGGERS = frozenset(
+    {
+        "PHASE_SWITCH",
+        "BEFORE_LAUNCH_REVIEW",
+        "BEFORE_NEW_WRITE_SCOPE",
+        "AFTER_WORKER_RETURN",
+        "BEFORE_VERIFIER",
+        "AFTER_VERIFIER",
+        "USER_CHANGE",
+        "CONTEXT_RECOVERY",
+        "FAILURE_OR_ROLLBACK",
+        "FINAL_DELIVERY",
+    }
+)
+PLAN_RECHECK_RESULTS = frozenset({"PASS", "UPDATED", "BLOCKED", "N/A"})
 
 
 class WorkspaceError(RuntimeError):
@@ -518,6 +540,74 @@ def _active_session(state: dict[str, Any]) -> dict[str, Any]:
     return next(item for item in state["session_controls"] if item["session_id"] == session_id)
 
 
+def _marked_section(text: str, name: str, *, required: bool = False) -> str | None:
+    marker_pattern = re.compile(SECTION_LINE.pattern, re.IGNORECASE | re.MULTILINE)
+    markers = list(marker_pattern.finditer(text))
+    matches = [index for index, marker in enumerate(markers) if marker.group("name").lower() == name.lower()]
+    if not matches:
+        if required:
+            raise WorkspaceError("WS_PLAN_SECTION_MISSING", f"Required MALTS section is missing: {name}")
+        return None
+    if len(matches) != 1:
+        raise WorkspaceError("WS_PLAN_SECTION_DUPLICATE", f"MALTS section must appear exactly once: {name}")
+    index = matches[0]
+    start = markers[index].start()
+    end = markers[index + 1].start() if index + 1 < len(markers) else len(text)
+    return text[start:end]
+
+
+def _control_value(section: str, label: str, code: str = "WS_PLAN_FIELD_INVALID") -> str:
+    pattern = re.compile(rf"(?m)^- {re.escape(label)}:[ \t]*(?P<value>[^\r\n]*?)[ \t]*\r?$")
+    matches = list(pattern.finditer(section))
+    if len(matches) != 1:
+        raise WorkspaceError(code, f"Expected exactly one '- {label}:' field.")
+    value = matches[0].group("value").strip()
+    if len(value) >= 2 and value.startswith("`") and value.endswith("`"):
+        value = value[1:-1].strip()
+    if not value:
+        raise WorkspaceError(code, f"Field must not be empty: {label}")
+    return value
+
+
+def _phase_plan_binding(root: Path, phase: dict[str, Any]) -> dict[str, str] | None:
+    phase_path = _target(root, phase["path"])
+    text, _ = _decode_markdown(phase_path.read_bytes())
+    section = _marked_section(text, "phase-plan-recheck")
+    if section is None:
+        return None
+    labels = (
+        "Active plan",
+        "Plan revision",
+        "Plan content SHA-256",
+        "Plan updated at",
+        "Supersedes",
+        "Plan status",
+        "Last recheck trigger",
+        "Last recheck result",
+        "Last rechecked at",
+        "Launch review invalidated",
+    )
+    return {label: _control_value(section, label) for label in labels}
+
+
+def _session_plan_values(binding: dict[str, str] | None) -> dict[str, str]:
+    if binding is None or binding["Active plan"] == "N/A":
+        return {
+            "ACTIVE_PLAN_REFERENCE": "N/A",
+            "PLAN_REVISION": "N/A",
+            "PLAN_SHA256": "N/A",
+            "AUTHORIZATION_SCOPE_RECHECKED": "N/A",
+            "LAUNCH_REVIEW_REFERENCE": "N/A",
+        }
+    return {
+        "ACTIVE_PLAN_REFERENCE": binding["Active plan"],
+        "PLAN_REVISION": binding["Plan revision"],
+        "PLAN_SHA256": binding["Plan content SHA-256"],
+        "AUTHORIZATION_SCOPE_RECHECKED": "Yes",
+        "LAUNCH_REVIEW_REFERENCE": "N/A",
+    }
+
+
 def command_open_phase(args: argparse.Namespace) -> dict[str, Any]:
     root = _workspace(args.workspace)
     state = _load_state(root)
@@ -554,10 +644,24 @@ def command_open_phase(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def _replace_line(text: str, source: str, target: str, code: str) -> str:
-    pattern = re.compile(rf"(?m)^{re.escape(source)}[^\r\n]*$")
+    pattern = re.compile(rf"(?m)^{re.escape(source)}[^\r\n]*(?P<ending>\r?)$")
     if pattern.search(text) is None:
         raise WorkspaceError(code, f"Expected control token is missing: {source}")
-    return pattern.sub(target, text, count=1)
+    return pattern.sub(lambda match: target + match.group("ending"), text, count=1)
+
+
+def _replace_active_status(text: str, target_status: str, code: str) -> str:
+    pattern = re.compile(r"(?m)^- Status:[ \t]*([A-Z_]+)[ \t]*(?P<ending>\r?)$")
+    matches = list(pattern.finditer(text))
+    if len(matches) != 1:
+        raise WorkspaceError(code, "Expected exactly one '- Status:' control token.")
+    current_status = matches[0].group(1)
+    if current_status not in {"ACTIVE", target_status}:
+        raise WorkspaceError(
+            code,
+            f"Phase control status {current_status} conflicts with requested terminal status {target_status}.",
+        )
+    return pattern.sub(lambda match: f"- Status: {target_status}{match.group('ending')}", text, count=1)
 
 
 def command_close_phase(args: argparse.Namespace) -> dict[str, Any]:
@@ -570,7 +674,7 @@ def command_close_phase(args: argparse.Namespace) -> dict[str, Any]:
     path = _target(root, phase["path"])
     data = _read_bytes(root, phase["path"])
     text, bom = _decode_markdown(data)
-    text = _replace_line(text, "- Status: ACTIVE", f"- Status: {args.status}", "WS_PHASE_CONTROL_INVALID")
+    text = _replace_active_status(text, args.status, "WS_PHASE_CONTROL_INVALID")
     text = _replace_line(text, "- Updated at:", f"- Updated at: {now}", "WS_PHASE_CONTROL_INVALID")
     text = _replace_line(text, "- Close result:", f"- Close result: {args.status}", "WS_PHASE_CONTROL_INVALID")
     updated = json.loads(json.dumps(state))
@@ -608,6 +712,7 @@ def command_open_session(args: argparse.Namespace) -> dict[str, Any]:
     if session_path.exists():
         raise WorkspaceError("WS_FILE_EXISTS", "Refusing to adopt or overwrite an unregistered Session control.", relative)
     template = f"runtime/{'EN' if language == 'en' else 'CH'}/templates/SESSION_CONTROL.template.{'en' if language == 'en' else 'zh-CN'}.md"
+    plan_values = _session_plan_values(_phase_plan_binding(root, phase))
     control = _render_named_template(
         template,
         {
@@ -616,6 +721,7 @@ def command_open_session(args: argparse.Namespace) -> dict[str, Any]:
             "SESSION_REASON": args.reason,
             "SESSION_GOAL": args.goal.strip(),
             "TIMESTAMP": now,
+            **plan_values,
         },
     )
     updated = json.loads(json.dumps(state))
@@ -705,15 +811,82 @@ def _history_blocks(text: str) -> list[tuple[str, int, int, str]]:
     return blocks
 
 
+def _scoped_lines(text: str, section_names: frozenset[str]) -> tuple[list[tuple[int, str]], bool]:
+    selected: list[tuple[int, str]] = []
+    current_section: str | None = None
+    marker_found = False
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        marker = SECTION_LINE.fullmatch(line)
+        if marker is not None:
+            marker_found = True
+            current_section = marker.group("name").casefold()
+            continue
+        if current_section in section_names:
+            selected.append((line_number, line))
+    return selected, marker_found
+
+
+def _table_cells(line: str) -> list[str] | None:
+    stripped = line.strip()
+    if not stripped.startswith("|") or not stripped.endswith("|"):
+        return None
+    return [cell.strip() for cell in stripped[1:-1].split("|")]
+
+
+def _count_canonical_active_tasks(lines: list[tuple[int, str]]) -> int:
+    active_tasks = 0
+    status_index: int | None = None
+    for _, line in lines:
+        cells = _table_cells(line)
+        if cells is None:
+            status_index = None
+            continue
+        normalized = [cell.casefold() for cell in cells]
+        if "status" in normalized:
+            status_index = normalized.index("status")
+            continue
+        if "状态" in normalized:
+            status_index = normalized.index("状态")
+            continue
+        if status_index is None or status_index >= len(cells):
+            continue
+        if re.fullmatch(r":?-{3,}:?", cells[status_index]):
+            continue
+        if cells[status_index].strip().upper() in ACTIVE_TASK_STATES:
+            active_tasks += 1
+    return active_tasks
+
+
 def _metrics(data: bytes) -> dict[str, Any]:
     text, _ = _decode_markdown(data)
     blocks = _history_blocks(text)
     stale_bytes = sum(len(block.encode("utf-8")) for _, _, _, block in blocks)
     total_bytes = len(data)
-    active_tasks = len(re.findall(r"(?im)^\|.*\|\s*(?:TODO|READY|IN_PROGRESS|ACTIVE|BLOCKED)\s*\|", text))
-    open_decisions = len(
-        re.findall(r"(?im)(?:\[OPEN\]|\|\s*OPEN\s*\||^-\s*Open decision(?:s)?:\s*\S|^-\s*待确认(?:决策|问题)[：:]\s*\S)", text)
-    )
+    task_lines, has_section_markers = _scoped_lines(text, TASK_QUEUE_SECTIONS)
+    if has_section_markers:
+        active_tasks = _count_canonical_active_tasks(task_lines)
+    else:
+        active_tasks = len(re.findall(r"(?im)^\|.*\|\s*(?:TODO|READY|IN_PROGRESS|ACTIVE|BLOCKED)\s*\|", text))
+    decision_lines, _ = _scoped_lines(text, DECISION_SECTIONS)
+    decision_line_numbers = {line_number for line_number, _ in decision_lines}
+    open_decision_lines: set[int] = set()
+    decision_label = re.compile(r"^-[ \t]*(?:Open decision(?:s)?|待确认(?:决策|问题))[ \t]*[：:][ \t]*(.*)$", re.IGNORECASE)
+    closed_values = {"", "none", "n/a", "na", "no", "无", "暂无", "没有"}
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        if (not has_section_markers or line_number in decision_line_numbers) and re.search(
+            r"\[OPEN\]|\|[ \t]*OPEN[ \t]*\|",
+            line,
+            re.IGNORECASE,
+        ):
+            open_decision_lines.add(line_number)
+        match = decision_label.match(line)
+        if match is None:
+            continue
+        value = match.group(1).strip().rstrip(".。;；").strip().casefold()
+        closed_prefix = re.match(r"^(?:none|n/a|na|no|无|暂无|没有)(?=$|[\s.;。；,，、—-])", value, re.IGNORECASE)
+        if value not in closed_values and closed_prefix is None:
+            open_decision_lines.add(line_number)
+    open_decisions = len(open_decision_lines)
     evidence_refs = len(set(re.findall(r"(?i)(?:evidence|证据)[/:=：\s]+([A-Za-z0-9][A-Za-z0-9._:/\\-]+)", text)))
     return {
         "lines": len(text.splitlines()),
@@ -732,10 +905,20 @@ def _collect_metrics(root: Path, state: dict[str, Any]) -> dict[str, Any]:
         result.update(_metrics(_read_bytes(root, relative)))
         return result
 
+    active_phase = (
+        [next(entry for entry in state["phase_controls"] if entry["phase_id"] == state["active_phase_id"])]
+        if state["active_phase_id"] is not None
+        else []
+    )
+    active_session = (
+        [next(entry for entry in state["session_controls"] if entry["session_id"] == state["active_session_id"])]
+        if state["active_session_id"] is not None
+        else []
+    )
     return {
         "root": item("PROJECT_CONTROL.md"),
-        "phases": [item(entry["path"]) for entry in state["phase_controls"]],
-        "sessions": [item(entry["path"]) for entry in state["session_controls"]],
+        "phases": [item(entry["path"]) for entry in active_phase],
+        "sessions": [item(entry["path"]) for entry in active_session],
     }
 
 
@@ -809,6 +992,33 @@ def _validate_workspace(root: Path, state: dict[str, Any]) -> tuple[list[dict[st
         active = next(item for item in state["phase_controls"] if item["phase_id"] == state["active_phase_id"])
         if active["status"] != "ACTIVE":
             issues.append({"code": "WS_ACTIVE_PHASE_STATUS", "path": active["path"], "message": "Active Phase index must have ACTIVE status."})
+        active_path = _target(root, active["path"])
+        if active_path.is_file():
+            active_text, _ = _decode_markdown(active_path.read_bytes())
+            status_matches = re.findall(r"(?m)^- Status:[ \t]*([A-Z_]+)[ \t]*\r?$", active_text)
+            if len(status_matches) != 1:
+                issues.append(
+                    {
+                        "code": "WS_ACTIVE_PHASE_CONTROL_INVALID",
+                        "path": active["path"],
+                        "message": "Active Phase control must contain exactly one machine-readable Status field.",
+                    }
+                )
+            elif status_matches[0] != "ACTIVE":
+                terminal_status = status_matches[0]
+                action = (
+                    f"Run close-phase --status {terminal_status} --workspace \"{root}\" "
+                    '--next-action "Open the next Phase when authorized." --apply '
+                    "to reconcile runtime state with the terminal Phase control."
+                )
+                issues.append(
+                    {
+                        "code": "WS_ACTIVE_PHASE_CONTROL_DRIFT",
+                        "path": active["path"],
+                        "message": f"Runtime marks this Phase ACTIVE but its control status is {terminal_status}.",
+                        "required_action": action,
+                    }
+                )
     if state["active_session_id"] is not None:
         active = next(item for item in state["session_controls"] if item["session_id"] == state["active_session_id"])
         if active["status"] != "ACTIVE":
@@ -832,12 +1042,20 @@ def command_validate(args: argparse.Namespace) -> dict[str, Any]:
         for item in runtime_reference_warnings
     ]
     issues = [*issues, *runtime_reference_issues]
-    initialization_status = "READY" if state["phase_controls"] else "NEEDS_INITIAL_PHASE"
+    control_drift = [item for item in issues if item["code"] in {"WS_ACTIVE_PHASE_CONTROL_DRIFT", "WS_ACTIVE_PHASE_CONTROL_INVALID"}]
+    initialization_status = (
+        "NEEDS_INITIAL_PHASE"
+        if not state["phase_controls"]
+        else "NEEDS_CONTROL_RECONCILIATION"
+        if control_drift
+        else "READY"
+    )
     required_actions: list[str] = []
-    if initialization_status != "READY":
+    if initialization_status == "NEEDS_INITIAL_PHASE":
         required_actions.append("Create the initial Phase before treating this as an initialized long-project workspace.")
     if runtime_reference_warnings:
         required_actions.append("Refresh generated PROJECT_CONTROL runtime metadata, or manually review every static generation reference outside that generated metadata.")
+    required_actions.extend(item["required_action"] for item in control_drift if item.get("required_action"))
     return {
         "status": "PASS" if not issues else "FAIL",
         "operation": "validate",
@@ -854,6 +1072,179 @@ def command_validate(args: argparse.Namespace) -> dict[str, Any]:
         "required_action": " ".join(required_actions) if required_actions else None,
         "implicit_session_created": False,
     }
+
+
+def _plan_recheck_response(
+    root: Path,
+    trigger: str,
+    result: str,
+    *,
+    issues: list[dict[str, str]] | None = None,
+    evidence: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    problems = issues or []
+    return {
+        "status": "FAIL" if result == "BLOCKED" else "PASS",
+        "operation": "plan-recheck",
+        "mode": "READ_ONLY",
+        "workspace": str(root),
+        "writes_performed": False,
+        "trigger": trigger,
+        "recheck_result": result,
+        "issues": problems,
+        "evidence": evidence or {},
+    }
+
+
+def command_plan_recheck(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state = _load_state(root)
+    phase = _active_phase(state)
+    try:
+        binding = _phase_plan_binding(root, phase)
+    except WorkspaceError as exc:
+        return _plan_recheck_response(
+            root,
+            args.trigger,
+            "BLOCKED",
+            issues=[{"code": exc.code, "path": phase["path"], "message": exc.message}],
+        )
+    if binding is None or binding["Active plan"] == "N/A":
+        if args.require_active_plan:
+            return _plan_recheck_response(
+                root,
+                args.trigger,
+                "BLOCKED",
+                issues=[
+                    {
+                        "code": "WS_ACTIVE_PLAN_REQUIRED",
+                        "path": phase["path"],
+                        "message": "This gate requires an active Phase-owned plan binding.",
+                    }
+                ],
+            )
+        return _plan_recheck_response(
+            root,
+            args.trigger,
+            "N/A",
+            evidence={"phase_control": phase["path"], "reason": "No active plan is bound to the Phase."},
+        )
+
+    issues: list[dict[str, str]] = []
+
+    def issue(code: str, path: str, message: str) -> None:
+        issues.append({"code": code, "path": path, "message": message})
+
+    plan_relative = binding["Active plan"]
+    plan_path: Path | None = None
+    try:
+        plan_path = _target(root, plan_relative)
+    except WorkspaceError as exc:
+        issue(exc.code, plan_relative, exc.message)
+    observed_sha256: str | None = None
+    if plan_path is not None:
+        if not plan_path.is_file():
+            issue("WS_ACTIVE_PLAN_MISSING", plan_relative, "The Phase-owned active plan file is missing.")
+        else:
+            observed_sha256 = hashlib.sha256(plan_path.read_bytes()).hexdigest().upper()
+    expected_sha256 = binding["Plan content SHA-256"].upper()
+    if not re.fullmatch(r"[0-9A-F]{64}", expected_sha256):
+        issue("WS_PLAN_SHA256_INVALID", phase["path"], "Plan content SHA-256 must be 64 uppercase hexadecimal characters.")
+    elif observed_sha256 is not None and observed_sha256 != expected_sha256:
+        issue("WS_PLAN_CONTENT_DRIFT", plan_relative, "Active plan bytes do not match the Phase-bound SHA-256.")
+
+    if binding["Plan status"] != "ACTIVE":
+        issue("WS_PLAN_STATUS", phase["path"], "A required active plan must have Plan status ACTIVE.")
+    if binding["Last recheck trigger"] not in PLAN_RECHECK_TRIGGERS:
+        issue("WS_PLAN_TRIGGER_INVALID", phase["path"], "Last recheck trigger is not a canonical event value.")
+    elif binding["Last recheck trigger"] != args.trigger:
+        issue("WS_PLAN_TRIGGER_DRIFT", phase["path"], "Requested trigger does not match the recorded Phase recheck trigger.")
+    if binding["Last recheck result"] not in PLAN_RECHECK_RESULTS:
+        issue("WS_PLAN_RESULT_INVALID", phase["path"], "Last recheck result is not canonical.")
+    elif binding["Last recheck result"] == "BLOCKED":
+        issue("WS_PLAN_RECORDED_BLOCKED", phase["path"], "The Phase records a blocked Plan Recheck.")
+    for label in ("Plan updated at", "Last rechecked at"):
+        try:
+            _timestamp(binding[label])
+        except WorkspaceError:
+            issue("WS_PLAN_TIMESTAMP_INVALID", phase["path"], f"{label} must be a timezone-qualified ISO 8601 timestamp.")
+    if binding["Launch review invalidated"] not in {"Yes", "No"}:
+        issue("WS_PLAN_LAUNCH_INVALIDATION", phase["path"], "Launch review invalidated must be Yes or No.")
+    elif binding["Launch review invalidated"] == "Yes":
+        issue("WS_PLAN_LAUNCH_REVIEW_INVALIDATED", phase["path"], "The current launch review is explicitly invalidated.")
+
+    root_text, _ = _decode_markdown(_read_bytes(root, "PROJECT_CONTROL.md"))
+    try:
+        root_section = _marked_section(root_text, "plan-recheck-index")
+        if root_section is not None:
+            root_fields = {
+                label: _control_value(root_section, label)
+                for label in (
+                    "Active plan",
+                    "Active Phase owner",
+                    "Plan revision",
+                    "Plan content SHA-256",
+                    "Latest recheck trigger",
+                    "Latest recheck result",
+                    "Launch review invalidated",
+                )
+            }
+            expected_root_fields = {
+                "Active plan": plan_relative,
+                "Active Phase owner": phase["path"],
+                "Plan revision": binding["Plan revision"],
+                "Plan content SHA-256": expected_sha256,
+                "Latest recheck trigger": binding["Last recheck trigger"],
+                "Latest recheck result": binding["Last recheck result"],
+                "Launch review invalidated": binding["Launch review invalidated"],
+            }
+            for label, expected in expected_root_fields.items():
+                if root_fields[label] != expected:
+                    issue("WS_PLAN_ROOT_INDEX_DRIFT", "PROJECT_CONTROL.md", f"Root Plan Recheck index disagrees on {label}.")
+    except WorkspaceError as exc:
+        issue(exc.code, "PROJECT_CONTROL.md", exc.message)
+
+    session_path_relative: str | None = None
+    if state["active_session_id"] is not None:
+        session = _active_session(state)
+        session_path_relative = session["path"]
+        session_text, _ = _decode_markdown(_read_bytes(root, session["path"]))
+        try:
+            session_section = _marked_section(session_text, "session-plan-binding", required=True)
+            assert session_section is not None
+            session_fields = {
+                label: _control_value(session_section, label)
+                for label in (
+                    "Active plan reference",
+                    "Plan revision",
+                    "Plan content SHA-256",
+                    "Authorization/scope rechecked",
+                    "Launch review reference",
+                )
+            }
+            expected_session_fields = {
+                "Active plan reference": plan_relative,
+                "Plan revision": binding["Plan revision"],
+                "Plan content SHA-256": expected_sha256,
+            }
+            for label, expected in expected_session_fields.items():
+                if session_fields[label] != expected:
+                    issue("WS_PLAN_SESSION_BINDING_DRIFT", session["path"], f"Session plan binding disagrees on {label}.")
+            if session_fields["Authorization/scope rechecked"] != "Yes":
+                issue("WS_PLAN_SESSION_AUTHORIZATION", session["path"], "Active Session must record Authorization/scope rechecked as Yes.")
+        except WorkspaceError as exc:
+            issue(exc.code, session["path"], exc.message)
+
+    evidence = {
+        "phase_control": phase["path"],
+        "session_control": session_path_relative,
+        "active_plan": plan_relative,
+        "plan_revision": binding["Plan revision"],
+        "expected_sha256": expected_sha256,
+        "observed_sha256": observed_sha256,
+        "recorded_result": binding["Last recheck result"],
+    }
+    return _plan_recheck_response(root, args.trigger, "BLOCKED" if issues else "PASS", issues=issues, evidence=evidence)
 
 
 def command_refresh_runtime_references(args: argparse.Namespace) -> dict[str, Any]:
@@ -1009,6 +1400,7 @@ def _nearest_instruction(root: Path, state: dict[str, Any]) -> Path | None:
 def command_recover(args: argparse.Namespace) -> dict[str, Any]:
     root = _workspace(args.workspace)
     state = _load_state(root)
+    validation_issues, _, _ = _validate_workspace(root, state)
     ordered: list[Path] = []
 
     def add(path: Path) -> None:
@@ -1043,9 +1435,23 @@ def command_recover(args: argparse.Namespace) -> dict[str, Any]:
                 "canonical": not _relative(root, path).startswith("runtime/"),
             }
         )
-    initialization_status = "READY" if state["phase_controls"] else "NEEDS_INITIAL_PHASE"
+    control_drift = [
+        item
+        for item in validation_issues
+        if item["code"] in {"WS_ACTIVE_PHASE_CONTROL_DRIFT", "WS_ACTIVE_PHASE_CONTROL_INVALID"}
+    ]
+    initialization_status = (
+        "NEEDS_INITIAL_PHASE"
+        if not state["phase_controls"]
+        else "NEEDS_CONTROL_RECONCILIATION"
+        if control_drift
+        else "READY"
+    )
+    required_actions = [item["required_action"] for item in control_drift if item.get("required_action")]
+    if initialization_status == "NEEDS_INITIAL_PHASE":
+        required_actions.append("Run init with --initial-phase-id and --initial-phase-goal, or explicitly open the first Phase.")
     return {
-        "status": "PASS" if initialization_status == "READY" else initialization_status,
+        "status": "PASS" if initialization_status == "READY" else "FAIL",
         "operation": "recover",
         "mode": "READ_ONLY_COLD_START",
         "workspace": str(root),
@@ -1054,11 +1460,7 @@ def command_recover(args: argparse.Namespace) -> dict[str, Any]:
         "active_phase_id": state["active_phase_id"],
         "active_session_id": state["active_session_id"],
         "initialization_status": initialization_status,
-        "required_action": (
-            None
-            if initialization_status == "READY"
-            else "Run init with --initial-phase-id and --initial-phase-goal, or explicitly open the first Phase."
-        ),
+        "required_action": " ".join(required_actions) if required_actions else None,
         "recovery_point": state["recovery_point"],
         "runtime_is_canonical": False,
         "summary_replaces_current_facts": False,
@@ -1114,6 +1516,12 @@ def build_parser() -> argparse.ArgumentParser:
     validate = subparsers.add_parser("validate")
     validate.add_argument("--workspace", required=True)
     validate.set_defaults(handler=command_validate)
+
+    plan_recheck = subparsers.add_parser("plan-recheck")
+    plan_recheck.add_argument("--workspace", required=True)
+    plan_recheck.add_argument("--trigger", choices=tuple(sorted(PLAN_RECHECK_TRIGGERS)), required=True)
+    plan_recheck.add_argument("--require-active-plan", action="store_true")
+    plan_recheck.set_defaults(handler=command_plan_recheck)
 
     refresh_runtime_references = subparsers.add_parser("refresh-runtime-references")
     _add_common_write_arguments(refresh_runtime_references)

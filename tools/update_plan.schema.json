@@ -13,6 +13,7 @@
     "schema_version": {"const": 1},
     "operation_id": {"$ref": "#/$defs/id"},
     "operation": {"enum": ["install", "update", "repair", "uninstall"]},
+    "disposition": {"enum": ["EXECUTE", "NO_OP"]},
     "source_artifact_sha256": {"type": ["string", "null"], "pattern": "^[A-Fa-f0-9]{64}$"},
     "release_identity": {"$ref": "#/$defs/releaseIdentity"},
     "detected_generation": {"enum": ["A", "B", "C", "D", "legacy", "v1", "none"]},

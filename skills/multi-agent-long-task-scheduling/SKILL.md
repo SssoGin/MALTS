@@ -180,7 +180,25 @@ Before any real dispatch, the main controller must present a launch review packe
 
 For Claude Code, OpenCode, or any non-Codex runtime, record the runtime-specific visible sub-agent invocation, transcript, command output, or log reference. Do not invent a dispatch proof or model override that the installed runtime does not expose.
 
-In Codex, `spawn_agent` is the visible dispatch proof. If the user does not specify a sub-agent model or effort, do not invent overrides; record the exposed inheritance/default policy. If the user specifies a value, pass it only when the current runtime interface supports it, and record configured values separately from the effective values returned or otherwise observed.
+In Codex, native `spawn_agent` is the preferred visible dispatch proof when its interface can satisfy the approved model and effort contract. If the user does not specify a model or effort, do not invent overrides; record the exposed inheritance/default policy. If the user specifies a value, pass it only when the current runtime interface supports it, and record configured values separately from the effective values returned or otherwise observed.
+
+### Codex Peer-Task Route
+
+When native sub-agent dispatch cannot satisfy a user-approved hard model or effort constraint, Codex may use a user-visible peer task only if the official Codex task/thread interface exposes the requested route. The Codex task/thread API is the execution surface; MALTS supplies authorization, task contracts, evidence, lifecycle, recovery, acceptance, and archival governance. This is not native `spawn_agent`, and its dispatch record must say `codex-peer-task` with `delegation_mode=peer-task`.
+
+Apply these rules:
+
+1. Prefer the current task workspace: fork the calling task with same-directory/current-project semantics. Never hard-code a workspace name such as `MALTSWork_01`; resolve and record the current task's actual workspace and verify the peer task reports the same directory.
+2. Create a user-visible task, give it a descriptive title, then send the bounded task contract through the official follow-up interface with the approved model and effort override. The task remains user-owned and visible in the Codex sidebar.
+3. Record requested, recommended, configured, and effective route evidence separately. A successful task creation or configured override alone is not effective-use proof; capture returned task metadata, in-task/runtime evidence, working directory, and usage evidence.
+4. A hard model, effort, delegation, or no-fallback constraint fails closed on mismatch or unavailable effective evidence. Do not silently fall back to native spawn, inherited/default routing, another model, another workspace, or a projectless task.
+5. Keep default concurrency at the approved minimum. Every peer task still needs a conflict-free locator lease; a same-directory task does not gain broader read/write permission.
+6. Reuse the same peer task for report clarification or rework. Do not create a new task merely to retry a response unless the existing task is unusable and the approved batch permits replacement.
+7. Drive and record the lifecycle exactly: `PLANNED -> CREATED -> RUNNING -> RETURNED -> ACCEPTED | REWORK | BLOCKED -> ARCHIVED`. `REWORK` returns to `RUNNING`; archive only after Main Controller acceptance, terminal block, or explicit closure.
+8. Persist task/thread ID, parent task reference, title, current workspace, contract/report/evidence paths, timestamps, route binding, lifecycle transitions, Main Controller decision, rework count, and archive result in the current Phase evidence and Agent logs.
+9. Waiting, reading, follow-up, and archive operations are orchestration actions, not proof that the report is correct. Main Controller must still reconcile the report against current files and acceptance criteria.
+
+Use a peer task only as this governed provider-specific route inside the existing multi-agent Skill. Do not create a separate peer-task Skill or represent independent task windows as hidden child Agents.
 
 ## Role Assignment Protocol
 

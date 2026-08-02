@@ -31,7 +31,7 @@ Within the current v1.0 release boundary:
 - `adapters/skill-bridges/` remains the source for MALTS-owned native discovery bridges.
 - the transactional lifecycle manages verified MALTS content and MALTS-owned thin projections only.
 - third-party Skill discovery and lifecycle remain owned by the user's Agent tools and their existing installation mechanisms.
-- the user payload includes the Registry Schema required for validation; generated Registries and local validation examples remain local user or project state rather than installed package content.
+- the installed version includes the Registry Schema required for validation; generated Registries and local validation examples remain local user or project state rather than installed version content.
 
 Documentation may describe active MALTS-owned projection only when it is bound by complete installation metadata and verified lifecycle evidence. It must not imply that generated external Catalog state or the Resolver executes a Skill, or that MALTS owns third-party Skill lifecycle.
 
@@ -83,7 +83,7 @@ A first-party source can still carry high execution risk. A low-risk text-only S
 
 Physical portability does not authorize universal visibility. Every capability has a per-tool exposure decision.
 
-Before changing a shared Skill source or projection, maintainers must record the expected visible set for each affected tool and compare it with the actual post-change catalog. The change is blocked when it creates:
+Before changing a shared Skill source or projection, record the expected visible set for each affected tool and compare it with the actual post-change catalog. The change is blocked when it creates:
 
 - an unreviewed catalog addition or removal
 - a duplicate semantic capability with ambiguous precedence

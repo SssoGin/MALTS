@@ -1,6 +1,6 @@
 # Getting Started with MALTS
 
-This guide takes a new user from a verified public repository to the first MALTS-controlled task.
+This guide takes a new user from a verified repository source to the first MALTS-controlled task.
 
 ## 1. Understand the Model
 
@@ -10,7 +10,7 @@ The main Agent remains responsible for the outcome. Sub-agents are optional and 
 
 ## 2. Choose an Installation Source
 
-Use the public repository as the normal source. An Agent reads the repository, verifies `MALTS_RELEASE.json` and `VERSION`, and creates a review-only plan. It does not download a Release asset unless the user explicitly requests the optional offline archive.
+Use the repository as the normal source. An Agent reads the repository, verifies `MALTS_RELEASE.json` and `VERSION`, and creates a review-only plan. It does not download a Release asset unless the user explicitly requests the optional offline archive.
 
 Use the optional `MALTS-<version>.zip` only for a fixed offline copy or when a verified repository source is unavailable. The single ZIP contains the immutable release package and its package-level verification material.
 
@@ -24,7 +24,7 @@ Get-Content .\MALTS_RELEASE.json
 git describe --exact-match --tags HEAD
 ```
 
-An absent Git checkout does not prevent repository installation; the identity file still binds the exact user source tree.
+An absent Git checkout does not prevent repository installation; the identity file still binds the exact source tree.
 
 ## 4. Create an Installation Plan
 

@@ -28,6 +28,12 @@ Do not create a Session for every conversation turn or ordinary persistent write
 
 Summaries cannot replace the active MALTS version, current files, or required runtime probes.
 
+## Discovery and Plan Recheck
+
+- Resolve ordinary startup only from the active tool's adjacent `MALTS_BOOT.md`; cross-check registry, active pointer, `VERSION`, and optional machine-global/recovery `GLOBAL_BOOT.md`. Treat disagreement as split brain and fail closed.
+- The active Phase owns the plan path, revision, raw-byte SHA-256, recheck trigger/result, and launch-review invalidation. Root control is only an index; a Session only inherits the binding.
+- For S3/S4 work, run read-only `long_workspace.py plan-recheck --require-active-plan` at the applicable event before new write scope, launch review, verifier, recovery/rollback, or final delivery. `BLOCKED` stops; the command never creates authorization.
+
 ## Safety
 
 - Separate read-only review from state-changing execution.

@@ -42,6 +42,13 @@
 - 最后状态事件 ID / 直接证据：
 - 恢复摘要 / 下一步：
 
+## Plan Recheck 恢复
+
+- Active plan / revision / SHA-256：
+- Last trigger / recorded result / observed gate result：
+- Launch review invalidated：Yes / No / N/A
+- Owning Phase / inherited Session：
+
 ## 验证
 
 | 检查 | 结果 | 证据 |

@@ -31,6 +31,14 @@
 - Grill-Me Preflight: offered / accepted / declined / N/A; decisions resolved:
 - Dynamic Agent route: 0 / 1 / N; responsibility lanes used, if any:
 - Route reason, launch review reference, and approved batch IDs:
+- Peer-task lifecycle and archive evidence, if used:
+
+## Plan Recheck
+
+- Active plan / revision / SHA-256:
+- Trigger / recorded result / observed gate result:
+- Launch review invalidated: Yes / No / N/A
+- Reconciliation or blocker:
 
 ## Verification
 

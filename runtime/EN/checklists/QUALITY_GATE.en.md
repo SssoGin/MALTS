@@ -58,6 +58,9 @@
 - [ ] Every fallback identifies hard/soft constraint treatment, reason, binding status, and usage evidence.
 - [ ] `N > 1` is bounded by approved Agent count, contract concurrency, effective runtime capacity, and conflict-free locator leases.
 - [ ] `agent_route_planner.py` and `result_controller.py` were treated as advisory/validation components and not as proof of real dispatch.
+- [ ] A Codex peer task, if used, is recorded as `codex-peer-task` / `delegation_mode=peer-task`, uses the current task workspace, and is not described as native `spawn_agent`.
+- [ ] Peer-task lifecycle evidence covers PLANNED through RETURNED and Main acceptance/rework/block, then ARCHIVED; rework reused the existing task unless replacement was explicitly permitted.
+- [ ] Hard peer-task model/effort/no-fallback constraints and effective workspace/model evidence were verified; task creation or configuration alone was not treated as effective proof.
 - [ ] Real Agent/provider validation is explicitly `G4 PASS`, `G4 FAIL`, or `G4 NOT RUN`; component tests are not presented as G4.
 - [ ] Agent Dispatch Log, task contracts, returned reports, and Agent Feedback Log agree on task ID, role, runtime agent ID when available, model policy, and main-controller decision.
 

@@ -14,12 +14,12 @@ MALTS is single-agent first. The main Agent remains the normal executor; multi-a
 
 | Need | Read |
 |---|---|
-| Install MALTS from this repository and run a first task | [Getting Started](docs/GETTING_STARTED.md) |
+| Install MALTS and run a first task | [Getting Started](docs/GETTING_STARTED.md) |
 | Understand what MALTS does and when to use it | [System Overview](docs/SYSTEM_OVERVIEW.md) |
 | Review the full operating model and boundaries | [Core Design](docs/CORE_DESIGN.md) |
 | Install or update a specific Agent tool | [Install](docs/INSTALL.md) and [Update](docs/UPDATE.md) |
 | Let an Agent assist with installation safely | [Agent Install](docs/AGENT_INSTALL.md) |
-| Use the optional offline ZIP | [Release Artifact](docs/RELEASE_ARTIFACT.md) |
+| Use the optional offline archive | [Release Artifact](docs/RELEASE_ARTIFACT.md) |
 
 ## What Problem It Solves
 
@@ -33,12 +33,16 @@ MALTS responds by externalizing important task state, defining completion and ve
 - Phase or final evidence through `WORK_TASK_REPORT.md`
 - Agent-facing continuation through `PROJECT_HANDOFF.md`
 - Explicit Phase and Session controls for bounded long-project work
+- Event-triggered, read-only Plan Recheck with Phase-owned plan revision and SHA-256 binding
 - Grill-Me Preflight for assumptions, boundaries, tradeoffs, and acceptance criteria
 - Optional multi-agent launch review, task contracts, and responsibility boundaries
+- Governed Codex peer-task routing when native sub-agent dispatch cannot satisfy an approved hard model or effort contract
 - Delivery, quality, and memory-write checklists
 - English and Simplified Chinese runtime templates
 - Native `malts-*` Skill bridges for Codex, Claude Code, and OpenCode
 - Review-first install, update, recovery, rollback, and residue handling
+- Startup discovery cross-checked against the installed runtime state
+- Stable and preview runtime identities, read-only doctor diagnostics, bounded audit retention, and safe legacy migration
 - Migration handling for known MALTS `v0.1.0` through `v0.1.9` layouts
 
 ## Core And Optional Capabilities
@@ -51,6 +55,7 @@ MALTS responds by externalizing important task state, defining completion and ve
 | `PROJECT_HANDOFF.md` | Used for continuation or context-risk handoff | Give a future Agent a restart-safe current state. |
 | Grill-Me Preflight | Offered for unclear or non-trivial work | Surface assumptions and acceptance criteria before implementation. |
 | Multi-agent scheduling | Off | Add controlled delegation only when it has clear value. |
+| Plan Recheck | Event-triggered for active S3/S4 plans | Detect plan, scope, Session, and launch-review drift before gated actions. |
 | Growth review | Available | Filter reviewed lessons before durable promotion. |
 | Bilingual documentation | Available | Provide English and Simplified Chinese references without duplicating project state. |
 
@@ -76,20 +81,17 @@ adapters/               Codex, Claude Code, and OpenCode adapter material
 scripts/                User installation, update, lifecycle, and ZIP-verification entry points
 tools/                  Runtime controllers, schemas, and user operation tools
 docs/                   User guides, design references, and security guidance
-MALTS_RELEASE.json      Repository identity for review-first repository installation
 VERSION                 Current package version
 LICENSE                 MIT license
 THIRD_PARTY_NOTICES.md  Required attribution notices
 ```
 
-The installed generation intentionally excludes release construction, release publication controls, tests, fixtures, candidates, local handoffs, caches, machine paths, credentials, and user-private state. `MALTS_RELEASE.json` is repository-only identity metadata: it verifies the public source tree but is not copied into an installed generation. The public repository also contains one repository-only integrity workflow at `.github/workflows/ci.yml`; it validates the checked-out source and is not copied into an installed generation or the optional archive.
-
 ## Documentation Map
 
 - [Getting Started](docs/GETTING_STARTED.md): installation and first-use path.
-- [Install](docs/INSTALL.md): repository-first installation commands and roots.
+- [Install](docs/INSTALL.md): installation commands and roots.
 - [Update](docs/UPDATE.md): review-first replacement of an existing installation.
-- [Lifecycle](docs/LIFECYCLE.md): generations, plan hashes, rollback, recovery, and cleanup.
+- [Lifecycle](docs/LIFECYCLE.md): runtime versions, recovery, rollback, doctor diagnostics, and cleanup.
 - [Usage](docs/USAGE.md): normal tasks, long tasks, multi-agent work, growth, and handoff.
 - [System Overview](docs/SYSTEM_OVERVIEW.md): public explanation of goals, features, and boundaries.
 - [Core Design](docs/CORE_DESIGN.md): detailed operating model and invariants.
@@ -109,66 +111,55 @@ These projects are not dependencies of MALTS and do not endorse this repository.
 
 ## Install Preview
 
-The public repository is the primary installation source. An Agent normally reads the checked-out repository, validates `MALTS_RELEASE.json` and `VERSION`, creates a review-only plan, and waits for the user to approve that exact plan. It does not download a Release asset by default.
-
-From a public repository root:
+Installation is review-first. The installer writes a plan first and does not change files until you review it and supply its exact plan hash with `-Apply`.
 
 ```powershell
-.\scripts\Install-MALTS.ps1 `
-  -RepositoryRoot (Get-Location).Path `
-  -UseDefaultRoots `
-  -Tool Codex
+.\scripts\Install-MALTS.ps1 -Tool Codex
+.\scripts\Install-MALTS.ps1 -Tool Codex -Apply
+.\scripts\Install-MALTS.ps1 -Tool AllIncluded -InstructionMode Skip
+.\scripts\Install-MALTS.review.cmd -Tool AllIncluded
 ```
 
-For explicit roots:
+Supported tools:
+
+```text
+Codex
+ClaudeCode
+OpenCode
+AllIncluded
+```
+
+If Windows PowerShell blocks script execution, run the same command with a process-local policy override:
 
 ```powershell
-.\scripts\Install-MALTS.ps1 `
-  -RepositoryRoot <PUBLIC_REPOSITORY_ROOT> `
-  -LifecycleRoot <LIFECYCLE_ROOT> `
-  -Tool Codex `
-  -ToolRootCodex <CODEX_ROOT> `
-  -PlanPath <NEW_PLAN_PATH>
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-MALTS.ps1 -Tool Codex
 ```
 
-The command writes a new review plan and prints its exact SHA-256. It does not install until the user reviews the plan and supplies its matching hash with `-Apply`. See [Install](docs/INSTALL.md) for the full sequence.
-
-### Optional Offline Archive
-
-The optional Release delivery is one file: `MALTS-<version>.zip`. It contains the immutable release package, `RELEASE_NOTES.md`, and its own package inventories. Use it only when a fixed offline archive is needed or a verified repository source is unavailable.
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Verify-MALTSBootstrap.ps1 `
-  -ArchivePath .\MALTS-1.0.0.zip `
-  -ExtractOutput <EXTRACTED_RELEASE_ROOT> `
-  -Apply
-```
-
-The verifier checks safe deterministic ZIP structure and then verifies the extracted immutable release package before it writes the final extraction.
+See [docs/INSTALL.md](docs/INSTALL.md) and [docs/AGENT_INSTALL.md](docs/AGENT_INSTALL.md).
 
 ## Update Preview
 
-To update, point the updater at a separately reviewed, current public repository source. The updater does not pull Git, check for updates in the background, or download a Release archive.
+Installed users can update from a current repository checkout without manually downloading a new archive. The update script is also review-first: it prints the plan and does not pull or write files unless `-Apply` is provided.
 
 ```powershell
-.\scripts\Update-MALTS.ps1 `
-  -RepositoryRoot <PUBLIC_REPOSITORY_ROOT> `
-  -UseDefaultRoots `
-  -Tool Codex
+.\scripts\Update-MALTS.ps1 -Tool Codex
+.\scripts\Update-MALTS.ps1 -Tool Codex -Apply
+.\scripts\Update-MALTS.ps1 -Tool AllIncluded -Strategy MergeSafe
+.\scripts\Update-MALTS.review.cmd -Tool Codex
 ```
 
-As with installation, the first command creates a review plan. Run only the exact plan hash after reviewing selected roots, user modifications, cleanup, rollback, and post-validation actions. The optional offline ZIP can also be used as an explicit update source after bootstrap verification and extraction.
+`MergeSafe` defaults to `InstructionMode ManagedMerge`: it updates the MALTS-managed instruction block while preserving surrounding user rules. Use `InstructionMode Skip` to leave the instruction file untouched.
 
 ## Documentation Language
 
-The public repository defaults to English source documents. Simplified Chinese documents live in `README.zh-CN.md` and `docs/zh-CN/`; localized runtime references live under `runtime/CH/`. Runtime project artifacts stay single and canonical by default. See [Bilingual Docs](docs/BILINGUAL_DOCS.md).
+The repository defaults to English source documents. Simplified Chinese documents live in `README.zh-CN.md` and `docs/zh-CN/`; localized runtime references live under `runtime/CH/`. Runtime project artifacts stay single and canonical by default. See [Bilingual Docs](docs/BILINGUAL_DOCS.md).
 
 ## Version
 
 Current release version:
 
 ```text
-1.0.0
+1.1.0
 ```
 
 ## License

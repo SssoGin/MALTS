@@ -119,7 +119,7 @@
         "reasoning_effort": {"$ref": "#/$defs/reasoningEffort"},
         "normalized_reasoning_tier": {"$ref": "#/$defs/normalizedReasoningTier"},
         "display_label": {"type": ["string", "null"], "minLength": 1},
-        "delegation_mode": {"type": ["string", "null"], "enum": ["main", "single-agent", "sub-agent", "nested", "unknown", null]},
+        "delegation_mode": {"type": ["string", "null"], "enum": ["main", "single-agent", "sub-agent", "nested", "peer-task", "unknown", null]},
         "concurrency_policy": {"type": ["string", "null"], "enum": ["serial", "bounded-parallel", "runtime-default", "unknown", null]},
         "outcome": {
           "enum": [

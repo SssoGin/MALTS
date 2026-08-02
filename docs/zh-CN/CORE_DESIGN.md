@@ -566,3 +566,11 @@ MVP sequence：
 - 启用 bilingual docs 时，结构保持同步。
 - no-Git projects 仍然有 basic recovery insurance。
 - token 和 coordination cost controls 已记录并应用。
+
+## Plan Recheck、Peer Task 与 Discovery Authority
+
+Active Phase 是 active plan reference、revision、raw-byte SHA-256、timestamps、recheck trigger/result 与 launch-review invalidation 的唯一 owner。Root control 只保存索引，active Session 继承绑定。`plan-recheck` 是只读事件门禁，canonical results 为 `PASS`、`UPDATED`、`BLOCKED` 与 `N/A`；它不是 watcher、writer、permission source 或重复 plan registry。
+
+Codex peer task 是现有 multi-agent protocol 内的 provider-specific execution route。官方 Codex task/thread 接口负责执行；MALTS 治理 current-project same-directory route、task contract、hard model / effort / no-fallback evidence、lifecycle、返工复用、Main acceptance 与 archive closure。Native spawn 与 peer-task evidence 不得混用。
+
+普通 runtime discovery 从严格 tool-adjacent `MALTS_BOOT.md` 中唯一的 `MALTS_ROOT:` 行开始。Lifecycle registry、唯一 active record、精确 active pointer、`VERSION`、generation identity 与独立解析的可选 machine-global / recovery `GLOBAL_BOOT.md` 必须一致。Split brain fail closed；普通 discovery 保持只读且不计算完整树 hash。

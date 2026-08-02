@@ -41,6 +41,7 @@ Growth analysis may be continuous, but durable growth writes are permission-boun
 12. Harmful evidence moves the candidate to `CHALLENGED`; severe harmful evidence moves it to `SUSPENDED` and stops automatic application.
 13. Any L3 proposal or write requires a separate user confirmation even when the memory checklist passes.
 14. For non-trivial tasks, user corrections, recovery rounds, or failures, include a short user-facing growth result in the final or phase report.
+15. When the task runs inside an active S3/S4 MALTS Phase with a bound plan, run the matching read-only Plan Recheck event before a new write scope, after a user goal change or failure/recovery, and before final delivery. Do not create a plan or authorization from this lightweight growth workflow; `BLOCKED` stops the gated action and `N/A` is valid only when the Phase does not require a plan.
 
 ## Lightweight Growth Triggers
 
@@ -110,4 +111,3 @@ Growth review:
 - [ ] Harmful evidence opens a challenge; severe evidence suspends automatic use.
 - [ ] Failed or unavailable memory writes were preserved as local candidates instead of claimed as completed.
 - [ ] The user-facing report includes the growth result when the task is non-trivial or recovery-related.
-

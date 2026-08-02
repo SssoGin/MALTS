@@ -37,3 +37,7 @@ Optional user-facing Chinese mirror:
 - next recommended steps
 
 Use `runtime/EN/templates/PROJECT_HANDOFF.template.en.md`.
+
+## Plan Binding
+
+For an active S3/S4 Phase, include the Phase-owned active plan path, revision, raw-byte SHA-256, last trigger/result, launch-review invalidation state, and inherited Session binding. Run the read-only `FINAL_DELIVERY` Plan Recheck before a handoff-ready claim; preserve a blocked result and reconciliation action rather than hiding drift.

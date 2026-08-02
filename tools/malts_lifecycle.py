@@ -36,6 +36,40 @@ POINTER_RELATIVE = Path("registry") / "active_generation.json"
 LOCK_RELATIVE = Path("runtime") / "lifecycle.lock.json"
 TRANSACTIONS_RELATIVE = Path("runtime") / "transactions"
 AUDIT_RELATIVE = Path("state") / "audit"
+AUDIT_SUCCESS_LIMIT = 20
+AUDIT_FAILURE_LIMIT = 10
+AUDIT_MONTHLY_LIMIT = 12
+AUDIT_CURRENT_FILENAME = "current-binding.audit.json"
+AUDIT_PRE_RETENTION_DIRECTORY = "legacy-pre-retention"
+AUDIT_EVENT_NAME_PATTERN = re.compile(
+    r"^(?P<token>[0-9]{8}T[0-9]{6}Z)--(?P<operation_id>[A-Za-z0-9][A-Za-z0-9._-]{0,127})"
+    r"\.(?P<kind>audit|plan|journal)\.json$"
+)
+AUDIT_MONTH_NAME_PATTERN = re.compile(r"^(?P<month>[0-9]{4}-(?:0[1-9]|1[0-2]))\.audit\.json$")
+AUDIT_LEGACY_NAME_PATTERN = re.compile(
+    r"^(?P<operation_id>[A-Za-z0-9][A-Za-z0-9._-]{0,127})\.(?P<kind>plan|journal)\.json$"
+)
+AUDIT_PRE_RETENTION_PLAN_KEYS = frozenset(
+    {
+        "schema_version", "operation_id", "operation", "source_artifact_sha256", "detected_generation",
+        "tool_targets", "actions", "user_modifications", "expected_cleanup", "acceptance_matrix",
+        "plan_hash_algorithm", "plan_hash", "created_at",
+    }
+)
+AUDIT_PRE_RETENTION_CONTEXT_KEYS = frozenset(
+    {
+        "schema_version", "operation_id", "operation", "lifecycle_root", "artifact_root", "artifact_sha256",
+        "target_generation_id", "target_version", "generation_root", "tool_roots", "registry_sha256",
+        "legacy_fixture", "legacy_fixture_sha256", "transaction_root", "staging_root", "snapshot_root",
+        "residue_records", "expected_cleanup", "modification_observations",
+    }
+)
+AUDIT_PRE_RETENTION_JOURNAL_KEYS = frozenset(
+    {
+        "schema_version", "journal_id", "operation_id", "plan_hash", "state", "state_history",
+        "last_completed_action", "recovery_actions", "updated_at",
+    }
+)
 LEGACY_RESIDUE_RELATIVE = Path("state") / "legacy_residue.json"
 PLAN_ALGORITHM = "SHA256-UTF8-CANONICAL-JSON-v1-EXCLUDING-plan_hash"
 ARTIFACT_ALGORITHM = "MALTS-IMMUTABLE-ARTIFACT-v1"
@@ -55,10 +89,16 @@ WINDOWS_MAX_PATH = 259
 ATOMIC_TEMP_PROBE = ".~00000000"
 HASH_PATTERN = re.compile(r"^[A-Fa-f0-9]{64}$")
 ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+SEMVER_PATTERN = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
+STABLE_GENERATION_PATTERN = re.compile(r"^malts-v(?P<version>(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))$")
+PREVIEW_GENERATION_PATTERN = re.compile(r"^malts-v(?P<version>(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))-preview\.(?P<sequence>[1-9][0-9]*)$")
+LEGACY_GENERATION_PATTERN = re.compile(r"^malts-(?P<version>[0-9]+\.[0-9]+\.[0-9]+)-(?P<digest>[A-Fa-f0-9]{12})$")
 MANAGED_START = "<!-- MALTS:BEGIN managed instruction -->"
 MANAGED_END = "<!-- MALTS:END managed instruction -->"
 ACTIVE_GENERATION_TOKEN = "{{MALTS_ACTIVE_GENERATION_ROOT}}"
 GLOBAL_BOOT_FILENAME = "GLOBAL_BOOT.md"
+PREVIEW_MANIFEST_FILENAME = "preview_manifest.json"
+PREVIEW_CONTRACT_VERSION = 1
 GLOBAL_BOOT_POINTER_PATTERN = re.compile(
     r"(?ms)(^Resolved `MALTS_ROOT` on this machine:\s*\r?\n\s*```text\s*\r?\n)(.+?)(\r?\n\s*```)",
 )
@@ -120,6 +160,45 @@ class InjectedCrash(LifecycleError):
         self.state = state
 
 
+def build_generation_id(version: str, *, preview_sequence: int | None = None) -> str:
+    """Return the one canonical human-readable generation identity."""
+    if not isinstance(version, str) or SEMVER_PATTERN.fullmatch(version) is None:
+        raise LifecycleError("TX_GENERATION_VERSION", "Generation version must be canonical major.minor.patch SemVer text.")
+    if preview_sequence is None:
+        return f"malts-v{version}"
+    if isinstance(preview_sequence, bool) or not isinstance(preview_sequence, int) or preview_sequence < 1:
+        raise LifecycleError("TX_PREVIEW_SEQUENCE", "Preview sequence must be a positive integer.")
+    return f"malts-v{version}-preview.{preview_sequence}"
+
+
+def classify_generation_id(generation_id: str, *, expected_version: str | None = None) -> dict[str, Any]:
+    """Classify stable, preview, and readable legacy hash-suffix identities."""
+    if not isinstance(generation_id, str):
+        raise LifecycleError("TX_GENERATION_ID", "generation_id must be text.")
+    stable = STABLE_GENERATION_PATTERN.fullmatch(generation_id)
+    preview = PREVIEW_GENERATION_PATTERN.fullmatch(generation_id)
+    legacy = LEGACY_GENERATION_PATTERN.fullmatch(generation_id)
+    if stable is not None:
+        result: dict[str, Any] = {"kind": "stable", "version": stable.group("version"), "preview_sequence": None}
+    elif preview is not None:
+        result = {
+            "kind": "preview",
+            "version": preview.group("version"),
+            "preview_sequence": int(preview.group("sequence")),
+        }
+    elif legacy is not None:
+        result = {"kind": "legacy-hash", "version": legacy.group("version"), "preview_sequence": None}
+    else:
+        result = {"kind": "legacy-opaque", "version": expected_version, "preview_sequence": None}
+    if expected_version is not None and result["version"] != expected_version:
+        raise LifecycleError(
+            "TX_GENERATION_ID_VERSION",
+            "generation_id does not bind the declared version.",
+            generation_id,
+        )
+    return result
+
+
 def canonical_json(value: Any) -> bytes:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
@@ -156,6 +235,7 @@ def json_bytes(value: Any) -> bytes:
 
 
 def _atomic_write(path: Path, payload: bytes) -> None:
+    _assert_no_hardlink(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     # Keep the same-directory atomic temporary name shorter than typical target
     # file names. This prevents the safety wrapper itself from crossing the
@@ -178,6 +258,227 @@ def write_json(path: Path, value: Any) -> None:
 
 def _absolute(path: str | Path) -> Path:
     return Path(os.path.abspath(os.path.expanduser(str(path))))
+
+
+def _read_discovery_file(path_value: str | Path, surface: str) -> tuple[Path, str]:
+    raw = Path(path_value)
+    if not raw.is_absolute():
+        raise LifecycleError(f"DISCOVERY_{surface}_PATH", f"{surface} locator must be absolute.", str(raw))
+    path = _absolute(raw)
+    if not path.exists():
+        raise LifecycleError(f"DISCOVERY_{surface}_MISSING", f"{surface} file is missing.", str(path))
+    if not path.is_file() or _is_reparse(path):
+        raise LifecycleError(f"DISCOVERY_{surface}_TYPE", f"{surface} must be a regular non-reparse file.", str(path))
+    try:
+        return path, path.read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise LifecycleError(f"DISCOVERY_{surface}_ENCODING", f"{surface} must be readable valid UTF-8.", str(path)) from exc
+
+
+def parse_tool_boot(path_value: str | Path) -> dict[str, Any]:
+    """Parse the strict tool-adjacent MALTS_BOOT.md discovery schema."""
+    path, text = _read_discovery_file(path_value, "TOOL_BOOT")
+    matches = re.findall(r"(?m)^MALTS_ROOT:[ \t]*(.+?)[ \t]*\r?$", text)
+    if len(matches) != 1:
+        raise LifecycleError(
+            "DISCOVERY_TOOL_BOOT_FORMAT",
+            "Tool MALTS_BOOT.md must contain exactly one MALTS_ROOT: line.",
+            str(path),
+        )
+    target_text = matches[0].strip()
+    target = Path(target_text)
+    if not target.is_absolute() or "\n" in target_text or "\r" in target_text:
+        raise LifecycleError(
+            "DISCOVERY_TOOL_BOOT_TARGET",
+            "Tool MALTS_ROOT must be one absolute path.",
+            str(path),
+        )
+    return {
+        "schema": "tool-local-malts-boot-v1",
+        "boot_path": str(path),
+        "malts_root": str(_absolute(target)),
+        "sha256": file_sha256(path),
+    }
+
+
+def parse_global_boot(path_value: str | Path) -> dict[str, Any]:
+    """Parse the separate machine-global/recovery GLOBAL_BOOT.md schema."""
+    path, text = _read_discovery_file(path_value, "GLOBAL_BOOT")
+    matches = list(GLOBAL_BOOT_POINTER_PATTERN.finditer(text))
+    if len(matches) != 1:
+        raise LifecycleError(
+            "DISCOVERY_GLOBAL_BOOT_FORMAT",
+            "GLOBAL_BOOT.md must contain exactly one resolved MALTS_ROOT fenced block.",
+            str(path),
+        )
+    target_text = matches[0].group(2).strip()
+    if target_text == GLOBAL_BOOT_UNINSTALLED:
+        return {
+            "schema": "machine-global-malts-boot-v1",
+            "boot_path": str(path),
+            "state": "UNINSTALLED",
+            "malts_root": None,
+            "sha256": file_sha256(path),
+        }
+    target = Path(target_text)
+    if not target.is_absolute() or "\n" in target_text or "\r" in target_text:
+        raise LifecycleError(
+            "DISCOVERY_GLOBAL_BOOT_TARGET",
+            "Resolved GLOBAL_BOOT MALTS_ROOT must be one absolute path or the canonical UNINSTALLED marker.",
+            str(path),
+        )
+    return {
+        "schema": "machine-global-malts-boot-v1",
+        "boot_path": str(path),
+        "state": "ACTIVE",
+        "malts_root": str(_absolute(target)),
+        "sha256": file_sha256(path),
+    }
+
+
+def _same_locator(left: str | Path, right: str | Path) -> bool:
+    return os.path.normcase(str(_absolute(left))) == os.path.normcase(str(_absolute(right)))
+
+
+def resolve_discovery(
+    tool_root_value: str | Path,
+    *,
+    lifecycle_root: str | Path | None = None,
+    global_boot: str | Path | None = None,
+) -> dict[str, Any]:
+    """Resolve ordinary startup from tool-local boot and fail closed on split brain."""
+    raw_tool_root = Path(tool_root_value)
+    if not raw_tool_root.is_absolute():
+        raise LifecycleError("DISCOVERY_TOOL_ROOT_PATH", "Tool root must be absolute.", str(raw_tool_root))
+    tool_root = _absolute(raw_tool_root)
+    if not tool_root.is_dir() or _is_reparse(tool_root):
+        raise LifecycleError("DISCOVERY_TOOL_ROOT_TYPE", "Tool root must be a regular non-reparse directory.", str(tool_root))
+    tool_boot = parse_tool_boot(tool_root / "MALTS_BOOT.md")
+    active_root = Path(tool_boot["malts_root"])
+
+    if lifecycle_root is None:
+        if active_root.parent.name.casefold() != "generations" or active_root.name in {"", ".", ".."}:
+            raise LifecycleError(
+                "DISCOVERY_LIFECYCLE_DERIVATION",
+                "Tool MALTS_ROOT must use the exact <lifecycle>/generations/<generation-id> layout when lifecycle root is omitted.",
+                str(active_root),
+            )
+        root = _absolute(active_root.parent.parent)
+    else:
+        raw_root = Path(lifecycle_root)
+        if not raw_root.is_absolute():
+            raise LifecycleError("DISCOVERY_LIFECYCLE_PATH", "Lifecycle root must be absolute.", str(raw_root))
+        root = _absolute(raw_root)
+    if not root.is_dir() or _is_reparse(root):
+        raise LifecycleError("DISCOVERY_LIFECYCLE_TYPE", "Lifecycle root must be a regular non-reparse directory.", str(root))
+
+    expected_layout_root = root / "generations" / active_root.name
+    if not _same_locator(active_root, expected_layout_root):
+        raise LifecycleError(
+            "DISCOVERY_TOOL_BOOT_MISMATCH",
+            "Tool MALTS_ROOT does not belong to the selected lifecycle generations directory.",
+            str(active_root),
+        )
+    if not active_root.is_dir() or _is_reparse(active_root):
+        raise LifecycleError("DISCOVERY_ACTIVE_ROOT_TYPE", "Active MALTS_ROOT must be a regular non-reparse directory.", str(active_root))
+
+    try:
+        registry = _load_registry(root)
+    except LifecycleError as exc:
+        code = "DISCOVERY_REGISTRY_ACTIVE_MISMATCH" if "INST_ACTIVE_REFERENCE" in exc.message else "DISCOVERY_REGISTRY_INVALID"
+        raise LifecycleError(code, exc.message, str(_registry_path(root))) from exc
+    if registry is None:
+        raise LifecycleError("DISCOVERY_REGISTRY_MISSING", "Installation registry is missing.", str(_registry_path(root)))
+    active_records = [item for item in registry["generations"] if item["state"] == "active"]
+    if registry["lifecycle_state"] != "stable" or len(active_records) != 1:
+        raise LifecycleError(
+            "DISCOVERY_REGISTRY_STATE",
+            "Discovery requires one stable active registry generation.",
+            str(_registry_path(root)),
+        )
+    active = active_records[0]
+    if registry["active_generation_id"] != active["generation_id"]:
+        raise LifecycleError(
+            "DISCOVERY_REGISTRY_ACTIVE_MISMATCH",
+            "Registry active_generation_id does not match its sole active record.",
+            str(_registry_path(root)),
+        )
+    if active["generation_id"] != active_root.name or not _same_locator(active["root"], active_root):
+        raise LifecycleError(
+            "DISCOVERY_REGISTRY_ROOT_MISMATCH",
+            "Tool boot and active registry record resolve to different generations.",
+            str(_registry_path(root)),
+        )
+
+    version_path, version_text = _read_discovery_file(active_root / "VERSION", "VERSION")
+    version = version_text.strip()
+    if SEMVER_PATTERN.fullmatch(version) is None or active.get("version") != version:
+        raise LifecycleError("DISCOVERY_VERSION_MISMATCH", "VERSION does not match the active registry version.", str(version_path))
+    try:
+        classify_generation_id(active["generation_id"], expected_version=version)
+    except LifecycleError as exc:
+        raise LifecycleError("DISCOVERY_VERSION_MISMATCH", "Generation ID does not bind the active VERSION.", str(version_path)) from exc
+
+    pointer_path = _pointer_path(root)
+    if not pointer_path.is_file() or _is_reparse(pointer_path):
+        raise LifecycleError("DISCOVERY_POINTER_MISSING", "Active generation pointer is missing or untrusted.", str(pointer_path))
+    try:
+        pointer = load_json(pointer_path)
+    except LifecycleError as exc:
+        raise LifecycleError("DISCOVERY_POINTER_INVALID", exc.message, str(pointer_path)) from exc
+    expected_pointer = {
+        "schema_version": 1,
+        "generation_id": active["generation_id"],
+        "version": active["version"],
+        "root": str(active_root),
+        "artifact_sha256": active["artifact_sha256"],
+        "release_id": active["release_id"],
+        "release_manifest_sha256": active["release_manifest_sha256"],
+        "release_package_sha256": active["release_package_sha256"],
+        "generation_manifest_sha256": active["generation_manifest_sha256"],
+    }
+    if not isinstance(pointer, dict) or canonical_json(pointer) != canonical_json(expected_pointer):
+        raise LifecycleError("DISCOVERY_POINTER_MISMATCH", "Active pointer does not exactly match the active registry record.", str(pointer_path))
+
+    explicit_global = global_boot is not None
+    global_path = Path(global_boot) if explicit_global else root.parent / GLOBAL_BOOT_FILENAME
+    if explicit_global and not global_path.is_absolute():
+        raise LifecycleError("DISCOVERY_GLOBAL_BOOT_PATH", "Explicit GLOBAL_BOOT path must be absolute.", str(global_path))
+    if global_path.exists():
+        global_result = parse_global_boot(global_path)
+        if global_result["state"] != "ACTIVE" or not _same_locator(global_result["malts_root"], active_root):
+            raise LifecycleError(
+                "DISCOVERY_GLOBAL_BOOT_MISMATCH",
+                "GLOBAL_BOOT and tool-local discovery resolve to different lifecycle states or roots.",
+                str(global_path),
+            )
+        global_status = "MATCH"
+    elif explicit_global:
+        raise LifecycleError("DISCOVERY_GLOBAL_BOOT_MISSING", "Explicit GLOBAL_BOOT path is missing.", str(global_path))
+    else:
+        global_result = None
+        global_status = "ABSENT_OPTIONAL"
+
+    return {
+        "status": "PASS",
+        "mode": "READ_ONLY",
+        "writes_performed": False,
+        "authority": "tool-local-malts-boot",
+        "tool_root": str(tool_root),
+        "tool_boot": tool_boot,
+        "lifecycle_root": str(root),
+        "malts_root": str(active_root),
+        "generation_id": active["generation_id"],
+        "version": version,
+        "artifact_sha256": active["artifact_sha256"],
+        "cross_checks": {
+            "registry": "MATCH",
+            "active_pointer": "MATCH",
+            "version": "MATCH",
+            "global_boot": global_status,
+        },
+        "global_boot": global_result,
+    }
 
 
 def _is_inside(root: Path, path: Path) -> bool:
@@ -216,6 +517,16 @@ def _assert_no_reparse(root: Path, path: Path) -> None:
             raise LifecycleError("TX_REPARSE_POINT", "Reparse points are forbidden on managed lifecycle paths.", str(current))
 
 
+def _assert_no_hardlink(path: Path) -> None:
+    if not path.exists() or not path.is_file():
+        return
+    try:
+        if path.stat().st_nlink > 1:
+            raise LifecycleError("TX_HARDLINK", "Hardlinks are forbidden on managed lifecycle paths.", str(path))
+    except OSError as exc:
+        raise LifecycleError("TX_PATH_STAT", "Cannot inspect managed lifecycle path link count.", str(path)) from exc
+
+
 def _validate_relative(value: str) -> str:
     path = Path(value.replace("/", os.sep))
     if not value or path.is_absolute() or ".." in path.parts or any(":" in part for part in path.parts):
@@ -233,6 +544,7 @@ def _safe_target(root: Path, relative: str) -> Path:
     normalized = _validate_relative(relative)
     target = _absolute(root / Path(normalized))
     _assert_no_reparse(root, target)
+    _assert_no_hardlink(target)
     return target
 
 
@@ -248,6 +560,140 @@ def _path_digest(path: Path) -> str:
         _assert_no_reparse(path, item)
         records.append({"path": item.relative_to(path).as_posix(), "bytes": item.stat().st_size, "sha256": file_sha256(item)})
     return sha256_bytes(canonical_json(records))
+
+
+def _absolute_preview_root(value: str | Path | None) -> Path:
+    if value is None:
+        raise LifecycleError(
+            "TX_PREVIEW_ROOT_REQUIRED",
+            "Isolated preview requires an explicit absolute preview root.",
+        )
+    raw = Path(str(value))
+    if not raw.is_absolute():
+        raise LifecycleError(
+            "TX_PREVIEW_ROOT_REQUIRED",
+            "Isolated preview requires an explicit absolute preview root.",
+            str(raw),
+        )
+    root = _absolute(raw)
+    if root.parent == root:
+        raise LifecycleError("TX_PREVIEW_ROOT_UNSAFE", "A drive or filesystem root cannot be used as a preview root.", str(root))
+    for candidate in reversed((root, *root.parents)):
+        if candidate.exists() and _is_reparse(candidate):
+            raise LifecycleError("TX_PREVIEW_ROOT_REPARSE", "Preview roots cannot traverse a reparse point.", str(candidate))
+    return root
+
+
+def preview_tool_environment(
+    preview_root_value: str | Path | None,
+    tool: str,
+    *,
+    supported: bool = True,
+) -> dict[str, Any]:
+    """Return a process-local, preview-contained environment for one tool."""
+    preview_root = _absolute_preview_root(preview_root_value)
+    if tool not in TOOLS:
+        raise LifecycleError("TX_TOOL_ROOTS", "Tool root key is unsupported.", tool)
+    if not supported:
+        raise LifecycleError(
+            "TX_PREVIEW_TOOL_ISOLATION_UNSUPPORTED",
+            f"{tool} cannot be launched with a provably isolated configuration root.",
+            str(preview_root),
+        )
+    tool_root = preview_root / "tools" / tool
+    home_root = preview_root / "home" / tool
+    temp_root = preview_root / "runtime" / "tool-temp" / tool
+    environment = {
+        "HOME": str(home_root),
+        "USERPROFILE": str(home_root),
+        "APPDATA": str(home_root / "AppData" / "Roaming"),
+        "LOCALAPPDATA": str(home_root / "AppData" / "Local"),
+        "TEMP": str(temp_root),
+        "TMP": str(temp_root),
+        "MALTS_PREVIEW_ROOT": str(preview_root),
+        "MALTS_PREVIEW_DISCOVERY_ROOT": str(tool_root),
+        "MALTS_PREVIEW_GLOBAL_BOOT": str(preview_root / GLOBAL_BOOT_FILENAME),
+    }
+    writable_roots = [home_root, temp_root, tool_root]
+    if tool == "codex":
+        environment["CODEX_HOME"] = str(tool_root)
+    elif tool == "claude-code":
+        environment["CLAUDE_CONFIG_DIR"] = str(tool_root)
+    else:
+        xdg_data = preview_root / "state" / "opencode" / "data"
+        xdg_cache = preview_root / "state" / "opencode" / "cache"
+        environment.update(
+            {
+                "XDG_CONFIG_HOME": str(tool_root.parent),
+                "XDG_DATA_HOME": str(xdg_data),
+                "XDG_CACHE_HOME": str(xdg_cache),
+            }
+        )
+        writable_roots.extend((xdg_data, xdg_cache))
+    if any(not _is_inside(preview_root, path) for path in writable_roots):
+        raise LifecycleError("TX_PREVIEW_ROOT_ESCAPE", "A tool isolation root escapes the preview boundary.", str(preview_root))
+    return {
+        "schema_version": PREVIEW_CONTRACT_VERSION,
+        "tool": tool,
+        "preview_root": str(preview_root),
+        "discovery_root": str(tool_root),
+        "global_boot": str(preview_root / GLOBAL_BOOT_FILENAME),
+        "environment": environment,
+        "writable_roots": [str(path) for path in dict.fromkeys(writable_roots)],
+    }
+
+
+def capture_surface_invariants(surfaces: dict[str, str | Path]) -> dict[str, Any]:
+    """Capture a deterministic read-only digest manifest for protected surfaces."""
+    if not isinstance(surfaces, dict) or not surfaces:
+        raise LifecycleError("TX_INVARIANT_SURFACES", "Invariant capture requires a non-empty keyed surface mapping.")
+    records: list[dict[str, Any]] = []
+    for name in sorted(surfaces, key=str.casefold):
+        if not isinstance(name, str) or not ID_PATTERN.fullmatch(name):
+            raise LifecycleError("TX_INVARIANT_SURFACES", "Invariant surface names must be canonical IDs.", str(name))
+        raw = Path(str(surfaces[name]))
+        if not raw.is_absolute():
+            raise LifecycleError("TX_INVARIANT_SURFACES", "Invariant surface paths must be absolute.", str(raw))
+        path = _absolute(raw)
+        reparse = path.exists() and _is_reparse(path)
+        if not path.exists():
+            kind = "missing"
+            digest = "MISSING"
+        elif reparse:
+            kind = "reparse"
+            digest = "UNTRUSTED"
+        elif path.is_file():
+            kind = "file"
+            digest = file_sha256(path)
+        elif path.is_dir():
+            kind = "directory"
+            digest = _path_digest(path)
+        else:
+            kind = "other"
+            digest = "UNSUPPORTED"
+        records.append(
+            {"name": name, "path": str(path), "kind": kind, "reparse": reparse, "sha256": digest}
+        )
+    return {
+        "schema_version": 1,
+        "algorithm": "MALTS-PROTECTED-SURFACE-INVARIANTS-v1",
+        "surfaces": records,
+        "manifest_sha256": sha256_bytes(canonical_json(records)),
+    }
+
+
+def compare_surface_invariants(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
+    before_records = {item["name"]: item for item in before.get("surfaces", [])}
+    after_records = {item["name"]: item for item in after.get("surfaces", [])}
+    names = sorted(set(before_records) | set(after_records), key=str.casefold)
+    changed = [name for name in names if before_records.get(name) != after_records.get(name)]
+    return {
+        "status": "PASS" if not changed else "FAIL",
+        "writes_performed": False,
+        "before_manifest_sha256": before.get("manifest_sha256"),
+        "after_manifest_sha256": after.get("manifest_sha256"),
+        "changed": changed,
+    }
 
 
 def _global_boot_context(root: Path) -> dict[str, Any]:
@@ -310,17 +756,96 @@ def _verify_global_boot(context: dict[str, Any], active_generation_root: Path | 
         raise LifecycleError("TX_GLOBAL_BOOT_VERIFY", "Configured global boot does not resolve to the active generation.", str(path))
 
 
+def _preview_manifest_value(context: dict[str, Any], active_generation_root: Path) -> dict[str, Any]:
+    contract = context["preview_contract"]
+    return {
+        "schema_version": PREVIEW_CONTRACT_VERSION,
+        "mode": "isolated-maintainer-preview",
+        "preview_root": contract["preview_root"],
+        "lifecycle_root": context["lifecycle_root"],
+        "generation_id": context["target_generation_id"],
+        "version": context["target_version"],
+        "generation_root": str(active_generation_root),
+        "global_boot": contract["global_boot"],
+        "tool_isolation": contract["tool_isolation"],
+        "real_tool_integration": "PENDING",
+        "release_qualification": "PREVIEW_ONLY",
+    }
+
+
+def _write_preview_surfaces(context: dict[str, Any], active_generation_root: Path | None) -> None:
+    contract = context.get("preview_contract")
+    if contract is None:
+        return
+    if active_generation_root is None:
+        raise LifecycleError("TX_PREVIEW_TARGET", "Preview activation requires an active generation root.")
+    preview_root = _absolute_preview_root(contract["preview_root"])
+    for tool in context["selected_tools"]:
+        for raw_root in contract["tool_isolation"][tool]["writable_roots"]:
+            writable_root = Path(raw_root)
+            if not _is_inside(preview_root, writable_root):
+                raise LifecycleError("TX_PREVIEW_ROOT_ESCAPE", "Preview writable root escapes isolation.", str(writable_root))
+            _assert_no_reparse(preview_root, writable_root)
+            writable_root.mkdir(parents=True, exist_ok=True)
+    boot_path = Path(contract["global_boot"])
+    manifest_path = Path(contract["manifest"])
+    if boot_path.exists() or manifest_path.exists():
+        raise LifecycleError("TX_PREVIEW_SURFACE_COLLISION", "Preview boot or manifest already exists.", str(preview_root))
+    boot_text = (
+        "# MALTS Isolated Maintainer Preview\n\n"
+        "This boot is confined to the explicit preview root and is never a global precedence source.\n\n"
+        "Resolved `MALTS_ROOT` on this machine:\n\n"
+        "```text\n"
+        f"{active_generation_root}\n"
+        "```\n\n"
+        f"Preview root: `{preview_root}`\n"
+    )
+    _atomic_write(boot_path, boot_text.encode("utf-8"))
+    write_json(manifest_path, _preview_manifest_value(context, active_generation_root))
+
+
+def _verify_preview_surfaces(context: dict[str, Any], active_generation_root: Path | None) -> None:
+    contract = context.get("preview_contract")
+    if contract is None:
+        return
+    if active_generation_root is None:
+        raise LifecycleError("TX_PREVIEW_TARGET", "Preview verification requires an active generation root.")
+    boot_path = Path(contract["global_boot"])
+    manifest_path = Path(contract["manifest"])
+    if not boot_path.is_file() or _is_reparse(boot_path):
+        raise LifecycleError("TX_PREVIEW_BOOT_VERIFY", "Preview boot is missing or untrusted.", str(boot_path))
+    boot_text = boot_path.read_text(encoding="utf-8-sig")
+    match = GLOBAL_BOOT_POINTER_PATTERN.search(boot_text)
+    if match is None or match.group(2).strip() != str(active_generation_root):
+        raise LifecycleError("TX_PREVIEW_BOOT_VERIFY", "Preview boot does not bind the active preview generation.", str(boot_path))
+    if not manifest_path.is_file() or _is_reparse(manifest_path):
+        raise LifecycleError("TX_PREVIEW_MANIFEST_VERIFY", "Preview manifest is missing or untrusted.", str(manifest_path))
+    if canonical_json(load_json(manifest_path)) != canonical_json(_preview_manifest_value(context, active_generation_root)):
+        raise LifecycleError("TX_PREVIEW_MANIFEST_VERIFY", "Preview manifest content drifted.", str(manifest_path))
+    preview_root = Path(contract["preview_root"])
+    for tool in context["selected_tools"]:
+        isolation = contract["tool_isolation"][tool]
+        if Path(context["tool_roots"][tool]) != Path(isolation["discovery_root"]):
+            raise LifecycleError("TX_PREVIEW_TOOL_VERIFY", f"{tool} discovery root is not preview-contained.")
+        for raw_root in isolation["writable_roots"]:
+            writable_root = Path(raw_root)
+            if not writable_root.is_dir() or _is_reparse(writable_root) or not _is_inside(preview_root, writable_root):
+                raise LifecycleError("TX_PREVIEW_TOOL_VERIFY", f"{tool} writable root is missing or untrusted.", str(writable_root))
+
+
 def _remove_managed(root: Path, path: Path) -> None:
     path = _absolute(path)
     _assert_no_reparse(root, path)
     if not path.exists():
         return
     if path.is_file():
+        _assert_no_hardlink(path)
         path.unlink()
         return
     for item in sorted(path.rglob("*"), key=lambda entry: len(entry.parts), reverse=True):
         _assert_no_reparse(root, item)
         if item.is_file():
+            _assert_no_hardlink(item)
             item.unlink()
         elif item.is_dir():
             item.rmdir()
@@ -954,8 +1479,8 @@ def _build_repository_artifact(repository: dict[str, Any], artifact_root: Path) 
     version = identity["version"]
     artifact_sha256 = artifact_digest(version, inventory_sha256, package_tree_sha256)
     manifest = {
-        "schema_version": 1,
-        "generation_id": f"malts-{version}-{identity['source_tree_sha256'][:12].lower()}",
+        "schema_version": 2,
+        "generation_id": build_generation_id(version),
         "version": version,
         "artifact_sha256": artifact_sha256,
         "source_revision": f"local-tree-sha256:{identity['source_tree_sha256']}",
@@ -1185,6 +1710,52 @@ def _managed_block_profile(path: Path) -> str:
     return "incomplete"
 
 
+def _managed_block_sha256(data: bytes) -> str:
+    try:
+        text = data.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise LifecycleError("TX_MANAGED_MARKER", "Managed instruction projection is not valid UTF-8.") from exc
+    starts = text.count(MANAGED_START)
+    ends = text.count(MANAGED_END)
+    if starts != 1 or ends != 1 or text.index(MANAGED_START) > text.index(MANAGED_END):
+        raise LifecycleError("TX_MANAGED_MARKER", "Managed instruction markers are incomplete or duplicated.")
+    start = text.index(MANAGED_START)
+    end = text.index(MANAGED_END) + len(MANAGED_END)
+    block = text[start:end].replace("\r\n", "\n").replace("\r", "\n")
+    return sha256_bytes((block + "\n").encode("utf-8"))
+
+
+def _legacy_managed_block_sha256(
+    registry: dict[str, Any] | None,
+    source_sha256: str,
+    cache: dict[str, str | None],
+) -> str | None:
+    key = source_sha256.upper()
+    if key in cache:
+        return cache[key]
+    cache[key] = None
+    if registry is None:
+        return None
+    active = next((item for item in registry["generations"] if item["state"] == "active"), None)
+    if active is None:
+        return None
+    generation_root = Path(active["root"])
+    if not generation_root.is_dir():
+        return None
+    for candidate in sorted(
+        (path for path in generation_root.rglob("*") if path.is_file()),
+        key=lambda path: path.relative_to(generation_root).as_posix().casefold(),
+    ):
+        if file_sha256(candidate).upper() != key:
+            continue
+        try:
+            cache[key] = _managed_block_sha256(candidate.read_bytes())
+        except LifecycleError:
+            continue
+        break
+    return cache[key]
+
+
 def _load_legacy_projection_manifest(root: Path) -> dict[str, Any] | None:
     path = root / LEGACY_PROJECTION_MANIFEST
     if not path.is_file():
@@ -1226,15 +1797,9 @@ def _boot_pointer_root(tool_root: Path) -> Path | None:
     if not path.is_file():
         return None
     try:
-        text = path.read_text(encoding="utf-8-sig")
-    except UnicodeDecodeError as exc:
-        raise LifecycleError("MG_BOOT_POINTER_INVALID", "Selected-tool MALTS_BOOT.md is not valid UTF-8.", str(path)) from exc
-    matches = re.findall(r"(?m)^MALTS_ROOT:\s*(.+?)\s*$", text)
-    if not matches:
-        return None
-    if len(matches) != 1:
-        raise LifecycleError("MG_BOOT_POINTER_INVALID", "Selected-tool MALTS_BOOT.md has an ambiguous MALTS_ROOT pointer.", str(path))
-    return _absolute(matches[0])
+        return Path(parse_tool_boot(path)["malts_root"])
+    except LifecycleError as exc:
+        raise LifecycleError("MG_BOOT_POINTER_INVALID", exc.message, str(path)) from exc
 
 
 def _legacy_root_specs(
@@ -1886,8 +2451,121 @@ def _current_generation_records(root: Path, registry: dict[str, Any] | None, ope
     return records
 
 
+GENERATION_BINDING_FIELDS = (
+    "release_id",
+    "release_manifest_sha256",
+    "release_package_sha256",
+    "artifact_sha256",
+    "generation_id",
+    "generation_manifest_sha256",
+)
+
+
+def _active_generation_record(registry: dict[str, Any] | None) -> dict[str, Any] | None:
+    if registry is None:
+        return None
+    active = [item for item in registry["generations"] if item["state"] == "active"]
+    return active[0] if len(active) == 1 else None
+
+
+def _binding_matches(active: dict[str, Any], release_identity: dict[str, Any]) -> bool:
+    return all(active.get(field) == release_identity.get(field) for field in GENERATION_BINDING_FIELDS)
+
+
+def _expected_pointer(context: dict[str, Any], artifact: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "generation_id": context["target_generation_id"],
+        "version": context["target_version"],
+        "root": context["generation_root"],
+        "artifact_sha256": artifact["artifact_sha256"],
+        "release_id": context["release_identity"]["release_id"],
+        "release_manifest_sha256": context["release_identity"]["release_manifest_sha256"],
+        "release_package_sha256": context["release_identity"]["release_package_sha256"],
+        "generation_manifest_sha256": context["release_identity"]["generation_manifest_sha256"],
+    }
+
+
+def _same_generation_disposition(
+    *,
+    root: Path,
+    tool_roots: dict[str, Path],
+    registry: dict[str, Any] | None,
+    artifact: dict[str, Any],
+    release_identity: dict[str, Any],
+    source_kind: str,
+    operation: str,
+    global_boot: dict[str, Any],
+) -> str:
+    """Return EXECUTE/NO_OP or fail before any lifecycle write."""
+    target_id = artifact["manifest"]["generation_id"]
+    target = root / "generations" / target_id
+    active = _active_generation_record(registry)
+    registered = [] if registry is None else [
+        item for item in registry["generations"]
+        if item["generation_id"] == target_id or Path(item["root"]) == target
+    ]
+
+    if active is None or active["generation_id"] != target_id:
+        if target.exists() or registered:
+            raise LifecycleError(
+                "TX_GENERATION_COLLISION",
+                "The target generation name already exists without the exact active binding; it is preserved for recovery review.",
+                str(target),
+            )
+        return "EXECUTE"
+
+    if Path(active["root"]) != target or not _binding_matches(active, release_identity):
+        raise LifecycleError(
+            "TX_GENERATION_CONTENT_CONFLICT",
+            "The stable generation ID is already bound to different release or artifact content; use a new version or preview sequence.",
+            str(target),
+        )
+    if operation == "repair":
+        return "EXECUTE"
+    if operation != "update":
+        return "EXECUTE"
+
+    try:
+        installed = verify_installed_generation_envelope(target)
+        expected_installed_identity = _installed_release_identity(release_identity, source_kind)
+        if installed["release_identity"] != expected_installed_identity:
+            raise LifecycleError("TX_GENERATION_REPAIR_REQUIRED", "Installed release identity differs from its active binding.", str(target))
+        if installed["artifact_identity"] != {
+            "artifact_sha256": artifact["artifact_sha256"],
+            "package_tree_sha256": artifact["manifest"]["package_tree_sha256"],
+        }:
+            raise LifecycleError("TX_GENERATION_REPAIR_REQUIRED", "Installed artifact identity differs from its active binding.", str(target))
+        provisional = {
+            "target_generation_id": target_id,
+            "target_version": artifact["manifest"]["version"],
+            "generation_root": str(target),
+            "release_identity": release_identity,
+        }
+        pointer_path = _pointer_path(root)
+        if not pointer_path.is_file() or load_json(pointer_path) != _expected_pointer(provisional, artifact):
+            raise LifecycleError("TX_GENERATION_REPAIR_REQUIRED", "Active-generation pointer is missing or drifted.", str(pointer_path))
+        if registry["lifecycle_state"] != "stable" or len(registry["generations"]) != 1:
+            raise LifecycleError("TX_GENERATION_REPAIR_REQUIRED", "Registry is not in one-generation stable state.", str(_registry_path(root)))
+        _verify_projections(artifact, tool_roots, "update")
+        _verify_global_boot(global_boot, target, "update")
+    except LifecycleError as exc:
+        if exc.code == "TX_GENERATION_CONTENT_CONFLICT":
+            raise
+        raise LifecycleError(
+            "TX_GENERATION_REPAIR_REQUIRED",
+            "The same bound generation is not byte-for-byte healthy; create an explicit repair plan instead of updating in place.",
+            exc.path or str(target),
+        ) from exc
+    return "NO_OP"
+
+
 def _operation_actions(context_hash: str, context: dict[str, Any], operation: str) -> list[dict[str, Any]]:
     targets = context["tool_roots"]
+    if context.get("plan_disposition") == "NO_OP":
+        return [
+            {"action_id": "ACT-CONTEXT", "kind": "verify", "target": f"context-sha256:{context_hash}", "dependencies": [], "destructive": False},
+        ]
     actions = [
         {"action_id": "ACT-CONTEXT", "kind": "verify", "target": f"context-sha256:{context_hash}", "dependencies": [], "destructive": False},
         {"action_id": "ACT-STAGE", "kind": "copy" if operation != "uninstall" else "verify", "target": context["staging_root"], "dependencies": ["ACT-CONTEXT"], "destructive": False},
@@ -1911,6 +2589,27 @@ def _operation_actions(context_hash: str, context: dict[str, Any], operation: st
         action_id = f"ACT-PROJECT-{index}"
         actions.append({"action_id": action_id, "kind": "merge", "target": targets[tool], "dependencies": [previous], "destructive": operation == "uninstall"})
         previous = action_id
+    preview_contract = context.get("preview_contract")
+    if preview_contract is not None:
+        actions.append(
+            {
+                "action_id": "ACT-PREVIEW-BOOT",
+                "kind": "create",
+                "target": preview_contract["global_boot"],
+                "dependencies": [previous],
+                "destructive": False,
+            }
+        )
+        actions.append(
+            {
+                "action_id": "ACT-PREVIEW-MANIFEST",
+                "kind": "create",
+                "target": preview_contract["manifest"],
+                "dependencies": ["ACT-PREVIEW-BOOT"],
+                "destructive": False,
+            }
+        )
+        previous = "ACT-PREVIEW-MANIFEST"
     actions.append({"action_id": "ACT-POSTVALIDATE", "kind": "verify", "target": context["lifecycle_root"], "dependencies": [previous], "destructive": False})
     for index, locator in enumerate(context["expected_cleanup"], start=1):
         actions.append({"action_id": f"ACT-CLEAN-{index}", "kind": "delete", "target": locator, "dependencies": ["ACT-POSTVALIDATE"], "destructive": True})
@@ -1946,6 +2645,17 @@ def _validate_planned_write_path_bounds(
     ]
     if context["global_boot"]["mode"] == "refresh":
         atomic_targets.append(("global discovery boot", Path(context["global_boot"]["locator"])))
+    preview_contract = context.get("preview_contract")
+    if preview_contract is not None:
+        atomic_targets.extend(
+            (
+                ("preview discovery boot", Path(preview_contract["global_boot"])),
+                ("preview isolation manifest", Path(preview_contract["manifest"])),
+            )
+        )
+        for tool in context["selected_tools"]:
+            for raw_root in preview_contract["tool_isolation"][tool]["writable_roots"]:
+                direct_targets.append((f"{tool} preview writable root", Path(raw_root)))
 
     generation_root = Path(context["generation_root"]) if context["generation_root"] else None
     if artifact is not None and generation_root is not None:
@@ -1998,6 +2708,8 @@ def _make_plan_resolved(
     operation_id: str | None = None,
     created_at: str | None = None,
     modification_overrides: list[dict[str, Any]] | None = None,
+    allow_preview: bool = False,
+    preview_contract: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if operation not in {"install", "update", "repair", "uninstall"}:
         raise LifecycleError("TX_OPERATION", "Unsupported lifecycle operation.")
@@ -2016,6 +2728,34 @@ def _make_plan_resolved(
     if operation != "uninstall" and release is None:
         raise LifecycleError("TX_RELEASE_ROOT", "Install, update, and repair require a verified ReleaseRoot or RepositoryRoot.")
     artifact = release["artifact"] if release is not None else None
+    target_identity = None
+    if artifact is not None:
+        target_identity = classify_generation_id(
+            artifact["manifest"]["generation_id"],
+            expected_version=artifact["manifest"]["version"],
+        )
+        if artifact["manifest"].get("schema_version") == 2 and target_identity["kind"] not in {"stable", "preview"}:
+            raise LifecycleError(
+                "TX_GENERATION_ID",
+                "Generation manifest schema v2 requires a canonical stable or preview generation ID.",
+                artifact["manifest"]["generation_id"],
+            )
+        if target_identity["kind"] == "preview" and not allow_preview:
+            raise LifecycleError(
+                "TX_PREVIEW_REQUIRES_ISOLATION",
+                "Preview artifacts require the explicit isolated-preview entry point and cannot enter the stable lifecycle plan.",
+                artifact["manifest"]["generation_id"],
+            )
+        if allow_preview and target_identity["kind"] != "preview":
+            raise LifecycleError(
+                "TX_PREVIEW_ARTIFACT_REQUIRED",
+                "The isolated-preview entry point accepts only a canonical preview generation artifact.",
+                artifact["manifest"]["generation_id"],
+            )
+    if allow_preview and preview_contract is None:
+        raise LifecycleError("TX_PREVIEW_CONTRACT", "An isolated preview plan requires a bound preview contract.")
+    if not allow_preview and preview_contract is not None:
+        raise LifecycleError("TX_PREVIEW_CONTRACT", "Stable lifecycle plans cannot carry an isolated preview contract.")
     registry = _load_registry(root)
     selected_tools = list(normalized_tools)
     if registry and registry["lifecycle_state"] != "uninstalled" and registry["selected_tools"] != selected_tools:
@@ -2076,6 +2816,25 @@ def _make_plan_resolved(
         raise LifecycleError("TX_NOT_INSTALLED", f"Cannot {operation} an uninstalled target.")
     if operation == "repair" and detected_generation != "v1":
         raise LifecycleError("TX_REPAIR_GENERATION", "Repair requires an active v1 generation; use update for a legacy installation.")
+    global_boot = _global_boot_context(root)
+    plan_disposition = "EXECUTE"
+    if artifact is not None:
+        plan_disposition = _same_generation_disposition(
+            root=root,
+            tool_roots=normalized_tools,
+            registry=registry,
+            artifact=artifact,
+            release_identity=release_identity,
+            source_kind=source_kind,
+            operation=operation,
+            global_boot=global_boot,
+        )
+    obsolete_generation_bindings = [] if registry is None else [
+        {"generation_id": item["generation_id"], "root": item["root"]}
+        for item in registry["generations"]
+        if item["generation_id"] != target_generation_id
+    ]
+    generation_root = root / "generations" / target_generation_id if target_generation_id else None
     context: dict[str, Any] = {
         "schema_version": 1,
         "operation_id": operation_id,
@@ -2088,7 +2847,13 @@ def _make_plan_resolved(
         "artifact_sha256": release_identity["artifact_sha256"],
         "target_generation_id": target_generation_id,
         "target_version": target_version,
-        "generation_root": str(root / "generations" / target_generation_id) if target_generation_id else None,
+        "target_generation_kind": target_identity["kind"] if target_identity else None,
+        "preview_sequence": target_identity["preview_sequence"] if target_identity else None,
+        "identity_contract_version": 1 if target_identity and target_identity["kind"] in {"stable", "preview"} else 0,
+        "plan_disposition": plan_disposition,
+        "obsolete_generation_bindings": obsolete_generation_bindings,
+        "generation_root": str(generation_root) if generation_root else None,
+        "target_generation_digest": _path_digest(generation_root) if generation_root else "MISSING",
         "tool_roots": {tool: str(path) for tool, path in normalized_tools.items()},
         "selected_tools": selected_tools,
         "registry_sha256": _registry_digest(root),
@@ -2097,8 +2862,10 @@ def _make_plan_resolved(
         "transaction_root": str(transaction_root),
         "staging_root": str(transaction_root / "staging" / target_generation_id) if target_generation_id else str(transaction_root / "staging"),
         "snapshot_root": str(transaction_root / "snapshot"),
-        "global_boot": _global_boot_context(root),
+        "global_boot": global_boot,
     }
+    if preview_contract is not None:
+        context["preview_contract"] = copy.deepcopy(preview_contract)
     residue_records = [_record_digest_reference(record, root) for record in legacy_residue_records]
     legacy_ledger = root / LEGACY_RESIDUE_RELATIVE
     if legacy_ledger.is_file():
@@ -2155,6 +2922,12 @@ def _make_plan_resolved(
     for record in residue_records:
         _validate_contract("residue-tombstone", record)
     expected_cleanup = sorted({record["locator"] for record in residue_records if record["action"] == "delete"}, key=str.casefold)
+    if plan_disposition == "NO_OP" and expected_cleanup:
+        raise LifecycleError(
+            "TX_GENERATION_REPAIR_REQUIRED",
+            "The exact active generation still has managed cleanup obligations; create an explicit repair plan.",
+            expected_cleanup[0],
+        )
     context["residue_records"] = residue_records
     context["expected_cleanup"] = expected_cleanup
     context["modification_observations"] = modifications
@@ -2164,6 +2937,7 @@ def _make_plan_resolved(
         "schema_version": 1,
         "operation_id": operation_id,
         "operation": operation,
+        "disposition": plan_disposition,
         "source_artifact_sha256": release_identity["artifact_sha256"],
         "release_identity": release_identity,
         "detected_generation": detected_generation,
@@ -2190,6 +2964,123 @@ def _make_plan_resolved(
         "execution_context": context,
         "context_sha256": context_hash,
     }
+
+
+def _validate_new_preview_root(
+    preview_root_value: str | Path | None,
+    protected_roots: Iterable[str | Path],
+) -> Path:
+    preview_root = _absolute_preview_root(preview_root_value)
+    if preview_root.exists():
+        if not preview_root.is_dir() or _is_reparse(preview_root):
+            raise LifecycleError("TX_PREVIEW_ROOT_TYPE", "Preview root must be an absent or empty real directory.", str(preview_root))
+        if any(preview_root.iterdir()):
+            raise LifecycleError("TX_PREVIEW_ROOT_NOT_EMPTY", "Preview root must be empty before an isolated install.", str(preview_root))
+    for protected_value in protected_roots:
+        protected_raw = Path(str(protected_value))
+        if not protected_raw.is_absolute():
+            raise LifecycleError("TX_PREVIEW_PROTECTED_ROOT", "Protected roots must be absolute.", str(protected_raw))
+        protected = _absolute(protected_raw)
+        if _is_inside(protected, preview_root) or _is_inside(preview_root, protected):
+            raise LifecycleError(
+                "TX_PREVIEW_ROOT_OVERLAP",
+                "Preview root must not overlap maintenance, release, real lifecycle, or real tool roots.",
+                str(preview_root),
+            )
+    return preview_root
+
+
+def _validate_preview_context(context: dict[str, Any]) -> None:
+    contract = context.get("preview_contract")
+    target_kind = context.get("target_generation_kind")
+    if target_kind != "preview":
+        if contract is not None:
+            raise LifecycleError("TX_PREVIEW_CONTRACT", "Only preview generations may carry an isolated preview contract.")
+        return
+    required = {
+        "schema_version", "mode", "preview_root", "lifecycle_root", "global_boot",
+        "manifest", "tool_isolation", "protected_roots",
+    }
+    if not isinstance(contract, dict) or set(contract) != required:
+        raise LifecycleError("TX_PREVIEW_CONTRACT", "Preview execution context has an invalid closed shape.")
+    if contract["schema_version"] != PREVIEW_CONTRACT_VERSION or contract["mode"] != "isolated-maintainer-preview":
+        raise LifecycleError("TX_PREVIEW_CONTRACT", "Preview execution context has an unsupported version or mode.")
+    preview_root = _absolute_preview_root(contract["preview_root"])
+    expected_lifecycle = preview_root / "lifecycle"
+    if Path(context["lifecycle_root"]) != expected_lifecycle or contract["lifecycle_root"] != str(expected_lifecycle):
+        raise LifecycleError("TX_PREVIEW_CONTRACT", "Preview lifecycle root is not the canonical contained locator.", str(expected_lifecycle))
+    if contract["global_boot"] != str(preview_root / GLOBAL_BOOT_FILENAME):
+        raise LifecycleError("TX_PREVIEW_CONTRACT", "Preview global boot locator escapes or drifts from the preview root.")
+    if contract["manifest"] != str(preview_root / PREVIEW_MANIFEST_FILENAME):
+        raise LifecycleError("TX_PREVIEW_CONTRACT", "Preview manifest locator escapes or drifts from the preview root.")
+    if set(contract["tool_isolation"]) != set(context["selected_tools"]):
+        raise LifecycleError("TX_PREVIEW_CONTRACT", "Preview tool isolation set differs from selected tools.")
+    for tool in context["selected_tools"]:
+        expected = preview_tool_environment(preview_root, tool)
+        if canonical_json(contract["tool_isolation"][tool]) != canonical_json(expected):
+            raise LifecycleError("TX_PREVIEW_CONTRACT", f"Preview isolation binding drifted for {tool}.")
+        if context["tool_roots"][tool] != expected["discovery_root"]:
+            raise LifecycleError("TX_PREVIEW_CONTRACT", f"Preview tool root drifted for {tool}.")
+    for protected_value in contract["protected_roots"]:
+        protected = _absolute(protected_value)
+        if _is_inside(protected, preview_root) or _is_inside(preview_root, protected):
+            raise LifecycleError("TX_PREVIEW_ROOT_OVERLAP", "Preview context overlaps a protected root.", str(preview_root))
+
+
+def make_preview_plan(
+    *,
+    preview_root: str | Path | None,
+    release_root: str | Path | None = None,
+    repository_root: str | Path | None = None,
+    protected_roots: Iterable[str | Path] | None = None,
+    tools: Iterable[str] | None = None,
+    tool_isolation_support: dict[str, bool] | None = None,
+    operation_id: str | None = None,
+    created_at: str | None = None,
+) -> dict[str, Any]:
+    """Create a zero-write install plan for a fully contained preview artifact."""
+    if (release_root is None) == (repository_root is None):
+        raise LifecycleError("TX_SOURCE_INPUT", "Preview install requires exactly one ReleaseRoot or RepositoryRoot.")
+    selected = list(TOOLS if tools is None else tools)
+    if not selected or len(selected) != len(set(selected)) or any(tool not in TOOLS for tool in selected):
+        raise LifecycleError("TX_TOOL_ROOTS", "Preview tools must be a unique non-empty subset of supported tools.")
+    selected = [tool for tool in TOOLS if tool in selected]
+    source_value = repository_root if repository_root is not None else release_root
+    protected = [MALTS_ROOT, _absolute(source_value), *(protected_roots or [])]
+    root = _validate_new_preview_root(preview_root, protected)
+    if tool_isolation_support is not None and any(tool not in TOOLS for tool in tool_isolation_support):
+        raise LifecycleError("TX_TOOL_ROOTS", "Preview isolation support contains an unsupported tool key.")
+    isolation: dict[str, Any] = {}
+    for tool in selected:
+        supported = True if tool_isolation_support is None else tool_isolation_support.get(tool, False) is True
+        isolation[tool] = preview_tool_environment(root, tool, supported=supported)
+    lifecycle_root = root / "lifecycle"
+    normalized_protected = sorted({str(_absolute(value)) for value in protected}, key=str.casefold)
+    contract = {
+        "schema_version": PREVIEW_CONTRACT_VERSION,
+        "mode": "isolated-maintainer-preview",
+        "preview_root": str(root),
+        "lifecycle_root": str(lifecycle_root),
+        "global_boot": str(root / GLOBAL_BOOT_FILENAME),
+        "manifest": str(root / PREVIEW_MANIFEST_FILENAME),
+        "tool_isolation": isolation,
+        "protected_roots": normalized_protected,
+    }
+    source_kind = "repository" if repository_root is not None else "release-package"
+    with _source_artifact_scope(release_root=release_root, repository_root=repository_root) as release:
+        return _make_plan_resolved(
+            operation="install",
+            lifecycle_root=lifecycle_root,
+            tool_roots={tool: isolation[tool]["discovery_root"] for tool in selected},
+            release=release,
+            source_kind=source_kind,
+            legacy_roots=(),
+            default_legacy_root=None,
+            operation_id=operation_id,
+            created_at=created_at,
+            allow_preview=True,
+            preview_contract=contract,
+        )
 
 
 def make_plan(
@@ -2257,6 +3148,7 @@ def validate_plan_envelope(envelope: dict[str, Any]) -> tuple[dict[str, Any], di
         raise LifecycleError("TX_CONTEXT_BINDING", "Plan/context legacy-root observation mismatch.")
     if sorted(plan["expected_cleanup"], key=str.casefold) != sorted(context["expected_cleanup"], key=str.casefold):
         raise LifecycleError("TX_CONTEXT_BINDING", "Plan/context cleanup mismatch.")
+    _validate_preview_context(context)
     return plan, context
 
 
@@ -2280,6 +3172,10 @@ def _verify_plan_inputs(
         raise LifecycleError("TX_INPUT_DRIFT", "Installation registry changed after planning.", str(_registry_path(root)))
     if _global_boot_context(root) != context["global_boot"]:
         raise LifecycleError("TX_INPUT_DRIFT", "Configured global boot changed after planning.", context["global_boot"]["locator"])
+    generation_root = Path(context["generation_root"]) if context.get("generation_root") else None
+    observed_generation_digest = _path_digest(generation_root) if generation_root is not None else "MISSING"
+    if observed_generation_digest != context.get("target_generation_digest", observed_generation_digest):
+        raise LifecycleError("TX_INPUT_DRIFT", "Target generation content or existence changed after planning.", str(generation_root))
     source_kind = context.get("source_kind", "release-package" if context.get("release_root") is not None else "installed-generation")
     if source_kind == "release-package":
         release = verify_release_root(context["release_root"])
@@ -2430,6 +3326,7 @@ def _snapshot(
     residue_records: list[dict[str, Any]],
     legacy_root_observations: list[dict[str, Any]],
     global_boot: dict[str, Any],
+    preview_contract: dict[str, Any] | None,
 ) -> None:
     snapshot = transaction_root / "snapshot"
     snapshot.mkdir(parents=True, exist_ok=False)
@@ -2439,6 +3336,7 @@ def _snapshot(
         "tools": {},
         "external_residue": [],
         "global_boot": global_boot,
+        "preview_contract": preview_contract,
     }
     if meta["registry_exists"]:
         shutil.copyfile(_registry_path(root), snapshot / "registry.json")
@@ -2680,6 +3578,8 @@ def _apply_projections(
                 "source_sha256": entry["sha256"],
                 "installed_sha256": file_sha256(target),
             }
+            if entry["mode"] == "managed-block":
+                installed_entry["managed_block_sha256"] = _managed_block_sha256(source.read_bytes())
             if merge_metadata is not None:
                 installed_entry["merge_metadata"] = merge_metadata
             new_entries.append(installed_entry)
@@ -2695,16 +3595,22 @@ def _apply_projections(
                         raise LifecycleError("TX_PROJECTION_DECISION", "Managed instruction removal must strip the managed block.", str(target))
                     payload = _strip_managed_block(target.read_bytes(), previous.get("merge_metadata"))
                     if payload is None:
+                        _assert_no_reparse(root, target)
+                        _assert_no_hardlink(target)
                         target.unlink()
                     else:
                         _atomic_write(target, payload)
                 elif decision == "preserve":
                     pass
                 elif decision in {"replace", "drop"}:
+                    _assert_no_reparse(root, target)
+                    _assert_no_hardlink(target)
                     target.unlink()
                 else:
                     raise LifecycleError("TX_PROJECTION_DECISION", "Stale file projection requires preserve, replace, or drop.", str(target))
         manifest_path = root / PROJECTION_MANIFEST
+        _assert_no_reparse(root, manifest_path)
+        _assert_no_hardlink(manifest_path)
         if operation == "uninstall":
             if manifest_path.exists():
                 manifest_path.unlink()
@@ -2760,6 +3666,12 @@ def _activate(root: Path, artifact: dict[str, Any] | None, context: dict[str, An
     generations_root = root / "generations"
     generations_root.mkdir(parents=True, exist_ok=True)
     if target.exists():
+        if operation != "repair":
+            raise LifecycleError(
+                "TX_GENERATION_COLLISION",
+                "Refusing to overwrite an existing generation outside an explicit repair transaction.",
+                str(target),
+            )
         _remove_managed(generations_root, target)
     os.replace(staging, target)
     old_records = [item for item in registry["generations"] if item["generation_id"] != context["target_generation_id"]]
@@ -2779,7 +3691,7 @@ def _activate(root: Path, artifact: dict[str, Any] | None, context: dict[str, An
         "projection_manifests": [f"projection:{tool}:{context['target_generation_id']}" for tool in context["selected_tools"]],
         "created_at": _now(),
     }
-    registry["generations"] = [*old_records, new_record]
+    registry["generations"] = [new_record] if context.get("identity_contract_version") == 1 else [*old_records, new_record]
     registry["active_generation_id"] = context["target_generation_id"]
     registry["lifecycle_state"] = "transaction-active"
     registry["release_binding_profile"] = "release-package-v1"
@@ -2810,6 +3722,54 @@ def _allowed_cleanup_roots(context: dict[str, Any]) -> list[Path]:
         if observation["classification"] in {"exact-managed-root", "partial-managed-root"}
     )
     return roots
+
+
+def _obsolete_generation_references(root: Path, context: dict[str, Any]) -> list[dict[str, str]]:
+    references: list[dict[str, str]] = []
+    bindings = context.get("obsolete_generation_bindings", [])
+    if not bindings:
+        return references
+    surfaces: list[tuple[str, Path]] = [
+        ("installation-registry", _registry_path(root)),
+        ("active-generation-pointer", _pointer_path(root)),
+    ]
+    global_boot = context.get("global_boot", {})
+    if global_boot.get("mode") == "refresh":
+        surfaces.append(("global-boot", Path(global_boot["locator"])))
+    for tool, raw_root in context["tool_roots"].items():
+        tool_root = Path(raw_root)
+        surfaces.extend(
+            (
+                (f"{tool}-projection", tool_root / PROJECTION_MANIFEST),
+                (f"{tool}-boot", tool_root / "MALTS_BOOT.md"),
+            )
+        )
+    for surface, path in surfaces:
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8-sig")
+        except UnicodeDecodeError as exc:
+            raise LifecycleError("TX_OLD_GENERATION_REFERENCE_SCAN", "Managed reference surface is not valid UTF-8.", str(path)) from exc
+        for binding in bindings:
+            for token_kind in ("generation_id", "root"):
+                token = binding[token_kind]
+                if token and token in text:
+                    references.append({"surface": surface, "path": str(path), "token_kind": token_kind, "token": token})
+    return references
+
+
+def _assert_obsolete_generations_unreferenced(root: Path, context: dict[str, Any]) -> None:
+    if context.get("identity_contract_version") != 1:
+        return
+    references = _obsolete_generation_references(root, context)
+    if references:
+        first = references[0]
+        raise LifecycleError(
+            "TX_OLD_GENERATION_REFERENCED",
+            f"Cleanup is blocked because {len(references)} managed reference(s) still point to an obsolete generation.",
+            first["path"],
+        )
 
 
 def _cleanup_records(context: dict[str, Any]) -> dict[str, Any]:
@@ -2843,6 +3803,7 @@ def _cleanup_records(context: dict[str, Any]) -> dict[str, Any]:
 
 
 def _clean(root: Path, context: dict[str, Any], operation: str, transaction_root: Path) -> dict[str, Any]:
+    _assert_obsolete_generations_unreferenced(root, context)
     registry = _load_registry(root) or _initial_registry(root, _now(), context["selected_tools"])
     active_id = registry["active_generation_id"]
     if operation == "uninstall":
@@ -2869,15 +3830,998 @@ def _clean(root: Path, context: dict[str, Any], operation: str, transaction_root
     return result
 
 
-def _commit(root: Path, context: dict[str, Any], journal: dict[str, Any], envelope: dict[str, Any], transaction_root: Path) -> None:
+def _audit_token(value: str) -> str:
+    normalized = _now(value)
+    parsed = datetime.fromisoformat(normalized.replace("Z", "+00:00"))
+    return parsed.strftime("%Y%m%dT%H%M%SZ")
+
+
+def _audit_record_hash(value: dict[str, Any]) -> str:
+    payload = copy.deepcopy(value)
+    payload.pop("record_sha256", None)
+    return sha256_bytes(canonical_json(payload))
+
+
+def _audit_details(**overrides: Any) -> dict[str, Any]:
+    value = {
+        "plan_hash": None,
+        "generation_id": None,
+        "binding_sha256": None,
+        "plan_sha256": None,
+        "journal_sha256": None,
+        "success_count": None,
+        "failure_count": None,
+        "uninstall_count": None,
+        "last_operation_id": None,
+    }
+    value.update(overrides)
+    return value
+
+
+def _make_audit_record(
+    *,
+    record_type: str,
+    record_id: str,
+    created_at: str,
+    operation_id: str | None,
+    operation: str | None,
+    outcome: str,
+    details: dict[str, Any],
+) -> dict[str, Any]:
+    normalized = _now(created_at)
+    value = {
+        "schema_version": 1,
+        "record_type": record_type,
+        "record_id": record_id,
+        "owner": "MALTS",
+        "created_at": normalized,
+        "month": normalized[:7],
+        "operation_id": operation_id,
+        "operation": operation,
+        "outcome": outcome,
+        "details": details,
+    }
+    value["record_sha256"] = _audit_record_hash(value)
+    _validate_contract("lifecycle-audit-record", value)
+    return value
+
+
+def _active_binding(registry: dict[str, Any] | None) -> tuple[dict[str, Any] | None, str | None]:
+    active = _active_generation_record(registry)
+    if active is None:
+        return None, None
+    return active, sha256_bytes(canonical_json(active))
+
+
+def _audit_forbidden_name(path: Path) -> bool:
+    lowered = path.name.casefold()
+    return (
+        lowered.endswith((".zip", ".tar", ".tgz", ".7z"))
+        or any(token in lowered for token in ("payload", "package", "generation-copy", "artifact-copy"))
+    )
+
+
+def _audit_issue(code: str, path: Path, message: str) -> dict[str, Any]:
+    return {"code": code, "path": str(path), "message": message}
+
+
+def _load_audit_record(path: Path, expected_type: str) -> dict[str, Any]:
+    if not path.is_file() or _is_reparse(path):
+        raise LifecycleError("AUDIT_RECORD_PATH", "Audit record must be a regular non-reparse file.", str(path))
+    value = load_json(path)
+    if not isinstance(value, dict):
+        raise LifecycleError("AUDIT_RECORD_INVALID", "Audit record must be a JSON object.", str(path))
+    _validate_contract("lifecycle-audit-record", value)
+    if value["record_type"] != expected_type:
+        raise LifecycleError("AUDIT_RECORD_TYPE", f"Expected {expected_type} audit record.", str(path))
+    return value
+
+
+def _audit_event_entry(path: Path, record: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "path": str(path),
+        "sha256": file_sha256(path),
+        "sort_key": (record["created_at"], record.get("operation_id") or ""),
+        "record": record,
+    }
+
+
+def _pre_retention_fail(code: str, message: str, path: Path) -> None:
+    raise LifecycleError(code, message, str(path))
+
+
+def _pre_retention_hash(value: Any, *, allow_none: bool = False) -> bool:
+    return (allow_none and value is None) or (isinstance(value, str) and HASH_PATTERN.fullmatch(value) is not None)
+
+
+def _pre_retention_digest(value: Any) -> bool:
+    return value == "MISSING" or _pre_retention_hash(value)
+
+
+def _pre_retention_absolute_path(value: Any) -> bool:
+    return isinstance(value, str) and Path(value).is_absolute()
+
+
+def _validate_pre_retention_audit_bundle(
+    operation_id: str,
+    envelope: Any,
+    journal: Any,
+    *,
+    path: Path,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Validate the exact v1 pre-retention audit shape without inventing newer bindings."""
+    if not isinstance(envelope, dict) or set(envelope) != {"schema_version", "plan_contract", "execution_context", "context_sha256"}:
+        _pre_retention_fail("TX_AUDIT_PRE_RETENTION_SCHEMA", "Pre-retention audit envelope has an invalid closed shape.", path)
+    if envelope["schema_version"] != 1 or not isinstance(envelope["plan_contract"], dict) or not isinstance(envelope["execution_context"], dict):
+        _pre_retention_fail("TX_AUDIT_PRE_RETENTION_SCHEMA", "Pre-retention audit envelope has invalid typed fields.", path)
+    plan = envelope["plan_contract"]
+    context = envelope["execution_context"]
+    if set(plan) != AUDIT_PRE_RETENTION_PLAN_KEYS or set(context) != AUDIT_PRE_RETENTION_CONTEXT_KEYS:
+        _pre_retention_fail("TX_AUDIT_PRE_RETENTION_SCHEMA", "Pre-retention audit plan or context does not match the exact historic field set.", path)
+    if (
+        plan["schema_version"] != 1
+        or plan["operation_id"] != operation_id
+        or not ID_PATTERN.fullmatch(operation_id)
+        or plan["operation"] not in {"install", "update", "repair", "uninstall"}
+        or plan["plan_hash_algorithm"] != PLAN_ALGORITHM
+        or not _pre_retention_hash(plan["plan_hash"])
+        or not isinstance(plan["created_at"], str)
+    ):
+        _pre_retention_fail("TX_AUDIT_PRE_RETENTION_PLAN", "Pre-retention audit plan identity is invalid.", path)
+    _now(plan["created_at"])
+    if plan["plan_hash"] != canonical_plan_hash(plan):
+        _pre_retention_fail("TX_AUDIT_PRE_RETENTION_PLAN_HASH", "Pre-retention audit plan hash drifted.", path)
+    if not isinstance(plan["detected_generation"], (str, type(None))):
+        _pre_retention_fail("TX_AUDIT_PRE_RETENTION_PLAN", "Pre-retention detected generation is invalid.", path)
+    if plan["operation"] == "uninstall":
+        if plan["source_artifact_sha256"] is not None:
+            _pre_retention_fail("TX_AUDIT_PRE_RETENTION_PLAN", "Pre-retention uninstall cannot bind a source artifact.", path)
+    elif not _pre_retention_hash(plan["source_artifact_sha256"]):
+        _pre_retention_fail("TX_AUDIT_PRE_RETENTION_PLAN", "Pre-retention plan source artifact hash is invalid.", path)
+
+    tools = plan["tool_targets"]
+    if (
+        not isinstance(tools, list)
+        or not 1 <= len(tools) <= len(TOOLS)
+        or any(not isinstance(tool, str) or tool not in TOOLS for tool in tools)
+        or len(set(tools)) != len(tools)
+    ):
+        _pre_retention_fail("TX_AUDIT_PRE_RETENTION_PLAN", "Pre-retention plan tool selection is invalid.", path)
+    cleanup = plan["expected_cleanup"]
+    if not isinstance(cleanup, list) or any(not _pre_retention_absolute_path(item) for item in cleanup) or len(set(cleanup)) != len(cleanup):
+        _pre_retention_fail("TX_AUDIT_PRE_RETENTION_PLAN", "Pre-retention plan cleanup list is invalid.", path)
+
+    actions = plan["actions"]
+    if not isinstance(actions, list) or not actions:
+        _pre_retention_fail("TX_AUDIT_PRE_RETENTION_PLAN", "Pre-retention plan has no actions.", path)
+    action_ids: set[str] = set()
+    dependencies: dict[str, set[str]] = {}
+    for action in actions:
+        if (
+            not isinstance(action, dict)
+            or set(action) != {"action_id", "kind", "target", "dependencies", "destructive"}
+            or not isinstance(action["action_id"], str)
+            or not ID_PATTERN.fullmatch(action["action_id"])
+            or action["action_id"] in action_ids
+            or action["kind"] not in {"verify", "copy", "activate", "merge", "delete"}
+            or not isinstance(action["target"], str)
+            or not action["target"]
+            or not isinstance(action["dependencies"], list)
+            or any(not isinstance(item, str) or not ID_PATTERN.fullmatch(item) for item in action["dependencies"])
+            or len(set(action["dependencies"])) != len(action["dependencies"])
+            or not isinstance(action["destructive"], bool)
+        ):
+            _pre_retention_fail("TX_AUDIT_PRE_RETENTION_PLAN", "Pre-retention plan action shape is invalid.", path)
+        action_ids.add(action["action_id"])
+        dependencies[action["action_id"]] = set(action["dependencies"])
+        if action["kind"] == "delete" and action["target"] not in cleanup:
+            _pre_retention_fail("TX_AUDIT_PRE_RETENTION_PLAN", "Pre-retention delete action is not listed for cleanup.", path)
+    if any(not values.issubset(action_ids) or key in values for key, values in dependencies.items()):
+        _pre_retention_fail("TX_AUDIT_PRE_RETENTION_PLAN", "Pre-retention action dependencies are invalid.", path)
+    unresolved = {key: set(values) for key, values in dependencies.items()}
+    while unresolved:
+        ready = [key for key, values in unresolved.items() if not values]
+        if not ready:
+            _pre_retention_fail("TX_AUDIT_PRE_RETENTION_PLAN", "Pre-retention action dependencies contain a cycle.", path)
+        for key in ready:
+            unresolved.pop(key)
+        for values in unresolved.values():
+            values.difference_update(ready)
+
+    acceptance = plan["acceptance_matrix"]
+    if not isinstance(acceptance, list) or not acceptance:
+        _pre_retention_fail("TX_AUDIT_PRE_RETENTION_PLAN", "Pre-retention acceptance matrix is invalid.", path)
+    criteria: set[str] = set()
+    for item in acceptance:
+        if (
+            not isinstance(item, dict)
+            or set(item) != {"criterion_id", "hard", "verification", "expected_result"}
+            or not isinstance(item["criterion_id"], str)
+            or not ID_PATTERN.fullmatch(item["criterion_id"])
+            or item["criterion_id"] in criteria
+            or not isinstance(item["hard"], bool)
+            or not isinstance(item["verification"], str)
+            or not item["verification"]
+            or not isinstance(item["expected_result"], str)
+            or not item["expected_result"]
+        ):
+            _pre_retention_fail("TX_AUDIT_PRE_RETENTION_PLAN", "Pre-retention acceptance entry is invalid.", path)
+        criteria.add(item["criterion_id"])
+    modifications = plan["user_modifications"]
+    if not isinstance(modifications, list):
+        _pre_retention_fail("TX_AUDIT_PRE_RETENTION_PLAN", "Pre-retention modification observations are invalid.", path)
+    for item in modifications:
+        if (
+            not isinstance(item, dict)
+            or set(item) != {"locator", "classification", "decision", "evidence_refs"}
+            or not _pre_retention_absolute_path(item["locator"])
+            or item["classification"] not in {"U0", "U1", "U2", "U3", "U4"}
+            or item["decision"] not in {"replace", "merge", "preserve", "ask", "fail-closed"}
+            or not isinstance(item["evidence_refs"], list)
+            or any(not isinstance(ref, str) or not ref for ref in item["evidence_refs"])
+        ):
+            _pre_retention_fail("TX_AUDIT_PRE_RETENTION_PLAN", "Pre-retention modification observation is invalid.", path)
+
+    if (
+        context["schema_version"] != 1
+        or context["operation_id"] != operation_id
+        or context["operation"] != plan["operation"]
+        or not _pre_retention_digest(context["registry_sha256"])
+        or not isinstance(context["target_version"], str)
+        or SEMVER_PATTERN.fullmatch(context["target_version"]) is None
+        or not isinstance(context["target_generation_id"], str)
+        or not ID_PATTERN.fullmatch(context["target_generation_id"])
+        or context["artifact_sha256"] != plan["source_artifact_sha256"]
+        or sorted(context["expected_cleanup"], key=str.casefold) != sorted(cleanup, key=str.casefold)
+        or not isinstance(context["tool_roots"], dict)
+        or list(context["tool_roots"]) != tools
+    ):
+        _pre_retention_fail("TX_AUDIT_PRE_RETENTION_BINDING", "Pre-retention plan/context binding is invalid.", path)
+    path_fields = ("lifecycle_root", "transaction_root", "staging_root", "snapshot_root")
+    if any(not _pre_retention_absolute_path(context[field]) for field in path_fields):
+        _pre_retention_fail("TX_AUDIT_PRE_RETENTION_CONTEXT", "Pre-retention context path is invalid.", path)
+    for field in ("artifact_root", "generation_root"):
+        if context[field] is not None and not _pre_retention_absolute_path(context[field]):
+            _pre_retention_fail("TX_AUDIT_PRE_RETENTION_CONTEXT", "Pre-retention optional context path is invalid.", path)
+    if any(not _pre_retention_absolute_path(value) for value in context["tool_roots"].values()):
+        _pre_retention_fail("TX_AUDIT_PRE_RETENTION_CONTEXT", "Pre-retention tool root is invalid.", path)
+    fixture = context["legacy_fixture"]
+    fixture_hash = context["legacy_fixture_sha256"]
+    if fixture is None:
+        if fixture_hash is not None:
+            _pre_retention_fail("TX_AUDIT_PRE_RETENTION_CONTEXT", "Absent pre-retention fixture has a hash.", path)
+    elif not isinstance(fixture, dict) or not _pre_retention_hash(fixture_hash) or sha256_bytes(canonical_json(fixture)) != fixture_hash:
+        _pre_retention_fail("TX_AUDIT_PRE_RETENTION_CONTEXT", "Pre-retention fixture binding is invalid.", path)
+    if not isinstance(context["residue_records"], list) or not isinstance(context["modification_observations"], list):
+        _pre_retention_fail("TX_AUDIT_PRE_RETENTION_CONTEXT", "Pre-retention context collections are invalid.", path)
+    for record in context["residue_records"]:
+        if not isinstance(record, dict):
+            _pre_retention_fail("TX_AUDIT_PRE_RETENTION_CONTEXT", "Pre-retention residue record is invalid.", path)
+        _validate_contract("residue-tombstone", record)
+    for item in context["modification_observations"]:
+        if (
+            not isinstance(item, dict)
+            or set(item) != {"locator", "classification", "decision", "evidence_refs"}
+            or not _pre_retention_absolute_path(item["locator"])
+            or item["classification"] not in {"U0", "U1", "U2", "U3", "U4"}
+            or item["decision"] not in {"replace", "merge", "preserve", "ask", "fail-closed"}
+            or not isinstance(item["evidence_refs"], list)
+            or any(not isinstance(ref, str) or not ref for ref in item["evidence_refs"])
+        ):
+            _pre_retention_fail("TX_AUDIT_PRE_RETENTION_CONTEXT", "Pre-retention modification observation is invalid.", path)
+    context_hash = sha256_bytes(canonical_json(context))
+    if envelope["context_sha256"] != context_hash:
+        _pre_retention_fail("TX_AUDIT_PRE_RETENTION_CONTEXT_HASH", "Pre-retention context hash drifted.", path)
+    if not any(action["kind"] == "verify" and action["target"] == f"context-sha256:{context_hash}" for action in actions):
+        _pre_retention_fail("TX_AUDIT_PRE_RETENTION_CONTEXT_BINDING", "Pre-retention plan does not bind its context hash.", path)
+
+    if not isinstance(journal, dict) or set(journal) != AUDIT_PRE_RETENTION_JOURNAL_KEYS:
+        _pre_retention_fail("TX_AUDIT_PRE_RETENTION_JOURNAL", "Pre-retention journal has an invalid closed shape.", path)
+    _validate_contract("transaction-journal", journal)
+    if (
+        journal["journal_id"] != f"J-{operation_id}"
+        or journal["operation_id"] != operation_id
+        or journal["plan_hash"] != plan["plan_hash"]
+        or journal["state"] not in {"COMMIT", "FAILED"}
+        or not isinstance(journal["last_completed_action"], str)
+        or not isinstance(journal["recovery_actions"], list)
+        or not isinstance(journal["updated_at"], str)
+    ):
+        _pre_retention_fail("TX_AUDIT_PRE_RETENTION_JOURNAL", "Pre-retention journal binding is invalid.", path)
+    _now(journal["updated_at"])
+    return plan, context
+
+
+def _load_pre_retention_audit_bundle(operation_id: str, plan_path: Path, journal_path: Path) -> dict[str, Any]:
+    if (
+        not plan_path.is_file()
+        or not journal_path.is_file()
+        or _is_reparse(plan_path)
+        or _is_reparse(journal_path)
+    ):
+        raise LifecycleError("TX_AUDIT_PRE_RETENTION_PATH", "Pre-retention audit files must be regular non-reparse files.", str(plan_path))
+    envelope = load_json(plan_path)
+    journal = load_json(journal_path)
+    plan, context = _validate_pre_retention_audit_bundle(operation_id, envelope, journal, path=plan_path)
+    return {
+        "operation_id": operation_id,
+        "plan": plan,
+        "context": context,
+        "envelope": envelope,
+        "journal": journal,
+        "plan_path": str(plan_path),
+        "plan_sha256": file_sha256(plan_path),
+        "journal_path": str(journal_path),
+        "journal_sha256": file_sha256(journal_path),
+        "sort_key": (journal["updated_at"], operation_id),
+    }
+
+
+def _scan_pre_retention_archives(audit: Path, issues: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    archive = audit / AUDIT_PRE_RETENTION_DIRECTORY
+    bundles: dict[str, dict[str, Any]] = {}
+    if not archive.exists():
+        return bundles
+    if not archive.is_dir() or _is_reparse(archive):
+        issues.append(_audit_issue("AUDIT_PRE_RETENTION_ARCHIVE_INVALID", archive, "Historic archive must be a regular non-reparse directory."))
+        return bundles
+    for child in sorted(archive.iterdir(), key=lambda item: item.name.casefold()):
+        if _is_reparse(child) or not child.is_dir() or ID_PATTERN.fullmatch(child.name) is None:
+            issues.append(_audit_issue("AUDIT_PRE_RETENTION_ARCHIVE_INVALID", child, "Historic archive entry has an invalid path or name."))
+            continue
+        files = {item.name: item for item in child.iterdir() if item.is_file() and not _is_reparse(item)}
+        if set(files) != {"plan.json", "journal.json"} or len(list(child.iterdir())) != 2:
+            issues.append(_audit_issue("AUDIT_PRE_RETENTION_ARCHIVE_INVALID", child, "Historic archive entry must contain exactly plan.json and journal.json."))
+            continue
+        try:
+            bundles[child.name] = _load_pre_retention_audit_bundle(child.name, files["plan.json"], files["journal.json"])
+        except LifecycleError as exc:
+            issues.append(_audit_issue("AUDIT_PRE_RETENTION_ARCHIVE_INVALID", child, exc.code))
+    return bundles
+
+
+def _pre_retention_matches_archive(files: dict[str, Path], archive: dict[str, Any]) -> bool:
+    for kind, path in files.items():
+        if file_sha256(path) != archive[f"{kind}_sha256"]:
+            return False
+    return True
+
+
+def audit_state(root_value: str | Path, *, enforce_current_binding: bool = True) -> dict[str, Any]:
+    root = _absolute(root_value)
+    audit = root / AUDIT_RELATIVE
+    issues: list[dict[str, Any]] = []
+    success_receipts: list[dict[str, Any]] = []
+    failure_bundles: list[dict[str, Any]] = []
+    monthly_summaries: list[dict[str, Any]] = []
+    legacy_bundles: list[dict[str, Any]] = []
+    pre_retention_bundles: list[dict[str, Any]] = []
+    pre_retention_archives: list[dict[str, Any]] = []
+    pre_retention_migration_residue: list[dict[str, Any]] = []
+    current_binding: dict[str, Any] | None = None
+
+    if audit.exists() and (not audit.is_dir() or _is_reparse(audit)):
+        issues.append(_audit_issue("AUDIT_ROOT_INVALID", audit, "Audit root must be a regular non-reparse directory."))
+    elif audit.is_dir():
+        allowed_directories = {"success", "failure", "monthly", AUDIT_PRE_RETENTION_DIRECTORY}
+        legacy_groups: dict[str, dict[str, Path]] = {}
+        for child in sorted(audit.iterdir(), key=lambda item: item.name.casefold()):
+            if _is_reparse(child):
+                issues.append(_audit_issue("AUDIT_REPARSE", child, "Audit content cannot be a reparse point."))
+                continue
+            if child.name == AUDIT_CURRENT_FILENAME:
+                try:
+                    record = _load_audit_record(child, "current-binding")
+                    current_binding = _audit_event_entry(child, record)
+                except LifecycleError as exc:
+                    issues.append(_audit_issue("AUDIT_RECORD_INVALID", child, exc.code))
+                continue
+            if child.name in allowed_directories and child.is_dir():
+                continue
+            legacy_match = AUDIT_LEGACY_NAME_PATTERN.fullmatch(child.name) if child.is_file() else None
+            if legacy_match is not None:
+                legacy_groups.setdefault(legacy_match.group("operation_id"), {})[legacy_match.group("kind")] = child
+                continue
+            code = "AUDIT_FORBIDDEN_CONTENT" if _audit_forbidden_name(child) else "AUDIT_UNKNOWN_ENTRY"
+            issues.append(_audit_issue(code, child, "Unknown or forbidden audit-root content is preserved and blocks pruning."))
+
+        archived_pre_retention = _scan_pre_retention_archives(audit, issues)
+        pre_retention_archives.extend(archived_pre_retention.values())
+
+        success_root = audit / "success"
+        if success_root.is_dir() and not _is_reparse(success_root):
+            for path in sorted(success_root.iterdir(), key=lambda item: item.name.casefold()):
+                match = AUDIT_EVENT_NAME_PATTERN.fullmatch(path.name) if path.is_file() and not _is_reparse(path) else None
+                if match is None or match.group("kind") != "audit":
+                    code = "AUDIT_FORBIDDEN_CONTENT" if _audit_forbidden_name(path) else "AUDIT_UNKNOWN_ENTRY"
+                    issues.append(_audit_issue(code, path, "Success receipt name or type is not owned by the retention contract."))
+                    continue
+                try:
+                    record = _load_audit_record(path, "operation-receipt")
+                    if (
+                        record["operation_id"] != match.group("operation_id")
+                        or _audit_token(record["created_at"]) != match.group("token")
+                    ):
+                        raise LifecycleError("AUDIT_RECORD_NAME", "Success receipt filename does not bind its record.", str(path))
+                    success_receipts.append(_audit_event_entry(path, record))
+                except LifecycleError as exc:
+                    issues.append(_audit_issue("AUDIT_RECORD_INVALID", path, exc.code))
+
+        failure_root = audit / "failure"
+        failure_groups: dict[tuple[str, str], dict[str, Path]] = {}
+        if failure_root.is_dir() and not _is_reparse(failure_root):
+            for path in sorted(failure_root.iterdir(), key=lambda item: item.name.casefold()):
+                match = AUDIT_EVENT_NAME_PATTERN.fullmatch(path.name) if path.is_file() and not _is_reparse(path) else None
+                if match is None:
+                    code = "AUDIT_FORBIDDEN_CONTENT" if _audit_forbidden_name(path) else "AUDIT_UNKNOWN_ENTRY"
+                    issues.append(_audit_issue(code, path, "Failure bundle name or type is not owned by the retention contract."))
+                    continue
+                key = (match.group("token"), match.group("operation_id"))
+                failure_groups.setdefault(key, {})[match.group("kind")] = path
+        for (token, operation_id), files in sorted(failure_groups.items()):
+            if set(files) != {"audit", "plan", "journal"}:
+                issues.append(_audit_issue("AUDIT_FAILURE_BUNDLE_INCOMPLETE", failure_root, f"Incomplete failure bundle for {operation_id}."))
+                continue
+            record_path = files["audit"]
+            try:
+                record = _load_audit_record(record_path, "failure-bundle")
+                if record["operation_id"] != operation_id or _audit_token(record["created_at"]) != token:
+                    raise LifecycleError("AUDIT_RECORD_NAME", "Failure bundle filename does not bind its record.", str(record_path))
+                envelope = load_json(files["plan"])
+                plan, _ = validate_plan_envelope(envelope)
+                journal = load_json(files["journal"])
+                _validate_contract("transaction-journal", journal)
+                if (
+                    plan["operation_id"] != operation_id
+                    or journal["operation_id"] != operation_id
+                    or journal["plan_hash"] != plan["plan_hash"]
+                    or record["details"]["plan_hash"] != plan["plan_hash"]
+                    or record["details"]["plan_sha256"] != file_sha256(files["plan"])
+                    or record["details"]["journal_sha256"] != file_sha256(files["journal"])
+                ):
+                    raise LifecycleError("AUDIT_FAILURE_BINDING", "Failure bundle hashes or operation binding drifted.", str(record_path))
+                entry = _audit_event_entry(record_path, record)
+                entry.update(
+                    {
+                        "plan_path": str(files["plan"]),
+                        "plan_sha256": file_sha256(files["plan"]),
+                        "journal_path": str(files["journal"]),
+                        "journal_sha256": file_sha256(files["journal"]),
+                    }
+                )
+                failure_bundles.append(entry)
+            except LifecycleError as exc:
+                issues.append(_audit_issue("AUDIT_FAILURE_BUNDLE_INVALID", record_path, exc.code))
+
+        monthly_root = audit / "monthly"
+        if monthly_root.is_dir() and not _is_reparse(monthly_root):
+            for path in sorted(monthly_root.iterdir(), key=lambda item: item.name.casefold()):
+                match = AUDIT_MONTH_NAME_PATTERN.fullmatch(path.name) if path.is_file() and not _is_reparse(path) else None
+                if match is None:
+                    issues.append(_audit_issue("AUDIT_UNKNOWN_ENTRY", path, "Monthly summary name is not owned by the retention contract."))
+                    continue
+                try:
+                    record = _load_audit_record(path, "monthly-summary")
+                    if record["month"] != match.group("month"):
+                        raise LifecycleError("AUDIT_RECORD_NAME", "Monthly summary filename does not bind its month.", str(path))
+                    monthly_summaries.append(_audit_event_entry(path, record))
+                except LifecycleError as exc:
+                    issues.append(_audit_issue("AUDIT_RECORD_INVALID", path, exc.code))
+
+        for operation_id, files in sorted(legacy_groups.items()):
+            archived = archived_pre_retention.get(operation_id)
+            if set(files) != {"plan", "journal"}:
+                if archived is not None and _pre_retention_matches_archive(files, archived):
+                    pre_retention_migration_residue.append(
+                        {
+                            "operation_id": operation_id,
+                            "root_files": {kind: str(path) for kind, path in files.items()},
+                            "root_sha256": {kind: file_sha256(path) for kind, path in files.items()},
+                            "archive_plan_path": archived["plan_path"],
+                            "archive_journal_path": archived["journal_path"],
+                            "sort_key": archived["sort_key"],
+                        }
+                    )
+                else:
+                    issues.append(_audit_issue("AUDIT_LEGACY_BUNDLE_INCOMPLETE", audit, f"Incomplete legacy audit bundle for {operation_id}."))
+                continue
+            try:
+                envelope = load_json(files["plan"])
+                plan, _ = validate_plan_envelope(envelope)
+                journal = load_json(files["journal"])
+                _validate_contract("transaction-journal", journal)
+                if (
+                    plan["operation_id"] != operation_id
+                    or journal["operation_id"] != operation_id
+                    or journal["plan_hash"] != plan["plan_hash"]
+                    or journal["state"] not in {"COMMIT", "FAILED"}
+                ):
+                    raise LifecycleError("AUDIT_LEGACY_BINDING", "Legacy audit bundle is not terminal or consistently bound.", str(files["plan"]))
+                if archived is not None:
+                    issues.append(_audit_issue("AUDIT_PRE_RETENTION_ID_COLLISION", files["plan"], "Current-format and historic archive bundles cannot share an operation_id."))
+                    continue
+                legacy_bundles.append(
+                    {
+                        "operation_id": operation_id,
+                        "plan": plan,
+                        "envelope": envelope,
+                        "journal": journal,
+                        "plan_path": str(files["plan"]),
+                        "plan_sha256": file_sha256(files["plan"]),
+                        "journal_path": str(files["journal"]),
+                        "journal_sha256": file_sha256(files["journal"]),
+                        "sort_key": (journal["updated_at"], operation_id),
+                    }
+                )
+            except LifecycleError:
+                try:
+                    bundle = _load_pre_retention_audit_bundle(operation_id, files["plan"], files["journal"])
+                except LifecycleError as exc:
+                    issues.append(_audit_issue("AUDIT_LEGACY_BUNDLE_INVALID", files["plan"], exc.code))
+                    continue
+                if archived is None:
+                    pre_retention_bundles.append(bundle)
+                elif _pre_retention_matches_archive(files, archived):
+                    pre_retention_migration_residue.append(
+                        {
+                            "operation_id": operation_id,
+                            "root_files": {kind: str(path) for kind, path in files.items()},
+                            "root_sha256": {kind: file_sha256(path) for kind, path in files.items()},
+                            "archive_plan_path": archived["plan_path"],
+                            "archive_journal_path": archived["journal_path"],
+                            "sort_key": archived["sort_key"],
+                        }
+                    )
+                else:
+                    issues.append(_audit_issue("AUDIT_PRE_RETENTION_ARCHIVE_DRIFT", files["plan"], "Historic root and archive bundles differ."))
+
+    registry: dict[str, Any] | None = None
+    try:
+        registry = _load_registry(root)
+    except LifecycleError as exc:
+        if enforce_current_binding:
+            issues.append(_audit_issue("AUDIT_REGISTRY_INVALID", _registry_path(root), exc.code))
+    if enforce_current_binding and registry is not None:
+        active, binding_sha256 = _active_binding(registry)
+        if registry["lifecycle_state"] == "stable" and active is not None:
+            if current_binding is None:
+                issues.append(_audit_issue("AUDIT_CURRENT_BINDING_MISSING", audit / AUDIT_CURRENT_FILENAME, "Stable active binding requires exactly one current receipt."))
+            elif (
+                current_binding["record"]["details"]["generation_id"] != active["generation_id"]
+                or current_binding["record"]["details"]["binding_sha256"] != binding_sha256
+            ):
+                issues.append(_audit_issue("AUDIT_CURRENT_BINDING_DRIFT", Path(current_binding["path"]), "Current binding receipt does not match the active registry record."))
+        elif current_binding is not None:
+            issues.append(_audit_issue("AUDIT_CURRENT_BINDING_STALE", Path(current_binding["path"]), "Uninstalled or inactive registry cannot retain a current binding receipt."))
+
+    success_receipts.sort(key=lambda item: item["sort_key"])
+    failure_bundles.sort(key=lambda item: item["sort_key"])
+    monthly_summaries.sort(key=lambda item: item["record"]["month"])
+    legacy_bundles.sort(key=lambda item: item["sort_key"])
+    pre_retention_bundles.sort(key=lambda item: item["sort_key"])
+    pre_retention_archives.sort(key=lambda item: item["sort_key"])
+    pre_retention_migration_residue.sort(key=lambda item: item["sort_key"])
+    return {
+        "status": "PASS" if not issues else "FAIL",
+        "mode": "READ_ONLY",
+        "writes_performed": False,
+        "audit_root": str(audit),
+        "current_binding": current_binding,
+        "success_receipts": success_receipts,
+        "failure_bundles": failure_bundles,
+        "monthly_summaries": monthly_summaries,
+        "legacy_bundles": legacy_bundles,
+        "pre_retention_bundles": pre_retention_bundles,
+        "pre_retention_archives": pre_retention_archives,
+        "pre_retention_migration_residue": pre_retention_migration_residue,
+        "over_limit": {
+            "success": max(0, len(success_receipts) - AUDIT_SUCCESS_LIMIT),
+            "failure": max(0, len(failure_bundles) - AUDIT_FAILURE_LIMIT),
+            "monthly": max(0, len(monthly_summaries) - AUDIT_MONTHLY_LIMIT),
+        },
+        "issues": issues,
+    }
+
+
+def _write_exact_audit_json(path: Path, value: dict[str, Any]) -> bool:
+    expected = json_bytes(value)
+    if path.exists():
+        if not path.is_file() or _is_reparse(path) or path.read_bytes() != expected:
+            raise LifecycleError("TX_AUDIT_OWNERSHIP_DRIFT", "Existing audit target does not match the exact owned content.", str(path))
+        return False
+    write_json(path, value)
+    if not path.is_file() or _is_reparse(path) or path.read_bytes() != expected:
+        raise LifecycleError("TX_AUDIT_WRITE_VERIFY", "Atomic audit write did not produce the expected exact content.", str(path))
+    return True
+
+
+def _replace_current_audit_record(path: Path, value: dict[str, Any]) -> None:
+    if path.exists():
+        _load_audit_record(path, "current-binding")
+    write_json(path, value)
+    if load_json(path) != value:
+        raise LifecycleError("TX_AUDIT_WRITE_VERIFY", "Current binding receipt verification failed.", str(path))
+
+
+def _remove_exact_audit_file(audit: Path, path: Path, expected_sha256: str) -> None:
+    if not path.exists():
+        return
+    if not _is_inside(audit, path) or not path.is_file() or _is_reparse(path):
+        raise LifecycleError("TX_AUDIT_PRUNE_BOUNDARY", "Audit pruning target is outside the exact owned file boundary.", str(path))
+    if file_sha256(path) != expected_sha256:
+        raise LifecycleError("TX_AUDIT_OWNERSHIP_DRIFT", "Audit pruning target changed after review.", str(path))
+    path.unlink()
+
+
+def _update_monthly_summary(audit: Path, *, operation_id: str, outcome: str, created_at: str) -> None:
+    month = created_at[:7]
+    path = audit / "monthly" / f"{month}.audit.json"
+    if path.exists():
+        current = _load_audit_record(path, "monthly-summary")
+        if current["details"]["last_operation_id"] == operation_id:
+            return
+        success_count = current["details"]["success_count"]
+        failure_count = current["details"]["failure_count"]
+        uninstall_count = current["details"]["uninstall_count"]
+    else:
+        success_count = 0
+        failure_count = 0
+        uninstall_count = 0
+    if outcome in {"SUCCESS", "UNINSTALLED"}:
+        success_count += 1
+    if outcome == "RECOVERED":
+        failure_count += 1
+    if outcome == "UNINSTALLED":
+        uninstall_count += 1
+    summary = _make_audit_record(
+        record_type="monthly-summary",
+        record_id=f"AUDIT-MONTH-{month}",
+        created_at=created_at,
+        operation_id=None,
+        operation=None,
+        outcome="SUMMARY",
+        details=_audit_details(
+            success_count=success_count,
+            failure_count=failure_count,
+            uninstall_count=uninstall_count,
+            last_operation_id=operation_id,
+        ),
+    )
+    write_json(path, summary)
+    _load_audit_record(path, "monthly-summary")
+
+
+def _success_audit_record(
+    plan: dict[str, Any],
+    *,
+    outcome: str,
+    created_at: str,
+    generation_id: str | None,
+    binding_sha256: str | None,
+) -> dict[str, Any]:
+    return _make_audit_record(
+        record_type="operation-receipt",
+        record_id=f"AUDIT-SUCCESS-{plan['operation_id']}",
+        created_at=created_at,
+        operation_id=plan["operation_id"],
+        operation=plan["operation"],
+        outcome=outcome,
+        details=_audit_details(
+            plan_hash=plan["plan_hash"],
+            generation_id=generation_id,
+            binding_sha256=binding_sha256,
+        ),
+    )
+
+
+def _write_success_audit_event(
+    audit: Path,
+    plan: dict[str, Any],
+    *,
+    outcome: str,
+    created_at: str,
+    generation_id: str | None,
+    binding_sha256: str | None,
+) -> Path:
+    record = _success_audit_record(
+        plan,
+        outcome=outcome,
+        created_at=created_at,
+        generation_id=generation_id,
+        binding_sha256=binding_sha256,
+    )
+    path = audit / "success" / f"{_audit_token(created_at)}--{plan['operation_id']}.audit.json"
+    if not path.exists():
+        _update_monthly_summary(audit, operation_id=plan["operation_id"], outcome=outcome, created_at=created_at)
+    _write_exact_audit_json(path, record)
+    return path
+
+
+def _write_failure_audit_event(
+    audit: Path,
+    plan: dict[str, Any],
+    envelope: dict[str, Any],
+    journal: dict[str, Any],
+    *,
+    created_at: str,
+) -> tuple[Path, Path, Path]:
+    validated_plan, _ = validate_plan_envelope(envelope)
+    _validate_contract("transaction-journal", journal)
+    if (
+        validated_plan["operation_id"] != plan["operation_id"]
+        or journal["operation_id"] != plan["operation_id"]
+        or journal["plan_hash"] != plan["plan_hash"]
+        or journal["state"] != "FAILED"
+    ):
+        raise LifecycleError("TX_AUDIT_FAILURE_BINDING", "Failure audit inputs are not a complete recovered transaction bundle.")
+    token = _audit_token(created_at)
+    prefix = audit / "failure" / f"{token}--{plan['operation_id']}"
+    record_path = Path(f"{prefix}.audit.json")
+    plan_path = Path(f"{prefix}.plan.json")
+    journal_path = Path(f"{prefix}.journal.json")
+    record = _make_audit_record(
+        record_type="failure-bundle",
+        record_id=f"AUDIT-FAILURE-{plan['operation_id']}",
+        created_at=created_at,
+        operation_id=plan["operation_id"],
+        operation=plan["operation"],
+        outcome="RECOVERED",
+        details=_audit_details(
+            plan_hash=plan["plan_hash"],
+            plan_sha256=sha256_bytes(json_bytes(envelope)),
+            journal_sha256=sha256_bytes(json_bytes(journal)),
+        ),
+    )
+    if not record_path.exists():
+        _update_monthly_summary(audit, operation_id=plan["operation_id"], outcome="RECOVERED", created_at=created_at)
+    _write_exact_audit_json(plan_path, envelope)
+    _write_exact_audit_json(journal_path, journal)
+    _write_exact_audit_json(record_path, record)
+    return record_path, plan_path, journal_path
+
+
+def _migrate_legacy_audit(audit: Path, state: dict[str, Any]) -> list[tuple[Path, str]]:
+    retire: list[tuple[Path, str]] = []
+    for bundle in state["legacy_bundles"]:
+        plan = bundle["plan"]
+        journal = bundle["journal"]
+        created_at = _now(journal["updated_at"])
+        if journal["state"] == "FAILED":
+            _write_failure_audit_event(audit, plan, bundle["envelope"], journal, created_at=created_at)
+        else:
+            outcome = "UNINSTALLED" if plan["operation"] == "uninstall" else "SUCCESS"
+            generation_id = None if outcome == "UNINSTALLED" else plan["release_identity"]["generation_id"]
+            binding_sha256 = None if outcome == "UNINSTALLED" else sha256_bytes(canonical_json(plan["release_identity"]))
+            _write_success_audit_event(
+                audit,
+                plan,
+                outcome=outcome,
+                created_at=created_at,
+                generation_id=generation_id,
+                binding_sha256=binding_sha256,
+            )
+        retire.extend(
+            (
+                (Path(bundle["plan_path"]), bundle["plan_sha256"]),
+                (Path(bundle["journal_path"]), bundle["journal_sha256"]),
+            )
+        )
+    return retire
+
+
+def _archive_pre_retention_audit(
+    audit: Path,
+    state: dict[str, Any],
+    transaction_root: Path | None,
+) -> tuple[list[tuple[Path, str]], list[str]]:
+    bundles = state["pre_retention_bundles"]
+    residue = state["pre_retention_migration_residue"]
+    if not bundles and not residue:
+        return [], []
+    if transaction_root is None or not transaction_root.is_dir() or _is_reparse(transaction_root):
+        raise LifecycleError("TX_AUDIT_ARCHIVE_STAGE", "Historic audit migration requires one regular active transaction directory.")
+    archive_root = audit / AUDIT_PRE_RETENTION_DIRECTORY
+    if archive_root.exists() and (not archive_root.is_dir() or _is_reparse(archive_root)):
+        raise LifecycleError("TX_AUDIT_ARCHIVE_BOUNDARY", "Historic audit archive root is not a regular directory.", str(archive_root))
+    archive_root.mkdir(parents=True, exist_ok=True)
+    if _is_reparse(archive_root):
+        raise LifecycleError("TX_AUDIT_REPARSE", "Historic audit archive root cannot be a reparse point.", str(archive_root))
+    staging_root = transaction_root / "audit-pre-retention"
+    if staging_root.exists() and (not staging_root.is_dir() or _is_reparse(staging_root)):
+        raise LifecycleError("TX_AUDIT_ARCHIVE_STAGE", "Historic audit migration staging root is invalid.", str(staging_root))
+    staging_root.mkdir(parents=True, exist_ok=True)
+    retire: list[tuple[Path, str]] = []
+    archived: list[str] = []
+    for bundle in bundles:
+        operation_id = bundle["operation_id"]
+        destination = archive_root / operation_id
+        if destination.exists():
+            raise LifecycleError("TX_AUDIT_ARCHIVE_COLLISION", "Historic audit archive target already exists.", str(destination))
+        stage = staging_root / operation_id
+        if stage.exists():
+            files = {item.name: item for item in stage.iterdir() if item.is_file() and not _is_reparse(item)} if stage.is_dir() and not _is_reparse(stage) else {}
+            if set(files) != {"plan.json", "journal.json"} or len(list(stage.iterdir())) != 2:
+                raise LifecycleError("TX_AUDIT_ARCHIVE_STAGE", "Historic audit staging content is incomplete or untrusted.", str(stage))
+            staged = _load_pre_retention_audit_bundle(operation_id, files["plan.json"], files["journal.json"])
+            if staged["plan_sha256"] != bundle["plan_sha256"] or staged["journal_sha256"] != bundle["journal_sha256"]:
+                raise LifecycleError("TX_AUDIT_OWNERSHIP_DRIFT", "Historic audit staging content changed after review.", str(stage))
+        else:
+            stage.mkdir()
+            plan_stage = stage / "plan.json"
+            journal_stage = stage / "journal.json"
+            shutil.copyfile(Path(bundle["plan_path"]), plan_stage)
+            shutil.copyfile(Path(bundle["journal_path"]), journal_stage)
+            if file_sha256(plan_stage) != bundle["plan_sha256"] or file_sha256(journal_stage) != bundle["journal_sha256"]:
+                raise LifecycleError("TX_AUDIT_WRITE_VERIFY", "Historic audit staging copy did not preserve exact source bytes.", str(stage))
+            _load_pre_retention_audit_bundle(operation_id, plan_stage, journal_stage)
+        os.replace(stage, destination)
+        if not destination.is_dir() or _is_reparse(destination):
+            raise LifecycleError("TX_AUDIT_WRITE_VERIFY", "Historic audit archive target is not a regular directory.", str(destination))
+        files = {item.name: item for item in destination.iterdir() if item.is_file() and not _is_reparse(item)}
+        if set(files) != {"plan.json", "journal.json"} or len(list(destination.iterdir())) != 2:
+            raise LifecycleError("TX_AUDIT_WRITE_VERIFY", "Historic audit archive target is incomplete.", str(destination))
+        archived_bundle = _load_pre_retention_audit_bundle(operation_id, files["plan.json"], files["journal.json"])
+        if archived_bundle["plan_sha256"] != bundle["plan_sha256"] or archived_bundle["journal_sha256"] != bundle["journal_sha256"]:
+            raise LifecycleError("TX_AUDIT_WRITE_VERIFY", "Historic audit archive did not preserve exact source bytes.", str(destination))
+        retire.extend(
+            (
+                (Path(bundle["plan_path"]), bundle["plan_sha256"]),
+                (Path(bundle["journal_path"]), bundle["journal_sha256"]),
+            )
+        )
+        archived.append(str(destination))
+    for entry in residue:
+        retire.extend((Path(path), entry["root_sha256"][kind]) for kind, path in entry["root_files"].items())
+    return retire, archived
+
+
+def _prune_audit_state(audit: Path, state: dict[str, Any]) -> list[str]:
+    deleted: list[str] = []
+    success_targets = state["success_receipts"][:-AUDIT_SUCCESS_LIMIT] if len(state["success_receipts"]) > AUDIT_SUCCESS_LIMIT else []
+    for entry in success_targets:
+        path = Path(entry["path"])
+        _remove_exact_audit_file(audit, path, entry["sha256"])
+        deleted.append(str(path))
+    failure_targets = state["failure_bundles"][:-AUDIT_FAILURE_LIMIT] if len(state["failure_bundles"]) > AUDIT_FAILURE_LIMIT else []
+    for entry in failure_targets:
+        for path_key, hash_key in (("path", "sha256"), ("plan_path", "plan_sha256"), ("journal_path", "journal_sha256")):
+            path = Path(entry[path_key])
+            _remove_exact_audit_file(audit, path, entry[hash_key])
+            deleted.append(str(path))
+    monthly_targets = state["monthly_summaries"][:-AUDIT_MONTHLY_LIMIT] if len(state["monthly_summaries"]) > AUDIT_MONTHLY_LIMIT else []
+    for entry in monthly_targets:
+        path = Path(entry["path"])
+        _remove_exact_audit_file(audit, path, entry["sha256"])
+        deleted.append(str(path))
+    return deleted
+
+
+def _record_audit_outcome(
+    root_value: str | Path,
+    *,
+    plan: dict[str, Any],
+    registry: dict[str, Any] | None,
+    outcome: str,
+    envelope: dict[str, Any] | None = None,
+    journal: dict[str, Any] | None = None,
+    created_at: str | None = None,
+    fault_at: str | None = None,
+    transaction_root: Path | None = None,
+) -> dict[str, Any]:
+    if outcome not in {"SUCCESS", "RECOVERED", "UNINSTALLED"}:
+        raise LifecycleError("TX_AUDIT_OUTCOME", "Unsupported audit outcome.")
+    operation_id = plan.get("operation_id")
+    if not isinstance(operation_id, str) or not ID_PATTERN.fullmatch(operation_id):
+        raise LifecycleError("TX_AUDIT_OPERATION", "Audit outcome requires a valid operation_id.")
+    if plan.get("operation") not in {"install", "update", "repair", "uninstall"} or not HASH_PATTERN.fullmatch(str(plan.get("plan_hash", ""))):
+        raise LifecycleError("TX_AUDIT_OPERATION", "Audit outcome requires a valid operation and plan hash.")
+    root = _absolute(root_value)
+    audit = root / AUDIT_RELATIVE
+    before = audit_state(root, enforce_current_binding=False)
+    if before["status"] != "PASS":
+        raise LifecycleError("TX_AUDIT_RETENTION_BLOCKED", f"Audit retention is blocked by preserved unknown or drifted content: {before['issues']}", str(audit))
+    timestamp = _now(created_at or (journal or {}).get("updated_at") or plan.get("created_at"))
+    for directory in (audit, audit / "success", audit / "failure", audit / "monthly"):
+        directory.mkdir(parents=True, exist_ok=True)
+        if _is_reparse(directory):
+            raise LifecycleError("TX_AUDIT_REPARSE", "Audit retention directory cannot be a reparse point.", str(directory))
+
+    legacy_retire = _migrate_legacy_audit(audit, before)
+    pre_retention_retire, archived_pre_retention = _archive_pre_retention_audit(audit, before, transaction_root)
+    if fault_at == "AUDIT_ARCHIVE":
+        raise InjectedCrash("AUDIT_ARCHIVE")
+    active, active_binding_sha256 = _active_binding(registry)
+    if outcome == "RECOVERED":
+        if envelope is None or journal is None:
+            raise LifecycleError("TX_AUDIT_FAILURE_BINDING", "Recovered audit outcome requires complete plan and journal inputs.")
+        _write_failure_audit_event(audit, plan, envelope, journal, created_at=timestamp)
+    else:
+        receipt_outcome = "UNINSTALLED" if outcome == "UNINSTALLED" else "SUCCESS"
+        if receipt_outcome == "SUCCESS" and active is None:
+            raise LifecycleError("TX_AUDIT_ACTIVE_BINDING", "Successful installed operation requires one active registry binding.")
+        _write_success_audit_event(
+            audit,
+            plan,
+            outcome=receipt_outcome,
+            created_at=timestamp,
+            generation_id=active["generation_id"] if active is not None else None,
+            binding_sha256=active_binding_sha256,
+        )
+    if fault_at == "AUDIT_WRITE":
+        raise InjectedCrash("AUDIT_WRITE")
+
+    current_path = audit / AUDIT_CURRENT_FILENAME
+    if outcome == "UNINSTALLED":
+        if current_path.exists():
+            current = _load_audit_record(current_path, "current-binding")
+            _remove_exact_audit_file(audit, current_path, file_sha256(current_path))
+    elif outcome in {"SUCCESS", "RECOVERED"} and active is not None:
+        assert active_binding_sha256 is not None
+        current_operation = plan["operation"] if plan["operation"] != "uninstall" else "repair"
+        current = _make_audit_record(
+            record_type="current-binding",
+            record_id=f"AUDIT-CURRENT-{operation_id}",
+            created_at=timestamp,
+            operation_id=operation_id,
+            operation=current_operation,
+            outcome="ACTIVE",
+            details=_audit_details(
+                plan_hash=plan["plan_hash"],
+                generation_id=active["generation_id"],
+                binding_sha256=active_binding_sha256,
+            ),
+        )
+        _replace_current_audit_record(current_path, current)
+    if fault_at == "AUDIT_PRUNE":
+        raise InjectedCrash("AUDIT_PRUNE")
+
+    staged = audit_state(root, enforce_current_binding=True)
+    if staged["status"] != "PASS":
+        raise LifecycleError("TX_AUDIT_RETENTION_BLOCKED", f"New audit state failed closed validation: {staged['issues']}", str(audit))
+    for path, expected_sha256 in legacy_retire:
+        _remove_exact_audit_file(audit, path, expected_sha256)
+    for index, (path, expected_sha256) in enumerate(pre_retention_retire):
+        _remove_exact_audit_file(audit, path, expected_sha256)
+        if fault_at == "AUDIT_ARCHIVE_PRUNE" and index == 0:
+            raise InjectedCrash("AUDIT_ARCHIVE_PRUNE")
+    prunable = audit_state(root, enforce_current_binding=True)
+    if prunable["status"] != "PASS":
+        raise LifecycleError("TX_AUDIT_RETENTION_BLOCKED", f"Audit migration failed closed validation: {prunable['issues']}", str(audit))
+    deleted = _prune_audit_state(audit, prunable)
+    final = audit_state(root, enforce_current_binding=True)
+    if final["status"] != "PASS" or any(final["over_limit"].values()):
+        raise LifecycleError("TX_AUDIT_RETENTION_INCOMPLETE", f"Audit retention did not converge: {final}", str(audit))
+    return {
+        "status": "PASS",
+        "writes_performed": True,
+        "deleted": deleted,
+        "archived_pre_retention": archived_pre_retention,
+        "audit_state": final,
+    }
+
+
+def _commit(
+    root: Path,
+    context: dict[str, Any],
+    journal: dict[str, Any],
+    envelope: dict[str, Any],
+    transaction_root: Path,
+    *,
+    fault_at: str | None = None,
+) -> None:
     registry = _load_registry(root) or _initial_registry(root, _now(), context["selected_tools"])
     registry["lifecycle_state"] = "uninstalled" if context["operation"] == "uninstall" else "stable"
     registry["updated_at"] = _now()
     write_json(_registry_path(root), registry)
-    audit = root / AUDIT_RELATIVE
-    audit.mkdir(parents=True, exist_ok=True)
-    write_json(audit / f"{context['operation_id']}.journal.json", journal)
-    write_json(audit / f"{context['operation_id']}.plan.json", envelope)
+    _record_audit_outcome(
+        root,
+        plan=envelope["plan_contract"],
+        registry=registry,
+        outcome="UNINSTALLED" if context["operation"] == "uninstall" else "SUCCESS",
+        created_at=journal["updated_at"],
+        fault_at=fault_at,
+        transaction_root=transaction_root,
+    )
     if transaction_root.exists():
         _remove_managed(root / "runtime", transaction_root)
     _release_lock(root, context["operation_id"])
@@ -2916,6 +4860,8 @@ def _restore_snapshot(root: Path, tool_roots: dict[str, Path], transaction_root:
             for entry in current["entries"]:
                 target = _safe_target(tool_root, entry["path"])
                 if target.is_file():
+                    _assert_no_reparse(tool_root, target)
+                    _assert_no_hardlink(target)
                     target.unlink()
             manifest_path = tool_root / PROJECTION_MANIFEST
             if manifest_path.exists():
@@ -2926,6 +4872,8 @@ def _restore_snapshot(root: Path, tool_roots: dict[str, Path], transaction_root:
             if entry["exists"]:
                 source = tool_snapshot / "files" / Path(entry["path"])
                 target = _safe_target(tool_root, entry["path"])
+                _assert_no_reparse(tool_root, target)
+                _assert_no_hardlink(target)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(source, target)
         if tool_meta["manifest_exists"]:
@@ -2961,13 +4909,37 @@ def _restore_snapshot(root: Path, tool_roots: dict[str, Path], transaction_root:
             _copy_tree(source, locator)
         else:
             raise LifecycleError("TX_ROLLBACK_SNAPSHOT", "External cleanup snapshot metadata is invalid.", str(locator))
+    preview_contract = meta.get("preview_contract")
+    if isinstance(preview_contract, dict):
+        preview_root = Path(preview_contract["preview_root"])
+        for raw_path in (preview_contract["manifest"], preview_contract["global_boot"]):
+            path = Path(raw_path)
+            if path.exists():
+                _assert_no_reparse(preview_root, path)
+                if not path.is_file():
+                    raise LifecycleError("TX_ROLLBACK_DRIFT", "Preview rollback target changed type.", str(path))
+                path.unlink()
+        writable_roots = {
+            Path(raw_root)
+            for isolation in preview_contract["tool_isolation"].values()
+            for raw_root in isolation["writable_roots"]
+        }
+        for writable_root in sorted(writable_roots, key=lambda path: len(path.parts), reverse=True):
+            if writable_root.exists():
+                _remove_managed(preview_root, writable_root)
 
 
 def _archive_failure(root: Path, context: dict[str, Any], journal: dict[str, Any], envelope: dict[str, Any], transaction_root: Path) -> None:
-    audit = root / AUDIT_RELATIVE
-    audit.mkdir(parents=True, exist_ok=True)
-    write_json(audit / f"{context['operation_id']}.journal.json", journal)
-    write_json(audit / f"{context['operation_id']}.plan.json", envelope)
+    _record_audit_outcome(
+        root,
+        plan=envelope["plan_contract"],
+        registry=_load_registry(root),
+        outcome="RECOVERED",
+        envelope=envelope,
+        journal=journal,
+        created_at=journal["updated_at"],
+        transaction_root=transaction_root,
+    )
     if transaction_root.exists():
         _remove_managed(root / "runtime", transaction_root)
     if _lock_path(root).exists():
@@ -2977,11 +4949,13 @@ def _archive_failure(root: Path, context: dict[str, Any], journal: dict[str, Any
 
 
 def _rollback(root: Path, context: dict[str, Any], journal: dict[str, Any], envelope: dict[str, Any], transaction_root: Path, *, fault_at: str | None = None) -> dict[str, Any]:
+    state_before_rollback = journal["state"]
     if journal["state"] not in {"DISCOVER", "LOCK"} and journal["state"] != "ROLLBACK":
         _set_state(transaction_root, journal, "ROLLBACK", evidence="lifecycle:rollback", fault_at=fault_at)
     elif journal["state"] == "ROLLBACK" and fault_at == "ROLLBACK":
         raise InjectedCrash("ROLLBACK")
-    _restore_snapshot(root, {tool: Path(value) for tool, value in context["tool_roots"].items()}, transaction_root)
+    if state_before_rollback not in {"DISCOVER", "LOCK", "PLAN", "STAGE"}:
+        _restore_snapshot(root, {tool: Path(value) for tool, value in context["tool_roots"].items()}, transaction_root)
     staging = Path(context["staging_root"])
     if staging.exists():
         _remove_managed(transaction_root, staging)
@@ -3031,10 +5005,24 @@ def scan_residue(
     if _lock_path(root).exists():
         issues.append({"code": "RS_STALE_LOCK", "path": str(_lock_path(root))})
     transactions = root / TRANSACTIONS_RELATIVE
-    if transactions.is_dir() and any(transactions.iterdir()):
+    transaction_active = transactions.is_dir() and any(transactions.iterdir())
+    if transaction_active:
         issues.append({"code": "RS_TRANSACTION_STATE", "path": str(transactions)})
     if (root / LEGACY_RESIDUE_RELATIVE).exists():
         issues.append({"code": "RS_LEGACY_LEDGER", "path": str(root / LEGACY_RESIDUE_RELATIVE)})
+    audit_report = audit_state(
+        root,
+        enforce_current_binding=not (transaction_active and plan_context is not None),
+    )
+    if audit_report["status"] != "PASS":
+        issues.extend(
+            {
+                "code": f"RS_{item['code']}",
+                "path": item["path"],
+                "message": item["message"],
+            }
+            for item in audit_report["issues"]
+        )
 
     ignored_audit_plan: dict[str, Any] | None = None
     context = plan_context
@@ -3042,13 +5030,23 @@ def scan_residue(
         latest_plans = sorted((root / AUDIT_RELATIVE).glob("*.plan.json"), key=lambda path: path.stat().st_mtime) if (root / AUDIT_RELATIVE).is_dir() else []
         if latest_plans:
             try:
-                envelope = load_json(latest_plans[-1])
+                latest_plan = latest_plans[-1]
+                envelope = load_json(latest_plan)
                 _, context = validate_plan_envelope(envelope)
+                operation_id = envelope["plan_contract"]["operation_id"]
+                journal_path = root / AUDIT_RELATIVE / f"{operation_id}.journal.json"
+                if journal_path.is_file():
+                    journal = load_json(journal_path)
+                    _validate_contract("transaction-journal", journal)
+                    if journal["state"] == "FAILED":
+                        ignored_audit_plan = {"path": str(latest_plan), "reason": "terminal-rollback"}
+                        context = None
             except LifecycleError as exc:
                 ignored_audit_plan = {"path": str(latest_plans[-1]), "reason": exc.code}
                 context = None
 
     preserved: list[dict[str, Any]] = []
+    legacy_managed_hashes: dict[str, str | None] = {}
     if context is not None:
         for record in context["residue_records"]:
             path = Path(record["locator"])
@@ -3076,7 +5074,29 @@ def scan_residue(
             else:
                 for entry in manifest["entries"]:
                     target = _safe_target(tool_root, entry["path"])
-                    if not target.is_file() or file_sha256(target) != entry["installed_sha256"]:
+                    if not target.is_file():
+                        issues.append({"code": "RS_PROJECTION_DRIFT", "path": str(target)})
+                        continue
+                    if entry.get("mode") != "managed-block":
+                        if file_sha256(target) != entry["installed_sha256"]:
+                            issues.append({"code": "RS_PROJECTION_DRIFT", "path": str(target)})
+                        continue
+                    expected_block_hash = entry.get("managed_block_sha256")
+                    if expected_block_hash is None:
+                        expected_block_hash = _legacy_managed_block_sha256(
+                            registry,
+                            entry["source_sha256"],
+                            legacy_managed_hashes,
+                        )
+                    try:
+                        observed_block_hash = _managed_block_sha256(target.read_bytes())
+                    except LifecycleError:
+                        observed_block_hash = None
+                    if expected_block_hash is None:
+                        matches = file_sha256(target) == entry["installed_sha256"]
+                    else:
+                        matches = observed_block_hash == expected_block_hash
+                    if not matches:
                         issues.append({"code": "RS_PROJECTION_DRIFT", "path": str(target)})
     return {
         "status": "PASS" if not issues else "FAIL",
@@ -3087,6 +5107,7 @@ def scan_residue(
         "active_generation_id": registry["active_generation_id"] if registry else None,
         "selected_tools": registry["selected_tools"] if registry else selected_tools,
         "ignored_legacy_audit_plan": ignored_audit_plan,
+        "audit_state": audit_report,
     }
 
 
@@ -3100,6 +5121,15 @@ def _execute_plan_with_artifact(
 ) -> dict[str, Any]:
     plan, context = validate_plan_envelope(envelope)
     artifact = _verify_plan_inputs(plan, context, expected_plan_hash, artifact)
+    if plan.get("disposition", "EXECUTE") == "NO_OP":
+        return {
+            "status": "NO_OP",
+            "mode": "APPLY" if apply else "DRY_RUN",
+            "operation_id": plan["operation_id"],
+            "operation": plan["operation"],
+            "plan_hash": plan["plan_hash"],
+            "writes_performed": False,
+        }
     if not apply:
         return {"status": "PASS", "mode": "DRY_RUN", "operation_id": plan["operation_id"], "plan_hash": plan["plan_hash"], "writes_performed": False}
     root = _absolute(context["lifecycle_root"])
@@ -3137,6 +5167,7 @@ def _execute_plan_with_artifact(
             context["residue_records"],
             context["legacy_root_observations"],
             context["global_boot"],
+            context.get("preview_contract"),
         )
         _set_state(transaction_root, journal, "SNAPSHOT", evidence="lifecycle:snapshot", fault_at=fault_at)
         if artifact is not None:
@@ -3161,8 +5192,10 @@ def _execute_plan_with_artifact(
             plan["operation"],
             plan["user_modifications"],
         )
+        _write_preview_surfaces(context, active_generation_root)
         _verify_projections(artifact, tool_paths, plan["operation"])
         _verify_global_boot(context["global_boot"], active_generation_root, plan["operation"])
+        _verify_preview_surfaces(context, active_generation_root)
         _set_state(transaction_root, journal, "POSTVALIDATE", evidence="lifecycle:postvalidate", fault_at=fault_at)
         _set_state(transaction_root, journal, "CLEAN", evidence="lifecycle:clean-ready", fault_at=fault_at)
         cleanup_result = _clean(root, context, plan["operation"], transaction_root)
@@ -3176,11 +5209,11 @@ def _execute_plan_with_artifact(
         registry["updated_at"] = _now()
         write_json(_registry_path(root), registry)
         _set_state(transaction_root, journal, "COMMIT", evidence="lifecycle:commit", fault_at=fault_at)
-        _commit(root, context, journal, envelope, transaction_root)
+        _commit(root, context, journal, envelope, transaction_root, fault_at=fault_at)
         final_scan = scan_residue(root, context["tool_roots"], plan_context=context)
         if final_scan["status"] != "PASS":
             raise LifecycleError("TX_ZERO_RESIDUE", f"Final residue scan failed: {final_scan['issues']}")
-        return {
+        result = {
             "status": "PASS",
             "mode": "APPLY",
             "operation_id": plan["operation_id"],
@@ -3191,6 +5224,16 @@ def _execute_plan_with_artifact(
             "residue_scan": final_scan,
             "writes_performed": True,
         }
+        if context.get("preview_contract") is not None:
+            result.update(
+                {
+                    "preview_root": context["preview_contract"]["preview_root"],
+                    "preview_manifest": context["preview_contract"]["manifest"],
+                    "preview_generation_id": context["target_generation_id"],
+                    "real_tool_integration": "PENDING",
+                }
+            )
+        return result
     except InjectedCrash:
         raise
     except Exception as operation_exc:
@@ -3269,14 +5312,573 @@ def recover_transaction(root_value: str | Path, *, operation_id: str | None = No
             _set_state(transaction_root, journal, "COMMIT", evidence="recovery:resume-clean", fault_at=fault_at)
         else:
             cleanup_result = {"deleted": [], "preserved": []}
-        _commit(root, context, journal, envelope, transaction_root)
+        _commit(root, context, journal, envelope, transaction_root, fault_at=fault_at)
         final = scan_residue(root, context["tool_roots"], plan_context=context)
         if final["status"] != "PASS":
             raise LifecycleError("TX_ZERO_RESIDUE", f"Recovery commit residue scan failed: {final['issues']}")
         return {"status": "RECOVERED_COMMIT", "operation_id": plan["operation_id"], "cleanup": cleanup_result, "residue_scan": final}
     if state == "FAILED":
+        history = journal.get("state_history", [])
+        failed_after_commit = (
+            journal.get("last_completed_action") == "STATE-COMMIT"
+            and len(history) >= 2
+            and history[-2].get("state") == "COMMIT"
+            and history[-1].get("state") == "FAILED"
+            and (transaction_root / "snapshot" / "snapshot_meta.json").is_file()
+        )
+        if failed_after_commit:
+            return _rollback(root, context, journal, envelope, transaction_root, fault_at=fault_at)
         return {"status": "FAILED", "operation_id": plan["operation_id"], "requires_manual_recovery": True}
     return _rollback(root, context, journal, envelope, transaction_root, fault_at=fault_at)
+
+
+def _doctor_path_evidence(surface: str, path: Path) -> dict[str, Any]:
+    path = _absolute(path)
+    if not path.exists():
+        return {"surface": surface, "path": str(path), "sha256": "MISSING", "status": "MISSING"}
+    if _is_reparse(path):
+        return {"surface": surface, "path": str(path), "sha256": "UNTRUSTED", "status": "UNTRUSTED"}
+    if path.is_file():
+        return {"surface": surface, "path": str(path), "sha256": file_sha256(path), "status": "PASS"}
+    if path.is_dir():
+        return {"surface": surface, "path": str(path), "sha256": _path_digest(path), "status": "PASS"}
+    return {"surface": surface, "path": str(path), "sha256": "UNSUPPORTED", "status": "INVALID"}
+
+
+def doctor(
+    root_value: str | Path,
+    tool_roots: dict[str, str | Path],
+    *,
+    checked_at: str | None = None,
+) -> dict[str, Any]:
+    """Inspect lifecycle trust and discovery drift without performing writes."""
+    root = _absolute(root_value)
+    normalized_tools = _normalize_tool_roots(tool_roots)
+    selected_tools = list(normalized_tools)
+    mismatches: list[dict[str, Any]] = []
+    evidence: list[dict[str, Any]] = []
+    tool_arguments = " ".join(
+        f'--tool-root "{tool}={tool_root}"' for tool, tool_root in normalized_tools.items()
+    )
+    base_repair_command = f'malts lifecycle doctor-repair-plan --lifecycle-root "{root}" {tool_arguments}'
+
+    def add_mismatch(
+        code: str,
+        *,
+        severity: str,
+        surface: str,
+        expected_locator: Path | None,
+        observed_locator: Path | None,
+        expected: str | None,
+        observed: str | None,
+        trust_impact: str,
+        external_required: bool = False,
+    ) -> None:
+        command = base_repair_command
+        if external_required:
+            command += ' --release-root "<verified-exact-release-root>"'
+        mismatches.append(
+            {
+                "code": code,
+                "severity": severity,
+                "surface": surface,
+                "expected_locator": str(_absolute(expected_locator)) if expected_locator is not None else None,
+                "observed_locator": str(_absolute(observed_locator)) if observed_locator is not None else None,
+                "expected": expected,
+                "observed": observed,
+                "trust_impact": trust_impact,
+                "suggested_command": command,
+            }
+        )
+
+    registry_path = _registry_path(root)
+    evidence.append(_doctor_path_evidence("installation-registry", registry_path))
+    registry: dict[str, Any] | None = None
+    registry_invalid = False
+    try:
+        registry = _load_registry(root)
+    except LifecycleError as exc:
+        registry_invalid = True
+        add_mismatch(
+            "DOC_REGISTRY_MALFORMED",
+            severity="CRITICAL",
+            surface="installation-registry",
+            expected_locator=registry_path,
+            observed_locator=registry_path,
+            expected="valid closed installation registry",
+            observed=exc.code,
+            trust_impact="CORE_INVALID",
+            external_required=True,
+        )
+    if registry is None and not registry_invalid:
+        add_mismatch(
+            "DOC_REGISTRY_MISSING",
+            severity="CRITICAL",
+            surface="installation-registry",
+            expected_locator=registry_path,
+            observed_locator=None,
+            expected="installed lifecycle registry",
+            observed="MISSING",
+            trust_impact="CORE_INVALID",
+            external_required=True,
+        )
+
+    active: dict[str, Any] | None = None
+    active_root: Path | None = None
+    active_id: str | None = None
+    if registry is not None:
+        active_records = [item for item in registry["generations"] if item["state"] == "active"]
+        if registry["lifecycle_state"] != "stable" or len(active_records) != 1:
+            add_mismatch(
+                "DOC_REGISTRY_ACTIVE_STATE",
+                severity="CRITICAL",
+                surface="installation-registry",
+                expected_locator=registry_path,
+                observed_locator=registry_path,
+                expected="stable with exactly one active generation",
+                observed=f"{registry['lifecycle_state']}:{len(active_records)}",
+                trust_impact="CORE_INVALID",
+                external_required=True,
+            )
+        if registry["selected_tools"] != selected_tools:
+            add_mismatch(
+                "DOC_REGISTRY_TOOL_SET",
+                severity="ERROR",
+                surface="installation-registry",
+                expected_locator=registry_path,
+                observed_locator=registry_path,
+                expected=canonical_json(selected_tools).decode("utf-8"),
+                observed=canonical_json(registry["selected_tools"]).decode("utf-8"),
+                trust_impact="CORE_INVALID",
+                external_required=True,
+            )
+        if active_records:
+            active = active_records[0]
+            active_id = active["generation_id"]
+            active_root = Path(active["root"])
+            expected_root = root / "generations" / active_id
+            evidence.append(_doctor_path_evidence("active-generation", active_root))
+            if registry["active_generation_id"] != active_id or active_root != expected_root:
+                add_mismatch(
+                    "DOC_ACTIVE_GENERATION_BINDING",
+                    severity="CRITICAL",
+                    surface="active-generation",
+                    expected_locator=expected_root,
+                    observed_locator=active_root,
+                    expected=active_id,
+                    observed=registry.get("active_generation_id"),
+                    trust_impact="CORE_INVALID",
+                    external_required=True,
+                )
+            try:
+                installed = verify_installed_generation_envelope(active_root)
+            except LifecycleError as exc:
+                add_mismatch(
+                    "DOC_ACTIVE_ENVELOPE_INVALID",
+                    severity="CRITICAL",
+                    surface="active-generation",
+                    expected_locator=expected_root,
+                    observed_locator=active_root if active_root.exists() else None,
+                    expected="valid installed generation envelope and payload binding",
+                    observed=exc.code,
+                    trust_impact="CORE_INVALID",
+                    external_required=True,
+                )
+            else:
+                generation = installed["generation_manifest"]
+                release_identity = installed["release_identity"]
+                expected_binding = {
+                    "generation_id": generation["generation_id"],
+                    "version": generation["version"],
+                    "artifact_sha256": generation["artifact_sha256"],
+                    "release_id": release_identity["release_id"],
+                    "release_manifest_sha256": release_identity["release_manifest_sha256"],
+                    "release_package_sha256": release_identity["release_package_sha256"],
+                    "generation_manifest_sha256": release_identity["generation_manifest_sha256"],
+                    "root": str(active_root),
+                }
+                observed_binding = {key: active.get(key) for key in expected_binding}
+                if canonical_json(expected_binding) != canonical_json(observed_binding):
+                    add_mismatch(
+                        "DOC_ACTIVE_REGISTRY_BINDING",
+                        severity="CRITICAL",
+                        surface="active-generation",
+                        expected_locator=active_root,
+                        observed_locator=active_root,
+                        expected=canonical_json(expected_binding).decode("utf-8"),
+                        observed=canonical_json(observed_binding).decode("utf-8"),
+                        trust_impact="CORE_INVALID",
+                        external_required=True,
+                    )
+
+    pointer_path = _pointer_path(root)
+    evidence.append(_doctor_path_evidence("active-generation-pointer", pointer_path))
+    if active is not None and active_root is not None:
+        expected_pointer = {
+            "schema_version": 1,
+            "generation_id": active["generation_id"],
+            "version": active["version"],
+            "root": str(active_root),
+            "artifact_sha256": active["artifact_sha256"],
+            "release_id": active["release_id"],
+            "release_manifest_sha256": active["release_manifest_sha256"],
+            "release_package_sha256": active["release_package_sha256"],
+            "generation_manifest_sha256": active["generation_manifest_sha256"],
+        }
+        if not pointer_path.exists():
+            add_mismatch(
+                "DOC_ACTIVE_POINTER_MISSING",
+                severity="CRITICAL",
+                surface="active-generation-pointer",
+                expected_locator=pointer_path,
+                observed_locator=None,
+                expected=canonical_json(expected_pointer).decode("utf-8"),
+                observed="MISSING",
+                trust_impact="CORE_INVALID",
+                external_required=True,
+            )
+        else:
+            try:
+                pointer = load_json(pointer_path)
+            except LifecycleError as exc:
+                add_mismatch(
+                    "DOC_ACTIVE_POINTER_MALFORMED",
+                    severity="CRITICAL",
+                    surface="active-generation-pointer",
+                    expected_locator=pointer_path,
+                    observed_locator=pointer_path,
+                    expected=canonical_json(expected_pointer).decode("utf-8"),
+                    observed=exc.code,
+                    trust_impact="CORE_INVALID",
+                    external_required=True,
+                )
+            else:
+                if not isinstance(pointer, dict) or canonical_json(pointer) != canonical_json(expected_pointer):
+                    add_mismatch(
+                        "DOC_ACTIVE_POINTER_STALE",
+                        severity="CRITICAL",
+                        surface="active-generation-pointer",
+                        expected_locator=pointer_path,
+                        observed_locator=pointer_path,
+                        expected=canonical_json(expected_pointer).decode("utf-8"),
+                        observed=canonical_json(pointer).decode("utf-8") if isinstance(pointer, dict) else type(pointer).__name__,
+                        trust_impact="CORE_INVALID",
+                        external_required=True,
+                    )
+
+    global_boot_path = root.parent / GLOBAL_BOOT_FILENAME
+    evidence.append(_doctor_path_evidence("global-boot", global_boot_path))
+    if active_root is not None:
+        if not global_boot_path.exists():
+            add_mismatch(
+                "DOC_GLOBAL_BOOT_MISSING",
+                severity="ERROR",
+                surface="global-boot",
+                expected_locator=global_boot_path,
+                observed_locator=None,
+                expected=str(active_root),
+                observed="MISSING",
+                trust_impact="DERIVED_ONLY",
+            )
+        else:
+            try:
+                text = global_boot_path.read_text(encoding="utf-8-sig")
+                matches = list(GLOBAL_BOOT_POINTER_PATTERN.finditer(text))
+            except (OSError, UnicodeDecodeError):
+                matches = []
+            if len(matches) != 1:
+                add_mismatch(
+                    "DOC_GLOBAL_BOOT_MALFORMED",
+                    severity="ERROR",
+                    surface="global-boot",
+                    expected_locator=global_boot_path,
+                    observed_locator=global_boot_path,
+                    expected=str(active_root),
+                    observed="MALFORMED",
+                    trust_impact="DERIVED_ONLY",
+                )
+            elif matches[0].group(2).strip() != str(active_root):
+                add_mismatch(
+                    "DOC_GLOBAL_BOOT_STALE",
+                    severity="ERROR",
+                    surface="global-boot",
+                    expected_locator=global_boot_path,
+                    observed_locator=global_boot_path,
+                    expected=str(active_root),
+                    observed=matches[0].group(2).strip(),
+                    trust_impact="DERIVED_ONLY",
+                )
+
+    for tool, tool_root in normalized_tools.items():
+        manifest_path = tool_root / PROJECTION_MANIFEST
+        boot_path = tool_root / "MALTS_BOOT.md"
+        evidence.append(_doctor_path_evidence(f"{tool}-projection", manifest_path))
+        evidence.append(_doctor_path_evidence(f"{tool}-boot", boot_path))
+        manifest: dict[str, Any] | None = None
+        try:
+            manifest = _projection_manifest(tool_root)
+        except LifecycleError as exc:
+            add_mismatch(
+                "DOC_PROJECTION_MANIFEST_MALFORMED",
+                severity="ERROR",
+                surface=f"projection:{tool}",
+                expected_locator=manifest_path,
+                observed_locator=manifest_path,
+                expected="valid projection manifest",
+                observed=exc.code,
+                trust_impact="DERIVED_ONLY",
+            )
+        if manifest is None:
+            add_mismatch(
+                "DOC_PROJECTION_MANIFEST_MISSING",
+                severity="ERROR",
+                surface=f"projection:{tool}",
+                expected_locator=manifest_path,
+                observed_locator=None,
+                expected=active_id,
+                observed="MISSING",
+                trust_impact="DERIVED_ONLY",
+            )
+        elif active is not None and (
+            manifest.get("generation_id") != active_id or manifest.get("artifact_sha256") != active["artifact_sha256"]
+        ):
+            add_mismatch(
+                "DOC_PROJECTION_MANIFEST_STALE",
+                severity="ERROR",
+                surface=f"projection:{tool}",
+                expected_locator=manifest_path,
+                observed_locator=manifest_path,
+                expected=f"{active_id}:{active['artifact_sha256']}",
+                observed=f"{manifest.get('generation_id')}:{manifest.get('artifact_sha256')}",
+                trust_impact="DERIVED_ONLY",
+            )
+        if manifest is not None:
+            for entry in manifest.get("entries", []):
+                target = _safe_target(tool_root, entry["path"])
+                if not target.is_file():
+                    add_mismatch(
+                        "DOC_PROJECTION_FILE_MISSING",
+                        severity="ERROR",
+                        surface=f"projection:{tool}",
+                        expected_locator=target,
+                        observed_locator=None,
+                        expected=entry.get("installed_sha256"),
+                        observed="MISSING",
+                        trust_impact="DERIVED_ONLY",
+                    )
+                elif file_sha256(target) != entry.get("installed_sha256"):
+                    add_mismatch(
+                        "DOC_PROJECTION_FILE_STALE",
+                        severity="ERROR",
+                        surface=f"projection:{tool}",
+                        expected_locator=target,
+                        observed_locator=target,
+                        expected=entry.get("installed_sha256"),
+                        observed=file_sha256(target),
+                        trust_impact="DERIVED_ONLY",
+                    )
+        if active_root is not None:
+            if not boot_path.exists():
+                add_mismatch(
+                    "DOC_TOOL_BOOT_MISSING",
+                    severity="ERROR",
+                    surface=f"tool-boot:{tool}",
+                    expected_locator=boot_path,
+                    observed_locator=None,
+                    expected=str(active_root),
+                    observed="MISSING",
+                    trust_impact="DERIVED_ONLY",
+                )
+            else:
+                try:
+                    boot_text = boot_path.read_text(encoding="utf-8-sig")
+                    boot_matches = re.findall(r"(?m)^MALTS_ROOT:\s*(.+?)\s*$", boot_text)
+                except (OSError, UnicodeDecodeError):
+                    boot_matches = []
+                if len(boot_matches) != 1:
+                    add_mismatch(
+                        "DOC_TOOL_BOOT_MALFORMED",
+                        severity="ERROR",
+                        surface=f"tool-boot:{tool}",
+                        expected_locator=boot_path,
+                        observed_locator=boot_path,
+                        expected=str(active_root),
+                        observed="MALFORMED",
+                        trust_impact="DERIVED_ONLY",
+                    )
+                elif _absolute(boot_matches[0]) != active_root:
+                    add_mismatch(
+                        "DOC_TOOL_BOOT_STALE",
+                        severity="ERROR",
+                        surface=f"tool-boot:{tool}",
+                        expected_locator=boot_path,
+                        observed_locator=boot_path,
+                        expected=str(active_root),
+                        observed=boot_matches[0],
+                        trust_impact="DERIVED_ONLY",
+                    )
+
+    try:
+        residue = scan_residue(root, normalized_tools)
+    except LifecycleError as exc:
+        add_mismatch(
+            "DOC_RESIDUE_SCAN_INVALID",
+            severity="ERROR",
+            surface="lifecycle-residue",
+            expected_locator=root,
+            observed_locator=root,
+            expected="readable residue state",
+            observed=exc.code,
+            trust_impact="CORE_INVALID",
+            external_required=True,
+        )
+    else:
+        if residue["status"] != "PASS":
+            add_mismatch(
+                "DOC_RESIDUE_DETECTED",
+                severity="WARNING",
+                surface="lifecycle-residue",
+                expected_locator=root,
+                observed_locator=root,
+                expected="PASS",
+                observed=canonical_json(residue["issues"]).decode("utf-8"),
+                trust_impact="INFORMATIONAL",
+            )
+
+    core_invalid = any(item["trust_impact"] == "CORE_INVALID" for item in mismatches)
+    derived_drift = any(item["trust_impact"] == "DERIVED_ONLY" for item in mismatches)
+    if registry is None and not registry_invalid:
+        status = "NOT_INSTALLED"
+        core_trust = "UNAVAILABLE"
+        trusted_source = "NONE"
+    elif core_invalid:
+        status = "UNTRUSTED"
+        core_trust = "EXTERNAL_SOURCE_REQUIRED"
+        trusted_source = "VERIFIED_EXTERNAL_REQUIRED"
+    elif derived_drift or mismatches:
+        status = "DEGRADED"
+        core_trust = "LOCALLY_CONSISTENT"
+        trusted_source = "ACTIVE_GENERATION"
+    else:
+        status = "HEALTHY"
+        core_trust = "LOCALLY_CONSISTENT"
+        trusted_source = "ACTIVE_GENERATION"
+    commands = list(dict.fromkeys(item["suggested_command"] for item in mismatches))
+    report = {
+        "schema_version": 1,
+        "status": status,
+        "mode": "READ_ONLY",
+        "writes_performed": False,
+        "lifecycle_root": str(root),
+        "selected_tools": selected_tools,
+        "active_generation_id": active_id,
+        "core_trust": core_trust,
+        "trusted_repair_source": trusted_source,
+        "mismatches": mismatches,
+        "evidence": evidence,
+        "suggested_commands": commands,
+        "checked_at": _now(checked_at),
+    }
+    _validate_contract("lifecycle-doctor-report", report)
+    return report
+
+
+def make_doctor_repair_plan(
+    *,
+    lifecycle_root: str | Path,
+    tool_roots: dict[str, str | Path],
+    release_root: str | Path | None = None,
+    repository_root: str | Path | None = None,
+    operation_id: str | None = None,
+    created_at: str | None = None,
+) -> dict[str, Any]:
+    if release_root is not None and repository_root is not None:
+        raise LifecycleError("TX_SOURCE_INPUT", "Choose exactly one verified external repair source.")
+    root = _absolute(lifecycle_root)
+    normalized_tools = _normalize_tool_roots(tool_roots)
+    tool_arguments = " ".join(
+        f'--tool-root "{tool}={tool_root}"' for tool, tool_root in normalized_tools.items()
+    )
+    report = doctor(root, normalized_tools, checked_at=created_at)
+    registry = _load_registry(root)
+    active = _active_generation_record(registry)
+    if active is None:
+        raise LifecycleError("TX_REPAIR_EXTERNAL_SOURCE_REQUIRED", "Repair planning requires a readable active binding and exact verified external source.", str(root))
+    external_supplied = release_root is not None or repository_root is not None
+    if not external_supplied:
+        if report["core_trust"] != "LOCALLY_CONSISTENT":
+            raise LifecycleError(
+                "TX_REPAIR_EXTERNAL_SOURCE_REQUIRED",
+                "Core lifecycle trust is invalid; provide a verified ReleaseRoot or RepositoryRoot matching the installed binding.",
+                str(root),
+            )
+        targets = sorted(
+            {
+                item["expected_locator"]
+                for item in report["mismatches"]
+                if item["trust_impact"] == "DERIVED_ONLY" and item["expected_locator"] is not None
+            },
+            key=str.casefold,
+        )
+        return {
+            "schema_version": 1,
+            "status": "PASS",
+            "mode": "REVIEW_ONLY",
+            "writes_performed": False,
+            "executable": False,
+            "trusted_source": {
+                "kind": "active-generation",
+                "root": active["root"],
+                "generation_id": active["generation_id"],
+                "artifact_sha256": active["artifact_sha256"],
+            },
+            "doctor_status": report["status"],
+            "targets": targets,
+            "suggested_apply_command": f'malts lifecycle doctor-repair-plan --lifecycle-root "{root}" {tool_arguments} --release-root "<verified-exact-release-root>"',
+        }
+
+    with _source_artifact_scope(release_root=release_root, repository_root=repository_root) as source:
+        if source is None:
+            raise LifecycleError("TX_REPAIR_EXTERNAL_SOURCE_REQUIRED", "Verified external repair source is missing.")
+        identity = source["identity"]
+        fields = (
+            "release_id", "release_manifest_sha256", "release_package_sha256", "artifact_sha256",
+            "generation_id", "generation_manifest_sha256",
+        )
+        if any(identity[field] != active.get(field) for field in fields):
+            raise LifecycleError(
+                "TX_REPAIR_SOURCE_BINDING",
+                "Verified external source does not match the exact installed release and artifact binding.",
+                str(identity["release_root"]),
+            )
+    envelope = make_plan(
+        operation="repair",
+        lifecycle_root=root,
+        tool_roots=normalized_tools,
+        release_root=release_root,
+        repository_root=repository_root,
+        operation_id=operation_id,
+        created_at=created_at,
+    )
+    return {
+        "schema_version": 1,
+        "status": "PASS",
+        "mode": "REVIEW_ONLY",
+        "writes_performed": False,
+        "executable": True,
+        "trusted_source": {
+            "kind": "verified-external",
+            "root": str(_absolute(release_root if release_root is not None else repository_root)),
+            "generation_id": active["generation_id"],
+            "artifact_sha256": active["artifact_sha256"],
+        },
+        "doctor_status": report["status"],
+        "targets": sorted(
+            {item["expected_locator"] for item in report["mismatches"] if item["expected_locator"] is not None},
+            key=str.casefold,
+        ),
+        "plan": envelope,
+    }
 
 
 def semantic_state(root_value: str | Path, tool_roots: dict[str, str | Path]) -> dict[str, Any]:
@@ -3344,25 +5946,56 @@ def build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--out")
     plan.add_argument("--apply", action="store_true")
 
+    preview_plan = subparsers.add_parser("preview-plan")
+    preview_plan.add_argument("--preview-root")
+    preview_plan.add_argument("--release-root")
+    preview_plan.add_argument("--repository-root")
+    preview_plan.add_argument("--protected-root", action="append", default=[])
+    preview_plan.add_argument("--tool", action="append", choices=TOOLS, default=[])
+    preview_plan.add_argument("--operation-id")
+    preview_plan.add_argument("--timestamp")
+    preview_plan.add_argument("--out")
+    preview_plan.add_argument("--apply", action="store_true")
+
     execute = subparsers.add_parser("execute")
     execute.add_argument("--plan", required=True)
     execute.add_argument("--expected-plan-hash", required=True)
-    execute.add_argument("--fault-at", choices=(*STATES, "ROLLBACK"))
+    execute.add_argument("--fault-at", choices=(*STATES, "ROLLBACK", "AUDIT_WRITE", "AUDIT_PRUNE"))
     execute.add_argument("--apply", action="store_true")
 
     recover = subparsers.add_parser("recover")
     recover.add_argument("--lifecycle-root", required=True)
     recover.add_argument("--operation-id")
-    recover.add_argument("--fault-at", choices=("ROLLBACK", "COMMIT"))
+    recover.add_argument("--fault-at", choices=("ROLLBACK", "COMMIT", "AUDIT_WRITE", "AUDIT_PRUNE"))
     recover.add_argument("--apply", action="store_true")
 
     scan = subparsers.add_parser("scan")
     scan.add_argument("--lifecycle-root", required=True)
     scan.add_argument("--tool-root", action="append", default=[], required=True)
 
+    discover = subparsers.add_parser("discover")
+    discover.add_argument("--tool-root", required=True)
+    discover.add_argument("--lifecycle-root")
+    discover.add_argument("--global-boot")
+
     inspect = subparsers.add_parser("inspect")
     inspect.add_argument("--lifecycle-root", required=True)
     inspect.add_argument("--tool-root", action="append", default=[], required=True)
+
+    doctor_command = subparsers.add_parser("doctor")
+    doctor_command.add_argument("--lifecycle-root", required=True)
+    doctor_command.add_argument("--tool-root", action="append", default=[], required=True)
+    doctor_command.add_argument("--timestamp")
+
+    doctor_repair = subparsers.add_parser("doctor-repair-plan")
+    doctor_repair.add_argument("--lifecycle-root", required=True)
+    doctor_repair.add_argument("--tool-root", action="append", default=[], required=True)
+    doctor_repair.add_argument("--release-root")
+    doctor_repair.add_argument("--repository-root")
+    doctor_repair.add_argument("--operation-id")
+    doctor_repair.add_argument("--timestamp")
+    doctor_repair.add_argument("--out")
+    doctor_repair.add_argument("--apply", action="store_true")
 
     verify_release = subparsers.add_parser("verify-release")
     verify_release.add_argument("--release-root", required=True)
@@ -3396,6 +6029,31 @@ def main(argv: list[str] | None = None) -> int:
                     raise LifecycleError("TX_PLAN_OUTPUT", "Refusing to overwrite an existing plan.", str(output))
                 write_json(output, envelope)
             result = {"status": "PASS", "mode": "APPLY" if args.apply else "DRY_RUN", "writes_performed": args.apply, "plan_hash": envelope["plan_contract"]["plan_hash"], "plan": envelope}
+        elif args.command == "preview-plan":
+            envelope = make_preview_plan(
+                preview_root=args.preview_root,
+                release_root=args.release_root,
+                repository_root=args.repository_root,
+                protected_roots=args.protected_root,
+                tools=args.tool or None,
+                operation_id=args.operation_id,
+                created_at=args.timestamp,
+            )
+            if args.apply:
+                if not args.out:
+                    raise LifecycleError("TX_PLAN_OUTPUT", "--apply requires --out for a preview plan.")
+                output = _absolute(args.out)
+                if output.exists():
+                    raise LifecycleError("TX_PLAN_OUTPUT", "Refusing to overwrite an existing preview plan.", str(output))
+                write_json(output, envelope)
+            result = {
+                "status": "PASS",
+                "mode": "APPLY" if args.apply else "DRY_RUN",
+                "writes_performed": args.apply,
+                "plan_hash": envelope["plan_contract"]["plan_hash"],
+                "preview_root": envelope["execution_context"]["preview_contract"]["preview_root"],
+                "plan": envelope,
+            }
         elif args.command == "execute":
             envelope = load_json(_absolute(args.plan))
             result = execute_plan(envelope, args.expected_plan_hash, apply=args.apply, fault_at=args.fault_at)
@@ -3408,9 +6066,43 @@ def main(argv: list[str] | None = None) -> int:
                 result = recover_transaction(args.lifecycle_root, operation_id=args.operation_id, fault_at=args.fault_at)
                 result["mode"] = "APPLY"
                 result["writes_performed"] = True
+        elif args.command == "discover":
+            result = resolve_discovery(
+                args.tool_root,
+                lifecycle_root=args.lifecycle_root,
+                global_boot=args.global_boot,
+            )
         elif args.command == "scan":
             result = scan_residue(args.lifecycle_root, _parse_tool_roots(args.tool_root))
             result.update({"mode": "READ_ONLY", "writes_performed": False})
+        elif args.command == "doctor":
+            result = doctor(
+                args.lifecycle_root,
+                _parse_tool_roots(args.tool_root),
+                checked_at=args.timestamp,
+            )
+        elif args.command == "doctor-repair-plan":
+            result = make_doctor_repair_plan(
+                lifecycle_root=args.lifecycle_root,
+                tool_roots=_parse_tool_roots(args.tool_root),
+                release_root=args.release_root,
+                repository_root=args.repository_root,
+                operation_id=args.operation_id,
+                created_at=args.timestamp,
+            )
+            if args.apply:
+                if not result["executable"]:
+                    raise LifecycleError(
+                        "TX_REPAIR_PLAN_NOT_EXECUTABLE",
+                        "The review-only repair recommendation is not an executable transaction plan.",
+                    )
+                if not args.out:
+                    raise LifecycleError("TX_PLAN_OUTPUT", "--apply requires --out for a doctor repair plan.")
+                output = _absolute(args.out)
+                if output.exists():
+                    raise LifecycleError("TX_PLAN_OUTPUT", "Refusing to overwrite an existing doctor repair plan.", str(output))
+                write_json(output, result["plan"])
+                result = {**result, "mode": "APPLY", "writes_performed": True, "plan_output": str(output)}
         elif args.command == "verify-release":
             result = verify_release_root(args.release_root)
             result = {**result["verified"], "mode": "READ_ONLY", "writes_performed": False}
@@ -3428,7 +6120,14 @@ def main(argv: list[str] | None = None) -> int:
             }
         else:
             result = semantic_state(args.lifecycle_root, _parse_tool_roots(args.tool_root))
-            result.update({"status": "PASS", "mode": "READ_ONLY", "writes_performed": False})
+            residue_status = result.get("residue", {}).get("status")
+            result.update(
+                {
+                    "status": "FAIL" if residue_status == "FAIL" else "PASS",
+                    "mode": "READ_ONLY",
+                    "writes_performed": False,
+                }
+            )
     except InjectedCrash as exc:
         print(json.dumps(exc.as_dict(), ensure_ascii=False, indent=2), file=sys.stderr)
         return 42
@@ -3440,7 +6139,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(failure.as_dict(), ensure_ascii=False, indent=2), file=sys.stderr)
         return 3
     print(json.dumps(result, ensure_ascii=False, indent=2))
-    return 0 if result.get("status") in {"PASS", "RECOVERED_COMMIT", "RECOVERED_ROLLBACK"} else 1
+    return 0 if result.get("status") in {"PASS", "HEALTHY", "NO_OP", "RECOVERED_COMMIT", "RECOVERED_ROLLBACK"} else 1
 
 
 if __name__ == "__main__":

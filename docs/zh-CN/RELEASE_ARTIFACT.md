@@ -1,6 +1,6 @@
 ﻿# 可选 Release 归档
 
-公开仓库是 MALTS 的正常安装来源。GitHub Release 只是固定离线归档的可选便利交付，不是普通 Agent 协助安装的必需条件。
+GitHub Release 可能为 MALTS 提供一个可选离线归档。它是固定离线副本的便利交付，不是普通 Agent 协助安装的必需条件。
 
 ## 一个可选 Release ZIP
 
@@ -10,31 +10,26 @@
 MALTS-<version>.zip
 ```
 
-ZIP 是自包含的，内含：
+ZIP 是自包含的，内含：安装使用的不可变 release package、其 package 清单、`RELEASE_NOTES.md`，以及解出后所需的 runtime 模板、adapter、Skill 和用户工具。
 
-- 安装使用的不可变 lifecycle artifact；
-- `release_manifest.json` 和 `release_inventory.json`；
-- 与闭合 package 绑定的 `RELEASE_NOTES.md`；
-- 解出后所需的用户 payload、runtime 模板、adapter、Skill 和用户工具。
+不上传独立 checksum 或 transport 文件。归档 SHA-256 可以在 Release 正文中公布，作为额外的交付通道检查，但它不是第二个必需下载文件。
 
-不上传独立 checksum、transport manifest 或外部 `RELEASE_NOTES.md` 资产。Release notes 位于 GitHub Release 正文和 ZIP 内。归档 SHA-256 可以在 Release 正文中公布，作为额外的交付通道检查，但它不是第二个必需下载文件。
-
-GitHub 还可能显示自动生成的 `Source code (zip)` 与 `Source code (tar.gz)` 链接。它们是平台生成的源码快照，不是 MALTS 上传的 Release 资产，也不是这里定义的可选离线归档。
+GitHub 还可能显示自动生成的 `Source code (zip)` 与 `Source code (tar.gz)` 链接。它们是平台生成的源码快照，不是这里定义的可选离线归档。
 
 ## 解压前验证
 
-从与 ZIP 相同的已审阅公开来源或精确 source tag 取得 `scripts/Verify-MALTSBootstrap.ps1`，然后运行：
+从与 ZIP 相同的已审阅来源或精确 source tag 取得 `scripts/Verify-MALTSBootstrap.ps1`，然后运行：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Verify-MALTSBootstrap.ps1 `
-  -ArchivePath .\MALTS-1.0.0.zip
+  -ArchivePath .\MALTS-1.1.0.zip
 ```
 
 验证并解出到新位置：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Verify-MALTSBootstrap.ps1 `
-  -ArchivePath .\MALTS-1.0.0.zip `
+  -ArchivePath .\MALTS-1.1.0.zip `
   -ExtractOutput <EXTRACTED_RELEASE_ROOT> `
   -Apply
 ```
@@ -54,8 +49,8 @@ bootstrap 验证后，明确使用解出的 release root：
 
 这仍会先创建审阅计划。归档不会绕过计划哈希或用户授权边界。
 
-## 归档中不包含什么
+## 归档内容
 
-归档不包含仅仓库 integrity workflow、release builder、发布控制、维护者指南、测试、fixture、candidate、本地证据、本地交接、缓存、`.malts` 残留、Git 内部文件、机器专属路径、凭据或用户数据。
+ZIP 只包含安装和使用 MALTS 所需的内容。本机状态、用户数据和项目文件绝不会被包含。
 
 另见[安装](INSTALL.md)、[安全](SECURITY.md)和[Agent 协助安装](AGENT_INSTALL.md)。
