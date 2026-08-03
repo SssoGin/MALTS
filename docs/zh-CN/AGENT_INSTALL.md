@@ -24,7 +24,7 @@
 5. 展示计划路径、精确哈希、选定根目录、破坏性动作、用户修改、清理、回滚和停止条件。
 6. 等待用户明确授权该精确计划。
 7. 使用已审阅计划路径和精确哈希执行。
-8. 执行后检查 registry、活动版本、选定投影、boot pointer 和残留。如果 lifecycle root 旁已有本地 `GLOBAL_BOOT.md`，已审阅计划必须绑定、刷新并验证其中唯一的活动版本指针（或写入明确的未安装状态）；该本地发现文件只属于本机状态。
+8. 执行后检查 registry、活动版本、选定投影、boot pointer 和残留。MALTS v1.1.1 起不再绑定、刷新或验证机器全局 `GLOBAL_BOOT.md`；lifecycle root 旁已存在的本地文件保持原样，不属于安装范围。
 
 ## 授权边界
 
@@ -38,4 +38,4 @@
 
 ## Discovery 验证
 
-Apply 后，把所选工具相邻的 `MALTS_BOOT.md` 作为普通启动权威。运行 `python -B <MALTS_ROOT>\tools\malts_lifecycle.py discover --tool-root <TOOL_ROOT> --lifecycle-root <LIFECYCLE_ROOT>`，并要求它与 registry、`active_generation.json`、active `VERSION` 及已配置的 `GLOBAL_BOOT.md` 精确一致。`GLOBAL_BOOT.md` 是独立的机器全局 / 恢复 schema，不能代替 tool boot。证据缺失或冲突必须 fail closed。
+Apply 后，把所选工具相邻的 `MALTS_BOOT.md` 作为普通启动权威。运行 `python -B <MALTS_ROOT>\tools\malts_lifecycle.py discover --tool-root <TOOL_ROOT> --lifecycle-root <LIFECYCLE_ROOT>`，并要求它与 registry、`active_generation.json` 和 active `VERSION` 精确一致。MALTS v1.1.1 起不使用机器全局 `GLOBAL_BOOT.md`，只有工具相邻 boot 是启动权威。证据缺失或冲突必须 fail closed。

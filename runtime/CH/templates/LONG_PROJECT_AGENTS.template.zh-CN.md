@@ -30,7 +30,7 @@
 
 ## Discovery 与 Plan Recheck
 
-- 普通启动只从当前工具相邻的 `MALTS_BOOT.md` 解析；交叉核对 registry、active pointer、`VERSION` 与可选的机器全局 / 恢复 `GLOBAL_BOOT.md`。任何不一致都按 split brain fail closed。
+- 普通启动只从当前工具相邻的 `MALTS_BOOT.md` 解析；交叉核对 registry、active pointer 与 `VERSION`。MALTS v1.1.1 起不再使用或创建机器全局 `GLOBAL_BOOT.md`。任何不一致都按 split brain fail closed。
 - Active Phase 拥有 plan path、revision、raw-byte SHA-256、recheck trigger/result 与 launch-review invalidation；root control 只保存索引，Session 只继承绑定。
 - S3/S4 工作在新写入范围、launch review、verifier、recovery/rollback 或 final delivery 前，按事件运行只读 `long_workspace.py plan-recheck --require-active-plan`。`BLOCKED` 必须停止；该命令不会创建授权。
 

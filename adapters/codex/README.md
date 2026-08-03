@@ -35,8 +35,7 @@ check.
 
 Normal discovery starts from Codex's adjacent `MALTS_BOOT.md`, then requires
 the registry, `active_generation.json`, generation identity, and active
-`VERSION` to agree. A configured machine-global `GLOBAL_BOOT.md` is a separate
-recovery cross-check. Missing, malformed, reparse-point, stale, or split-brain
+`VERSION` to agree. MALTS v1.1.1+ does not use a machine-global `GLOBAL_BOOT.md`. Missing, malformed, reparse-point, stale, or split-brain
 state is `BLOCKED` and must not fall back to another root.
 
 For a long-project Phase with an active plan, run read-only `plan-recheck` at

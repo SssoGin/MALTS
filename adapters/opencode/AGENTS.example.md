@@ -169,7 +169,7 @@ Portable discovery rules:
 - Treat that boot pointer as the active-generation locator. Do not treat copied absolute paths in examples, wrappers, handoffs, or reports as authoritative.
 - If `MALTS_BOOT.md` is missing or its target cannot be verified, stop and report the exact missing path; do not guess another installation.
 - Require exactly one absolute `MALTS_ROOT:` value and a regular, non-reparse target. Cross-check the lifecycle registry, sole active record, `active_generation.json`, generation identity, and active `VERSION`; any mismatch is `split_brain` and must fail closed.
-- A separately configured `GLOBAL_BOOT.md` uses a different fenced-block schema and is only an optional machine-global recovery cross-check. It must agree when present, but it never replaces the tool-local boot pointer.
+- MALTS v1.1.1+ does not use or create a machine-global `GLOBAL_BOOT.md`; ordinary startup relies only on this tool's adjacent `MALTS_BOOT.md` with registry/pointer/`VERSION` cross-checks.
 
 - MALTS version metadata must be read from the active boot file and `<MALTS_ROOT>/VERSION`; never copy the current version from old control/report/handoff/template files.
 

@@ -27,7 +27,7 @@ MALTS_BOOT.md beside the active tool instruction file
 <GLOBAL_MEMORY>, only when nearer user or project instructions require it
 ```
 
-Ordinary startup authority is the tool-adjacent `MALTS_BOOT.md`. Parse exactly one `MALTS_ROOT:` line, require one absolute target, then cross-check the installation registry, `active_generation.json`, target `VERSION`, and the optional machine-global `GLOBAL_BOOT.md`. Use `python -B <MALTS_ROOT>\tools\malts_lifecycle.py discover --tool-root <ACTIVE_TOOL_ROOT>` when available. `GLOBAL_BOOT.md` uses a different fenced-block schema and is only a machine-global/recovery cross-check; never parse it as a tool boot or use it as a substitute for a missing tool boot. Any mismatch is split brain and must fail closed. If the tool boot is missing or invalid, report its exact path and stop instead of guessing a repository, copied path, or historical generation.
+Ordinary startup authority is the tool-adjacent `MALTS_BOOT.md`. Parse exactly one `MALTS_ROOT:` line, require one absolute target, then cross-check the installation registry, `active_generation.json`, and target `VERSION`. MALTS v1.1.1+ does not use or create a machine-global `GLOBAL_BOOT.md`. Use `python -B <MALTS_ROOT>\tools\malts_lifecycle.py discover --tool-root <ACTIVE_TOOL_ROOT>` when available. Any mismatch is split brain and must fail closed. If the tool boot is missing or invalid, report its exact path and stop instead of guessing a repository, copied path, or historical generation.
 
 Read `<MALTS_ROOT>\VERSION` after resolving the active root. Current MALTS version metadata in `PROJECT_CONTROL.md` must come from this active version file; never copy the current version from old control, report, handoff, template, release-note, or chat-history text.
 
@@ -136,7 +136,7 @@ Keep `AGENTS.md` concise and project-specific. Include:
 - Build, test, lint, and verification commands only when verified.
 - Default write scope: unless the user explicitly authorizes a source project path or other external path, state-changing writes are limited to the initialized workspace and the files named in the approved plan.
 - Source project boundary rule: before writing to any separate source project or any path outside the default write scope, re-read the source project root instructions and the nearest applicable target-path instructions; copied summaries in control files do not replace those layered instructions.
-- MALTS discovery rule: resolve the exact tool-adjacent `MALTS_BOOT.md`, cross-check registry / active pointer / `VERSION` and optional `GLOBAL_BOOT.md`, then read `<GLOBAL_MEMORY>` only when a nearer instruction requires it.
+- MALTS discovery rule: resolve the exact tool-adjacent `MALTS_BOOT.md`, cross-check registry / active pointer / `VERSION`, then read `<GLOBAL_MEMORY>` only when a nearer instruction requires it.
 - When to suggest MALTS and Grill-Me Preflight.
 - Requirement to create or reuse project control before substantive non-trivial implementation.
 - Requirement that `PROJECT_CONTROL.md` is the single canonical control file by default.
@@ -162,7 +162,7 @@ Use the selected localized template for visible headings and narrative content. 
 Include:
 
 - Project identity and workspace path.
-- MALTS_ROOT resolved from the active tool's `MALTS_BOOT.md`, with registry / active pointer / `VERSION` and optional `GLOBAL_BOOT.md` cross-check evidence.
+- MALTS_ROOT resolved from the active tool's `MALTS_BOOT.md`, with registry / active pointer / `VERSION` cross-check evidence.
 - Current MALTS version read from `<MALTS_ROOT>\VERSION`; do not reuse version strings from older control/report/handoff/template files.
 - Current status and active objective.
 - Scope, non-goals, assumptions, risks, and open questions.

@@ -24,7 +24,7 @@ The optional single ZIP is permitted only when the user explicitly chooses an of
 5. Show the plan path, exact hash, selected roots, destructive actions, user modifications, cleanup, rollback, and stop conditions.
 6. Wait for explicit user authorization of that exact plan.
 7. Execute using the reviewed plan path and exact hash.
-8. Inspect the registry, active version, selected projections, boot pointers, and residue after execution. If an existing local `GLOBAL_BOOT.md` is configured beside the lifecycle root, the reviewed plan must bind, refresh, and verify only its active-version pointer (or write an explicit uninstalled state); this local discovery file belongs only to the local machine.
+8. Inspect the registry, active version, selected projections, boot pointers, and residue after execution. MALTS v1.1.1+ no longer binds, refreshes, or verifies a machine-global `GLOBAL_BOOT.md`; a pre-existing local file beside the lifecycle root is left untouched and is not part of the installation.
 
 ## Authorization Boundary
 
@@ -38,4 +38,4 @@ Do not place local paths, credentials, tokens, user configuration, transaction j
 
 ## Discovery Verification
 
-After apply, treat the selected tool's adjacent `MALTS_BOOT.md` as ordinary startup authority. Run `python -B <MALTS_ROOT>\tools\malts_lifecycle.py discover --tool-root <TOOL_ROOT> --lifecycle-root <LIFECYCLE_ROOT>` and require exact agreement with the registry, `active_generation.json`, active `VERSION`, and any configured `GLOBAL_BOOT.md`. `GLOBAL_BOOT.md` is a separate machine-global/recovery schema, not a substitute tool boot. Missing or conflicting evidence fails closed.
+After apply, treat the selected tool's adjacent `MALTS_BOOT.md` as ordinary startup authority. Run `python -B <MALTS_ROOT>\tools\malts_lifecycle.py discover --tool-root <TOOL_ROOT> --lifecycle-root <LIFECYCLE_ROOT>` and require exact agreement with the registry, `active_generation.json`, and active `VERSION`. MALTS v1.1.1+ does not use a machine-global `GLOBAL_BOOT.md`; only the tool-adjacent boot is startup authority. Missing or conflicting evidence fails closed.

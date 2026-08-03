@@ -121,6 +121,6 @@ Lifecycle audit state 使用闭合 schema 与固定 ownership 规则，保留：
 
 ## 普通启动 Discovery
 
-每个工具从自身相邻的 `MALTS_BOOT.md` 启动，其 schema 只允许一条绝对 `MALTS_ROOT:` 行。`GLOBAL_BOOT.md` 使用独立 fenced-block schema，仅作为可选机器全局 / 恢复交叉核对。只读 `discover` 命令验证 tool boot、stable registry 状态、唯一 active record、精确 `active_generation.json`、active `VERSION`、版本身份与可选 global boot。普通启动不计算完整树 hash，也不写入。权威面缺失、畸形、陈旧或冲突时全部 fail closed。
+每个工具从自身相邻的 `MALTS_BOOT.md` 启动，其 schema 只允许一条绝对 `MALTS_ROOT:` 行。MALTS v1.1.1 起不再使用或创建机器全局 `GLOBAL_BOOT.md`。只读 `discover` 命令验证 tool boot、stable registry 状态、唯一 active record、精确 `active_generation.json`、active `VERSION` 与版本身份。普通启动不计算完整树 hash，也不写入。权威面缺失、畸形、陈旧或冲突时全部 fail closed。
 
 另见[安装](INSTALL.md)、[更新](UPDATE.md)和[安全](SECURITY.md)。

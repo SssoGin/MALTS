@@ -101,6 +101,6 @@ lifecycle 操作还会保留有界审计记录（一份当前绑定以及最近�
 
 安装后，每个选定工具通过自己的 `MALTS_BOOT.md` pointer 解析活动已安装版本。不要手动把 runtime 文件复制到项目中；请使用已安装的 `malts-*` Skill 入口。
 
-使用只读发现命令验证绑定。它解析 tool boot，并交叉核对 lifecycle registry、active pointer、`VERSION` 与可选机器全局恢复 boot；任何不一致都会阻止使用。
+使用只读发现命令验证绑定。它解析 tool boot，并交叉核对 lifecycle registry、active pointer 与 `VERSION`；MALTS v1.1.1 起不再使用机器全局恢复 boot。任何不一致都会阻止使用。
 
 另见[快速开始](GETTING_STARTED.md)、[生命周期](LIFECYCLE.md)和[安全](SECURITY.md)。

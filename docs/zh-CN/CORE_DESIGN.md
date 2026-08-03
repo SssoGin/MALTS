@@ -573,4 +573,4 @@ Active Phase 是 active plan reference、revision、raw-byte SHA-256、timestamp
 
 Codex peer task 是现有 multi-agent protocol 内的 provider-specific execution route。官方 Codex task/thread 接口负责执行；MALTS 治理 current-project same-directory route、task contract、hard model / effort / no-fallback evidence、lifecycle、返工复用、Main acceptance 与 archive closure。Native spawn 与 peer-task evidence 不得混用。
 
-普通 runtime discovery 从严格 tool-adjacent `MALTS_BOOT.md` 中唯一的 `MALTS_ROOT:` 行开始。Lifecycle registry、唯一 active record、精确 active pointer、`VERSION`、generation identity 与独立解析的可选 machine-global / recovery `GLOBAL_BOOT.md` 必须一致。Split brain fail closed；普通 discovery 保持只读且不计算完整树 hash。
+普通 runtime discovery 从严格 tool-adjacent `MALTS_BOOT.md` 中唯一的 `MALTS_ROOT:` 行开始。Lifecycle registry、唯一 active record、精确 active pointer、`VERSION` 与 generation identity 必须一致。MALTS v1.1.1 起不再使用机器全局 `GLOBAL_BOOT.md`。Split brain fail closed；普通 discovery 保持只读且不计算完整树 hash。

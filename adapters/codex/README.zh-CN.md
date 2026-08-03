@@ -28,8 +28,7 @@ boot/投影漂移，不修复 adapter。任何 repair 都需要独立可信 `Doc
 plan hash 审阅、transaction 执行，以及新的全新进程发现检查。
 
 正常 discovery 从 Codex 相邻的 `MALTS_BOOT.md` 开始，再要求 registry、
-`active_generation.json`、generation identity 与 active `VERSION` 完全一致。已配置的机器
-全局 `GLOBAL_BOOT.md` 是独立 recovery cross-check。缺失、格式错误、reparse-point、过期
+`active_generation.json`、generation identity 与 active `VERSION` 完全一致。MALTS v1.1.1 起不再使用机器全局 `GLOBAL_BOOT.md`。缺失、格式错误、reparse-point、过期
 或 split-brain 状态均为 `BLOCKED`，不得 fallback 到其他 root。
 
 long-project Phase 存在 active plan 时，应在既定 launch、write-scope、delegated-return、

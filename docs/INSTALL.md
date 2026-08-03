@@ -101,6 +101,6 @@ Lifecycle operations also keep bounded audit records (one current binding plus r
 
 After installation, each selected tool reads its `MALTS_BOOT.md` pointer to resolve the active installed version. Do not copy runtime files into a project manually. Use an installed `malts-*` Skill entry point instead.
 
-Verify the binding with the read-only discovery command. It parses the tool boot and cross-checks the lifecycle registry, active pointer, `VERSION`, and optional machine-global recovery boot; any inconsistency blocks use.
+Verify the binding with the read-only discovery command. It parses the tool boot and cross-checks the lifecycle registry, active pointer, and `VERSION`; MALTS v1.1.1+ does not use a machine-global recovery boot. Any inconsistency blocks use.
 
 See [Getting Started](GETTING_STARTED.md), [Lifecycle](LIFECYCLE.md), and [Security](SECURITY.md).

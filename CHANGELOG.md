@@ -6,6 +6,38 @@ All notable public changes to MALTS are documented here.
 
 No unreleased user changes.
 
+## 1.1.1
+
+MALTS 1.1.1 removes the machine-global discovery boot from the product contract
+so fresh installations and upgraded machines behave identically, and formally
+absorbs the v1.0.1 stability fixes into the v1.1 line.
+
+### Unified discovery contract
+
+- Removes the machine-global `GLOBAL_BOOT.md` surface from ordinary startup,
+  doctor, install, update, repair, and uninstall behavior. Tool-adjacent
+  `MALTS_BOOT.md` cross-checked against the lifecycle registry,
+  `active_generation.json`, and active `VERSION` is the complete discovery
+  authority.
+- A missing machine-global boot no longer degrades the doctor report; a
+  pre-existing local file beside the lifecycle root is left untouched and is
+  never a transaction target.
+- Keeps an explicit optional `--global-boot` cross-check for maintainers who
+  intentionally configure one; it is never created, refreshed, or required by
+  MALTS itself.
+
+### v1.0.1 stability fixes absorbed
+
+- Detects and blocks control-state drift when runtime metadata still marks a
+  Phase active but its canonical Phase document is already terminal.
+- Corrects capacity metrics so closed or empty decision placeholders are not
+  counted as open decisions and task/decision table statuses are scoped to
+  canonical sections.
+- Corrects managed-block residue inspection so user-owned content outside the
+  managed block does not create a false drift result.
+- Adds deterministic offline Markdown link validation for local targets,
+  missing files, and root escapes.
+
 ## 1.1.0
 
 MALTS 1.1.0 adds safer runtime lifecycle handling, Plan Recheck, governed peer-task routing, stronger startup discovery, and clearer install and update behavior.

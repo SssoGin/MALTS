@@ -440,21 +440,26 @@ def resolve_discovery(
     if not isinstance(pointer, dict) or canonical_json(pointer) != canonical_json(expected_pointer):
         raise LifecycleError("DISCOVERY_POINTER_MISMATCH", "Active pointer does not exactly match the active registry record.", str(pointer_path))
 
-    explicit_global = global_boot is not None
-    global_path = Path(global_boot) if explicit_global else root.parent / GLOBAL_BOOT_FILENAME
-    if explicit_global and not global_path.is_absolute():
-        raise LifecycleError("DISCOVERY_GLOBAL_BOOT_PATH", "Explicit GLOBAL_BOOT path must be absolute.", str(global_path))
-    if global_path.exists():
-        global_result = parse_global_boot(global_path)
-        if global_result["state"] != "ACTIVE" or not _same_locator(global_result["malts_root"], active_root):
-            raise LifecycleError(
-                "DISCOVERY_GLOBAL_BOOT_MISMATCH",
-                "GLOBAL_BOOT and tool-local discovery resolve to different lifecycle states or roots.",
-                str(global_path),
-            )
-        global_status = "MATCH"
-    elif explicit_global:
-        raise LifecycleError("DISCOVERY_GLOBAL_BOOT_MISSING", "Explicit GLOBAL_BOOT path is missing.", str(global_path))
+    # v1.1.1: the machine-global GLOBAL_BOOT.md is no longer a product surface.
+    # Ordinary startup never probes a default path beside the lifecycle root;
+    # the tool-local MALTS_BOOT.md plus registry/pointer/VERSION are the
+    # complete discovery authority. An explicit --global-boot path remains
+    # supported as an optional maintainer cross-check only.
+    if global_boot is not None:
+        global_path = Path(global_boot)
+        if not global_path.is_absolute():
+            raise LifecycleError("DISCOVERY_GLOBAL_BOOT_PATH", "Explicit GLOBAL_BOOT path must be absolute.", str(global_path))
+        if global_path.exists():
+            global_result = parse_global_boot(global_path)
+            if global_result["state"] != "ACTIVE" or not _same_locator(global_result["malts_root"], active_root):
+                raise LifecycleError(
+                    "DISCOVERY_GLOBAL_BOOT_MISMATCH",
+                    "GLOBAL_BOOT and tool-local discovery resolve to different lifecycle states or roots.",
+                    str(global_path),
+                )
+            global_status = "MATCH"
+        else:
+            raise LifecycleError("DISCOVERY_GLOBAL_BOOT_MISSING", "Explicit GLOBAL_BOOT path is missing.", str(global_path))
     else:
         global_result = None
         global_status = "ABSENT_OPTIONAL"
@@ -697,24 +702,13 @@ def compare_surface_invariants(before: dict[str, Any], after: dict[str, Any]) ->
 
 
 def _global_boot_context(root: Path) -> dict[str, Any]:
-    """Describe the optional local discovery boot beside a lifecycle root.
+    """Describe machine-global boot state for a lifecycle transaction.
 
-    A global boot is local machine state, not a release payload.  When an
-    existing installation has configured one, bind it into the transaction so
-    activation cannot leave it pointing at a retired generation.
+    v1.1.1: MALTS no longer creates, refreshes, verifies, or deletes a
+    machine-global GLOBAL_BOOT.md. A pre-existing user-owned file beside the
+    lifecycle root is left untouched and is never a transaction target.
     """
-    path = _absolute(root.parent / GLOBAL_BOOT_FILENAME)
-    if not path.exists():
-        return {"mode": "absent", "locator": str(path), "sha256": "MISSING"}
-    if not path.is_file() or path.is_symlink() or (_file_attributes(path) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)):
-        raise LifecycleError("TX_GLOBAL_BOOT_TYPE", "Configured global boot must be a regular non-reparse file.", str(path))
-    try:
-        text = path.read_text(encoding="utf-8-sig")
-    except UnicodeDecodeError as exc:
-        raise LifecycleError("TX_GLOBAL_BOOT_ENCODING", "Configured global boot must be valid UTF-8.", str(path)) from exc
-    if len(GLOBAL_BOOT_POINTER_PATTERN.findall(text)) != 1:
-        raise LifecycleError("TX_GLOBAL_BOOT_FORMAT", "Configured global boot must contain exactly one resolved MALTS_ROOT text block.", str(path))
-    return {"mode": "refresh", "locator": str(path), "sha256": file_sha256(path)}
+    return {"mode": "absent", "locator": None, "sha256": "NOT_CONFIGURED"}
 
 
 def _refresh_global_boot(context: dict[str, Any], active_generation_root: Path | None, operation: str) -> None:
@@ -5566,48 +5560,9 @@ def doctor(
                         external_required=True,
                     )
 
-    global_boot_path = root.parent / GLOBAL_BOOT_FILENAME
-    evidence.append(_doctor_path_evidence("global-boot", global_boot_path))
-    if active_root is not None:
-        if not global_boot_path.exists():
-            add_mismatch(
-                "DOC_GLOBAL_BOOT_MISSING",
-                severity="ERROR",
-                surface="global-boot",
-                expected_locator=global_boot_path,
-                observed_locator=None,
-                expected=str(active_root),
-                observed="MISSING",
-                trust_impact="DERIVED_ONLY",
-            )
-        else:
-            try:
-                text = global_boot_path.read_text(encoding="utf-8-sig")
-                matches = list(GLOBAL_BOOT_POINTER_PATTERN.finditer(text))
-            except (OSError, UnicodeDecodeError):
-                matches = []
-            if len(matches) != 1:
-                add_mismatch(
-                    "DOC_GLOBAL_BOOT_MALFORMED",
-                    severity="ERROR",
-                    surface="global-boot",
-                    expected_locator=global_boot_path,
-                    observed_locator=global_boot_path,
-                    expected=str(active_root),
-                    observed="MALFORMED",
-                    trust_impact="DERIVED_ONLY",
-                )
-            elif matches[0].group(2).strip() != str(active_root):
-                add_mismatch(
-                    "DOC_GLOBAL_BOOT_STALE",
-                    severity="ERROR",
-                    surface="global-boot",
-                    expected_locator=global_boot_path,
-                    observed_locator=global_boot_path,
-                    expected=str(active_root),
-                    observed=matches[0].group(2).strip(),
-                    trust_impact="DERIVED_ONLY",
-                )
+    # v1.1.1: no machine-global GLOBAL_BOOT.md check. A missing or present
+    # GLOBAL_BOOT.md beside the lifecycle root is intentionally not a doctor
+    # input; tool boots, registry, pointer, and residue are the health surface.
 
     for tool, tool_root in normalized_tools.items():
         manifest_path = tool_root / PROJECTION_MANIFEST

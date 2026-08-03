@@ -83,4 +83,4 @@ core 状态本地一致时，`DoctorRepairPlan` 可从活动版本限定派生 r
 
 ## 更新后 Discovery
 
-更新成功后，对每个已选 tool root 运行只读发现命令。所有 tool-local boot 必须解析到同一个新活动版本，并与 registry、active pointer、`VERSION` 及已配置的机器全局恢复 boot 一致。不得继续使用陈旧 tool boot 或猜测版本路径；repair 必须进入单独审阅的 lifecycle transaction。
+更新成功后，对每个已选 tool root 运行只读发现命令。所有 tool-local boot 必须解析到同一个新活动版本，并与 registry、active pointer、`VERSION` 一致；MALTS v1.1.1 起不再使用机器全局恢复 boot。不得继续使用陈旧 tool boot 或猜测版本路径；repair 必须进入单独审阅的 lifecycle transaction。

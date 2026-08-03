@@ -137,6 +137,6 @@ The engine distinguishes MALTS-owned paths from user-owned or uncertain paths. I
 
 ## Ordinary Startup Discovery
 
-Each tool starts from its own adjacent `MALTS_BOOT.md`, whose schema is exactly one absolute `MALTS_ROOT:` line. `GLOBAL_BOOT.md` has a separate fenced-block schema and serves only as an optional machine-global/recovery cross-check. The read-only `discover` command verifies tool boot, stable registry state, the sole active record, exact `active_generation.json`, active `VERSION`, version identity, and optional global boot. It computes no full-tree hash during ordinary startup and writes nothing. Missing, malformed, stale, or conflicting authoritative surfaces fail closed.
+Each tool starts from its own adjacent `MALTS_BOOT.md`, whose schema is exactly one absolute `MALTS_ROOT:` line. MALTS v1.1.1+ does not use or create a machine-global `GLOBAL_BOOT.md`. The read-only `discover` command verifies tool boot, stable registry state, the sole active record, exact `active_generation.json`, active `VERSION`, and version identity. It computes no full-tree hash during ordinary startup and writes nothing. Missing, malformed, stale, or conflicting authoritative surfaces fail closed.
 
 See [Install](INSTALL.md), [Update](UPDATE.md), and [Security](SECURITY.md).
