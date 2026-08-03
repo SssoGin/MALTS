@@ -41,7 +41,7 @@ lifecycle root 保存已安装的 MALTS 版本、registry 状态、计划和事�
 
 计划写入前，仓库会作为精确来源验证。任何意外文件、缓存、`.malts` 残留、身份文件缺失、版本不一致或源码树哈希不匹配都会在安装前停止。
 
-安装版本 ID 使用语义格式：v1.1.0 安装为 `malts-v1.1.0`。相同版本且内容完全一致时报告 `NO_OP`；相同版本对应不同内容，或存在未绑定的同名目录时，会在创建 transaction 状态前失败。
+安装版本 ID 使用语义格式：发布版本 `vX.Y.Z` 安装为 `malts-vX.Y.Z`。相同版本且内容完全一致时报告 `NO_OP`；相同版本对应不同内容，或存在未绑定的同名目录时，会在创建 transaction 状态前失败。
 
 ## 审阅并执行
 
@@ -64,7 +64,7 @@ Release 页面可提供一个名为 `MALTS-<version>.zip` 的可选归档。普�
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Verify-MALTSBootstrap.ps1 `
-  -ArchivePath .\MALTS-1.1.0.zip `
+  -ArchivePath .\MALTS-1.1.1.zip `
   -ExtractOutput <EXTRACTED_RELEASE_ROOT> `
   -Apply
 ```

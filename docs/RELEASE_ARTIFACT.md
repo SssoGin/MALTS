@@ -22,14 +22,14 @@ Obtain `scripts/Verify-MALTSBootstrap.ps1` from the same reviewed source or exac
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Verify-MALTSBootstrap.ps1 `
-  -ArchivePath .\MALTS-1.1.0.zip
+  -ArchivePath .\MALTS-1.1.1.zip
 ```
 
 To verify and extract into a new location:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Verify-MALTSBootstrap.ps1 `
-  -ArchivePath .\MALTS-1.1.0.zip `
+  -ArchivePath .\MALTS-1.1.1.zip `
   -ExtractOutput <EXTRACTED_RELEASE_ROOT> `
   -Apply
 ```

@@ -9,8 +9,8 @@ No unreleased user changes.
 ## 1.1.1
 
 MALTS 1.1.1 removes the machine-global discovery boot from the product contract
-so fresh installations and upgraded machines behave identically, and formally
-absorbs the v1.0.1 stability fixes into the v1.1 line.
+so fresh installations and upgraded machines behave identically, and includes
+focused stability and maintainability fixes.
 
 ### Unified discovery contract
 
@@ -26,7 +26,7 @@ absorbs the v1.0.1 stability fixes into the v1.1 line.
   intentionally configure one; it is never created, refreshed, or required by
   MALTS itself.
 
-### v1.0.1 stability fixes absorbed
+### Stability fixes
 
 - Detects and blocks control-state drift when runtime metadata still marks a
   Phase active but its canonical Phase document is already terminal.
@@ -78,20 +78,6 @@ MALTS 1.1.0 adds safer runtime lifecycle handling, Plan Recheck, governed peer-t
 - Adds read-only event-triggered `plan-recheck` gates with Phase-owned plan path, revision, raw-byte SHA-256, Session inheritance, root indexing, canonical triggers/results, and fail-closed launch-review invalidation.
 - Adds `peer-task` to runtime route evidence and governs Codex same-directory task windows inside the existing multi-agent Skill, including hard model/effort binding, no silent fallback, rework reuse, acceptance, and archival evidence.
 - Makes tool-adjacent `MALTS_BOOT.md` the ordinary startup authority, keeps `GLOBAL_BOOT.md` as a separate machine-global/recovery schema, and adds a read-only discovery command that cross-checks registry, active pointer, active `VERSION`, and split-brain conditions.
-
-## 1.0.1
-
-MALTS 1.0.1 is a focused stability and maintainability update for the v1.0 contract.
-
-### Long-workspace correctness
-
-- Detects and blocks control-state drift when runtime metadata still marks a Phase active but its canonical Phase document is already terminal, and reports the exact `close-phase` reconciliation command.
-- Corrects capacity metrics so closed or empty decision placeholders are not counted as open decisions, limits current-state metrics to the root control plus the active Phase and active Session, and scopes task/decision table statuses to their canonical sections so unrelated risk, checkpoint, acceptance, or evidence cells do not inflate the counts.
-- Corrects managed-block residue inspection so user-owned content outside the managed block does not create a false drift result, while real managed-content changes still fail verification.
-
-### Documentation validation
-
-- Adds deterministic offline Markdown link validation for local targets, missing files, and root escapes, while ignoring external URLs, pure fragments, and fenced examples.
 
 ## 1.0.0
 

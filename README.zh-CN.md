@@ -159,7 +159,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-MALTS.ps1 
 当前发布版本：
 
 ```text
-1.1.0
+1.1.1
 ```
 
 ## License

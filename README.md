@@ -159,7 +159,7 @@ The repository defaults to English source documents. Simplified Chinese document
 Current release version:
 
 ```text
-1.1.0
+1.1.1
 ```
 
 ## License

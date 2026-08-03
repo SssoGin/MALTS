@@ -41,7 +41,7 @@ Supported `-Tool` values are `Codex`, `ClaudeCode`, `OpenCode`, and `AllIncluded
 
 The repository is validated as an exact source before the plan is written. Any unexpected file, cache, `.malts` residue, missing identity file, version mismatch, or source-tree hash mismatch stops before installation.
 
-Installed version IDs are semantic: v1.1.0 installs as `malts-v1.1.0`. Reinstalling the same version with identical content reports `NO_OP`; the same version with different content, or an unbound same-name directory, fails before any transaction state is created.
+Installed version IDs are semantic: a release `vX.Y.Z` installs as `malts-vX.Y.Z`. Reinstalling the same version with identical content reports `NO_OP`; the same version with different content, or an unbound same-name directory, fails before any transaction state is created.
 
 ## Review And Execute
 
@@ -64,7 +64,7 @@ To use it, obtain `scripts/Verify-MALTSBootstrap.ps1` from the same reviewed sou
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Verify-MALTSBootstrap.ps1 `
-  -ArchivePath .\MALTS-1.1.0.zip `
+  -ArchivePath .\MALTS-1.1.1.zip `
   -ExtractOutput <EXTRACTED_RELEASE_ROOT> `
   -Apply
 ```
