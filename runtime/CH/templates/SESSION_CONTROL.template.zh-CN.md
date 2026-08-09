@@ -32,6 +32,15 @@
 - Prohibited operations:
 
 <!-- MALTS:section=session-checkpoint -->
+<!-- MALTS:section=session-artifacts -->
+## Artifact Registry
+
+这个可选的 owner-local registry 仅用于显式 enrollment 合同和明确有界的 Session Artifact；本节存在绝不创建或延长 Session。
+
+| Artifact ID | Role | Locator | Authority | VCS | Verification | Retention | Disposition | Relationships | Role Contract |
+|---|---|---|---|---|---|---|---|---|---|
+
+<!-- MALTS:section=session-checkpoint -->
 ## Checkpoint
 
 - Completed:

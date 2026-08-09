@@ -45,6 +45,16 @@ and final-delivery boundaries. The Codex-specific `codex-peer-task` route is not
 a portable OpenCode API; use OpenCode's visible native dispatch and retain
 equivalent route, return, acceptance, and closure evidence.
 
+## Workspace lifecycle contract
+
+`MALTS_WORKSPACE_LIFECYCLE_CONTRACT: 1`
+
+- Phase review and transition commands: `phase-boundary-review`, `pause-phase`, `resume-phase`, `plan-phase-transition`, and `apply-phase-transition`.
+- Artifact commands: `artifact audit`, `artifact enrollment-preview`, `artifact enrollment-apply`, `artifact register`, `artifact promote`, `artifact supersede`, and `artifact reconcile`.
+- The Artifact contract defaults to `NOT_ENROLLED`. Invariant: no implicit Session.
+- State changes are dry-run by default and require explicit `--apply`; they do not move/delete payloads, invoke VCS, or recursively scan undeclared trees.
+- Project keeps compact lifecycle pointers; detailed rows stay with the owning Phase, Session, Shared, or Archive registry.
+
 ## Included runtime material
 
 - `AGENTS.example.md`: managed MALTS instruction block for a project.

@@ -1,0 +1,212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:malts:schema:workspace-artifact-snapshot:1",
+  "title": "MALTS Workspace Artifact Snapshot v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "contract_id",
+    "snapshot_class",
+    "captured_at",
+    "capture_fingerprint",
+    "canonical",
+    "runtime_is_canonical",
+    "workspace_schema_version",
+    "enrollment",
+    "scope",
+    "owners",
+    "artifacts",
+    "findings",
+    "counts",
+    "input_hashes",
+    "bounded_behavior",
+    "writes_performed",
+    "implicit_session_created"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "contract_id": {"const": "workspace-artifact-snapshot"},
+    "snapshot_class": {"const": "FROZEN_CAPTURE"},
+    "captured_at": {"type": "string", "format": "date-time"},
+    "capture_fingerprint": {"type": "string", "pattern": "^[A-F0-9]{64}$"},
+    "canonical": {"const": false},
+    "runtime_is_canonical": {"const": false},
+    "workspace_schema_version": {"type": "integer", "minimum": 1},
+    "enrollment": {"$ref": "#/$defs/enrollment"},
+    "scope": {"$ref": "#/$defs/scope"},
+    "owners": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/owner"}
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/artifact"}
+    },
+    "findings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/finding"}
+    },
+    "counts": {"$ref": "#/$defs/counts"},
+    "input_hashes": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/inputHash"}
+    },
+    "bounded_behavior": {"$ref": "#/$defs/boundedBehavior"},
+    "writes_performed": {"const": false},
+    "implicit_session_created": {"const": false}
+  },
+  "$defs": {
+    "enrollment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_version", "status", "root_index_path", "shared_index", "archive_index", "latest_audit"],
+      "properties": {
+        "contract_version": {"type": ["integer", "null"]},
+        "status": {"type": "string", "minLength": 1},
+        "root_index_path": {"const": "PROJECT_CONTROL.md"},
+        "shared_index": {"type": "string", "minLength": 1},
+        "archive_index": {"type": "string", "minLength": 1},
+        "latest_audit": {"type": "string", "minLength": 1}
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "owners", "candidate_roots"],
+      "properties": {
+        "mode": {"const": "current"},
+        "owners": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "candidate_roots": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "owner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["owner_ref", "owner_kind", "registry_path", "row_count"],
+      "properties": {
+        "owner_ref": {"type": "string", "minLength": 1},
+        "owner_kind": {"enum": ["Phase", "Session", "Shared", "Archive"]},
+        "registry_path": {"type": "string", "minLength": 1},
+        "row_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_ref",
+        "owner_ref",
+        "owner_kind",
+        "registry_path",
+        "local_id",
+        "role",
+        "locator",
+        "authority",
+        "vcs",
+        "status",
+        "verification",
+        "retention",
+        "disposition",
+        "relationships",
+        "purpose",
+        "applies_to",
+        "role_contract"
+      ],
+      "properties": {
+        "artifact_ref": {"type": "string", "minLength": 1},
+        "owner_ref": {"type": "string", "minLength": 1},
+        "owner_kind": {"enum": ["Phase", "Session", "Shared", "Archive"]},
+        "registry_path": {"type": "string", "minLength": 1},
+        "local_id": {"type": "string"},
+        "role": {"type": "string"},
+        "locator": {"type": "string"},
+        "authority": {"type": "string"},
+        "vcs": {"type": "string"},
+        "status": {"type": "string"},
+        "verification": {"type": "string"},
+        "retention": {"type": "string"},
+        "disposition": {"type": "string"},
+        "relationships": {"type": "string"},
+        "purpose": {"type": "string"},
+        "applies_to": {"type": "string"},
+        "role_contract": {"type": "string"}
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["severity", "code", "path", "message"],
+      "properties": {
+        "severity": {"enum": ["ISSUE", "WARNING", "CANDIDATE"]},
+        "code": {"type": "string", "pattern": "^ART_[A-Z0-9_]+$"},
+        "path": {"type": "string", "minLength": 1},
+        "message": {"type": "string", "minLength": 1},
+        "owner_ref": {"type": "string", "minLength": 1},
+        "artifact_ref": {"type": "string", "minLength": 1},
+        "required_action": {"type": "string", "minLength": 1}
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["owner_registries", "artifact_rows", "issues", "warnings", "candidates"],
+      "properties": {
+        "owner_registries": {"type": "integer", "minimum": 0},
+        "artifact_rows": {"type": "integer", "minimum": 0},
+        "issues": {"type": "integer", "minimum": 0},
+        "warnings": {"type": "integer", "minimum": 0},
+        "candidates": {"type": "integer", "minimum": 0}
+      }
+    },
+    "inputHash": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "bytes", "sha256", "kind"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "bytes": {"type": "integer", "minimum": 0},
+        "sha256": {"type": "string", "pattern": "^[A-F0-9]{64}$"},
+        "kind": {
+          "enum": [
+            "CANONICAL_ROOT",
+            "CANONICAL_OWNER_REGISTRY",
+            "CANONICAL_SHARED_INDEX",
+            "CANONICAL_ARCHIVE_INDEX",
+            "CANDIDATE_ROOT_SIGNATURE",
+            "RUNTIME_DERIVED"
+          ]
+        }
+      }
+    },
+    "candidateRoot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "kind", "direct_entry_count", "signature_sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["MISSING", "DIRECTORY", "FILE"]},
+        "direct_entry_count": {"type": "integer", "minimum": 0},
+        "signature_sha256": {"type": "string", "pattern": "^[A-F0-9]{64}$"}
+      }
+    },
+    "boundedBehavior": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recursive_scan_performed",
+        "candidate_roots",
+        "vcs_commands_performed",
+        "payload_moves_performed",
+        "payload_deletes_performed"
+      ],
+      "properties": {
+        "recursive_scan_performed": {"const": false},
+        "candidate_roots": {"type": "array", "items": {"$ref": "#/$defs/candidateRoot"}},
+        "vcs_commands_performed": {"const": false},
+        "payload_moves_performed": {"const": false},
+        "payload_deletes_performed": {"const": false}
+      }
+    }
+  }
+}

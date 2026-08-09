@@ -150,6 +150,14 @@ Installed users can update from a current repository checkout without manually d
 
 `MergeSafe` defaults to `InstructionMode ManagedMerge`: it updates the MALTS-managed instruction block while preserving surrounding user rules. Use `InstructionMode Skip` to leave the instruction file untouched.
 
+## Workspace Lifecycle in v1.2.0
+
+MALTS 1.2.0 extends the long-project workspace without changing its minimal default. A Phase now has an explicit boundary contract, read-only boundary review, pause/resume, hash-bound transition planning, bidirectional carry-over, and terminal `SUPERSEDED` state.
+
+Artifact lifecycle is opt-in and defaults to `NOT_ENROLLED`. Phase and Session controls may own compact local registries; Project holds only enrollment and Shared/Archive pointers. Audit is read-only, mutation is dry-run by default and requires explicit `--apply`, and no Artifact command creates a Session, moves/deletes payloads, invokes VCS, or recursively scans undeclared trees.
+
+See [Lifecycle](docs/LIFECYCLE.md) for the contract and [Usage](docs/USAGE.md) for exact commands. Existing schema-v1 workspaces remain readable and are not silently migrated or enrolled.
+
 ## Documentation Language
 
 The repository defaults to English source documents. Simplified Chinese documents live in `README.zh-CN.md` and `docs/zh-CN/`; localized runtime references live under `runtime/CH/`. Runtime project artifacts stay single and canonical by default. See [Bilingual Docs](docs/BILINGUAL_DOCS.md).
@@ -159,7 +167,7 @@ The repository defaults to English source documents. Simplified Chinese document
 Current release version:
 
 ```text
-1.1.1
+1.2.0
 ```
 
 ## License

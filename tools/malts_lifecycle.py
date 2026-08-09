@@ -96,6 +96,7 @@ LEGACY_GENERATION_PATTERN = re.compile(r"^malts-(?P<version>[0-9]+\.[0-9]+\.[0-9
 MANAGED_START = "<!-- MALTS:BEGIN managed instruction -->"
 MANAGED_END = "<!-- MALTS:END managed instruction -->"
 ACTIVE_GENERATION_TOKEN = "{{MALTS_ACTIVE_GENERATION_ROOT}}"
+TOOL_BOOT_PATH_TOKEN = "{{MALTS_TOOL_BOOT_PATH}}"
 GLOBAL_BOOT_FILENAME = "GLOBAL_BOOT.md"
 PREVIEW_MANIFEST_FILENAME = "preview_manifest.json"
 PREVIEW_CONTRACT_VERSION = 1
@@ -959,6 +960,18 @@ def verify_artifact(root_value: str | Path) -> dict[str, Any]:
                 text = source_path.read_text(encoding="utf-8-sig")
                 if text.count(MANAGED_START) != 1 or text.count(MANAGED_END) != 1 or text.index(MANAGED_START) > text.index(MANAGED_END):
                     raise LifecycleError("ARTIFACT_MANAGED_BLOCK", "Managed instruction source requires one ordered marker pair.", source_relative)
+                token_count = text.count(TOOL_BOOT_PATH_TOKEN)
+                marker_count = len(re.findall(
+                    rf"(?m)^MALTS_BOOT_PATH:\s*{re.escape(TOOL_BOOT_PATH_TOKEN)}\s*$",
+                    text,
+                ))
+                requires_locator = tuple(int(part) for part in manifest["version"].split(".")) >= (1, 2, 0)
+                if token_count > 1 or marker_count != token_count or (requires_locator and token_count != 1):
+                    raise LifecycleError(
+                        "ARTIFACT_TOOL_BOOT_LOCATOR",
+                        "Managed instruction source requires exactly one canonical MALTS_TOOL_BOOT_PATH locator token for MALTS v1.2.0+.",
+                        source_relative,
+                    )
             elif entry["mode"] == "boot-pointer":
                 text = source_path.read_text(encoding="utf-8-sig")
                 if target != "MALTS_BOOT.md" or text.count(ACTIVE_GENERATION_TOKEN) != 1:
@@ -1674,13 +1687,66 @@ def _load_residue_records(root: Path) -> list[dict[str, Any]]:
     return records
 
 
-def _projection_manifest(tool_root: Path) -> dict[str, Any] | None:
+def _projection_manifest(tool_root: Path, expected_tool: str | None = None) -> dict[str, Any] | None:
     path = tool_root / PROJECTION_MANIFEST
     if not path.is_file():
         return None
     value = load_json(path)
-    if not isinstance(value, dict) or value.get("schema_version") != 1 or not isinstance(value.get("entries"), list):
+    if not isinstance(value, dict) or value.get("schema_version") not in {1, 2} or not isinstance(value.get("entries"), list):
         raise LifecycleError("PROJECTION_MANIFEST_INVALID", "Installed projection manifest is invalid.", str(path))
+    issues = validate_instance(MALTS_ROOT, "tool-projection-manifest", value)
+    if issues:
+        raise LifecycleError(
+            "PROJECTION_MANIFEST_INVALID",
+            "; ".join(issue.render() for issue in issues),
+            str(path),
+        )
+    if expected_tool is not None and value["tool"] != expected_tool:
+        raise LifecycleError(
+            "PROJECTION_TOOL_MISMATCH",
+            f"Installed projection manifest declares '{value['tool']}' but this ToolRoot is bound as '{expected_tool}'.",
+            str(path),
+        )
+    if value["schema_version"] == 2:
+        if not isinstance(value.get("boot_path"), str):
+            raise LifecycleError("PROJECTION_MANIFEST_INVALID", "Projection manifest v2 requires boot_path.", str(path))
+        expected_boot = _absolute(tool_root / "MALTS_BOOT.md")
+        if not _same_locator(value["boot_path"], expected_boot):
+            raise LifecycleError(
+                "PROJECTION_BOOT_PATH_MISMATCH",
+                f"Installed projection manifest boot_path must equal the selected ToolRoot Boot: {expected_boot}",
+                str(path),
+            )
+        for entry in value["entries"]:
+            base_fields = {"path", "mode", "source_sha256", "installed_sha256"}
+            if entry["mode"] != "managed-block":
+                if set(entry) != base_fields:
+                    raise LifecycleError(
+                        "PROJECTION_MANIFEST_INVALID",
+                        "Non-managed projection entries in schema v2 contain ambiguous fields.",
+                        str(path),
+                    )
+                continue
+            allowed_fields = base_fields | {"rendered_managed_block_sha256", "boot_path", "merge_metadata"}
+            required_fields = base_fields | {"rendered_managed_block_sha256", "boot_path"}
+            if not required_fields.issubset(entry) or not set(entry).issubset(allowed_fields):
+                raise LifecycleError(
+                    "PROJECTION_MANIFEST_INVALID",
+                    "Managed projection entries in schema v2 must use only rendered hash and exact Boot binding fields.",
+                    str(path),
+                )
+            if not isinstance(entry.get("rendered_managed_block_sha256"), str) or not isinstance(entry.get("boot_path"), str):
+                raise LifecycleError(
+                    "PROJECTION_MANIFEST_INVALID",
+                    "Managed projection entries in schema v2 require rendered_managed_block_sha256 and boot_path.",
+                    str(path),
+                )
+            if not _same_locator(entry["boot_path"], expected_boot):
+                raise LifecycleError(
+                    "PROJECTION_BOOT_PATH_MISMATCH",
+                    f"Managed projection boot_path must equal the selected ToolRoot Boot: {expected_boot}",
+                    str(path),
+                )
     return value
 
 
@@ -1719,12 +1785,41 @@ def _managed_block_sha256(data: bytes) -> str:
     return sha256_bytes((block + "\n").encode("utf-8"))
 
 
+def _render_managed_block(data: bytes, boot_path: Path, source_path: Path) -> bytes:
+    try:
+        text = data.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise LifecycleError("TX_MANAGED_MARKER", "Managed instruction projection is not valid UTF-8.", str(source_path)) from exc
+    token_count = text.count(TOOL_BOOT_PATH_TOKEN)
+    if token_count == 0:
+        return data
+    marker_count = len(re.findall(
+        rf"(?m)^MALTS_BOOT_PATH:\s*{re.escape(TOOL_BOOT_PATH_TOKEN)}\s*$",
+        text,
+    ))
+    if token_count != 1 or marker_count != 1:
+        raise LifecycleError(
+            "ARTIFACT_TOOL_BOOT_LOCATOR",
+            "Managed instruction projection requires exactly one canonical MALTS_TOOL_BOOT_PATH locator token.",
+            str(source_path),
+        )
+    raw_boot = Path(str(boot_path))
+    if not raw_boot.is_absolute():
+        raise LifecycleError("TX_TOOL_BOOT_PATH", "Rendered ToolRoot Boot path must be absolute.", str(raw_boot))
+    rendered = text.replace(TOOL_BOOT_PATH_TOKEN, str(_absolute(raw_boot)))
+    if TOOL_BOOT_PATH_TOKEN in rendered:
+        raise LifecycleError("TX_TOOL_BOOT_PATH", "Managed instruction projection contains an unrendered ToolRoot Boot token.", str(source_path))
+    return rendered.encode("utf-8")
+
+
 def _legacy_managed_block_sha256(
     registry: dict[str, Any] | None,
     source_sha256: str,
     cache: dict[str, str | None],
+    boot_path: Path,
 ) -> str | None:
-    key = source_sha256.upper()
+    source_key = source_sha256.upper()
+    key = f"{source_key}:{os.path.normcase(str(_absolute(boot_path)))}"
     if key in cache:
         return cache[key]
     cache[key] = None
@@ -1740,10 +1835,11 @@ def _legacy_managed_block_sha256(
         (path for path in generation_root.rglob("*") if path.is_file()),
         key=lambda path: path.relative_to(generation_root).as_posix().casefold(),
     ):
-        if file_sha256(candidate).upper() != key:
+        if file_sha256(candidate).upper() != source_key:
             continue
         try:
-            cache[key] = _managed_block_sha256(candidate.read_bytes())
+            rendered = _render_managed_block(candidate.read_bytes(), boot_path, candidate)
+            cache[key] = _managed_block_sha256(rendered)
         except LifecycleError:
             continue
         break
@@ -2188,7 +2284,7 @@ def _classify_projection_modifications(
     legacy_residue_records: list[dict[str, Any]] = []
     for tool in tool_roots:
         root = tool_roots[tool]
-        installed = _projection_manifest(root)
+        installed = _projection_manifest(root, tool)
         installed_map = {entry["path"].casefold(): entry for entry in installed.get("entries", [])} if installed else {}
         legacy = _load_legacy_projection_manifest(root)
         legacy_map = legacy["entries"] if legacy else {}
@@ -3342,7 +3438,7 @@ def _snapshot(
     if generations.is_dir():
         _copy_tree(generations, snapshot / "generations")
     for tool, tool_root in tool_roots.items():
-        manifest = _projection_manifest(tool_root)
+        manifest = _projection_manifest(tool_root, tool)
         tool_snapshot = snapshot / "tools" / tool
         tool_meta = {"manifest_exists": manifest is not None, "entries": []}
         captured: set[str] = set()
@@ -3536,7 +3632,8 @@ def _apply_projections(
     for tool in tool_roots:
         root = tool_roots[tool]
         root.mkdir(parents=True, exist_ok=True)
-        old = _projection_manifest(root)
+        boot_path = _safe_target(root, "MALTS_BOOT.md")
+        old = _projection_manifest(root, tool)
         old_entries = {entry["path"].casefold(): entry for entry in old.get("entries", [])} if old else {}
         desired = artifact["projections"][tool]["entries"] if artifact is not None and operation != "uninstall" else []
         desired_paths = {entry["path"].casefold() for entry in desired}
@@ -3547,10 +3644,15 @@ def _apply_projections(
             decision = modification["decision"]
             source = artifact["root"] / "projections" / tool / entry["source"]
             merge_metadata = None
+            rendered_managed = None
             if entry["mode"] == "managed-block":
                 if decision not in {"replace", "merge"}:
                     raise LifecycleError("TX_PROJECTION_DECISION", "Required managed instruction projection must use replace or merge.", str(target))
-                payload, merge_metadata = _merge_managed_block(target.read_bytes() if target.is_file() else None, source.read_bytes())
+                rendered_managed = _render_managed_block(source.read_bytes(), boot_path, source)
+                payload, merge_metadata = _merge_managed_block(
+                    target.read_bytes() if target.is_file() else None,
+                    rendered_managed,
+                )
                 previous = old_entries.get(entry["path"].casefold())
                 if previous and previous.get("merge_metadata"):
                     merge_metadata = previous["merge_metadata"]
@@ -3573,7 +3675,8 @@ def _apply_projections(
                 "installed_sha256": file_sha256(target),
             }
             if entry["mode"] == "managed-block":
-                installed_entry["managed_block_sha256"] = _managed_block_sha256(source.read_bytes())
+                installed_entry["rendered_managed_block_sha256"] = _managed_block_sha256(rendered_managed)
+                installed_entry["boot_path"] = str(boot_path)
             if merge_metadata is not None:
                 installed_entry["merge_metadata"] = merge_metadata
             new_entries.append(installed_entry)
@@ -3610,10 +3713,11 @@ def _apply_projections(
                 manifest_path.unlink()
         else:
             manifest = {
-                "schema_version": 1,
+                "schema_version": 2,
                 "tool": tool,
                 "generation_id": generation_id,
                 "artifact_sha256": artifact["artifact_sha256"],
+                "boot_path": str(boot_path),
                 "entries": new_entries,
                 "created_at": _now(),
             }
@@ -3622,13 +3726,18 @@ def _apply_projections(
 
 def _verify_projections(artifact: dict[str, Any] | None, tool_roots: dict[str, Path], operation: str) -> None:
     for tool in tool_roots:
-        manifest = _projection_manifest(tool_roots[tool])
+        manifest = _projection_manifest(tool_roots[tool], tool)
         if operation == "uninstall":
             if manifest is not None:
                 raise LifecycleError("TX_POSTVALIDATE", "Projection manifest remains after uninstall.", tool)
             continue
         if manifest is None or manifest.get("artifact_sha256") != artifact["artifact_sha256"]:
             raise LifecycleError("TX_POSTVALIDATE", "Projection manifest is missing or stale.", tool)
+        if manifest.get("schema_version") != 2:
+            raise LifecycleError("TX_POSTVALIDATE", "Projection manifest was not upgraded to schema v2.", tool)
+        expected_boot = _absolute(tool_roots[tool] / "MALTS_BOOT.md")
+        if not _same_locator(manifest["boot_path"], expected_boot):
+            raise LifecycleError("TX_POSTVALIDATE", "Projection manifest Boot binding is stale.", str(expected_boot))
         desired = artifact["projections"][tool]["entries"]
         if {entry["path"] for entry in manifest["entries"]} != {entry["path"] for entry in desired}:
             raise LifecycleError("TX_POSTVALIDATE", "Projection entries differ from artifact plan.", tool)
@@ -3636,6 +3745,14 @@ def _verify_projections(artifact: dict[str, Any] | None, tool_roots: dict[str, P
             target = _safe_target(tool_roots[tool], entry["path"])
             if not target.is_file() or file_sha256(target) != entry["installed_sha256"]:
                 raise LifecycleError("TX_POSTVALIDATE", "Projected file verification failed.", str(target))
+            desired_entry = next(item for item in desired if item["path"] == entry["path"])
+            if entry["source_sha256"] != desired_entry["sha256"]:
+                raise LifecycleError("TX_POSTVALIDATE", "Projected source binding is stale.", str(target))
+            if entry["mode"] == "managed-block":
+                if not _same_locator(entry["boot_path"], expected_boot):
+                    raise LifecycleError("TX_POSTVALIDATE", "Managed instruction Boot binding is stale.", str(target))
+                if _managed_block_sha256(target.read_bytes()) != entry["rendered_managed_block_sha256"]:
+                    raise LifecycleError("TX_POSTVALIDATE", "Rendered managed instruction verification failed.", str(target))
 
 
 def _activate(root: Path, artifact: dict[str, Any] | None, context: dict[str, Any], operation: str, transaction_root: Path) -> None:
@@ -4849,7 +4966,7 @@ def _restore_snapshot(root: Path, tool_roots: dict[str, Path], transaction_root:
         _atomic_write(Path(global_boot["locator"]), source.read_bytes())
     for tool in meta["tools"]:
         tool_root = tool_roots[tool]
-        current = _projection_manifest(tool_root)
+        current = _projection_manifest(tool_root, tool)
         if current:
             for entry in current["entries"]:
                 target = _safe_target(tool_root, entry["path"])
@@ -4980,7 +5097,10 @@ def scan_residue(
     if registry is None:
         has_managed_install = (root / "generations").is_dir() and any((root / "generations").iterdir())
         has_managed_install = has_managed_install or _pointer_path(root).exists()
-        has_managed_install = has_managed_install or any(_projection_manifest(tool_root) is not None for tool_root in normalized_tools.values())
+        has_managed_install = has_managed_install or any(
+            _projection_manifest(tool_root, tool) is not None
+            for tool, tool_root in normalized_tools.items()
+        )
         if has_managed_install:
             issues.append({"code": "RS_REGISTRY_MISSING", "path": str(_registry_path(root))})
     else:
@@ -5058,7 +5178,7 @@ def scan_residue(
                     preserved.append({"path": str(Path(observation["locator"]) / Path(relative)), "owner": "unknown", "reason": "path is outside the trusted legacy manifest"})
 
     for tool, tool_root in normalized_tools.items():
-        manifest = _projection_manifest(tool_root)
+        manifest = _projection_manifest(tool_root, tool)
         if registry and registry["lifecycle_state"] == "uninstalled":
             if manifest is not None:
                 issues.append({"code": "RS_PROJECTION_MANIFEST", "path": str(tool_root / PROJECTION_MANIFEST)})
@@ -5075,12 +5195,15 @@ def scan_residue(
                         if file_sha256(target) != entry["installed_sha256"]:
                             issues.append({"code": "RS_PROJECTION_DRIFT", "path": str(target)})
                         continue
-                    expected_block_hash = entry.get("managed_block_sha256")
+                    expected_block_hash = entry.get("rendered_managed_block_sha256")
+                    if expected_block_hash is None:
+                        expected_block_hash = entry.get("managed_block_sha256")
                     if expected_block_hash is None:
                         expected_block_hash = _legacy_managed_block_sha256(
                             registry,
                             entry["source_sha256"],
                             legacy_managed_hashes,
+                            tool_root / "MALTS_BOOT.md",
                         )
                     try:
                         observed_block_hash = _managed_block_sha256(target.read_bytes())
@@ -5571,7 +5694,7 @@ def doctor(
         evidence.append(_doctor_path_evidence(f"{tool}-boot", boot_path))
         manifest: dict[str, Any] | None = None
         try:
-            manifest = _projection_manifest(tool_root)
+            manifest = _projection_manifest(tool_root, tool)
         except LifecycleError as exc:
             add_mismatch(
                 "DOC_PROJECTION_MANIFEST_MALFORMED",
@@ -5845,7 +5968,7 @@ def semantic_state(root_value: str | Path, tool_roots: dict[str, str | Path]) ->
     active = next((item for item in registry["generations"] if item["state"] == "active"), None)
     projection: dict[str, Any] = {}
     for tool, tool_root in normalized_tools.items():
-        manifest = _projection_manifest(tool_root)
+        manifest = _projection_manifest(tool_root, tool)
         projection[tool] = None if manifest is None else {
             "artifact_sha256": manifest["artifact_sha256"],
             "entries": sorted((entry["path"], entry["mode"], entry["source_sha256"]) for entry in manifest["entries"]),
@@ -5873,14 +5996,68 @@ def _parse_tool_roots(values: list[str]) -> dict[str, str]:
     result: dict[str, str] = {}
     for value in values:
         if "=" not in value:
-            raise LifecycleError("TX_TOOL_ROOTS", "Tool roots use tool=absolute-path syntax.")
+            raise LifecycleError(
+                "TX_TOOL_ROOT_FORMAT",
+                "Tool roots use TOOL=ABSOLUTE_PATH syntax; repeat --tool-root for each selected tool.",
+                value,
+            )
         tool, path = value.split("=", 1)
-        if tool not in TOOLS or tool in result:
-            raise LifecycleError("TX_TOOL_ROOTS", "Tool root key is invalid or duplicated.", tool)
+        if tool not in TOOLS:
+            suggestion = next((candidate for candidate in TOOLS if candidate.casefold() == tool.casefold()), None)
+            hint = f" Did you mean '{suggestion}='?" if suggestion else ""
+            raise LifecycleError(
+                "TX_TOOL_ROOT_ID",
+                f"Tool ID '{tool}' is invalid; IDs are case-sensitive and must be one of: {', '.join(TOOLS)}.{hint}",
+                tool,
+            )
+        if tool in result:
+            raise LifecycleError(
+                "TX_TOOL_ROOT_DUPLICATE",
+                f"Tool ID '{tool}' was supplied more than once; pass exactly one root for each selected tool.",
+                tool,
+            )
+        raw_path = Path(path)
+        if not path or not raw_path.is_absolute():
+            raise LifecycleError(
+                "TX_TOOL_ROOT_ABSOLUTE",
+                f"Tool root for '{tool}' must be one absolute path in TOOL=ABSOLUTE_PATH form.",
+                path,
+            )
         result[tool] = path
     if not result:
         raise LifecycleError("TX_TOOL_ROOTS", "At least one selected tool root is required.")
     return result
+
+
+def _parse_discovery_tool_root(value: str) -> str:
+    if "=" in value:
+        raise LifecycleError(
+            "TX_DISCOVER_TOOL_ROOT_FORMAT",
+            "discover accepts one ABSOLUTE_TOOL_ROOT path, not TOOL=ABSOLUTE_PATH.",
+            value,
+        )
+    path = Path(value)
+    if not value or not path.is_absolute():
+        raise LifecycleError(
+            "TX_DISCOVER_TOOL_ROOT_ABSOLUTE",
+            "discover --tool-root must be one absolute ToolRoot path.",
+            value,
+        )
+    return value
+
+
+def _add_tool_root_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--tool-root",
+        action="append",
+        default=[],
+        required=True,
+        metavar="TOOL=ABSOLUTE_PATH",
+        help=(
+            "Repeat --tool-root once per selected tool using a case-sensitive ID: "
+            "codex, claude-code, or opencode."
+        ),
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -5890,7 +6067,7 @@ def build_parser() -> argparse.ArgumentParser:
     plan = subparsers.add_parser("plan")
     plan.add_argument("--operation", required=True, choices=("install", "update", "repair", "uninstall"))
     plan.add_argument("--lifecycle-root", required=True)
-    plan.add_argument("--tool-root", action="append", default=[], required=True)
+    _add_tool_root_argument(plan)
     plan.add_argument("--release-root")
     plan.add_argument("--repository-root")
     plan.add_argument("--legacy-root", action="append", default=[])
@@ -5926,25 +6103,30 @@ def build_parser() -> argparse.ArgumentParser:
 
     scan = subparsers.add_parser("scan")
     scan.add_argument("--lifecycle-root", required=True)
-    scan.add_argument("--tool-root", action="append", default=[], required=True)
+    _add_tool_root_argument(scan)
 
     discover = subparsers.add_parser("discover")
-    discover.add_argument("--tool-root", required=True)
+    discover.add_argument(
+        "--tool-root",
+        required=True,
+        metavar="ABSOLUTE_TOOL_ROOT",
+        help="Pass one single ToolRoot absolute path. Do not use TOOL=ABSOLUTE_PATH for discover.",
+    )
     discover.add_argument("--lifecycle-root")
     discover.add_argument("--global-boot")
 
     inspect = subparsers.add_parser("inspect")
     inspect.add_argument("--lifecycle-root", required=True)
-    inspect.add_argument("--tool-root", action="append", default=[], required=True)
+    _add_tool_root_argument(inspect)
 
     doctor_command = subparsers.add_parser("doctor")
     doctor_command.add_argument("--lifecycle-root", required=True)
-    doctor_command.add_argument("--tool-root", action="append", default=[], required=True)
+    _add_tool_root_argument(doctor_command)
     doctor_command.add_argument("--timestamp")
 
     doctor_repair = subparsers.add_parser("doctor-repair-plan")
     doctor_repair.add_argument("--lifecycle-root", required=True)
-    doctor_repair.add_argument("--tool-root", action="append", default=[], required=True)
+    _add_tool_root_argument(doctor_repair)
     doctor_repair.add_argument("--release-root")
     doctor_repair.add_argument("--repository-root")
     doctor_repair.add_argument("--operation-id")
@@ -6023,7 +6205,7 @@ def main(argv: list[str] | None = None) -> int:
                 result["writes_performed"] = True
         elif args.command == "discover":
             result = resolve_discovery(
-                args.tool_root,
+                _parse_discovery_tool_root(args.tool_root),
                 lifecycle_root=args.lifecycle_root,
                 global_boot=args.global_boot,
             )

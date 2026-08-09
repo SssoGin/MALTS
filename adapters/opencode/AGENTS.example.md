@@ -165,11 +165,13 @@ The user may have a reusable Multi-Agent Long-Task Scheduling and Growth System.
 
 Portable discovery rules:
 
-- Read `MALTS_BOOT.md` next to this tool-level instruction file and resolve `MALTS_ROOT` from its `MALTS_ROOT:` line.
+MALTS_BOOT_PATH: {{MALTS_TOOL_BOOT_PATH}}
+
+- Read the exact `MALTS_BOOT_PATH` rendered above and resolve `MALTS_ROOT` from its `MALTS_ROOT:` line. Never reinterpret it relative to `cwd`, a project file, the user home, or another tool root.
 - Treat that boot pointer as the active-generation locator. Do not treat copied absolute paths in examples, wrappers, handoffs, or reports as authoritative.
-- If `MALTS_BOOT.md` is missing or its target cannot be verified, stop and report the exact missing path; do not guess another installation.
+- If that exact `MALTS_BOOT_PATH` is missing or its target cannot be verified, stop and report the rendered path; do not guess another installation.
 - Require exactly one absolute `MALTS_ROOT:` value and a regular, non-reparse target. Cross-check the lifecycle registry, sole active record, `active_generation.json`, generation identity, and active `VERSION`; any mismatch is `split_brain` and must fail closed.
-- MALTS v1.1.1+ does not use or create a machine-global `GLOBAL_BOOT.md`; ordinary startup relies only on this tool's adjacent `MALTS_BOOT.md` with registry/pointer/`VERSION` cross-checks.
+- MALTS v1.1.1+ does not use or create a machine-global `GLOBAL_BOOT.md`; ordinary startup relies only on the exact installed `MALTS_BOOT_PATH` with registry/pointer/`VERSION` cross-checks.
 
 - MALTS version metadata must be read from the active boot file and `<MALTS_ROOT>/VERSION`; never copy the current version from old control/report/handoff/template files.
 
@@ -203,6 +205,17 @@ Cross-project stable rules learned from experience. These apply in every project
 8. **Classify third-party Skill placement before installation.** Inspect the candidate `SKILL.md` and bundled files, follow an explicit user destination when provided, and wait for write authorization before installing. Do not silently duplicate third-party Skills across tools.
 9. **Route Agents dynamically.** Choose `0`, `1`, or `N` sub-agents from actual responsibility lanes, authorization, conflict-free locator leases, and effective runtime capacity. Do not impose a fixed role chain or derive reasoning effort from a role name.
 10. **Recheck the active plan at defined boundaries.** When an active Phase has a plan, run read-only `long_workspace.py plan-recheck` at Phase switch, before launch review or a new write scope, after delegated returns, before and after verification, after user change, during context recovery, after failure or rollback, and before final delivery. A required missing plan, hash drift, or invalidated binding is `BLOCKED` until reconciled.
+
+<!-- MALTS:BEGIN workspace lifecycle contract -->
+## Long-Workspace Phase And Artifact Lifecycle
+
+- The active Phase owns a written boundary contract. Use read-only `phase-boundary-review` before a candidate goal or touch set crosses that boundary; unresolved scope does not authorize writes.
+- Explicit Phase state changes use `pause-phase`, `resume-phase`, and hash-bound `plan-phase-transition` / `apply-phase-transition`. `SUPERSEDED` is terminal, carry-over keeps bidirectional provenance, and at most one Phase may be `ACTIVE`.
+- Artifact lifecycle defaults to `NOT_ENROLLED`. Read-only or maintenance commands do not enroll it and perform no implicit Session creation.
+- The public nested commands are `artifact audit`, `artifact enrollment-preview`, `artifact enrollment-apply`, `artifact register`, `artifact promote`, `artifact supersede`, and `artifact reconcile`.
+- Owner-local rows belong in the owning Phase or Session; Project keeps only compact enrollment/Shared/Archive pointers. Missing declared indexes, duplicate authority, unresolved close rows, stale transaction state, or full-state hash drift fail closed.
+- Every state-changing command is dry-run by default and requires explicit `--apply`. Artifact mutation never moves or deletes payloads, invokes VCS, recursively scans undeclared trees, or creates a Session.
+<!-- MALTS:END workspace lifecycle contract -->
 
 ## OpenCode Long-Task Mode
 

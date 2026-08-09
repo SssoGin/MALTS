@@ -92,6 +92,23 @@
 - Latest recheck result: `N/A`
 - Launch review invalidated: `No`
 
+<!-- MALTS:section=phase-carry-over-index -->
+## Phase Carry-over Index
+
+根控制仅保存紧凑的跨 Phase 指针；详细 immutable source record 与 mutable target record 分别由源/目标 Phase control 持有。
+
+| Source Phase | Target Phase | Transition Plan SHA-256 | Source Record | Target Record | Status |
+|---|---|---|---|---|---|
+
+<!-- MALTS:section=artifact-contract-index -->
+## Artifact Lifecycle Index
+
+- Contract version: `1`
+- Enrollment: `NOT_ENROLLED`
+- Shared index: `N/A`
+- Archive index: `N/A`
+- Latest audit: `N/A`
+
 <!-- MALTS:section=task-queue -->
 ## 任务队列
 

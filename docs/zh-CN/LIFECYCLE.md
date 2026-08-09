@@ -119,6 +119,28 @@ Lifecycle audit state 使用闭合 schema 与固定 ownership 规则，保留：
 
 引擎区分 MALTS 拥有路径与用户拥有或不确定路径。它只会在已审阅计划下移除有确凿归属证据的 MALTS 残留；不明确路径会保留或等待明确用户决定。
 
+## Workspace Phase And Artifact Lifecycle
+
+### Phase boundary 与状态
+
+每个 v1.2.0 Phase 都记录 milestone、in-scope/out-of-scope、exit criteria、carry-over policy 和 boundary-review triggers。`phase-boundary-review` 只读，只对候选 goal/touch set 分类，不授予写权限。`PAUSED` 保留 ownership 与 recovery evidence；`resume-phase` 需要新的 boundary、plan、精确 hash 与 authorization reference。跨 Phase 工作先生成 persisted `plan-phase-transition`，再执行 hash-bound `apply-phase-transition`；旧 Phase 进入终态 `SUPERSEDED`，新 Phase 成为唯一 `ACTIVE` owner，carry-over provenance 在两端双向记录。
+
+### Artifact enrollment 与 ownership
+
+Artifact lifecycle 是可选能力。Project 只拥有 `NOT_ENROLLED`/`ENROLLED` 状态以及紧凑 Shared/Archive pointer。Phase 或显式有界 Session 拥有本地 Artifact rows；Shared 拥有 current reusable authority，Archive 拥有 cold/superseded history。Runtime snapshot 只能缓存 locator 与 count，绝不能覆盖 canonical Markdown。
+
+`artifact audit` 只读，范围只包含当前已声明 control。`artifact enrollment-preview` 提出精确 enrollment/index 变更；只有携带唯一 operation ID 且显式 `--apply` 的 `artifact enrollment-apply` 才会 enrollment workspace。Legacy directory 只是 observation，不是 authority；已声明 index 缺失时 fail closed，绝不隐式重建。
+
+### Mutation、close 与 recovery
+
+Register、promote、supersede、reconcile 默认 dry-run。Apply 时持有唯一 workspace lock、写入 persisted hash-bound journal、重读 full-state precondition、stage 精确 replacement，并且要么提交全部已声明 control，要么恢复原始精确 bytes。相同重试是 no-op success；竞争 writer、stale lock/journal、bytes 变化、duplicate authority、cycle 或 incomplete reference 均安全失败。
+
+Artifact mutation 绝不移动/删除 payload 或调用 VCS，也绝不创建 Session。含 `UNRESOLVED` row 的 enrolled Phase/Session 无法关闭。`recover` 报告精确 stale transaction 人工审阅动作，只沿当前 recovery chain 所需的 owner/Shared/Archive pointer 读取，不递归扫描大型 payload tree。
+
+### Compatibility 与 non-goals
+
+Schema-v1 workspace 保持可读；未 enrollment 时沿用既有 close 行为。v1.2.0 不增加自动 update check、background watcher、project-wide hashing、目录整理、Unity 默认规则或远端 publication。G4 仍需真实 Codex、Claude Code、OpenCode invocation；component/projection test 不能冒充 G4。
+
 ## 普通启动 Discovery
 
 每个工具从自身相邻的 `MALTS_BOOT.md` 启动，其 schema 只允许一条绝对 `MALTS_ROOT:` 行。MALTS v1.1.1 起不再使用或创建机器全局 `GLOBAL_BOOT.md`。只读 `discover` 命令验证 tool boot、stable registry 状态、唯一 active record、精确 `active_generation.json`、active `VERSION` 与版本身份。普通启动不计算完整树 hash，也不写入。权威面缺失、畸形、陈旧或冲突时全部 fail closed。

@@ -135,6 +135,28 @@ Interrupted operations are journaled. Recovery checks the journal, registry, act
 
 The engine distinguishes MALTS-owned paths from user-owned or uncertain paths. It removes only verified MALTS-owned residue under the reviewed plan; ambiguous paths are preserved or require an explicit user decision.
 
+## Workspace Phase And Artifact Lifecycle
+
+### Phase boundary and state
+
+Every v1.2.0 Phase records its milestone, in-scope and out-of-scope work, exit criteria, carry-over policy, and boundary-review triggers. `phase-boundary-review` is read-only and classifies a proposed goal/touch set without granting write authorization. `PAUSED` preserves ownership and recovery evidence; `resume-phase` requires fresh boundary, plan, exact hash, and authorization references. Cross-Phase work uses a persisted `plan-phase-transition` followed by hash-bound `apply-phase-transition`; the old Phase becomes terminal `SUPERSEDED`, the new Phase becomes the sole `ACTIVE` owner, and carry-over provenance is recorded in both directions.
+
+### Artifact enrollment and ownership
+
+Artifact lifecycle is optional. Project owns only `NOT_ENROLLED`/`ENROLLED` state and compact Shared/Archive pointers. A Phase or explicit bounded Session owns its local Artifact rows; Shared owns current reusable authority and Archive owns cold/superseded history. Runtime snapshots cache locations and counts but never override canonical Markdown.
+
+`artifact audit` is read-only and bounded to current declared controls. `artifact enrollment-preview` proposes the exact enrollment/index changes. Only `artifact enrollment-apply` with a unique operation ID and explicit `--apply` enrolls the workspace. Legacy directories are observations, not authority; missing declared indexes fail closed and are not recreated implicitly.
+
+### Mutation, close, and recovery
+
+Register, promote, supersede, and reconcile are dry-run by default. Applied mutation holds one workspace lock, writes a persisted hash-bound journal, re-reads full-state preconditions, stages exact replacements, and either commits every declared control or restores exact original bytes. An identical retry is a no-op success; competing writers, stale locks/journals, changed bytes, duplicate authority, cycles, or incomplete references fail safely.
+
+Artifact mutation never moves/deletes payloads or invokes VCS. It never creates a Session. Closing an enrolled Phase or Session with an `UNRESOLVED` row is blocked. `recover` reports exact stale transaction review actions and follows only owner/Shared/Archive pointers needed by the current recovery chain; it does not recursively scan large payload trees.
+
+### Compatibility and non-goals
+
+Schema-v1 workspaces remain readable and retain existing close behavior while not enrolled. v1.2.0 does not add automatic update checks, background watchers, project-wide hashing, directory organization, Unity defaults, or remote publication. G4 still requires real Codex, Claude Code, and OpenCode invocation; component/projection tests alone are not G4.
+
 ## Ordinary Startup Discovery
 
 Each tool starts from its own adjacent `MALTS_BOOT.md`, whose schema is exactly one absolute `MALTS_ROOT:` line. MALTS v1.1.1+ does not use or create a machine-global `GLOBAL_BOOT.md`. The read-only `discover` command verifies tool boot, stable registry state, the sole active record, exact `active_generation.json`, active `VERSION`, and version identity. It computes no full-tree hash during ordinary startup and writes nothing. Missing, malformed, stale, or conflicting authoritative surfaces fail closed.

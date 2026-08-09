@@ -50,6 +50,33 @@ python -B <MALTS_ROOT>\tools\malts_user_tools.py check-project-control `
 cleanup 或后台检查。任何建议 repair 都必须进入独立的 review-only plan 与精确 plan
 hash 授权流程。
 
+## 治理 Phase 与 Artifact Lifecycle
+
+### 审阅和改变 Phase
+
+候选 goal 或 touch set 可能离开 active boundary 时，先运行 `phase-boundary-review`。它只读，不授予实施权限。需要保留 ownership 但停止工作时用 `pause-phase`；只有具备当前 boundary/plan/authorization 证据时才用 `resume-phase`。跨 Phase 交接分两步：先生成 hash-bound `plan-phase-transition`，再用显式 carry-over 与 disposition file 执行 `apply-phase-transition`。
+
+```powershell
+python -B <MALTS_ROOT>\tools\long_workspace.py phase-boundary-review --workspace <workspace> --candidate-goal <goal> --candidate-touch-set <paths> --candidate-mapping UNCLEAR --recommendation USER_DECISION_REQUIRED
+python -B <MALTS_ROOT>\tools\long_workspace.py pause-phase --workspace <workspace> --reason <reason> --boundary-review-ref <ref> --authorization-ref <ref>
+python -B <MALTS_ROOT>\tools\long_workspace.py resume-phase --workspace <workspace> --phase-id <id> --boundary-review-ref <ref> --plan-review-ref <ref> --expected-plan-sha256 <sha256> --authorization-ref <ref>
+```
+
+先审阅 dry-run output，再添加 `--apply`。`SUPERSEDED` 是终态，最多只能有一个 `ACTIVE` Phase。
+
+### Audit、enroll 与 mutate Artifact
+
+从 `artifact audit` 开始，不要手工创建 index file。如果结果为 `LEGACY_UNDECLARED`，workspace 仍兼容，但没有 enrollment。只有在 owner、Shared、Archive boundary 都已理解后，才使用 enrollment preview/apply。
+
+```powershell
+python -B <MALTS_ROOT>\tools\long_workspace.py artifact audit --workspace <workspace> --captured-at <timestamp>
+python -B <MALTS_ROOT>\tools\long_workspace.py artifact enrollment-preview --workspace <workspace> --captured-at <timestamp>
+python -B <MALTS_ROOT>\tools\long_workspace.py artifact enrollment-apply --workspace <workspace> --operation-id <id> --captured-at <timestamp> --apply
+python -B <MALTS_ROOT>\tools\long_workspace.py artifact register --workspace <workspace> --owner phase:<phase-id> --role WORKING --locator <path> --authority WORKSPACE --vcs LOCAL_ONLY --verification UNVERIFIED --retention <contract> --disposition KEEP_OWNED --operation-id <id> --apply
+```
+
+Promotion 需要 verified source evidence。Supersession 会保留旧 payload/history，并且要么 atomic 更新所有已审阅 active reference，要么 fail closed。Reconcile 只 apply 显式 owner disposition。所有 mutation 默认 dry-run，绝不移动/删除 payload、调用 VCS、递归扫描未声明目录或创建 Session。
+
 ## 默认安全行为
 
 写入前先计划。工具根改动必须留在用户已批准的范围内。报告完成前先验证；没有用户明确授权的目标、限额、停止条件和恢复行为时，不要启用无人值守继续执行。

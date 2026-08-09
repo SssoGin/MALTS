@@ -1,6 +1,6 @@
 ---
 name: malts-long-project-workspace-init
-description: "MALTS Long Project Workspace Init: create a phase-ready long-project workspace, then maintain, compact, validate, and recover it."
+description: "MALTS Long Project Workspace Init: initialize and govern Phase boundaries, owner-scoped Artifacts, validation, maintenance, compaction, and recovery."
 ---
 
 # MALTS Skill Bridge

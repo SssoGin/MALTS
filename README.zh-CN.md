@@ -150,6 +150,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-MALTS.ps1 
 
 `MergeSafe` 默认使用 `InstructionMode ManagedMerge`：更新 MALTS 管理指令块，同时保留周围用户规则。使用 `InstructionMode Skip` 可完全不修改指令文件。
 
+## v1.2.0 Workspace Lifecycle
+
+MALTS 1.2.0 扩展了长项目工作区，但不改变最小默认行为。Phase 现在具有显式 boundary contract、只读 boundary review、pause/resume、hash-bound transition plan、双向 carry-over provenance，以及终态 `SUPERSEDED`。
+
+Artifact lifecycle 是 opt-in，默认 `NOT_ENROLLED`。Phase 与 Session control 可拥有紧凑的本地 registry；Project 只保留 enrollment 与 Shared/Archive pointer。Audit 只读，mutation 默认 dry-run 且需要显式 `--apply`；任何 Artifact 命令都不会创建 Session、移动/删除 payload、调用 VCS 或递归扫描未声明目录。
+
+合同见[生命周期](docs/zh-CN/LIFECYCLE.md)，精确命令见[使用指南](docs/zh-CN/USAGE.md)。现有 schema-v1 workspace 保持可读，不会被静默迁移或 enrollment。
+
 ## 文档语言
 
 仓库默认以英文为技术参考。简体中文文档位于 `README.zh-CN.md` 与 `docs/zh-CN/`，本地化 runtime 参考位于 `runtime/CH/`。项目 runtime 产物默认保持单一标准文件。见[双语文档](docs/zh-CN/BILINGUAL_DOCS.md)。
@@ -159,7 +167,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-MALTS.ps1 
 当前发布版本：
 
 ```text
-1.1.1
+1.2.0
 ```
 
 ## License

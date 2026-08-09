@@ -57,6 +57,14 @@ After installation, ask the Agent to use an installed MALTS entry point:
 
 `malts-long-project-workspace-init` is intentionally different from normal project initialization: a new long-project workspace creates its root controls and first active Phase together. A Session remains explicit and is not created by initialization alone.
 
+## 7. Govern Long Work Explicitly
+
+After initialization, keep ordinary work inside the active Phase boundary. Use read-only `phase-boundary-review` when scope may change; use explicit pause/resume or a persisted hash-bound transition instead of silently changing the Phase goal.
+
+Artifact lifecycle remains `NOT_ENROLLED` until a real need exists. Begin with read-only `artifact audit`. Enrollment and every mutation are separate dry-run/apply operations; they do not create Sessions, move/delete payloads, invoke VCS, or scan the whole workspace.
+
+Run `validate` and `recover` after meaningful control changes. For S3/S4 work with an active plan, run the matching read-only Plan Recheck trigger at write-scope, recovery, failure/rollback, verifier, and final-delivery boundaries.
+
 ## Next Reading
 
 - [Install](INSTALL.md)

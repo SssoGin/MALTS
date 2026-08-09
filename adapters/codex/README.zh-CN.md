@@ -38,6 +38,16 @@ task/thread 作为 MALTS 治理的 `codex-peer-task`。优先使用当前任务�
 route evidence，返工复用同一 task，禁止静默 fallback，并且只在 accepted 或其他 terminal
 closure 后归档。
 
+## Workspace lifecycle contract
+
+`MALTS_WORKSPACE_LIFECYCLE_CONTRACT: 1`
+
+- Phase 审阅与转换命令：`phase-boundary-review`、`pause-phase`、`resume-phase`、`plan-phase-transition`、`apply-phase-transition`。
+- Artifact 命令：`artifact audit`、`artifact enrollment-preview`、`artifact enrollment-apply`、`artifact register`、`artifact promote`、`artifact supersede`、`artifact reconcile`。
+- Artifact contract 默认 `NOT_ENROLLED`。Invariant: no implicit Session.
+- 状态修改默认 dry-run，只有显式 `--apply` 才执行；不会移动/删除 payload、调用 VCS 或递归扫描未声明目录。
+- Project 只保留紧凑 lifecycle pointer；详细记录属于对应 Phase、Session、Shared 或 Archive registry。
+
 ## 包含的运行时材料
 
 - `AGENTS.example.md`：项目使用的 MALTS managed instruction block。

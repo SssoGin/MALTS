@@ -46,6 +46,16 @@ as a MALTS-governed `codex-peer-task`. Prefer the current task workspace, record
 effective route evidence, reuse the same task for rework, prohibit silent
 fallback, and archive only after acceptance or another terminal closure.
 
+## Workspace lifecycle contract
+
+`MALTS_WORKSPACE_LIFECYCLE_CONTRACT: 1`
+
+- Phase review and transition commands: `phase-boundary-review`, `pause-phase`, `resume-phase`, `plan-phase-transition`, and `apply-phase-transition`.
+- Artifact commands: `artifact audit`, `artifact enrollment-preview`, `artifact enrollment-apply`, `artifact register`, `artifact promote`, `artifact supersede`, and `artifact reconcile`.
+- The Artifact contract defaults to `NOT_ENROLLED`. Invariant: no implicit Session.
+- State changes are dry-run by default and require explicit `--apply`; they do not move/delete payloads, invoke VCS, or recursively scan undeclared trees.
+- Project keeps compact lifecycle pointers; detailed rows stay with the owning Phase, Session, Shared, or Archive registry.
+
 ## Included runtime material
 
 - `AGENTS.example.md`: managed MALTS instruction block for a project.

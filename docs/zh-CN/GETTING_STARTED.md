@@ -57,6 +57,14 @@ git describe --exact-match --tags HEAD
 
 `malts-long-project-workspace-init` 与普通项目初始化刻意不同：全新长期项目工作区会一起创建根控制文件和首个活动 Phase。Session 仍需显式开启，不会由初始化隐式创建。
 
+## 7. 显式治理长项目
+
+初始化后，普通工作保持在 active Phase boundary 内。范围可能变化时运行只读 `phase-boundary-review`；需要变化时使用显式 pause/resume 或 persisted hash-bound transition，不要静默改写 Phase goal。
+
+Artifact lifecycle 在真实需求出现前保持 `NOT_ENROLLED`。先运行只读 `artifact audit`。Enrollment 与每个 mutation 都是独立的 dry-run/apply operation；不会创建 Session、移动/删除 payload、调用 VCS 或扫描整个 workspace。
+
+有意义的 control 变更后运行 `validate` 与 `recover`。S3/S4 工作存在 active plan 时，在 write-scope、recovery、failure/rollback、verifier、final-delivery 边界运行匹配的只读 Plan Recheck trigger。
+
 ## 下一步阅读
 
 - [安装](INSTALL.md)

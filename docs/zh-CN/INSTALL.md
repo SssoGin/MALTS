@@ -64,7 +64,7 @@ Release 页面可提供一个名为 `MALTS-<version>.zip` 的可选归档。普�
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Verify-MALTSBootstrap.ps1 `
-  -ArchivePath .\MALTS-1.1.1.zip `
+    -ArchivePath .\MALTS-1.2.0.zip `
   -ExtractOutput <EXTRACTED_RELEASE_ROOT> `
   -Apply
 ```
@@ -96,6 +96,18 @@ bootstrap verifier 会验证确定性 ZIP 结构、安全路径和解出的不�
 `doctor` 会报告精确 expected/observed locator、严重度、core trust 与建议命令。它始终只读，不会执行修复。需要 repair 时，必须使用与安装绑定精确一致的可信来源，另行创建 `DoctorRepairPlan` 审阅，再只执行已审阅计划的精确哈希。
 
 lifecycle 操作还会保留有界审计记录（一份当前绑定以及最近的成功、失败/恢复和月度摘要）。详见[生命周期](LIFECYCLE.md)。
+
+## 验证 v1.2.0 Workspace Lifecycle
+
+安装只修改选定的 MALTS lifecycle/tool root；绝不会迁移或 enrollment 现有项目 workspace。完成 discovery 验证后，确认已安装 source 报告 `1.2.0`，且同时暴露两组命令：
+
+```powershell
+Get-Content -LiteralPath <MALTS_ROOT>\VERSION
+python -B <MALTS_ROOT>\tools\long_workspace.py --help
+python -B <MALTS_ROOT>\tools\long_workspace.py artifact --help
+```
+
+Top-level help 必须包含 Phase boundary、pause/resume、transition、validation、maintenance、compaction、recovery；Artifact help 必须包含 audit、enrollment preview/apply、register、promote、supersede、reconcile。这只是静态安装证据，不等于真实项目 mutation 或 G4 工具运行时证明。
 
 ## 首次使用
 

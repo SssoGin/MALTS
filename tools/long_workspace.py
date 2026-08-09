@@ -19,6 +19,20 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from malts_user_contracts import validate_instance
+from workspace_artifacts import (
+    ArtifactMutationError,
+    artifact_close_gate,
+    artifact_references_in_text,
+    artifact_snapshot_preconditions,
+    audit_workspace,
+    enrollment_preview,
+    plan_enrollment_apply,
+    plan_promote,
+    plan_reconcile,
+    plan_register,
+    plan_supersede,
+)
+from workspace_transactions import TransactionError, execute_transaction, inspect_transaction_state, sha256_bytes
 
 
 MALTS_ROOT = Path(__file__).resolve().parents[1]
@@ -66,6 +80,29 @@ PLAN_RECHECK_TRIGGERS = frozenset(
     }
 )
 PLAN_RECHECK_RESULTS = frozenset({"PASS", "UPDATED", "BLOCKED", "N/A"})
+PHASE_REVIEW_RESULTS = frozenset(
+    {"KEEP", "REBASE_PLAN", "RESCOPE_REVIEW", "TRANSITION_REVIEW", "USER_DECISION_REQUIRED"}
+)
+CANDIDATE_MAPPINGS = frozenset({"SAME_PHASE", "UNCLEAR", "OUTSIDE_EXPLICIT_SCOPE"})
+PHASE_ACTIVE_TASK_STATES = frozenset({"TODO", "READY", "IN_PROGRESS", "REVIEW", "ACTIVE", "BLOCKED"})
+PHASE_TERMINAL_TASK_STATES = frozenset({"DONE", "FAILED", "CANCELLED", "N/A"})
+PHASE_BOUNDARY_FIELDS = (
+    ("milestone", "Milestone", "PHASE_MILESTONE"),
+    ("in_scope", "In Scope", "PHASE_IN_SCOPE"),
+    ("out_of_scope", "Explicitly Out of Scope", "PHASE_OUT_OF_SCOPE"),
+    ("exit_criteria", "Exit Criteria", "PHASE_EXIT_CRITERIA"),
+    ("carry_over_policy", "Carry-over Policy", "PHASE_CARRY_OVER_POLICY"),
+    ("boundary_review_triggers", "Boundary Review Triggers", "PHASE_BOUNDARY_REVIEW_TRIGGERS"),
+)
+PHASE_BOUNDARY_MARKERS = (
+    "phase-boundary",
+    "phase-scope-changes",
+    "phase-carry-over",
+    "phase-carried-in",
+    "phase-boundary-review",
+    "phase-lifecycle",
+)
+TRANSITION_PLAN_PREFIX = Path("runtime") / "phase-transitions"
 
 
 class WorkspaceError(RuntimeError):
@@ -206,12 +243,9 @@ def _validate_state(root: Path, state: dict[str, Any]) -> None:
         _target(root, item["path"])
 
 
-def _load_state(root: Path) -> dict[str, Any]:
-    path = _state_path(root)
-    if not path.is_file():
-        raise WorkspaceError("WS_STATE_MISSING", "Workspace is not initialized.", STATE_RELATIVE.as_posix())
+def _parse_state_bytes(root: Path, payload: bytes) -> dict[str, Any]:
     try:
-        state = json.loads(path.read_text(encoding="utf-8-sig"))
+        state = json.loads(payload.decode("utf-8-sig"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise WorkspaceError("WS_STATE_PARSE", "Workspace state is not valid UTF-8 JSON.", STATE_RELATIVE.as_posix()) from exc
     if not isinstance(state, dict):
@@ -220,9 +254,21 @@ def _load_state(root: Path) -> dict[str, Any]:
     return state
 
 
+def _load_state(root: Path) -> dict[str, Any]:
+    path = _state_path(root)
+    if not path.is_file():
+        raise WorkspaceError("WS_STATE_MISSING", "Workspace is not initialized.", STATE_RELATIVE.as_posix())
+    return _parse_state_bytes(root, path.read_bytes())
+
+
+def _load_state_capture(root: Path) -> tuple[dict[str, Any], bytes]:
+    payload = _read_bytes(root, STATE_RELATIVE)
+    return _parse_state_bytes(root, payload), payload
+
+
 def _default_state(project_id: str, now: str) -> dict[str, Any]:
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "project_id": project_id,
         "active_phase_id": None,
         "active_session_id": None,
@@ -309,6 +355,49 @@ def _markdown_cell(value: str) -> str:
     return _single_line(value).replace("|", "\\|")
 
 
+def _phase_boundary_values(args: argparse.Namespace, *, required: bool) -> dict[str, str]:
+    values: dict[str, str] = {}
+    provided = []
+    for attribute, label, placeholder in PHASE_BOUNDARY_FIELDS:
+        raw = getattr(args, attribute, None)
+        value = _single_line(raw) if isinstance(raw, str) else ""
+        values[placeholder] = value
+        provided.append(bool(value))
+        if value.upper() in {"N/A", "NA", "TBD", "TODO", "UNKNOWN"}:
+            raise WorkspaceError("WS_PHASE_BOUNDARY_PLACEHOLDER", f"Boundary field must be substantive: {label}")
+    if required and not all(provided):
+        missing = [label for present, (_, label, _) in zip(provided, PHASE_BOUNDARY_FIELDS) if not present]
+        raise WorkspaceError(
+            "WS_PHASE_BOUNDARY_REQUIRED",
+            "Every new Phase requires a complete Boundary Contract; missing: " + ", ".join(missing),
+        )
+    if any(provided) and not all(provided):
+        raise WorkspaceError("WS_PHASE_BOUNDARY_INCOMPLETE", "Provide all Phase Boundary fields together, or omit all of them.")
+    return values
+
+
+def _render_phase_control(
+    language: str,
+    phase_id: str,
+    goal: str,
+    now: str,
+    boundary_values: dict[str, str],
+) -> bytes:
+    template = (
+        f"runtime/{'EN' if language == 'en' else 'CH'}/templates/"
+        f"PHASE_CONTROL.template.{'en' if language == 'en' else 'zh-CN'}.md"
+    )
+    return _render_named_template(
+        template,
+        {
+            "PHASE_ID": phase_id,
+            "PHASE_GOAL": goal,
+            "TIMESTAMP": now,
+            **boundary_values,
+        },
+    )
+
+
 def _populate_initial_phase(text: str, language: str, goal: str, phase_id: str, phase_goal: str) -> str:
     safe_goal = _single_line(goal)
     safe_phase_goal = _single_line(phase_goal)
@@ -356,7 +445,15 @@ def _render_project_control(
     return _encode_markdown(text, bom)
 
 
-def _render_work_report(language: str, project_id: str, goal: str, phase_id: str) -> bytes:
+def _render_work_report(
+    language: str,
+    project_id: str,
+    goal: str,
+    phase_id: str,
+    phase_relative: str,
+    phase_sha256: str,
+    now: str,
+) -> bytes:
     suffix = "en.md" if language == "en" else "zh-CN.md"
     text, bom = _template_bytes(f"runtime/{'EN' if language == 'en' else 'CH'}/templates/WORK_TASK_REPORT.template.{suffix}")
     if language == "en":
@@ -372,6 +469,13 @@ def _render_work_report(language: str, project_id: str, goal: str, phase_id: str
         text = text.replace("- 直白结论：", f"- 直白结论：长项目工作区已初始化，active Phase 为 {phase_id}；当前没有 active Session。", 1)
         text = text.replace("- 已处理的用户原始目标：", f"- 已处理的用户原始目标：{goal}", 1)
     text = text.replace("- Result ID:", f"- Result ID: {project_id}-INIT-001", 1)
+    for placeholder, value in {
+        "<CURRENT_PHASE_ID>": phase_id,
+        "<CURRENT_PHASE_CONTROL>": phase_relative,
+        "<CURRENT_PHASE_SHA256>": phase_sha256,
+        "<CURRENT_PHASE_RECORDED_AT>": now,
+    }.items():
+        text = text.replace(placeholder, value, 1)
     return _encode_markdown(text, bom)
 
 
@@ -442,6 +546,7 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
     else:
         initial_phase_id = _validate_id(phase_id_arg, "Initial Phase ID")
         initial_phase_goal = phase_goal_arg.strip()
+    boundary_values = _phase_boundary_values(args, required=not has_registered_phase)
 
     if (root / "runtime").exists() and not (root / "runtime").is_dir():
         raise WorkspaceError("WS_PATH_TYPE", "runtime must be a directory.", "runtime")
@@ -460,8 +565,6 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
             initial_phase_goal,
             now,
         )
-    if not (root / "WORK_TASK_REPORT.md").exists():
-        rendered["WORK_TASK_REPORT.md"] = _render_work_report(language, project_id, args.goal, initial_phase_id)
     if not (root / "CLAUDE.md").exists():
         rendered["CLAUDE.md"] = b"@AGENTS.md\n"
     updated_state = json.loads(json.dumps(existing_state)) if existing_state is not None else _default_state(project_id, now)
@@ -474,11 +577,14 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
                 "Refusing to adopt or overwrite an unregistered initial Phase control.",
                 initial_phase_relative,
             )
-        template = f"runtime/{'EN' if language == 'en' else 'CH'}/templates/PHASE_CONTROL.template.{'en' if language == 'en' else 'zh-CN'}.md"
-        rendered[initial_phase_relative] = _render_named_template(
-            template,
-            {"PHASE_ID": initial_phase_id, "PHASE_GOAL": initial_phase_goal, "TIMESTAMP": now},
+        rendered[initial_phase_relative] = _render_phase_control(
+            language,
+            initial_phase_id,
+            initial_phase_goal,
+            now,
+            boundary_values,
         )
+        updated_state["schema_version"] = 2
         updated_state["phase_controls"].append(
             {"phase_id": initial_phase_id, "path": initial_phase_relative, "status": "ACTIVE"}
         )
@@ -493,6 +599,21 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
         }
         _validate_state(root, updated_state)
         rendered[STATE_RELATIVE.as_posix()] = _json_bytes(updated_state)
+
+    if not (root / "WORK_TASK_REPORT.md").exists():
+        phase_payload = rendered.get(initial_phase_relative)
+        if phase_payload is None and initial_phase_path.is_file():
+            phase_payload = initial_phase_path.read_bytes()
+        phase_sha256 = hashlib.sha256(phase_payload).hexdigest().upper() if phase_payload is not None else "N/A"
+        rendered["WORK_TASK_REPORT.md"] = _render_work_report(
+            language,
+            project_id,
+            args.goal,
+            initial_phase_id,
+            initial_phase_relative,
+            phase_sha256,
+            now,
+        )
 
     for name in FIXED_FILES:
         path = root / name
@@ -569,6 +690,175 @@ def _control_value(section: str, label: str, code: str = "WS_PLAN_FIELD_INVALID"
     return value
 
 
+def _phase_entry(state: dict[str, Any], phase_id: str) -> dict[str, Any]:
+    match = next((item for item in state["phase_controls"] if item["phase_id"] == phase_id), None)
+    if match is None:
+        raise WorkspaceError("WS_PHASE_MISSING", "Phase ID is not registered.", phase_id)
+    return match
+
+
+def _phase_boundary_contract(text: str) -> dict[str, Any]:
+    section = _marked_section(text, "phase-boundary")
+    if section is None:
+        return {"status": "LEGACY", "fields": {}, "missing_fields": [item[1] for item in PHASE_BOUNDARY_FIELDS]}
+    fields: dict[str, str] = {}
+    missing: list[str] = []
+    for _, label, _ in PHASE_BOUNDARY_FIELDS:
+        try:
+            value = _control_value(section, label, "WS_PHASE_BOUNDARY_INVALID")
+        except WorkspaceError:
+            missing.append(label)
+            continue
+        if value.upper() in {"N/A", "NA", "TBD", "TODO", "UNKNOWN"}:
+            missing.append(label)
+        else:
+            fields[label] = value
+    return {"status": "COMPLETE" if not missing else "INCOMPLETE", "fields": fields, "missing_fields": missing}
+
+
+def _markdown_table_rows(section: str | None) -> list[dict[str, str]]:
+    if section is None:
+        return []
+    table_lines = [line.strip() for line in section.splitlines() if line.strip().startswith("|") and line.strip().endswith("|")]
+    if len(table_lines) < 2:
+        return []
+
+    def cells(line: str) -> list[str]:
+        return [value.strip().replace("\\|", "|") for value in line.strip().strip("|").split("|")]
+
+    headers = cells(table_lines[0])
+    if not all(re.fullmatch(r":?-{3,}:?", value.replace(" ", "")) for value in cells(table_lines[1])):
+        return []
+    rows: list[dict[str, str]] = []
+    for line in table_lines[2:]:
+        values = cells(line)
+        if len(values) != len(headers):
+            continue
+        rows.append(dict(zip(headers, values)))
+    return rows
+
+
+def _phase_table_summary(text: str, section_name: str, status_header: str) -> dict[str, Any]:
+    rows = _markdown_table_rows(_marked_section(text, section_name))
+    active_rows = [row for row in rows if row.get(status_header, "").upper() in PHASE_ACTIVE_TASK_STATES]
+    return {"rows": rows, "count": len(rows), "active_count": len(active_rows), "active_rows": active_rows}
+
+
+def _structured_closure(text: str) -> dict[str, str] | None:
+    section = _marked_section(text, "phase-close")
+    if section is None:
+        return None
+    labels = (
+        "Close result",
+        "Exit criteria status",
+        "Carry-over disposition",
+        "Superseded by",
+        "Closure evidence",
+        "Closed at",
+    )
+    values: dict[str, str] = {}
+    for label in labels:
+        try:
+            values[label] = _control_value(section, label, "WS_PHASE_CLOSURE_INVALID")
+        except WorkspaceError:
+            return None
+    return values
+
+
+def _phase_lifecycle_warnings(root: Path, state: dict[str, Any]) -> list[dict[str, str]]:
+    warnings: list[dict[str, str]] = []
+    if state.get("schema_version") == 1:
+        warnings.append(
+            {
+                "code": "WS_WORKSPACE_SCHEMA_LEGACY",
+                "path": STATE_RELATIVE.as_posix(),
+                "message": "workspace-control schema v1 remains readable but requires explicit migration before v2-only Phase mutations.",
+            }
+        )
+    project_path = _target(root, "PROJECT_CONTROL.md")
+    if project_path.is_file():
+        try:
+            project_text, _ = _decode_markdown(project_path.read_bytes())
+            if _marked_section(project_text, "current-stage") is None:
+                raise WorkspaceError("WS_ROOT_PHASE_INDEX_LEGACY", "PROJECT_CONTROL lacks the current-stage section.")
+            _project_active_phase_value(project_text)
+        except WorkspaceError:
+            warnings.append(
+                {
+                    "code": "WS_ROOT_PHASE_INDEX_LEGACY",
+                    "path": "PROJECT_CONTROL.md",
+                    "message": "Canonical root Active Phase index is absent or incomplete; legacy reads remain allowed, but Phase mutations require explicit migration.",
+                }
+            )
+    for phase in state["phase_controls"]:
+        path = _target(root, phase["path"])
+        if not path.is_file():
+            continue
+        text, _ = _decode_markdown(path.read_bytes())
+        boundary = _phase_boundary_contract(text)
+        if boundary["status"] != "COMPLETE":
+            warnings.append(
+                {
+                    "code": "WS_PHASE_BOUNDARY_LEGACY" if boundary["status"] == "LEGACY" else "WS_PHASE_BOUNDARY_INCOMPLETE",
+                    "path": phase["path"],
+                    "message": (
+                        "Phase Boundary Contract is absent; run a read-only boundary review and explicit migrate-phase-control before v2-only mutations."
+                        if boundary["status"] == "LEGACY"
+                        else "Phase Boundary Contract is incomplete: " + ", ".join(boundary["missing_fields"])
+                    ),
+                }
+            )
+        elif _structured_closure(text) is None:
+            warnings.append(
+                {
+                    "code": "WS_PHASE_CLOSURE_INCOMPLETE",
+                    "path": phase["path"],
+                    "message": "Phase Boundary is v2-complete but the structured Closure contract is absent or incomplete; reads remain allowed and close is blocked.",
+                }
+            )
+        try:
+            binding = _phase_plan_binding(root, phase)
+        except WorkspaceError:
+            binding = None
+        if (
+            binding is not None
+            and binding["Active plan"] != "N/A"
+            and binding["Last recheck trigger"] not in PLAN_RECHECK_TRIGGERS
+        ):
+            warnings.append(
+                {
+                    "code": "WS_PHASE_PLAN_TRIGGER_MIGRATION_REQUIRED",
+                    "path": phase["path"],
+                    "message": "Plan trigger is noncanonical and requires explicit reviewed repair; it is not silently accepted.",
+                }
+            )
+    return warnings
+
+
+def _append_table_rows(text: str, section_name: str, rows: list[list[str]], code: str) -> str:
+    if not rows:
+        return text
+    section = _marked_section(text, section_name, required=True)
+    assert section is not None
+    rendered_rows = "".join("| " + " | ".join(_markdown_cell(value) for value in row) + " |\n" for row in rows)
+    delimiter = re.compile(r"(?m)^(?P<line>\|[ \t]*---[^\r\n]*\|)(?P<ending>\r?)$")
+    if delimiter.search(section) is None:
+        raise WorkspaceError(code, f"Section {section_name} lacks a canonical Markdown table delimiter.")
+    updated_section = delimiter.sub(
+        lambda match: match.group("line") + match.group("ending") + "\n" + rendered_rows.rstrip("\n"),
+        section,
+        count=1,
+    )
+    return text.replace(section, updated_section, 1)
+
+
+def _phase_control_info(root: Path, phase: dict[str, Any]) -> tuple[Path, bytes, str, bool]:
+    path = _target(root, phase["path"])
+    data = _read_bytes(root, phase["path"])
+    text, bom = _decode_markdown(data)
+    return path, data, text, bom
+
+
 def _phase_plan_binding(root: Path, phase: dict[str, Any]) -> dict[str, str] | None:
     phase_path = _target(root, phase["path"])
     text, _ = _decode_markdown(phase_path.read_bytes())
@@ -618,15 +908,19 @@ def command_open_phase(args: argparse.Namespace) -> dict[str, Any]:
         raise WorkspaceError("WS_PHASE_EXISTS", "Phase ID already exists.", phase_id)
     if not args.goal.strip():
         raise WorkspaceError("WS_GOAL_EMPTY", "Phase goal must not be empty.")
+    boundary_values = _phase_boundary_values(args, required=True)
     now = _timestamp(args.timestamp)
     language = _language(args, root)
     relative = f"phases/{phase_id}/PHASE_CONTROL.md"
     phase_path = _target(root, relative)
     if phase_path.exists():
         raise WorkspaceError("WS_FILE_EXISTS", "Refusing to adopt or overwrite an unregistered Phase control.", relative)
-    template = f"runtime/{'EN' if language == 'en' else 'CH'}/templates/PHASE_CONTROL.template.{'en' if language == 'en' else 'zh-CN'}.md"
-    control = _render_named_template(template, {"PHASE_ID": phase_id, "PHASE_GOAL": args.goal.strip(), "TIMESTAMP": now})
+    control = _render_phase_control(language, phase_id, args.goal.strip(), now, boundary_values)
+    project_path = _target(root, "PROJECT_CONTROL.md")
+    project_text, project_bom = _decode_markdown(_read_bytes(root, "PROJECT_CONTROL.md"))
+    project_text = _replace_project_active_phase(project_text, phase_id)
     updated = json.loads(json.dumps(state))
+    updated["schema_version"] = 2
     updated["phase_controls"].append({"phase_id": phase_id, "path": relative, "status": "ACTIVE"})
     updated["active_phase_id"] = phase_id
     updated["maintenance_state"].update({"state": "clean", "last_action": "open-phase", "last_checked_at": now})
@@ -636,7 +930,11 @@ def command_open_phase(args: argparse.Namespace) -> dict[str, Any]:
         "evidence_refs": [f"phase:{phase_id}"],
     }
     _validate_state(root, updated)
-    changes = {phase_path: control, _state_path(root): _json_bytes(updated)}
+    changes = {
+        phase_path: control,
+        project_path: _encode_markdown(project_text, project_bom),
+        _state_path(root): _json_bytes(updated),
+    }
     result = _plan("open-phase", root, changes, args.apply, phase_id=phase_id, implicit_session_created=False)
     if args.apply:
         _transaction_write(root, changes, must_be_new=(phase_path,))
@@ -648,6 +946,37 @@ def _replace_line(text: str, source: str, target: str, code: str) -> str:
     if pattern.search(text) is None:
         raise WorkspaceError(code, f"Expected control token is missing: {source}")
     return pattern.sub(lambda match: target + match.group("ending"), text, count=1)
+
+
+def _project_active_phase_value(text: str) -> str:
+    section = _marked_section(text, "current-stage", required=True)
+    assert section is not None
+    pattern = re.compile(r"(?m)^- Active Phase(?P<separator>:|：)[ \t]*(?P<value>[^\r\n]*?)[ \t]*\r?$")
+    matches = list(pattern.finditer(section))
+    if len(matches) != 1:
+        raise WorkspaceError("WS_ROOT_PHASE_INDEX_INVALID", "PROJECT_CONTROL must contain exactly one Active Phase field in current-stage.")
+    value = matches[0].group("value").strip()
+    if len(value) >= 2 and value.startswith("`") and value.endswith("`"):
+        value = value[1:-1].strip()
+    if not value:
+        raise WorkspaceError("WS_ROOT_PHASE_INDEX_INVALID", "PROJECT_CONTROL Active Phase field must not be empty.")
+    return value
+
+
+def _replace_project_active_phase(text: str, phase_id: str | None) -> str:
+    section = _marked_section(text, "current-stage", required=True)
+    assert section is not None
+    pattern = re.compile(r"(?m)^- Active Phase(?P<separator>:|：)[ \t]*[^\r\n]*(?P<ending>\r?)$")
+    matches = list(pattern.finditer(section))
+    if len(matches) != 1:
+        raise WorkspaceError("WS_ROOT_PHASE_INDEX_INVALID", "PROJECT_CONTROL must contain exactly one Active Phase field in current-stage.")
+    value = phase_id or "N/A"
+    updated_section = pattern.sub(
+        lambda match: f"- Active Phase{match.group('separator')} {value}{match.group('ending')}",
+        section,
+        count=1,
+    )
+    return text.replace(section, updated_section, 1)
 
 
 def _replace_active_status(text: str, target_status: str, code: str) -> str:
@@ -664,19 +993,175 @@ def _replace_active_status(text: str, target_status: str, code: str) -> str:
     return pattern.sub(lambda match: f"- Status: {target_status}{match.group('ending')}", text, count=1)
 
 
+def _close_operation_id(operation: str, root: Path, changes: dict[Path, bytes]) -> str:
+    digest = hashlib.sha256()
+    digest.update(operation.encode("utf-8"))
+    for path in sorted(changes, key=lambda item: _relative(root, item)):
+        digest.update(b"\0")
+        digest.update(_relative(root, path).encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(sha256_bytes(changes[path]).encode("ascii"))
+    return f"{operation}-{digest.hexdigest()[:24]}"
+
+
+def _artifact_aware_close(
+    operation: str,
+    root: Path,
+    state: dict[str, Any],
+    artifact_gate: dict[str, Any],
+    changes: dict[Path, bytes],
+    render_inputs: dict[Path, bytes],
+    apply: bool,
+    **extra: Any,
+) -> dict[str, Any]:
+    enrolled = artifact_gate["snapshot"]["enrollment"]["status"] == "ENROLLED"
+    if not enrolled:
+        result = _plan(
+            operation,
+            root,
+            changes,
+            apply,
+            artifact_transaction_required=False,
+            transaction=None,
+            implicit_session_created=False,
+            **extra,
+        )
+        if apply:
+            _transaction_write(root, changes)
+        return result
+
+    preconditions = artifact_snapshot_preconditions(root, artifact_gate["snapshot"])
+    for path, original in render_inputs.items():
+        expected = sha256_bytes(original)
+        if path in preconditions and preconditions[path] != expected:
+            raise WorkspaceError(
+                "ART_CLOSE_PRECONDITION_DRIFT",
+                "A canonical input changed after the enrolled Artifact close gate was captured.",
+                {"path": _relative(root, path), "gate": preconditions[path], "render": expected},
+            )
+        preconditions[path] = expected
+    missing_targets = sorted(_relative(root, path) for path in changes if path not in preconditions)
+    if missing_targets:
+        raise WorkspaceError(
+            "ART_CLOSE_PRECONDITION_MISSING",
+            "Every enrolled close target requires an exact render-time precondition.",
+            missing_targets,
+        )
+    drift = []
+    for path in sorted(preconditions, key=lambda item: _relative(root, item)):
+        observed = sha256_bytes(path.read_bytes()) if path.is_file() else None
+        if observed != preconditions[path]:
+            drift.append(
+                {
+                    "path": _relative(root, path),
+                    "expected": preconditions[path],
+                    "observed": observed,
+                }
+            )
+    if drift:
+        raise WorkspaceError(
+            "ART_CLOSE_PRECONDITION_DRIFT",
+            "A canonical input changed while the enrolled close plan was rendered.",
+            drift,
+        )
+
+    operation_id = _close_operation_id(operation, root, changes)
+    result = _plan(
+        operation,
+        root,
+        changes,
+        apply,
+        artifact_transaction_required=True,
+        precondition_hashes=[
+            {"path": _relative(root, path), "sha256": preconditions[path]}
+            for path in sorted(preconditions, key=lambda item: _relative(root, item))
+        ],
+        transaction_control_paths=[
+            "runtime/artifact_transaction.lock.json",
+            f"runtime/artifact_transactions/{operation_id}.json",
+        ],
+        transaction=None,
+        implicit_session_created=False,
+        **extra,
+    )
+    if not apply:
+        return result
+    try:
+        transaction = execute_transaction(
+            root,
+            operation_id=operation_id,
+            operation=operation,
+            changes=changes,
+            expected_input_hashes=preconditions,
+            post_validate=lambda: _artifact_post_validate(root, state),
+        )
+    except TransactionError as exc:
+        raise WorkspaceError(exc.code, exc.message, exc.detail) from exc
+    result["transaction"] = transaction
+    result["writes_performed"] = bool(transaction["writes_performed"])
+    return result
+
+
 def command_close_phase(args: argparse.Namespace) -> dict[str, Any]:
     root = _workspace(args.workspace)
-    state = _load_state(root)
+    state_data = _read_bytes(root, STATE_RELATIVE)
+    state = _parse_state_bytes(root, state_data)
     if state["active_session_id"] is not None:
         raise WorkspaceError("WS_SESSION_ACTIVE", "Close the active Session before closing its Phase.")
     phase = _active_phase(state)
     now = _timestamp(args.timestamp)
+    artifact_gate = artifact_close_gate(root, state, f"phase:{phase['phase_id']}", captured_at=now)
+    if artifact_gate["status"] == "BLOCKED":
+        return {
+            "status": "BLOCKED",
+            "operation": "close-phase",
+            "mode": "BLOCKED",
+            "workspace": str(root),
+            "writes_performed": False,
+            "phase_id": phase["phase_id"],
+            "reason_code": artifact_gate["reason_code"],
+            "unresolved_artifacts": artifact_gate["unresolved"],
+            "artifact_issues": artifact_gate.get("issues", []),
+            "required_action": "Reconcile every enrolled Artifact disposition and validation issue before closing the Phase.",
+            "implicit_session_created": False,
+        }
     path = _target(root, phase["path"])
     data = _read_bytes(root, phase["path"])
     text, bom = _decode_markdown(data)
+    boundary = _phase_boundary_contract(text)
+    closure = _structured_closure(text)
+    queue = _phase_table_summary(text, "phase-queue", "Status")
+    if boundary["status"] == "COMPLETE":
+        if closure is None:
+            raise WorkspaceError("WS_PHASE_CLOSURE_INVALID", "A v2 Phase requires the complete structured Closure contract before close.", phase["path"])
+        if not _single_line(args.closure_evidence or ""):
+            raise WorkspaceError("WS_PHASE_CLOSURE_EVIDENCE_REQUIRED", "A v2 Phase closure requires --closure-evidence.")
+        if args.status == "DONE":
+            if args.exit_criteria_status != "SATISFIED":
+                raise WorkspaceError("WS_PHASE_EXIT_CRITERIA_UNSATISFIED", "DONE requires --exit-criteria-status SATISFIED.")
+            if queue["active_rows"]:
+                unfinished = ", ".join(row.get("Task ID", "UNKNOWN") for row in queue["active_rows"])
+                raise WorkspaceError("WS_PHASE_UNFINISHED_TASKS", f"DONE is blocked by unfinished Phase queue rows: {unfinished}")
     text = _replace_active_status(text, args.status, "WS_PHASE_CONTROL_INVALID")
     text = _replace_line(text, "- Updated at:", f"- Updated at: {now}", "WS_PHASE_CONTROL_INVALID")
     text = _replace_line(text, "- Close result:", f"- Close result: {args.status}", "WS_PHASE_CONTROL_INVALID")
+    if closure is not None:
+        exit_status = args.exit_criteria_status or ("SATISFIED" if args.status == "DONE" else "NOT_SATISFIED")
+        text = _replace_line(text, "- Exit criteria status:", f"- Exit criteria status: {exit_status}", "WS_PHASE_CONTROL_INVALID")
+        text = _replace_line(
+            text,
+            "- Carry-over disposition:",
+            f"- Carry-over disposition: {_single_line(args.carry_over_disposition or 'N/A')}",
+            "WS_PHASE_CONTROL_INVALID",
+        )
+        text = _replace_line(text, "- Superseded by:", "- Superseded by: N/A", "WS_PHASE_CONTROL_INVALID")
+        text = _replace_line(
+            text,
+            "- Closure evidence:",
+            f"- Closure evidence: {_single_line(args.closure_evidence or 'N/A')}",
+            "WS_PHASE_CONTROL_INVALID",
+        )
+        text = _replace_line(text, "- Closed at:", f"- Closed at: {now}", "WS_PHASE_CONTROL_INVALID")
     updated = json.loads(json.dumps(state))
     next(item for item in updated["phase_controls"] if item["phase_id"] == phase["phase_id"])["status"] = args.status
     updated["active_phase_id"] = None
@@ -687,10 +1172,661 @@ def command_close_phase(args: argparse.Namespace) -> dict[str, Any]:
         "evidence_refs": [f"phase:{phase['phase_id']}:{args.status.lower()}"],
     }
     _validate_state(root, updated)
-    changes = {path: _encode_markdown(text, bom), _state_path(root): _json_bytes(updated)}
-    result = _plan("close-phase", root, changes, args.apply, phase_id=phase["phase_id"], terminal_status=args.status)
+    project_path = _target(root, "PROJECT_CONTROL.md")
+    project_data = _read_bytes(root, "PROJECT_CONTROL.md")
+    project_text, project_bom = _decode_markdown(project_data)
+    project_text = _replace_project_active_phase(project_text, None)
+    changes = {
+        path: _encode_markdown(text, bom),
+        project_path: _encode_markdown(project_text, project_bom),
+        _state_path(root): _json_bytes(updated),
+    }
+    return _artifact_aware_close(
+        "close-phase",
+        root,
+        updated,
+        artifact_gate,
+        changes,
+        {path: data, project_path: project_data, _state_path(root): state_data},
+        args.apply,
+        phase_id=phase["phase_id"],
+        terminal_status=args.status,
+    )
+
+
+def command_phase_boundary_review(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state = _load_state(root)
+    phase = _phase_entry(state, args.phase_id) if args.phase_id else _active_phase(state)
+    path, data, text, _ = _phase_control_info(root, phase)
+    boundary = _phase_boundary_contract(text)
+    queue = _phase_table_summary(text, "phase-queue", "Status")
+    deliverables = _phase_table_summary(text, "phase-deliverables", "Status")
+    scope_changes = _markdown_table_rows(_marked_section(text, "phase-scope-changes"))
+    carry_over = _markdown_table_rows(_marked_section(text, "phase-carry-over"))
+    carried_in = _markdown_table_rows(_marked_section(text, "phase-carried-in"))
+
+    plan_evidence: dict[str, Any] = {"status": "NONE", "binding": None}
+    try:
+        binding = _phase_plan_binding(root, phase)
+    except WorkspaceError as exc:
+        binding = None
+        plan_evidence = {"status": "INVALID", "error_code": exc.code, "message": exc.message}
+    if binding is not None and binding["Active plan"] != "N/A":
+        plan_evidence = {"status": "CURRENT", "binding": binding}
+        if binding["Last recheck trigger"] not in PLAN_RECHECK_TRIGGERS:
+            plan_evidence["status"] = "MIGRATION_REQUIRED"
+            plan_evidence["required_action"] = "Run migrate-phase-control with a reviewed canonical --plan-trigger; no silent normalization is allowed."
+        try:
+            plan_path = _target(root, binding["Active plan"])
+            observed = hashlib.sha256(plan_path.read_bytes()).hexdigest().upper() if plan_path.is_file() else None
+            plan_evidence["path"] = binding["Active plan"]
+            plan_evidence["observed_sha256"] = observed
+            plan_evidence["expected_sha256"] = binding["Plan content SHA-256"].upper()
+            if observed is None or observed != plan_evidence["expected_sha256"]:
+                plan_evidence["status"] = "STALE"
+        except WorkspaceError as exc:
+            plan_evidence.update({"status": "INVALID", "error_code": exc.code, "message": exc.message})
+
+    recommendation = args.recommendation or "USER_DECISION_REQUIRED"
+    required_decisions = ["Agent/Skill semantic confirmation of the recommended review."]
+    if boundary["status"] != "COMPLETE":
+        required_decisions.append("Review and explicitly migrate the Phase Boundary Contract; do not infer missing scope fields.")
+    if plan_evidence["status"] in {"MIGRATION_REQUIRED", "STALE", "INVALID"}:
+        required_decisions.append("Repair or rebind the active Plan before relying on it as current evidence.")
+    return {
+        "status": "PASS",
+        "operation": "phase-boundary-review",
+        "mode": "READ_ONLY",
+        "workspace": str(root),
+        "writes_performed": False,
+        "phase": {
+            "phase_id": phase["phase_id"],
+            "path": phase["path"],
+            "status": phase["status"],
+            "bytes": len(data),
+            "sha256": hashlib.sha256(data).hexdigest().upper(),
+        },
+        "workspace_state": {
+            "path": STATE_RELATIVE.as_posix(),
+            "schema_version": state["schema_version"],
+            "sha256": hashlib.sha256(_read_bytes(root, STATE_RELATIVE)).hexdigest().upper(),
+            "active_phase_id": state["active_phase_id"],
+            "active_session_id": state["active_session_id"],
+        },
+        "boundary_contract": boundary,
+        "queue": queue,
+        "deliverables": deliverables,
+        "scope_changes": scope_changes,
+        "carry_over": carry_over,
+        "carried_in": carried_in,
+        "plan_binding": plan_evidence,
+        "candidate": {
+            "goal": _single_line(args.candidate_goal or ""),
+            "touch_set": list(args.candidate_touch_set or []),
+            "mapping": args.candidate_mapping,
+        },
+        "recommended_review": recommendation,
+        "recommendation_source": "AGENT_OR_SKILL_INPUT" if args.recommendation else "DEFAULT_NO_SEMANTIC_INPUT",
+        "semantic_judgment_performed": False,
+        "automatic_transition_performed": False,
+        "required_user_decisions": required_decisions,
+        "warnings": _phase_lifecycle_warnings(root, state),
+    }
+
+
+def _insert_before_section(text: str, target_section: str, block: str, code: str) -> str:
+    marker = f"<!-- MALTS:section={target_section} -->"
+    if text.count(marker) != 1:
+        raise WorkspaceError(code, f"Expected exactly one target section marker: {target_section}")
+    return text.replace(marker, block.rstrip("\r\n") + "\n\n" + marker, 1)
+
+
+def _rendered_phase_section(language: str, values: dict[str, str], section_name: str) -> str:
+    rendered = _render_phase_control(language, values["PHASE_ID"], values["PHASE_GOAL"], values["TIMESTAMP"], values)
+    text, _ = _decode_markdown(rendered)
+    section = _marked_section(text, section_name, required=True)
+    assert section is not None
+    return section
+
+
+def command_migrate_phase_control(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state = _load_state(root)
+    phase = _phase_entry(state, args.phase_id)
+    path, _, text, bom = _phase_control_info(root, phase)
+    now = _timestamp(args.timestamp)
+    language = _language(args, root)
+    boundary = _phase_boundary_contract(text)
+    boundary_values = _phase_boundary_values(args, required=boundary["status"] == "LEGACY")
+    if boundary["status"] == "INCOMPLETE":
+        raise WorkspaceError(
+            "WS_PHASE_BOUNDARY_MANUAL_REPAIR",
+            "An existing incomplete Boundary Contract is user-owned; review it manually instead of overwriting fields.",
+            phase["path"],
+        )
+    values = {
+        "PHASE_ID": phase["phase_id"],
+        "PHASE_GOAL": "Explicitly migrated legacy Phase.",
+        "TIMESTAMP": now,
+        **boundary_values,
+    }
+    changes_made = False
+    if boundary["status"] == "LEGACY":
+        text = _insert_before_section(text, "phase-plan-recheck", _rendered_phase_section(language, values, "phase-boundary"), "WS_PHASE_MIGRATION_INVALID")
+        changes_made = True
+    insertion_targets = {
+        "phase-scope-changes": "phase-recovery",
+        "phase-carry-over": "phase-recovery",
+        "phase-carried-in": "phase-recovery",
+        "phase-boundary-review": "phase-recovery",
+    }
+    for section_name, target in insertion_targets.items():
+        if _marked_section(text, section_name) is None:
+            text = _insert_before_section(text, target, _rendered_phase_section(language, values, section_name), "WS_PHASE_MIGRATION_INVALID")
+            changes_made = True
+    if _marked_section(text, "phase-lifecycle") is None:
+        text = _insert_before_section(text, "phase-close", _rendered_phase_section(language, values, "phase-lifecycle"), "WS_PHASE_MIGRATION_INVALID")
+        changes_made = True
+
+    plan_values = (args.plan_trigger, args.plan_result, args.plan_reviewed_at)
+    if any(plan_values) and not all(plan_values):
+        raise WorkspaceError("WS_PHASE_PLAN_REPAIR_INCOMPLETE", "Plan trigger repair requires --plan-trigger, --plan-result, and --plan-reviewed-at together.")
+    project_path = _target(root, "PROJECT_CONTROL.md")
+    project_data = _read_bytes(root, "PROJECT_CONTROL.md")
+    project_text, project_bom = _decode_markdown(project_data)
+    project_changed = False
+    normalized_project_text = _replace_project_active_phase(project_text, state["active_phase_id"])
+    if normalized_project_text != project_text:
+        project_text = normalized_project_text
+        project_changed = True
+        changes_made = True
+    if all(plan_values):
+        reviewed_at = _timestamp(args.plan_reviewed_at)
+        text = _replace_line(text, "- Last recheck trigger:", f"- Last recheck trigger: `{args.plan_trigger}`", "WS_PHASE_PLAN_REPAIR_INVALID")
+        text = _replace_line(text, "- Last recheck result:", f"- Last recheck result: `{args.plan_result}`", "WS_PHASE_PLAN_REPAIR_INVALID")
+        text = _replace_line(text, "- Last rechecked at:", f"- Last rechecked at: `{reviewed_at}`", "WS_PHASE_PLAN_REPAIR_INVALID")
+        root_plan = _marked_section(project_text, "plan-recheck-index")
+        if root_plan is not None:
+            project_text = _replace_line(project_text, "- Latest recheck trigger:", f"- Latest recheck trigger: `{args.plan_trigger}`", "WS_PHASE_PLAN_REPAIR_INVALID")
+            project_text = _replace_line(project_text, "- Latest recheck result:", f"- Latest recheck result: `{args.plan_result}`", "WS_PHASE_PLAN_REPAIR_INVALID")
+            project_changed = True
+        changes_made = True
+
+    if _marked_section(project_text, "phase-carry-over-index") is None:
+        template_relative = (
+            f"runtime/{'EN' if language == 'en' else 'CH'}/templates/"
+            f"PROJECT_CONTROL.template.{'en' if language == 'en' else 'zh-CN'}.md"
+        )
+        template_text, _ = _template_bytes(template_relative)
+        carry_index = _marked_section(template_text, "phase-carry-over-index", required=True)
+        assert carry_index is not None
+        project_text = _insert_before_section(project_text, "task-queue", carry_index, "WS_PHASE_MIGRATION_INVALID")
+        project_changed = True
+        changes_made = True
+
+    text = _replace_line(text, "- Updated at:", f"- Updated at: {now}", "WS_PHASE_CONTROL_INVALID") if changes_made else text
+    updated = json.loads(json.dumps(state))
+    if updated["schema_version"] != 2:
+        updated["schema_version"] = 2
+        changes_made = True
+    if changes_made:
+        updated["maintenance_state"].update({"state": "clean", "last_action": "migrate-phase-control", "last_checked_at": now})
+        updated["recovery_point"] = {
+            "summary": f"Phase {phase['phase_id']} completed an explicit v2 control migration.",
+            "next_action": "Run validate and a read-only phase-boundary-review before the next mutation.",
+            "evidence_refs": [f"phase:{phase['phase_id']}:migration"],
+        }
+        _validate_state(root, updated)
+    changes: dict[Path, bytes] = {}
+    if changes_made:
+        changes[path] = _encode_markdown(text, bom)
+        changes[_state_path(root)] = _json_bytes(updated)
+    if project_changed:
+        changes[project_path] = _encode_markdown(project_text, project_bom)
+    result = _plan(
+        "migrate-phase-control",
+        root,
+        changes,
+        args.apply,
+        phase_id=phase["phase_id"],
+        boundary_before=boundary["status"],
+        boundary_after="COMPLETE" if boundary["status"] == "LEGACY" else boundary["status"],
+        workspace_schema_version=updated["schema_version"],
+        implicit_session_created=False,
+    )
+    if args.apply and changes:
+        _transaction_write(root, changes)
+    return result
+
+
+def _require_reference(value: str | None, code: str, label: str) -> str:
+    normalized = _single_line(value or "")
+    if not normalized or normalized.upper() in {"N/A", "NA", "UNKNOWN", "TBD"}:
+        raise WorkspaceError(code, f"{label} must be an explicit non-placeholder reference.")
+    return normalized
+
+
+def _markdown_phase_status(text: str) -> str:
+    matches = re.findall(r"(?m)^- Status:[ \t]*([A-Z_]+)[ \t]*\r?$", text)
+    if len(matches) != 1:
+        raise WorkspaceError("WS_PHASE_CONTROL_INVALID", "Phase control must contain exactly one machine-readable Status field.")
+    return matches[0]
+
+
+def command_pause_phase(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state = _load_state(root)
+    if state["schema_version"] != 2:
+        raise WorkspaceError("WS_PHASE_MIGRATION_REQUIRED", "Pause requires explicit workspace/Phase migration to schema v2.")
+    if state["active_session_id"] is not None:
+        raise WorkspaceError("WS_SESSION_ACTIVE", "Close the active Session before pausing its Phase.")
+    phase = _active_phase(state)
+    path, _, text, bom = _phase_control_info(root, phase)
+    if _phase_boundary_contract(text)["status"] != "COMPLETE":
+        raise WorkspaceError("WS_PHASE_MIGRATION_REQUIRED", "Pause requires a complete Phase Boundary Contract.", phase["path"])
+    if _markdown_phase_status(text) != "ACTIVE":
+        raise WorkspaceError("WS_PHASE_CONTROL_DRIFT", "Only an ACTIVE Phase can be paused.", phase["path"])
+    reason = _require_reference(args.reason, "WS_PHASE_PAUSE_REASON_REQUIRED", "Pause reason")
+    review_ref = _require_reference(args.boundary_review_ref, "WS_PHASE_REVIEW_REQUIRED", "Boundary review reference")
+    authorization = _require_reference(args.authorization_ref, "WS_AUTHORIZATION_REQUIRED", "Authorization reference")
+    now = _timestamp(args.timestamp)
+    text = _replace_line(text, "- Status:", "- Status: PAUSED", "WS_PHASE_CONTROL_INVALID")
+    text = _replace_line(text, "- Updated at:", f"- Updated at: {now}", "WS_PHASE_CONTROL_INVALID")
+    text = _replace_line(text, "- Pause reason:", f"- Pause reason: `{reason}`", "WS_PHASE_CONTROL_INVALID")
+    text = _replace_line(text, "- Paused at:", f"- Paused at: `{now}`", "WS_PHASE_CONTROL_INVALID")
+    text = _replace_line(text, "- Review status:", "- Review status: `COMPLETED`", "WS_PHASE_CONTROL_INVALID")
+    text = _replace_line(text, "- Reviewed at:", f"- Reviewed at: `{now}`", "WS_PHASE_CONTROL_INVALID")
+    text = _replace_line(text, "- Evidence reference:", f"- Evidence reference: `{review_ref}`", "WS_PHASE_CONTROL_INVALID")
+    text = _replace_line(text, "- Authorization reference:", f"- Authorization reference: `{authorization}`", "WS_PHASE_CONTROL_INVALID")
+    updated = json.loads(json.dumps(state))
+    _phase_entry(updated, phase["phase_id"])["status"] = "PAUSED"
+    updated["active_phase_id"] = None
+    updated["maintenance_state"].update({"state": "clean", "last_action": "pause-phase", "last_checked_at": now})
+    updated["recovery_point"] = {
+        "summary": f"Phase {phase['phase_id']} is PAUSED and provides no execution authorization.",
+        "next_action": "Open another Phase or explicitly resume this Phase after boundary, plan, and authorization review.",
+        "evidence_refs": [review_ref, authorization],
+    }
+    _validate_state(root, updated)
+    project_path = _target(root, "PROJECT_CONTROL.md")
+    project_text, project_bom = _decode_markdown(_read_bytes(root, "PROJECT_CONTROL.md"))
+    project_text = _replace_project_active_phase(project_text, None)
+    changes = {
+        path: _encode_markdown(text, bom),
+        project_path: _encode_markdown(project_text, project_bom),
+        _state_path(root): _json_bytes(updated),
+    }
+    result = _plan("pause-phase", root, changes, args.apply, phase_id=phase["phase_id"], phase_status="PAUSED", implicit_session_created=False)
     if args.apply:
         _transaction_write(root, changes)
+    return result
+
+
+def command_resume_phase(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state = _load_state(root)
+    if state["schema_version"] != 2:
+        raise WorkspaceError("WS_PHASE_MIGRATION_REQUIRED", "Resume requires explicit workspace/Phase migration to schema v2.")
+    if state["active_phase_id"] is not None:
+        raise WorkspaceError("WS_PHASE_ACTIVE", "Close or pause the active Phase before resuming another one.")
+    if state["active_session_id"] is not None:
+        raise WorkspaceError("WS_SESSION_ACTIVE", "An active Session is inconsistent with a resumable Phase boundary.")
+    review_ref = _require_reference(args.boundary_review_ref, "WS_PHASE_REVIEW_REQUIRED", "Boundary review reference")
+    plan_review_ref = _require_reference(args.plan_review_ref, "WS_PHASE_PLAN_REVIEW_REQUIRED", "Plan review reference")
+    authorization = _require_reference(args.authorization_ref, "WS_AUTHORIZATION_REQUIRED", "Authorization reference")
+    phase = _phase_entry(state, args.phase_id)
+    if phase["status"] != "PAUSED":
+        raise WorkspaceError("WS_PHASE_NOT_PAUSED", "Only a PAUSED Phase can be resumed.", phase["path"])
+    path, _, text, bom = _phase_control_info(root, phase)
+    if _markdown_phase_status(text) != "PAUSED":
+        raise WorkspaceError("WS_PHASE_CONTROL_DRIFT", "Runtime and Markdown Phase status disagree.", phase["path"])
+    if _phase_boundary_contract(text)["status"] != "COMPLETE":
+        raise WorkspaceError("WS_PHASE_MIGRATION_REQUIRED", "Resume requires a complete Phase Boundary Contract.", phase["path"])
+    expected = args.expected_plan_sha256.upper()
+    binding = _phase_plan_binding(root, phase)
+    if binding is None or binding["Active plan"] == "N/A":
+        if expected != "N/A":
+            raise WorkspaceError("WS_PHASE_PLAN_STALE", "A Phase without an active plan must use --expected-plan-sha256 N/A.")
+    else:
+        if binding["Last recheck trigger"] not in PLAN_RECHECK_TRIGGERS:
+            raise WorkspaceError(
+                "WS_PHASE_PLAN_TRIGGER_MIGRATION_REQUIRED",
+                "Resume blocked: the active Plan uses a noncanonical recheck trigger and requires explicit reviewed migration.",
+                phase["path"],
+            )
+        if not re.fullmatch(r"[0-9A-F]{64}", expected):
+            raise WorkspaceError("WS_PHASE_PLAN_STALE", "A bound active plan requires its exact 64-character SHA-256.")
+        plan_path = _target(root, binding["Active plan"])
+        observed = hashlib.sha256(plan_path.read_bytes()).hexdigest().upper() if plan_path.is_file() else None
+        if observed != expected or binding["Plan content SHA-256"].upper() != expected:
+            raise WorkspaceError("WS_PHASE_PLAN_STALE", "Resume blocked: active Plan bytes or binding do not match the reviewed SHA-256.", binding["Active plan"])
+        if binding["Plan status"] != "ACTIVE" or binding["Last recheck result"] not in {"PASS", "UPDATED"} or binding["Launch review invalidated"] != "No":
+            raise WorkspaceError("WS_PHASE_PLAN_STALE", "Resume blocked: Plan status, recheck result, or launch-review binding is not current.", phase["path"])
+    now = _timestamp(args.timestamp)
+    text = _replace_line(text, "- Status:", "- Status: ACTIVE", "WS_PHASE_CONTROL_INVALID")
+    text = _replace_line(text, "- Updated at:", f"- Updated at: {now}", "WS_PHASE_CONTROL_INVALID")
+    text = _replace_line(text, "- Resume boundary review:", f"- Resume boundary review: `{review_ref}`", "WS_PHASE_CONTROL_INVALID")
+    text = _replace_line(text, "- Resume plan review:", f"- Resume plan review: `{plan_review_ref}`", "WS_PHASE_CONTROL_INVALID")
+    text = _replace_line(text, "- Resume authorization:", f"- Resume authorization: `{authorization}`", "WS_PHASE_CONTROL_INVALID")
+    text = _replace_line(text, "- Resumed at:", f"- Resumed at: `{now}`", "WS_PHASE_CONTROL_INVALID")
+    updated = json.loads(json.dumps(state))
+    _phase_entry(updated, phase["phase_id"])["status"] = "ACTIVE"
+    updated["active_phase_id"] = phase["phase_id"]
+    updated["maintenance_state"].update({"state": "clean", "last_action": "resume-phase", "last_checked_at": now})
+    updated["recovery_point"] = {
+        "summary": f"Phase {phase['phase_id']} resumed after explicit boundary, plan, and authorization review.",
+        "next_action": "Continue only within the resumed Phase Boundary Contract and reviewed authorization.",
+        "evidence_refs": [review_ref, plan_review_ref, authorization],
+    }
+    _validate_state(root, updated)
+    project_path = _target(root, "PROJECT_CONTROL.md")
+    project_text, project_bom = _decode_markdown(_read_bytes(root, "PROJECT_CONTROL.md"))
+    project_text = _replace_project_active_phase(project_text, phase["phase_id"])
+    changes = {
+        path: _encode_markdown(text, bom),
+        project_path: _encode_markdown(project_text, project_bom),
+        _state_path(root): _json_bytes(updated),
+    }
+    result = _plan("resume-phase", root, changes, args.apply, phase_id=phase["phase_id"], active_status="ACTIVE", implicit_session_created=False)
+    if args.apply:
+        _transaction_write(root, changes)
+    return result
+
+
+def _load_transition_array(root: Path, relative: str, label: str) -> tuple[list[dict[str, Any]], str]:
+    data = _read_bytes(root, relative)
+    try:
+        value = json.loads(data.decode("utf-8-sig"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise WorkspaceError("WS_PHASE_TRANSITION_INPUT_INVALID", f"{label} must be a UTF-8 JSON array.", relative) from exc
+    if not isinstance(value, list) or any(not isinstance(item, dict) for item in value):
+        raise WorkspaceError("WS_PHASE_TRANSITION_INPUT_INVALID", f"{label} must be a JSON array of objects.", relative)
+    return value, hashlib.sha256(data).hexdigest().upper()
+
+
+def _transition_plan_path(root: Path, relative: str) -> Path:
+    path = _target(root, relative)
+    normalized = Path(relative.replace("\\", "/"))
+    try:
+        normalized.relative_to(TRANSITION_PLAN_PREFIX)
+    except ValueError as exc:
+        raise WorkspaceError("WS_PHASE_TRANSITION_PLAN_PATH", "Transition plans must be workspace-relative under runtime/phase-transitions/.", relative) from exc
+    if not normalized.name.endswith(".plan.json"):
+        raise WorkspaceError("WS_PHASE_TRANSITION_PLAN_PATH", "Transition plan path must end with .plan.json.", relative)
+    return path
+
+
+def command_plan_phase_transition(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state = _load_state(root)
+    if state["schema_version"] != 2:
+        raise WorkspaceError("WS_PHASE_MIGRATION_REQUIRED", "Phase transition planning requires workspace-control schema v2.")
+    if state["active_session_id"] is not None:
+        raise WorkspaceError("WS_SESSION_ACTIVE", "Close the active Session before planning a Phase transition.")
+    source = _phase_entry(state, args.source_phase_id)
+    if source["status"] not in {"ACTIVE", "PAUSED"}:
+        raise WorkspaceError("WS_PHASE_TRANSITION_STATE", "Only ACTIVE or PAUSED Phases can be superseded.", source["path"])
+    if state["active_phase_id"] not in {None, source["phase_id"]}:
+        raise WorkspaceError("WS_PHASE_ACTIVE", "Another active Phase prevents this transition.")
+    if any(item["phase_id"] == args.target_phase_id for item in state["phase_controls"]):
+        raise WorkspaceError("WS_PHASE_EXISTS", "Target Phase ID is already registered.", args.target_phase_id)
+    target_id = _validate_id(args.target_phase_id, "Target Phase ID")
+    if not _single_line(args.target_goal):
+        raise WorkspaceError("WS_GOAL_EMPTY", "Target Phase goal must not be empty.")
+    boundary_values = _phase_boundary_values(args, required=True)
+    review_ref = _require_reference(args.boundary_review_ref, "WS_PHASE_REVIEW_REQUIRED", "Boundary review reference")
+    authorization = _require_reference(args.authorization_ref, "WS_AUTHORIZATION_REQUIRED", "Authorization reference")
+    source_path, source_data, source_text, _ = _phase_control_info(root, source)
+    if _phase_boundary_contract(source_text)["status"] != "COMPLETE":
+        raise WorkspaceError("WS_PHASE_MIGRATION_REQUIRED", "Source Phase requires explicit boundary migration before transition.", source["path"])
+    carry_over, carry_hash = _load_transition_array(root, args.carry_over_file, "Carry-over input")
+    dispositions, disposition_hash = _load_transition_array(root, args.disposition_file, "Disposition input")
+    queue = _phase_table_summary(source_text, "phase-queue", "Status")
+    active_by_id = {row.get("Task ID", ""): row for row in queue["active_rows"]}
+    covered: list[str] = []
+    required_carry_fields = {
+        "task_id", "source_status", "remaining_work", "evidence", "recovery", "authorization_state", "target_phase", "reason"
+    }
+    for item in carry_over:
+        if set(item) != required_carry_fields or any(not _single_line(str(item[field])) for field in required_carry_fields):
+            raise WorkspaceError("WS_PHASE_CARRY_OVER_INVALID", "Every Carry-over row must contain the exact non-empty transfer fields.")
+        task_id = _validate_id(str(item["task_id"]), "Carry-over Task ID")
+        if task_id not in active_by_id:
+            raise WorkspaceError("WS_PHASE_CARRY_OVER_INVALID", "Carry-over Task ID is not an unfinished source queue row.", task_id)
+        if str(item["target_phase"]) != target_id:
+            raise WorkspaceError("WS_PHASE_CARRY_OVER_INVALID", "Carry-over target_phase must equal the planned target Phase.", task_id)
+        if str(item["source_status"]).upper() != active_by_id[task_id].get("Status", "").upper():
+            raise WorkspaceError("WS_PHASE_CARRY_OVER_INVALID", "Carry-over source_status must preserve the source queue status.", task_id)
+        covered.append(task_id)
+    required_disposition_fields = {"task_id", "disposition", "reason"}
+    for item in dispositions:
+        if set(item) != required_disposition_fields or not _single_line(str(item.get("reason", ""))):
+            raise WorkspaceError("WS_PHASE_DISPOSITION_INVALID", "Each disposition needs task_id, disposition, and reason.")
+        task_id = _validate_id(str(item["task_id"]), "Disposition Task ID")
+        if task_id not in active_by_id or str(item["disposition"]) not in {"CANCELLED", "DEFERRED_OUTSIDE_MALTS"}:
+            raise WorkspaceError("WS_PHASE_DISPOSITION_INVALID", "Disposition must cover an unfinished source Task with an explicit terminal disposition.", task_id)
+        covered.append(task_id)
+    if len(covered) != len(set(covered)):
+        raise WorkspaceError("WS_PHASE_DISPOSITION_DUPLICATE", "An unfinished Task may have exactly one Carry-over or disposition row.")
+    missing = sorted(set(active_by_id) - set(covered))
+    if missing:
+        raise WorkspaceError("WS_PHASE_DISPOSITION_INCOMPLETE", "Every unfinished source Task requires explicit Carry-over or disposition: " + ", ".join(missing))
+    now = _timestamp(args.timestamp)
+    state_bytes = _read_bytes(root, STATE_RELATIVE)
+    project_bytes = _read_bytes(root, "PROJECT_CONTROL.md")
+    plan = {
+        "schema_version": 1,
+        "operation": "phase-transition",
+        "created_at": now,
+        "source_phase": {
+            "phase_id": source["phase_id"],
+            "path": source["path"],
+            "status": source["status"],
+            "sha256": hashlib.sha256(source_data).hexdigest().upper(),
+        },
+        "target_phase": {
+            "phase_id": target_id,
+            "path": f"phases/{target_id}/PHASE_CONTROL.md",
+            "goal": _single_line(args.target_goal),
+            "boundary_values": boundary_values,
+        },
+        "carry_over": carry_over,
+        "dispositions": dispositions,
+        "boundary_review_ref": review_ref,
+        "authorization_ref": authorization,
+        "preconditions": {
+            "workspace_state_sha256": hashlib.sha256(state_bytes).hexdigest().upper(),
+            "project_control_sha256": hashlib.sha256(project_bytes).hexdigest().upper(),
+            "carry_over_input_sha256": carry_hash,
+            "disposition_input_sha256": disposition_hash,
+        },
+    }
+    plan_payload = _json_bytes(plan)
+    plan_sha256 = hashlib.sha256(plan_payload).hexdigest().upper()
+    plan_path = _transition_plan_path(root, args.plan_out)
+    changes = {plan_path: plan_payload}
+    result = _plan(
+        "plan-phase-transition",
+        root,
+        changes,
+        args.apply,
+        plan_path=_relative(root, plan_path),
+        plan_sha256=plan_sha256,
+        source_phase_id=source["phase_id"],
+        target_phase_id=target_id,
+        transition_performed=False,
+        implicit_session_created=False,
+    )
+    if args.apply:
+        _transaction_write(root, changes, must_be_new=(plan_path,))
+    return result
+
+
+def command_apply_phase_transition(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state = _load_state(root)
+    plan_path = _transition_plan_path(root, args.plan)
+    if not plan_path.is_file():
+        raise WorkspaceError("WS_PHASE_TRANSITION_PLAN_MISSING", "Persisted transition plan is missing.", args.plan)
+    plan_payload = plan_path.read_bytes()
+    observed_plan_hash = hashlib.sha256(plan_payload).hexdigest().upper()
+    expected_plan_hash = args.expected_plan_sha256.upper()
+    if not re.fullmatch(r"[0-9A-F]{64}", expected_plan_hash) or expected_plan_hash != observed_plan_hash:
+        raise WorkspaceError("WS_PHASE_TRANSITION_PLAN_HASH", "Persisted transition plan does not match --expected-plan-sha256.", args.plan)
+    try:
+        plan = json.loads(plan_payload.decode("utf-8-sig"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise WorkspaceError("WS_PHASE_TRANSITION_PLAN_INVALID", "Transition plan is not valid UTF-8 JSON.", args.plan) from exc
+    if not isinstance(plan, dict) or plan.get("schema_version") != 1 or plan.get("operation") != "phase-transition":
+        raise WorkspaceError("WS_PHASE_TRANSITION_PLAN_INVALID", "Transition plan identity is invalid.", args.plan)
+    preconditions = plan.get("preconditions", {})
+    current_state_bytes = _read_bytes(root, STATE_RELATIVE)
+    current_project_bytes = _read_bytes(root, "PROJECT_CONTROL.md")
+    if hashlib.sha256(current_state_bytes).hexdigest().upper() != preconditions.get("workspace_state_sha256"):
+        raise WorkspaceError("WS_PHASE_TRANSITION_STATE_DRIFT", "Workspace state changed after transition planning.", STATE_RELATIVE.as_posix())
+    if hashlib.sha256(current_project_bytes).hexdigest().upper() != preconditions.get("project_control_sha256"):
+        raise WorkspaceError("WS_PHASE_TRANSITION_PROJECT_DRIFT", "PROJECT_CONTROL changed after transition planning.", "PROJECT_CONTROL.md")
+    source_plan = plan["source_phase"]
+    target_plan = plan["target_phase"]
+    source = _phase_entry(state, source_plan["phase_id"])
+    if source["path"] != source_plan["path"] or source["status"] != source_plan["status"]:
+        raise WorkspaceError("WS_PHASE_TRANSITION_STATE_DRIFT", "Source Phase registration changed after planning.", source["path"])
+    source_path, source_data, source_text, source_bom = _phase_control_info(root, source)
+    if hashlib.sha256(source_data).hexdigest().upper() != source_plan["sha256"]:
+        raise WorkspaceError("WS_PHASE_TRANSITION_SOURCE_DRIFT", "Source Phase control changed after transition planning.", source["path"])
+    target_id = target_plan["phase_id"]
+    if any(item["phase_id"] == target_id for item in state["phase_controls"]):
+        raise WorkspaceError("WS_PHASE_EXISTS", "Target Phase was registered after planning.", target_id)
+    target_path = _target(root, target_plan["path"])
+    if target_path.exists():
+        raise WorkspaceError("WS_FILE_EXISTS", "Target Phase control path already exists.", target_plan["path"])
+    if state["active_session_id"] is not None or state["active_phase_id"] not in {None, source["phase_id"]}:
+        raise WorkspaceError("WS_PHASE_TRANSITION_STATE_DRIFT", "Active Phase/Session topology changed after planning.")
+    language = _language(args, root)
+    target_payload = _render_phase_control(
+        language,
+        target_id,
+        target_plan["goal"],
+        plan["created_at"],
+        target_plan["boundary_values"],
+    )
+    target_text, target_bom = _decode_markdown(target_payload)
+    source_rows: list[list[str]] = []
+    target_provenance_rows: list[list[str]] = []
+    target_queue_rows: list[list[str]] = []
+    for item in plan["carry_over"]:
+        source_rows.append(
+            [
+                str(item["task_id"]),
+                str(item["source_status"]),
+                str(item["remaining_work"]),
+                str(item["evidence"]),
+                str(item["recovery"]),
+                str(item["authorization_state"]),
+                str(item["target_phase"]),
+                str(item["reason"]),
+            ]
+        )
+        target_provenance_rows.append(
+            [
+                str(item["task_id"]),
+                source["phase_id"],
+                str(item["source_status"]),
+                str(item["remaining_work"]),
+                str(item["evidence"]),
+                str(item["recovery"]),
+                str(item["authorization_state"]),
+                "TODO",
+            ]
+        )
+        target_queue_rows.append(
+            [
+                str(item["task_id"]),
+                str(item["remaining_work"]),
+                "TODO",
+                f"{item['evidence']}; Carried from {source['phase_id']}",
+            ]
+        )
+    source_queue_by_id = {
+        row.get("Task ID", ""): row for row in _phase_table_summary(source_text, "phase-queue", "Status")["rows"]
+    }
+    for item in plan["dispositions"]:
+        source_row = source_queue_by_id.get(str(item["task_id"]), {})
+        source_rows.append(
+            [
+                str(item["task_id"]),
+                str(source_row.get("Status", "UNKNOWN")),
+                f"Disposition: {item['disposition']}",
+                str(source_row.get("Evidence", "N/A")),
+                "N/A",
+                str(plan["authorization_ref"]),
+                "N/A",
+                str(item["reason"]),
+            ]
+        )
+    source_text = _append_table_rows(source_text, "phase-carry-over", source_rows, "WS_PHASE_CARRY_OVER_INVALID")
+    source_text = _replace_line(source_text, "- Status:", "- Status: SUPERSEDED", "WS_PHASE_CONTROL_INVALID")
+    source_text = _replace_line(source_text, "- Updated at:", f"- Updated at: {plan['created_at']}", "WS_PHASE_CONTROL_INVALID")
+    source_text = _replace_line(source_text, "- Close result:", "- Close result: SUPERSEDED", "WS_PHASE_CONTROL_INVALID")
+    source_text = _replace_line(source_text, "- Exit criteria status:", "- Exit criteria status: NOT_SATISFIED", "WS_PHASE_CONTROL_INVALID")
+    disposition_summary = f"{len(plan['carry_over'])} carried; {len(plan['dispositions'])} explicitly disposed"
+    source_text = _replace_line(source_text, "- Carry-over disposition:", f"- Carry-over disposition: {disposition_summary}", "WS_PHASE_CONTROL_INVALID")
+    source_text = _replace_line(source_text, "- Superseded by:", f"- Superseded by: {target_id}", "WS_PHASE_CONTROL_INVALID")
+    source_text = _replace_line(
+        source_text,
+        "- Closure evidence:",
+        f"- Closure evidence: {plan['boundary_review_ref']}; {plan['authorization_ref']}; transition-plan:{observed_plan_hash}",
+        "WS_PHASE_CONTROL_INVALID",
+    )
+    source_text = _replace_line(source_text, "- Closed at:", f"- Closed at: {plan['created_at']}", "WS_PHASE_CONTROL_INVALID")
+    target_text = _append_table_rows(target_text, "phase-carried-in", target_provenance_rows, "WS_PHASE_CARRY_OVER_INVALID")
+    target_text = _append_table_rows(target_text, "phase-queue", target_queue_rows, "WS_PHASE_CARRY_OVER_INVALID")
+    project_text, project_bom = _decode_markdown(current_project_bytes)
+    if _marked_section(project_text, "phase-carry-over-index") is None:
+        raise WorkspaceError("WS_PHASE_MIGRATION_REQUIRED", "PROJECT_CONTROL requires an explicit v2 carry-over index migration.", "PROJECT_CONTROL.md")
+    project_text = _replace_project_active_phase(project_text, target_id)
+    project_text = _append_table_rows(
+        project_text,
+        "phase-carry-over-index",
+        [[source["phase_id"], target_id, observed_plan_hash, source["path"], target_plan["path"], "TRANSFERRED"]],
+        "WS_PHASE_CARRY_OVER_INVALID",
+    )
+    updated = json.loads(json.dumps(state))
+    _phase_entry(updated, source["phase_id"])["status"] = "SUPERSEDED"
+    updated["phase_controls"].append({"phase_id": target_id, "path": target_plan["path"], "status": "ACTIVE"})
+    updated["active_phase_id"] = target_id
+    updated["schema_version"] = 2
+    updated["maintenance_state"].update({"state": "clean", "last_action": "apply-phase-transition", "last_checked_at": plan["created_at"]})
+    updated["recovery_point"] = {
+        "summary": f"Phase {source['phase_id']} was SUPERSEDED by {target_id} through reviewed plan {observed_plan_hash}.",
+        "next_action": f"Continue only in active Phase {target_id}; source carry-over rows are immutable provenance.",
+        "evidence_refs": [plan["boundary_review_ref"], plan["authorization_ref"], f"transition-plan:{observed_plan_hash}"],
+    }
+    _validate_state(root, updated)
+    changes = {
+        source_path: _encode_markdown(source_text, source_bom),
+        target_path: _encode_markdown(target_text, target_bom),
+        _target(root, "PROJECT_CONTROL.md"): _encode_markdown(project_text, project_bom),
+        _state_path(root): _json_bytes(updated),
+    }
+    result = _plan(
+        "apply-phase-transition",
+        root,
+        changes,
+        args.apply,
+        plan_path=args.plan,
+        plan_sha256=observed_plan_hash,
+        source_phase_id=source["phase_id"],
+        source_terminal_status="SUPERSEDED",
+        target_phase_id=target_id,
+        target_status="ACTIVE",
+        carry_over_count=len(plan["carry_over"]),
+        disposition_count=len(plan["dispositions"]),
+        implicit_session_created=False,
+    )
+    if args.apply:
+        _transaction_write(root, changes, must_be_new=(target_path,))
     return result
 
 
@@ -752,9 +1888,25 @@ def command_open_session(args: argparse.Namespace) -> dict[str, Any]:
 
 def command_close_session(args: argparse.Namespace) -> dict[str, Any]:
     root = _workspace(args.workspace)
-    state = _load_state(root)
+    state_data = _read_bytes(root, STATE_RELATIVE)
+    state = _parse_state_bytes(root, state_data)
     session = _active_session(state)
     now = _timestamp(args.timestamp)
+    artifact_gate = artifact_close_gate(root, state, f"session:{session['session_id']}", captured_at=now)
+    if artifact_gate["status"] == "BLOCKED":
+        return {
+            "status": "BLOCKED",
+            "operation": "close-session",
+            "mode": "BLOCKED",
+            "workspace": str(root),
+            "writes_performed": False,
+            "session_id": session["session_id"],
+            "reason_code": artifact_gate["reason_code"],
+            "unresolved_artifacts": artifact_gate["unresolved"],
+            "artifact_issues": artifact_gate.get("issues", []),
+            "required_action": "Reconcile every enrolled Artifact disposition and validation issue before closing the Session.",
+            "implicit_session_created": False,
+        }
     path = _target(root, session["path"])
     data = _read_bytes(root, session["path"])
     text, bom = _decode_markdown(data)
@@ -772,10 +1924,17 @@ def command_close_session(args: argparse.Namespace) -> dict[str, Any]:
     }
     _validate_state(root, updated)
     changes = {path: _encode_markdown(text, bom), _state_path(root): _json_bytes(updated)}
-    result = _plan("close-session", root, changes, args.apply, session_id=session["session_id"], terminal_status=args.status)
-    if args.apply:
-        _transaction_write(root, changes)
-    return result
+    return _artifact_aware_close(
+        "close-session",
+        root,
+        updated,
+        artifact_gate,
+        changes,
+        {path: data, _state_path(root): state_data},
+        args.apply,
+        session_id=session["session_id"],
+        terminal_status=args.status,
+    )
 
 
 def _history_blocks(text: str) -> list[tuple[str, int, int, str]]:
@@ -988,37 +2147,132 @@ def _validate_workspace(root: Path, state: dict[str, Any]) -> tuple[list[dict[st
                 "message": "Long-project initialization is incomplete until its initial Phase is registered.",
             }
         )
+    for phase in state["phase_controls"]:
+        phase_path = _target(root, phase["path"])
+        if not phase_path.is_file():
+            continue
+        phase_text, _ = _decode_markdown(phase_path.read_bytes())
+        status_matches = re.findall(r"(?m)^- Status:[ \t]*([A-Z_]+)[ \t]*\r?$", phase_text)
+        is_active_index = phase["phase_id"] == state["active_phase_id"]
+        if len(status_matches) != 1:
+            issues.append(
+                {
+                    "code": "WS_ACTIVE_PHASE_CONTROL_INVALID" if is_active_index else "WS_PHASE_CONTROL_INVALID",
+                    "path": phase["path"],
+                    "message": "Phase control must contain exactly one machine-readable Status field.",
+                }
+            )
+            continue
+        markdown_status = status_matches[0]
+        if markdown_status != phase["status"]:
+            action = None
+            if is_active_index:
+                action = (
+                    f"Run close-phase --status {markdown_status} --workspace \"{root}\" "
+                    '--closure-evidence "<reviewed evidence>" --next-action "Open the next Phase when authorized." --apply '
+                    "only if the Markdown terminal state is factually correct; otherwise repair the canonical Phase control explicitly."
+                )
+            issue = {
+                "code": "WS_ACTIVE_PHASE_CONTROL_DRIFT" if is_active_index else "WS_PHASE_CONTROL_DRIFT",
+                "path": phase["path"],
+                "message": f"Runtime status {phase['status']} disagrees with Markdown status {markdown_status}.",
+            }
+            if action is not None:
+                issue["required_action"] = action
+            issues.append(issue)
+        closure = _structured_closure(phase_text)
+        if closure is not None:
+            if phase["status"] in {"ACTIVE", "PAUSED", "PLANNED"}:
+                expected_placeholders = {
+                    "Close result": "N/A",
+                    "Exit criteria status": "NOT_EVALUATED",
+                    "Carry-over disposition": "N/A",
+                    "Superseded by": "N/A",
+                    "Closure evidence": "N/A",
+                    "Closed at": "N/A",
+                }
+                if any(closure[label] != expected for label, expected in expected_placeholders.items()):
+                    issues.append(
+                        {
+                            "code": "WS_ACTIVE_PHASE_CLOSURE_CONFLICT",
+                            "path": phase["path"],
+                            "message": "A nonterminal Phase has a non-placeholder structured Closure record.",
+                        }
+                    )
+            elif phase["status"] == "DONE" and (
+                closure["Close result"] != "DONE" or closure["Exit criteria status"] != "SATISFIED"
+            ):
+                issues.append(
+                    {
+                        "code": "WS_PHASE_DONE_CLOSURE_INVALID",
+                        "path": phase["path"],
+                        "message": "DONE requires Close result DONE and Exit criteria status SATISFIED.",
+                    }
+                )
+            elif phase["status"] == "SUPERSEDED" and (
+                closure["Close result"] != "SUPERSEDED"
+                or closure["Superseded by"] == "N/A"
+                or closure["Carry-over disposition"] == "N/A"
+            ):
+                issues.append(
+                    {
+                        "code": "WS_PHASE_SUPERSEDED_CLOSURE_INVALID",
+                        "path": phase["path"],
+                        "message": "SUPERSEDED requires a target Phase and explicit Carry-over/disposition summary.",
+                    }
+                )
     if state["active_phase_id"] is not None:
-        active = next(item for item in state["phase_controls"] if item["phase_id"] == state["active_phase_id"])
+        active = _phase_entry(state, state["active_phase_id"])
         if active["status"] != "ACTIVE":
             issues.append({"code": "WS_ACTIVE_PHASE_STATUS", "path": active["path"], "message": "Active Phase index must have ACTIVE status."})
-        active_path = _target(root, active["path"])
-        if active_path.is_file():
-            active_text, _ = _decode_markdown(active_path.read_bytes())
-            status_matches = re.findall(r"(?m)^- Status:[ \t]*([A-Z_]+)[ \t]*\r?$", active_text)
-            if len(status_matches) != 1:
+    project_path = _target(root, "PROJECT_CONTROL.md")
+    if state["schema_version"] == 2 and project_path.is_file():
+        try:
+            project_text, _ = _decode_markdown(project_path.read_bytes())
+            recorded_active_phase = (
+                _project_active_phase_value(project_text)
+                if _marked_section(project_text, "current-stage") is not None
+                else None
+            )
+        except WorkspaceError:
+            recorded_active_phase = None
+        if recorded_active_phase is not None:
+            expected_active_phase = state["active_phase_id"] or "N/A"
+            if recorded_active_phase != expected_active_phase:
                 issues.append(
                     {
-                        "code": "WS_ACTIVE_PHASE_CONTROL_INVALID",
-                        "path": active["path"],
-                        "message": "Active Phase control must contain exactly one machine-readable Status field.",
+                        "code": "WS_ROOT_PHASE_INDEX_DRIFT",
+                        "path": "PROJECT_CONTROL.md",
+                        "message": (
+                            f"Canonical root Active Phase {recorded_active_phase!r} disagrees with "
+                            f"workspace-control {expected_active_phase!r}."
+                        ),
+                        "required_action": "Review and explicitly reconcile the canonical PROJECT_CONTROL Active Phase index before continuation.",
                     }
                 )
-            elif status_matches[0] != "ACTIVE":
-                terminal_status = status_matches[0]
-                action = (
-                    f"Run close-phase --status {terminal_status} --workspace \"{root}\" "
-                    '--next-action "Open the next Phase when authorized." --apply '
-                    "to reconcile runtime state with the terminal Phase control."
-                )
-                issues.append(
-                    {
-                        "code": "WS_ACTIVE_PHASE_CONTROL_DRIFT",
-                        "path": active["path"],
-                        "message": f"Runtime marks this Phase ACTIVE but its control status is {terminal_status}.",
-                        "required_action": action,
-                    }
-                )
+    for session in state["session_controls"]:
+        session_path = _target(root, session["path"])
+        if not session_path.is_file():
+            continue
+        session_text, _ = _decode_markdown(session_path.read_bytes())
+        status_matches = re.findall(r"(?m)^- Status:[ \t]*([A-Z_]+)[ \t]*\r?$", session_text)
+        session_id_matches = re.findall(r"(?m)^- Session ID:[ \t]*([^\r\n]+?)[ \t]*\r?$", session_text)
+        phase_id_matches = re.findall(r"(?m)^- Phase ID:[ \t]*([^\r\n]+?)[ \t]*\r?$", session_text)
+        if len(status_matches) != 1 or len(session_id_matches) != 1 or len(phase_id_matches) != 1:
+            issues.append({"code": "WS_SESSION_CONTROL_INVALID", "path": session["path"], "message": "Session control metadata is malformed."})
+            continue
+        if (
+            status_matches[0] != session["status"]
+            or session_id_matches[0].strip("` ") != session["session_id"]
+            or phase_id_matches[0].strip("` ") != session["phase_id"]
+        ):
+            issues.append(
+                {
+                    "code": "WS_SESSION_CONTROL_DRIFT",
+                    "path": session["path"],
+                    "message": "Session Markdown metadata disagrees with runtime registration; reconcile it explicitly before recovery or Phase closure.",
+                }
+            )
     if state["active_session_id"] is not None:
         active = next(item for item in state["session_controls"] if item["session_id"] == state["active_session_id"])
         if active["status"] != "ACTIVE":
@@ -1028,10 +2282,61 @@ def _validate_workspace(root: Path, state: dict[str, Any]) -> tuple[list[dict[st
     return issues, metrics, breaches
 
 
+def _current_binding_issues(root: Path, state: dict[str, Any]) -> list[dict[str, str]]:
+    issues: list[dict[str, str]] = []
+    active: dict[str, Any] | None = None
+    expected_hash: str | None = None
+    if state["active_phase_id"] is not None:
+        active = _phase_entry(state, state["active_phase_id"])
+        active_path = _target(root, active["path"])
+        if active_path.is_file():
+            expected_hash = hashlib.sha256(active_path.read_bytes()).hexdigest().upper()
+    for relative in ("WORK_TASK_REPORT.md", "PROJECT_HANDOFF.md"):
+        path = _target(root, relative)
+        if not path.is_file():
+            continue
+        text, _ = _decode_markdown(path.read_bytes())
+        section = _marked_section(text, "current-phase-binding")
+        if section is None:
+            continue
+        try:
+            fields = {
+                label: _control_value(section, label, "WS_CURRENT_BINDING_INVALID")
+                for label in ("Active Phase ID", "Active Phase control", "Phase control SHA-256", "Recorded at")
+            }
+        except WorkspaceError as exc:
+            issues.append({"code": exc.code, "path": relative, "message": exc.message})
+            continue
+        if all(value == "N/A" for value in fields.values()):
+            continue
+        expected = {
+            "Active Phase ID": active["phase_id"] if active is not None else "N/A",
+            "Active Phase control": active["path"] if active is not None else "N/A",
+            "Phase control SHA-256": expected_hash or "N/A",
+        }
+        if any(fields[label] != value for label, value in expected.items()):
+            issues.append(
+                {
+                    "code": "WS_CURRENT_BINDING_STALE",
+                    "path": relative,
+                    "message": "Current Phase binding is stale. Refresh the current Phase binding from canonical state and exact Phase bytes.",
+                    "required_action": f"Refresh the current Phase binding in {relative} before using it for continuation or recovery.",
+                }
+            )
+    return issues
+
+
 def command_validate(args: argparse.Namespace) -> dict[str, Any]:
     root = _workspace(args.workspace)
     state = _load_state(root)
     issues, metrics, breaches = _validate_workspace(root, state)
+    artifact_audit = _artifact_snapshot(root, state, captured_at=_timestamp(None))
+    artifact_issues = [
+        {key: value for key, value in item.items() if key != "severity"}
+        for item in artifact_audit["findings"]
+        if item["severity"] == "ISSUE"
+    ]
+    artifact_notices = [item for item in artifact_audit["findings"] if item["severity"] != "ISSUE"]
     runtime_reference_warnings = _runtime_reference_warnings(root, state)
     runtime_reference_issues = [
         {
@@ -1041,8 +2346,26 @@ def command_validate(args: argparse.Namespace) -> dict[str, Any]:
         }
         for item in runtime_reference_warnings
     ]
-    issues = [*issues, *runtime_reference_issues]
-    control_drift = [item for item in issues if item["code"] in {"WS_ACTIVE_PHASE_CONTROL_DRIFT", "WS_ACTIVE_PHASE_CONTROL_INVALID"}]
+    current_binding_issues = _current_binding_issues(root, state)
+    phase_lifecycle_warnings = _phase_lifecycle_warnings(root, state)
+    issues = [*issues, *runtime_reference_issues, *artifact_issues]
+    control_drift = [
+        item
+        for item in issues
+        if item["code"]
+        in {
+            "WS_ACTIVE_PHASE_CONTROL_DRIFT",
+            "WS_ACTIVE_PHASE_CONTROL_INVALID",
+            "WS_PHASE_CONTROL_DRIFT",
+            "WS_PHASE_CONTROL_INVALID",
+            "WS_SESSION_CONTROL_DRIFT",
+            "WS_SESSION_CONTROL_INVALID",
+            "WS_ACTIVE_PHASE_CLOSURE_CONFLICT",
+            "WS_PHASE_DONE_CLOSURE_INVALID",
+            "WS_PHASE_SUPERSEDED_CLOSURE_INVALID",
+            "WS_ROOT_PHASE_INDEX_DRIFT",
+        }
+    ]
     initialization_status = (
         "NEEDS_INITIAL_PHASE"
         if not state["phase_controls"]
@@ -1056,6 +2379,13 @@ def command_validate(args: argparse.Namespace) -> dict[str, Any]:
     if runtime_reference_warnings:
         required_actions.append("Refresh generated PROJECT_CONTROL runtime metadata, or manually review every static generation reference outside that generated metadata.")
     required_actions.extend(item["required_action"] for item in control_drift if item.get("required_action"))
+    required_actions.extend(item["required_action"] for item in artifact_issues if item.get("required_action"))
+    if artifact_audit["counts"]["issues"] and not any(item.get("required_action") for item in artifact_issues):
+        required_actions.append("Review and correct every Artifact ISSUE finding before relying on the enrolled contract.")
+    if any(item["code"] == "WS_CURRENT_BINDING_STALE" for item in current_binding_issues) and not any(
+        "Refresh the current Phase binding" in action for action in required_actions
+    ):
+        required_actions.append("Refresh the current Phase binding in current reports/handoffs before continuation or recovery.")
     return {
         "status": "PASS" if not issues else "FAIL",
         "operation": "validate",
@@ -1064,14 +2394,376 @@ def command_validate(args: argparse.Namespace) -> dict[str, Any]:
         "writes_performed": False,
         "issues": issues,
         "runtime_reference_warnings": runtime_reference_warnings,
+        "phase_lifecycle_warnings": phase_lifecycle_warnings,
+        "current_binding_warnings": current_binding_issues,
+        "artifact_notices": artifact_notices,
+        "artifact_audit": artifact_audit,
         "capacity_warnings": breaches,
         "metrics": metrics,
         "active_phase_id": state["active_phase_id"],
         "active_session_id": state["active_session_id"],
         "initialization_status": initialization_status,
+        "workspace_schema_class": "CURRENT_V2" if state["schema_version"] == 2 else "LEGACY_V1",
         "required_action": " ".join(required_actions) if required_actions else None,
         "implicit_session_created": False,
     }
+
+
+def _artifact_snapshot(
+    root: Path,
+    state: dict[str, Any],
+    *,
+    captured_at: str,
+    candidate_roots: list[str] | None = None,
+    owners: list[str] | None = None,
+    scope: str = "current",
+) -> dict[str, Any]:
+    try:
+        snapshot = audit_workspace(
+            root,
+            state,
+            captured_at=captured_at,
+            candidate_roots=candidate_roots,
+            owners=owners,
+            scope=scope,
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+        raise WorkspaceError("ART_AUDIT_INPUT_INVALID", str(exc)) from exc
+    contract_issues = validate_instance(MALTS_ROOT, "workspace-artifact-snapshot", snapshot)
+    if contract_issues:
+        rendered = "; ".join(issue.render() for issue in contract_issues)
+        raise WorkspaceError("ART_SNAPSHOT_CONTRACT_INVALID", rendered)
+    return snapshot
+
+
+def _artifact_required_action(snapshot: dict[str, Any]) -> str | None:
+    actions = [
+        item["required_action"]
+        for item in snapshot["findings"]
+        if item["severity"] == "ISSUE" and item.get("required_action")
+    ]
+    if snapshot["counts"]["issues"] and not actions:
+        actions.append("Review and correct every Artifact ISSUE finding before relying on the enrolled contract.")
+    return " ".join(dict.fromkeys(actions)) if actions else None
+
+
+def command_artifact_audit(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state = _load_state(root)
+    snapshot = _artifact_snapshot(
+        root,
+        state,
+        captured_at=_timestamp(args.captured_at),
+        candidate_roots=args.candidate_root,
+        owners=args.owner,
+        scope=args.scope,
+    )
+    return {
+        "status": "PASS" if snapshot["counts"]["issues"] == 0 else "FAIL",
+        "operation": "artifact-audit",
+        "mode": "READ_ONLY",
+        "workspace": str(root),
+        "writes_performed": False,
+        "snapshot": snapshot,
+        "required_action": _artifact_required_action(snapshot),
+        "implicit_session_created": False,
+    }
+
+
+def command_artifact_enrollment_preview(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state = _load_state(root)
+    captured_at = _timestamp(args.captured_at)
+    try:
+        preview = enrollment_preview(
+            root,
+            state,
+            captured_at=captured_at,
+            shared_index=args.shared_index,
+            archive_index=args.archive_index,
+            candidate_roots=args.candidate_root,
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+        raise WorkspaceError("ART_ENROLLMENT_PREVIEW_INVALID", str(exc)) from exc
+    snapshot = preview["snapshot"]
+    contract_issues = validate_instance(MALTS_ROOT, "workspace-artifact-snapshot", snapshot)
+    if contract_issues:
+        rendered = "; ".join(issue.render() for issue in contract_issues)
+        raise WorkspaceError("ART_SNAPSHOT_CONTRACT_INVALID", rendered)
+    actions = list(preview["required_actions"])
+    issue_action = _artifact_required_action(snapshot)
+    if issue_action is not None:
+        actions.insert(0, issue_action)
+    return {
+        "status": "PASS" if snapshot["counts"]["issues"] == 0 else "FAIL",
+        "operation": "artifact-enrollment-preview",
+        "mode": "READ_ONLY_PREVIEW",
+        "workspace": str(root),
+        "writes_performed": False,
+        "snapshot": snapshot,
+        "proposed_root_section": preview["proposed_root_section"],
+        "planned_changes": preview["planned_changes"],
+        "apply_supported": False,
+        "required_actions": actions,
+        "required_action": " ".join(dict.fromkeys(actions)),
+        "implicit_session_created": False,
+    }
+
+
+def _artifact_blocked(operation: str, root: Path, error: ArtifactMutationError) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "status": "BLOCKED",
+        "operation": operation,
+        "mode": "BLOCKED",
+        "workspace": str(root),
+        "writes_performed": False,
+        "reason_code": error.code,
+        "message": error.message,
+        "detail": error.detail,
+        "planned_changes": [],
+        "payload_moves_performed": False,
+        "payload_deletes_performed": False,
+        "vcs_commands_performed": False,
+        "implicit_session_created": False,
+    }
+    if error.code == "ART_ACTIVE_REFERENCE_UPDATE_REQUIRED" and isinstance(error.detail, list):
+        result["stale_reference_paths"] = error.detail
+    return result
+
+
+def _artifact_prepare(operation: str, root: Path, planner: Any) -> dict[str, Any]:
+    try:
+        return planner()
+    except ArtifactMutationError as exc:
+        if exc.blocked:
+            return _artifact_blocked(operation, root, exc)
+        raise WorkspaceError(exc.code, exc.message, exc.detail) from exc
+
+
+def _artifact_post_validate(root: Path, state: dict[str, Any]) -> None:
+    observed_state = _load_state(root)
+    if observed_state != state:
+        raise TransactionError(
+            "ART_TRANSACTION_STATE_DRIFT",
+            "Workspace runtime state changed during the Artifact transaction.",
+        )
+    workspace_issues, _, _ = _validate_workspace(root, observed_state)
+    if workspace_issues:
+        raise TransactionError("ART_TRANSACTION_WORKSPACE_POSTVALIDATE", "Proposed Artifact state failed full workspace validation.", workspace_issues)
+    snapshot = _artifact_snapshot(root, observed_state, captured_at=_timestamp(None))
+    issues = [item for item in snapshot["findings"] if item["severity"] == "ISSUE"]
+    if issues:
+        raise TransactionError("ART_TRANSACTION_POSTVALIDATE", "Proposed Artifact state failed post-validation.", issues)
+
+
+def _artifact_mutation_result(
+    operation: str,
+    root: Path,
+    state: dict[str, Any],
+    args: argparse.Namespace,
+    plan: dict[str, Any],
+    state_payload: bytes,
+) -> dict[str, Any]:
+    if plan.get("status") == "BLOCKED":
+        return plan
+    changes: dict[Path, bytes] = plan.pop("changes")
+    preconditions: dict[Path, str | None] = plan.pop("precondition_hashes", {})
+    if changes:
+        state_path = _state_path(root)
+        state_hash = sha256_bytes(state_payload)
+        if state_path in preconditions and preconditions[state_path] != state_hash:
+            raise WorkspaceError(
+                "ART_TRANSACTION_PRECONDITION_DRIFT",
+                "Workspace runtime state changed while the mutation plan was rendered.",
+                {"path": STATE_RELATIVE.as_posix(), "expected": state_hash, "observed": preconditions[state_path]},
+            )
+        preconditions[state_path] = state_hash
+    if not set(changes).issubset(preconditions):
+        raise WorkspaceError("ART_TRANSACTION_PRECONDITION_SET", "Every mutation target requires a render-time precondition.")
+    ordered_paths = sorted(changes, key=lambda path: _relative(root, path))
+    ordered_input_paths = sorted(preconditions, key=lambda path: _relative(root, path))
+    observed_before_lock: dict[Path, str | None] = {}
+    for path in ordered_input_paths:
+        if path.exists() and not path.is_file():
+            raise WorkspaceError(
+                "ART_TRANSACTION_TARGET_TYPE",
+                "Transaction inputs and targets must be absent or regular files.",
+                _relative(root, path),
+            )
+        observed_before_lock[path] = sha256_bytes(path.read_bytes()) if path.is_file() else None
+    drift = [
+        {
+            "path": _relative(root, path),
+            "expected": preconditions[path],
+            "observed": observed_before_lock[path],
+        }
+        for path in ordered_input_paths
+        if observed_before_lock[path] != preconditions[path]
+    ]
+    if drift:
+        raise WorkspaceError("ART_TRANSACTION_PRECONDITION_DRIFT", "Canonical input changed while the mutation plan was rendered.", drift)
+    planned_inputs = [
+        {"path": _relative(root, path), "sha256": preconditions[path]}
+        for path in ordered_input_paths
+    ]
+    planned_outputs = [
+        {"path": _relative(root, path), "bytes": len(changes[path]), "sha256": sha256_bytes(changes[path])}
+        for path in ordered_paths
+    ]
+    base: dict[str, Any] = {
+        "status": "PASS",
+        "operation": operation,
+        "mode": "APPLY" if args.apply else "DRY_RUN",
+        "workspace": str(root),
+        "planned_changes": [_relative(root, path) for path in ordered_paths],
+        "precondition_hashes": planned_inputs,
+        "planned_output_hashes": planned_outputs,
+        "writes_performed": False,
+        "idempotent": bool(plan.get("idempotent", False)),
+        "transaction": None,
+        "transaction_control_paths": [
+            "runtime/artifact_transaction.lock.json",
+            f"runtime/artifact_transactions/{args.operation_id}.json",
+        ] if changes else [],
+        "payload_moves_performed": False,
+        "payload_deletes_performed": False,
+        "vcs_commands_performed": False,
+        "implicit_session_created": False,
+    }
+    base.update({key: value for key, value in plan.items() if key != "idempotent"})
+    if not args.apply or not changes:
+        return base
+    try:
+        transaction = execute_transaction(
+            root,
+            operation_id=args.operation_id,
+            operation=operation,
+            changes=changes,
+            expected_input_hashes=preconditions,
+            post_validate=lambda: _artifact_post_validate(root, state),
+        )
+    except TransactionError as exc:
+        raise WorkspaceError(exc.code, exc.message, exc.detail) from exc
+    base["transaction"] = transaction
+    base["writes_performed"] = bool(transaction["writes_performed"])
+    base["idempotent"] = bool(transaction["idempotent"])
+    return base
+
+
+def command_artifact_enrollment_apply(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state, state_payload = _load_state_capture(root)
+    plan = _artifact_prepare(
+        "artifact-enrollment-apply",
+        root,
+        lambda: plan_enrollment_apply(
+            root,
+            state,
+            captured_at=_timestamp(args.captured_at),
+            shared_index=args.shared_index,
+            archive_index=args.archive_index,
+        ),
+    )
+    return _artifact_mutation_result("artifact-enrollment-apply", root, state, args, plan, state_payload)
+
+
+def command_artifact_register(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state, state_payload = _load_state_capture(root)
+    plan = _artifact_prepare(
+        "artifact-register",
+        root,
+        lambda: plan_register(
+            root,
+            state,
+            owner_ref=args.owner,
+            artifact_id=args.artifact_id,
+            role=args.role,
+            locator=args.locator,
+            authority=args.authority,
+            vcs=args.vcs,
+            verification=args.verification,
+            retention=args.retention,
+            disposition=args.disposition,
+            relationships=args.relationships,
+            role_contract=args.role_contract,
+            purpose=args.purpose,
+            applies_to=args.applies_to,
+            source=args.source,
+            maintainer=args.maintainer,
+            last_verified=args.last_verified,
+            shared_status=args.shared_status,
+            original_owner=args.original_owner,
+            archived_at=args.archived_at,
+            archive_reason=args.archive_reason,
+            successor=args.successor,
+            manifest=args.manifest,
+        ),
+    )
+    return _artifact_mutation_result("artifact-register", root, state, args, plan, state_payload)
+
+
+def command_artifact_promote(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state, state_payload = _load_state_capture(root)
+    plan = _artifact_prepare(
+        "artifact-promote",
+        root,
+        lambda: plan_promote(
+            root,
+            state,
+            source_ref=args.source,
+            shared_id=args.shared_id,
+            purpose=args.purpose,
+            applies_to=args.applies_to,
+            maintainer=args.maintainer,
+            retention=args.retention,
+            last_verified=_timestamp(args.last_verified),
+        ),
+    )
+    return _artifact_mutation_result("artifact-promote", root, state, args, plan, state_payload)
+
+
+def command_artifact_supersede(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state, state_payload = _load_state_capture(root)
+    plan = _artifact_prepare(
+        "artifact-supersede",
+        root,
+        lambda: plan_supersede(
+            root,
+            state,
+            old_ref=args.old,
+            new_ref=args.new,
+            update_reference_paths=args.update_reference,
+            captured_at=_timestamp(args.captured_at),
+        ),
+    )
+    return _artifact_mutation_result("artifact-supersede", root, state, args, plan, state_payload)
+
+
+def _disposition_map(values: list[str]) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for value in values:
+        if "=" not in value:
+            raise WorkspaceError("ART_RECONCILE_DECISION_INVALID", "Disposition must use ART-001=KEEP_OWNED form.", value)
+        artifact_id, disposition = (item.strip() for item in value.split("=", 1))
+        if not artifact_id or not disposition or artifact_id in result:
+            raise WorkspaceError("ART_RECONCILE_DECISION_INVALID", "Disposition decisions must be non-empty and unique.", value)
+        result[artifact_id] = disposition
+    return result
+
+
+def command_artifact_reconcile(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state, state_payload = _load_state_capture(root)
+    decisions = _disposition_map(args.disposition)
+    plan = _artifact_prepare(
+        "artifact-reconcile",
+        root,
+        lambda: plan_reconcile(root, state, owner_ref=args.owner, decisions=decisions),
+    )
+    return _artifact_mutation_result("artifact-reconcile", root, state, args, plan, state_payload)
 
 
 def _plan_recheck_response(
@@ -1302,6 +2994,12 @@ def command_maintain(args: argparse.Namespace) -> dict[str, Any]:
         raise WorkspaceError("WS_VALIDATION_FAILED", "Workspace validation must pass before maintenance.")
     maintenance_state, breaches = _budget_assessment(metrics, state["capacity_budget"])
     now = _timestamp(args.timestamp)
+    artifact_audit = _artifact_snapshot(root, state, captured_at=now)
+    if artifact_audit["counts"]["issues"]:
+        raise WorkspaceError(
+            "ART_VALIDATION_FAILED",
+            _artifact_required_action(artifact_audit) or "Artifact audit contains unresolved ISSUE findings.",
+        )
     updated = json.loads(json.dumps(state))
     updated["maintenance_state"].update(
         {"state": maintenance_state, "last_action": "maintain", "last_checked_at": now, "runtime_is_canonical": False}
@@ -1315,6 +3013,10 @@ def command_maintain(args: argparse.Namespace) -> dict[str, Any]:
         maintenance_state=maintenance_state,
         capacity_warnings=breaches,
         metrics=metrics,
+        phase_lifecycle_warnings=_phase_lifecycle_warnings(root, state),
+        current_binding_warnings=_current_binding_issues(root, state),
+        artifact_audit=artifact_audit,
+        semantic_judgment_performed=False,
         implicit_session_created=False,
     )
     if args.apply:
@@ -1331,7 +3033,7 @@ def command_compact(args: argparse.Namespace) -> dict[str, Any]:
     text, bom = _decode_markdown(project_data)
     blocks = _history_blocks(text)
     if not blocks:
-        return _plan("compact", root, (), args.apply, compacted_blocks=0, implicit_session_created=False)
+        return _plan("compact", root, (), args.apply, compacted_blocks=0, artifact_refs_preserved=[], implicit_session_created=False)
 
     archive_relative = "history/PROJECT_CONTROL_HISTORY.md"
     archive_path = _target(root, archive_relative)
@@ -1343,9 +3045,20 @@ def command_compact(args: argparse.Namespace) -> dict[str, Any]:
         if re.search(rf"(?m)^## {re.escape(history_id)}$", archive_text):
             raise WorkspaceError("WS_HISTORY_DUPLICATE", "History archive already contains this ID.", history_id)
 
+    artifact_refs_by_history = {
+        history_id: artifact_references_in_text(block)
+        for history_id, _, _, block in blocks
+    }
+    artifact_refs_preserved = sorted({reference for references in artifact_refs_by_history.values() for reference in references})
     compacted = text
     for history_id, start, end, block in reversed(blocks):
         marker = f"<!-- MALTS:history:archived id={history_id} path={archive_relative} -->"
+        pointer_markers = [
+            f"<!-- MALTS:artifact-history-ref ref={reference} path={archive_relative}#{history_id} -->"
+            for reference in artifact_refs_by_history[history_id]
+        ]
+        if pointer_markers:
+            marker += "\n" + "\n".join(pointer_markers)
         compacted = compacted[:start] + marker + compacted[end:]
     if not archive_text.endswith("\n"):
         archive_text += "\n"
@@ -1372,6 +3085,7 @@ def command_compact(args: argparse.Namespace) -> dict[str, Any]:
         compacted_blocks=len(blocks),
         history_ids=[item[0] for item in blocks],
         protected_sections_moved=False,
+        artifact_refs_preserved=artifact_refs_preserved,
         implicit_session_created=False,
     )
     if args.apply:
@@ -1400,7 +3114,12 @@ def _nearest_instruction(root: Path, state: dict[str, Any]) -> Path | None:
 def command_recover(args: argparse.Namespace) -> dict[str, Any]:
     root = _workspace(args.workspace)
     state = _load_state(root)
+    transaction_recovery = inspect_transaction_state(root)
     validation_issues, _, _ = _validate_workspace(root, state)
+    artifact_audit = _artifact_snapshot(root, state, captured_at=_timestamp(None))
+    artifact_issues = [item for item in artifact_audit["findings"] if item["severity"] == "ISSUE"]
+    phase_lifecycle_warnings = _phase_lifecycle_warnings(root, state)
+    current_binding_warnings = _current_binding_issues(root, state)
     ordered: list[Path] = []
 
     def add(path: Path) -> None:
@@ -1419,6 +3138,9 @@ def command_recover(args: argparse.Namespace) -> dict[str, Any]:
     elif state["session_controls"]:
         latest = max(state["session_controls"], key=lambda item: item["created_at"])
         add(_target(root, latest["path"]))
+    for item in artifact_audit["input_hashes"]:
+        if item["kind"] in {"CANONICAL_SHARED_INDEX", "CANONICAL_ARCHIVE_INDEX"}:
+            add(_target(root, item["path"]))
     add(_target(root, "WORK_TASK_REPORT.md"))
     add(_target(root, "PROJECT_HANDOFF.md"))
     add(_state_path(root))
@@ -1438,7 +3160,19 @@ def command_recover(args: argparse.Namespace) -> dict[str, Any]:
     control_drift = [
         item
         for item in validation_issues
-        if item["code"] in {"WS_ACTIVE_PHASE_CONTROL_DRIFT", "WS_ACTIVE_PHASE_CONTROL_INVALID"}
+        if item["code"]
+        in {
+            "WS_ACTIVE_PHASE_CONTROL_DRIFT",
+            "WS_ACTIVE_PHASE_CONTROL_INVALID",
+            "WS_PHASE_CONTROL_DRIFT",
+            "WS_PHASE_CONTROL_INVALID",
+            "WS_SESSION_CONTROL_DRIFT",
+            "WS_SESSION_CONTROL_INVALID",
+            "WS_ACTIVE_PHASE_CLOSURE_CONFLICT",
+            "WS_PHASE_DONE_CLOSURE_INVALID",
+            "WS_PHASE_SUPERSEDED_CLOSURE_INVALID",
+            "WS_ROOT_PHASE_INDEX_DRIFT",
+        }
     ]
     initialization_status = (
         "NEEDS_INITIAL_PHASE"
@@ -1450,8 +3184,12 @@ def command_recover(args: argparse.Namespace) -> dict[str, Any]:
     required_actions = [item["required_action"] for item in control_drift if item.get("required_action")]
     if initialization_status == "NEEDS_INITIAL_PHASE":
         required_actions.append("Run init with --initial-phase-id and --initial-phase-goal, or explicitly open the first Phase.")
+    required_actions.extend(item["required_action"] for item in artifact_issues if item.get("required_action"))
+    if artifact_issues and not any(item.get("required_action") for item in artifact_issues):
+        required_actions.append("Review and correct every Artifact ISSUE finding before relying on the enrolled contract.")
+    required_actions.extend(transaction_recovery["required_actions"])
     return {
-        "status": "PASS" if initialization_status == "READY" else "FAIL",
+        "status": "PASS" if initialization_status == "READY" and not artifact_issues and transaction_recovery["status"] == "PASS" else "FAIL",
         "operation": "recover",
         "mode": "READ_ONLY_COLD_START",
         "workspace": str(root),
@@ -1464,6 +3202,12 @@ def command_recover(args: argparse.Namespace) -> dict[str, Any]:
         "recovery_point": state["recovery_point"],
         "runtime_is_canonical": False,
         "summary_replaces_current_facts": False,
+        "phase_lifecycle_warnings": phase_lifecycle_warnings,
+        "current_binding_warnings": current_binding_warnings,
+        "artifact_audit": artifact_audit,
+        "transaction_recovery": transaction_recovery,
+        "semantic_judgment_performed": False,
+        "implicit_session_created": False,
     }
 
 
@@ -1473,6 +3217,15 @@ def _add_common_write_arguments(parser: argparse.ArgumentParser, *, language: bo
     parser.add_argument("--timestamp", help="Optional deterministic ISO 8601 timestamp for tests/evidence.")
     if language:
         parser.add_argument("--language", choices=("auto", "en", "zh-CN"), default="auto")
+
+
+def _add_phase_boundary_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--milestone")
+    parser.add_argument("--in-scope")
+    parser.add_argument("--out-of-scope")
+    parser.add_argument("--exit-criteria")
+    parser.add_argument("--carry-over-policy")
+    parser.add_argument("--boundary-review-triggers")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1486,19 +3239,77 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--language", choices=("en", "zh-CN"), default="en")
     init.add_argument("--initial-phase-id", help="Required initial Phase ID for a new or legacy-minimal workspace.")
     init.add_argument("--initial-phase-goal", help="Required initial Phase goal for a new or legacy-minimal workspace.")
+    _add_phase_boundary_arguments(init)
     init.set_defaults(handler=command_init)
 
     open_phase = subparsers.add_parser("open-phase")
     _add_common_write_arguments(open_phase, language=True)
     open_phase.add_argument("--phase-id", required=True)
     open_phase.add_argument("--goal", required=True)
+    _add_phase_boundary_arguments(open_phase)
     open_phase.set_defaults(handler=command_open_phase)
 
     close_phase = subparsers.add_parser("close-phase")
     _add_common_write_arguments(close_phase)
     close_phase.add_argument("--status", choices=("DONE", "BLOCKED", "FAILED"), required=True)
+    close_phase.add_argument("--exit-criteria-status", choices=("SATISFIED", "NOT_SATISFIED", "NOT_APPLICABLE"))
+    close_phase.add_argument("--carry-over-disposition", default="N/A")
+    close_phase.add_argument("--closure-evidence")
     close_phase.add_argument("--next-action", default="Open the next Phase when authorized.")
     close_phase.set_defaults(handler=command_close_phase)
+
+    phase_review = subparsers.add_parser("phase-boundary-review")
+    phase_review.add_argument("--workspace", required=True)
+    phase_review.add_argument("--phase-id")
+    phase_review.add_argument("--candidate-goal")
+    phase_review.add_argument("--candidate-touch-set", action="append", default=[])
+    phase_review.add_argument("--candidate-mapping", choices=tuple(sorted(CANDIDATE_MAPPINGS)), default="UNCLEAR")
+    phase_review.add_argument("--recommendation", choices=tuple(sorted(PHASE_REVIEW_RESULTS)))
+    phase_review.set_defaults(handler=command_phase_boundary_review)
+
+    migrate_phase = subparsers.add_parser("migrate-phase-control")
+    _add_common_write_arguments(migrate_phase, language=True)
+    migrate_phase.add_argument("--phase-id", required=True)
+    _add_phase_boundary_arguments(migrate_phase)
+    migrate_phase.add_argument("--plan-trigger", choices=tuple(sorted(PLAN_RECHECK_TRIGGERS)))
+    migrate_phase.add_argument("--plan-result", choices=tuple(sorted(PLAN_RECHECK_RESULTS)))
+    migrate_phase.add_argument("--plan-reviewed-at")
+    migrate_phase.set_defaults(handler=command_migrate_phase_control)
+
+    pause_phase = subparsers.add_parser("pause-phase")
+    _add_common_write_arguments(pause_phase)
+    pause_phase.add_argument("--reason", required=True)
+    pause_phase.add_argument("--boundary-review-ref", required=True)
+    pause_phase.add_argument("--authorization-ref", required=True)
+    pause_phase.set_defaults(handler=command_pause_phase)
+
+    resume_phase = subparsers.add_parser("resume-phase")
+    _add_common_write_arguments(resume_phase)
+    resume_phase.add_argument("--phase-id", required=True)
+    resume_phase.add_argument("--boundary-review-ref", required=True)
+    resume_phase.add_argument("--plan-review-ref", required=True)
+    resume_phase.add_argument("--expected-plan-sha256", required=True)
+    resume_phase.add_argument("--authorization-ref", required=True)
+    resume_phase.set_defaults(handler=command_resume_phase)
+
+    plan_transition = subparsers.add_parser("plan-phase-transition")
+    _add_common_write_arguments(plan_transition)
+    plan_transition.add_argument("--source-phase-id", required=True)
+    plan_transition.add_argument("--target-phase-id", required=True)
+    plan_transition.add_argument("--target-goal", required=True)
+    _add_phase_boundary_arguments(plan_transition)
+    plan_transition.add_argument("--carry-over-file", required=True)
+    plan_transition.add_argument("--disposition-file", required=True)
+    plan_transition.add_argument("--boundary-review-ref", required=True)
+    plan_transition.add_argument("--authorization-ref", required=True)
+    plan_transition.add_argument("--plan-out", required=True)
+    plan_transition.set_defaults(handler=command_plan_phase_transition)
+
+    apply_transition = subparsers.add_parser("apply-phase-transition")
+    _add_common_write_arguments(apply_transition, language=True)
+    apply_transition.add_argument("--plan", required=True)
+    apply_transition.add_argument("--expected-plan-sha256", required=True)
+    apply_transition.set_defaults(handler=command_apply_phase_transition)
 
     open_session = subparsers.add_parser("open-session")
     _add_common_write_arguments(open_session, language=True)
@@ -1516,6 +3327,93 @@ def build_parser() -> argparse.ArgumentParser:
     validate = subparsers.add_parser("validate")
     validate.add_argument("--workspace", required=True)
     validate.set_defaults(handler=command_validate)
+
+    artifact = subparsers.add_parser("artifact")
+    artifact_operations = artifact.add_subparsers(dest="artifact_operation", required=True)
+
+    artifact_audit = artifact_operations.add_parser("audit")
+    artifact_audit.add_argument("--workspace", required=True)
+    artifact_audit.add_argument("--captured-at")
+    artifact_audit.add_argument("--scope", choices=("current",), default="current")
+    artifact_audit.add_argument("--owner", action="append", default=[])
+    artifact_audit.add_argument("--candidate-root", action="append", default=[])
+    artifact_audit.set_defaults(handler=command_artifact_audit)
+
+    artifact_preview = artifact_operations.add_parser("enrollment-preview")
+    artifact_preview.add_argument("--workspace", required=True)
+    artifact_preview.add_argument("--captured-at")
+    artifact_preview.add_argument("--shared-index", default="N/A")
+    artifact_preview.add_argument("--archive-index", default="N/A")
+    artifact_preview.add_argument("--candidate-root", action="append", default=[])
+    artifact_preview.set_defaults(handler=command_artifact_enrollment_preview)
+
+    artifact_enrollment_apply = artifact_operations.add_parser("enrollment-apply")
+    artifact_enrollment_apply.add_argument("--workspace", required=True)
+    artifact_enrollment_apply.add_argument("--operation-id", required=True)
+    artifact_enrollment_apply.add_argument("--captured-at")
+    artifact_enrollment_apply.add_argument("--shared-index", default="N/A")
+    artifact_enrollment_apply.add_argument("--archive-index", default="N/A")
+    artifact_enrollment_apply.add_argument("--apply", action="store_true")
+    artifact_enrollment_apply.set_defaults(handler=command_artifact_enrollment_apply)
+
+    artifact_register = artifact_operations.add_parser("register")
+    artifact_register.add_argument("--workspace", required=True)
+    artifact_register.add_argument("--owner", required=True)
+    artifact_register.add_argument("--artifact-id", required=True)
+    artifact_register.add_argument("--role", choices=tuple(sorted({"WORKING", "DELIVERABLE", "EVIDENCE", "RECOVERY"})), required=True)
+    artifact_register.add_argument("--locator", required=True)
+    artifact_register.add_argument("--authority", choices=tuple(sorted({"WORKSPACE", "SOURCE_PROJECT", "EXTERNAL", "GENERATED"})), required=True)
+    artifact_register.add_argument("--vcs", choices=tuple(sorted({"LOCAL_ONLY", "GIT_TRACKED", "SVN_TRACKED", "UNTRACKED", "EXTERNAL", "UNKNOWN"})), required=True)
+    artifact_register.add_argument("--verification", required=True)
+    artifact_register.add_argument("--retention", required=True)
+    artifact_register.add_argument("--disposition", choices=tuple(sorted({"KEEP_OWNED", "PROMOTE_SHARED", "ARCHIVE", "RUNTIME_RECREATABLE", "SUPERSEDED", "UNRESOLVED"})), required=True)
+    artifact_register.add_argument("--relationships", default="N/A")
+    artifact_register.add_argument("--role-contract", default="N/A")
+    artifact_register.add_argument("--purpose")
+    artifact_register.add_argument("--applies-to")
+    artifact_register.add_argument("--source")
+    artifact_register.add_argument("--maintainer")
+    artifact_register.add_argument("--last-verified")
+    artifact_register.add_argument("--shared-status", choices=("CURRENT", "SUPERSEDED"), default="CURRENT")
+    artifact_register.add_argument("--original-owner")
+    artifact_register.add_argument("--archived-at")
+    artifact_register.add_argument("--archive-reason")
+    artifact_register.add_argument("--successor", default="N/A")
+    artifact_register.add_argument("--manifest", default="N/A")
+    artifact_register.add_argument("--operation-id", required=True)
+    artifact_register.add_argument("--apply", action="store_true")
+    artifact_register.set_defaults(handler=command_artifact_register)
+
+    artifact_promote = artifact_operations.add_parser("promote")
+    artifact_promote.add_argument("--workspace", required=True)
+    artifact_promote.add_argument("--source", required=True)
+    artifact_promote.add_argument("--shared-id", required=True)
+    artifact_promote.add_argument("--purpose", required=True)
+    artifact_promote.add_argument("--applies-to", required=True)
+    artifact_promote.add_argument("--maintainer", required=True)
+    artifact_promote.add_argument("--retention", required=True)
+    artifact_promote.add_argument("--last-verified", required=True)
+    artifact_promote.add_argument("--operation-id", required=True)
+    artifact_promote.add_argument("--apply", action="store_true")
+    artifact_promote.set_defaults(handler=command_artifact_promote)
+
+    artifact_supersede = artifact_operations.add_parser("supersede")
+    artifact_supersede.add_argument("--workspace", required=True)
+    artifact_supersede.add_argument("--old", required=True)
+    artifact_supersede.add_argument("--new", required=True)
+    artifact_supersede.add_argument("--update-reference", action="append", default=[])
+    artifact_supersede.add_argument("--captured-at")
+    artifact_supersede.add_argument("--operation-id", required=True)
+    artifact_supersede.add_argument("--apply", action="store_true")
+    artifact_supersede.set_defaults(handler=command_artifact_supersede)
+
+    artifact_reconcile = artifact_operations.add_parser("reconcile")
+    artifact_reconcile.add_argument("--workspace", required=True)
+    artifact_reconcile.add_argument("--owner", required=True)
+    artifact_reconcile.add_argument("--disposition", action="append", default=[])
+    artifact_reconcile.add_argument("--operation-id", required=True)
+    artifact_reconcile.add_argument("--apply", action="store_true")
+    artifact_reconcile.set_defaults(handler=command_artifact_reconcile)
 
     plan_recheck = subparsers.add_parser("plan-recheck")
     plan_recheck.add_argument("--workspace", required=True)

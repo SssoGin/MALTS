@@ -73,6 +73,33 @@ drift and trust evidence with `writes_performed=false`. It does not repair,
 update, clean, or start a background check. A suggested repair must enter a
 separate review-only plan and exact plan-hash authorization flow.
 
+## Govern Phase And Artifact Lifecycle
+
+### Review and change a Phase
+
+Use `phase-boundary-review` before a candidate goal or touch set may leave the active boundary. It is read-only and does not authorize implementation. Use `pause-phase` when ownership must be preserved but work must stop; use `resume-phase` only with current boundary/plan/authorization evidence. A cross-Phase handoff is a two-step, hash-bound `plan-phase-transition` then `apply-phase-transition` operation with explicit carry-over and disposition files.
+
+```powershell
+python -B <MALTS_ROOT>\tools\long_workspace.py phase-boundary-review --workspace <workspace> --candidate-goal <goal> --candidate-touch-set <paths> --candidate-mapping UNCLEAR --recommendation USER_DECISION_REQUIRED
+python -B <MALTS_ROOT>\tools\long_workspace.py pause-phase --workspace <workspace> --reason <reason> --boundary-review-ref <ref> --authorization-ref <ref>
+python -B <MALTS_ROOT>\tools\long_workspace.py resume-phase --workspace <workspace> --phase-id <id> --boundary-review-ref <ref> --plan-review-ref <ref> --expected-plan-sha256 <sha256> --authorization-ref <ref>
+```
+
+Review the dry-run output before adding `--apply`. `SUPERSEDED` is terminal and at most one Phase can be `ACTIVE`.
+
+### Audit, enroll, and mutate Artifacts
+
+Start with `artifact audit`; do not create index files manually. If the result is `LEGACY_UNDECLARED`, the workspace remains compatible but not enrolled. Use enrollment preview/apply only when owner, Shared, and Archive boundaries are understood.
+
+```powershell
+python -B <MALTS_ROOT>\tools\long_workspace.py artifact audit --workspace <workspace> --captured-at <timestamp>
+python -B <MALTS_ROOT>\tools\long_workspace.py artifact enrollment-preview --workspace <workspace> --captured-at <timestamp>
+python -B <MALTS_ROOT>\tools\long_workspace.py artifact enrollment-apply --workspace <workspace> --operation-id <id> --captured-at <timestamp> --apply
+python -B <MALTS_ROOT>\tools\long_workspace.py artifact register --workspace <workspace> --owner phase:<phase-id> --role WORKING --locator <path> --authority WORKSPACE --vcs LOCAL_ONLY --verification UNVERIFIED --retention <contract> --disposition KEEP_OWNED --operation-id <id> --apply
+```
+
+Promotion requires verified source evidence. Supersession preserves old payload/history and either updates every reviewed active reference atomically or fails closed. Reconcile applies only explicit owner dispositions. All mutations are dry-run by default and never move/delete payloads, invoke VCS, recursively scan undeclared trees, or create a Session.
+
 ## Safety defaults
 
 Plan before writing. Keep tool-root changes inside the user's approved scope.

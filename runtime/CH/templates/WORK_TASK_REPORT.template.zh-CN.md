@@ -40,6 +40,14 @@
 - Launch review invalidated：Yes / No / N/A
 - 对账或 blocker：
 
+<!-- MALTS:section=current-phase-binding -->
+## Current Phase Binding
+
+- Active Phase ID: `<CURRENT_PHASE_ID>`
+- Active Phase control: `<CURRENT_PHASE_CONTROL>`
+- Phase control SHA-256: `<CURRENT_PHASE_SHA256>`
+- Recorded at: `<CURRENT_PHASE_RECORDED_AT>`
+
 ## 验证
 
 - 已运行检查：

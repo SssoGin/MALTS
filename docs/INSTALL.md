@@ -64,7 +64,7 @@ To use it, obtain `scripts/Verify-MALTSBootstrap.ps1` from the same reviewed sou
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Verify-MALTSBootstrap.ps1 `
-  -ArchivePath .\MALTS-1.1.1.zip `
+    -ArchivePath .\MALTS-1.2.0.zip `
   -ExtractOutput <EXTRACTED_RELEASE_ROOT> `
   -Apply
 ```
@@ -96,6 +96,18 @@ Run the read-only doctor with the lifecycle root and every selected tool root:
 `doctor` reports exact expected and observed locators, severity, core trust, and suggested commands. It is always read-only and does not repair anything. If repair is needed, create a separate `DoctorRepairPlan` review using the exact trusted source, then execute only the reviewed plan hash.
 
 Lifecycle operations also keep bounded audit records (one current binding plus recent success, failure/recovery, and monthly summaries). See [Lifecycle](LIFECYCLE.md).
+
+## Verify The v1.2.0 Workspace Lifecycle
+
+Installation changes the selected MALTS lifecycle/tool roots only; it never migrates or enrolls an existing project workspace. After discovery verification, confirm the installed source reports `1.2.0` and exposes both command families:
+
+```powershell
+Get-Content -LiteralPath <MALTS_ROOT>\VERSION
+python -B <MALTS_ROOT>\tools\long_workspace.py --help
+python -B <MALTS_ROOT>\tools\long_workspace.py artifact --help
+```
+
+The top-level help must include Phase boundary, pause/resume, transition, validation, maintenance, compaction, and recovery commands. Artifact help must include audit, enrollment preview/apply, register, promote, supersede, and reconcile. This is static installation evidence, not real project mutation or G4 tool-runtime proof.
 
 ## First Use
 

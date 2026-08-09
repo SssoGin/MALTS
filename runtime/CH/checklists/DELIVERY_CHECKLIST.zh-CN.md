@@ -31,6 +31,13 @@
 - [ ] 如果使用双语控制文件，最终报告已说明哪份给 Agent 读、哪份给用户读，以及两份是否已同步。
 - [ ] 如果需要任务报告，`WORK_TASK_REPORT.md` 已存在，并用用户/项目语言书写叙述正文；翻译镜像只在明确要求时生成。
 
+## Artifact Lifecycle Delivery
+
+- [ ] 已说明 enrollment 状态和每个 live owner/Shared/Archive registry pointer；runtime snapshot 明确标为 non-canonical。
+- [ ] 已报告 Artifact audit/validation 证据、unresolved rows、verification/retention/disposition 状态，以及 stale transaction lock/journal（如有）。
+- [ ] 已 apply 的 mutation 绑定 reviewed operation ID 与最终 hash；dry-run 没有被描述成已执行修改。
+- [ ] 没有把 implicit Session、payload move/delete、VCS action、未声明递归扫描或 silent legacy adoption 描述为已完成工作。
+
 ## 风险与限制
 
 - [ ] 已说明已知风险。

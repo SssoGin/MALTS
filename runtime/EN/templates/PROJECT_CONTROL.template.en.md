@@ -92,6 +92,23 @@ This project is complete only when:
 - Latest recheck result: `N/A`
 - Launch review invalidated: `No`
 
+<!-- MALTS:section=phase-carry-over-index -->
+## Phase Carry-over Index
+
+Keep only compact cross-Phase pointers here. The source and target Phase controls own the detailed immutable and mutable records.
+
+| Source Phase | Target Phase | Transition Plan SHA-256 | Source Record | Target Record | Status |
+|---|---|---|---|---|---|
+
+<!-- MALTS:section=artifact-contract-index -->
+## Artifact Lifecycle Index
+
+- Contract version: `1`
+- Enrollment: `NOT_ENROLLED`
+- Shared index: `N/A`
+- Archive index: `N/A`
+- Latest audit: `N/A`
+
 <!-- MALTS:section=task-queue -->
 ## Task Queue
 

@@ -6,6 +6,34 @@ All notable public changes to MALTS are documented here.
 
 No unreleased user changes.
 
+## 1.2.0
+
+MALTS 1.2.0 hardens workspace initialization, Phase boundaries, command-line behavior, and cross-window recovery, and adds an opt-in Artifact lifecycle with transactional mutation.
+
+### Workspace and Phase lifecycle
+
+- Fixes the long-project initialization/documentation mismatch: initialization is ready only with a registered active initial Phase, while Sessions remain explicit bounded work units and are never created per turn or ordinary write.
+- Adds Phase Boundary Contract and read-only boundary review, legacy Phase-control migration, `PAUSED`/resume behavior, hash-bound transition planning/apply, bidirectional carry-over provenance, and terminal `SUPERSEDED` closure.
+- Fails closed on active-session conflicts, stale plan/control hashes, incomplete carry-over disposition, split active ownership, invalid transitions, and context-recovery plan drift.
+
+### Artifact lifecycle
+
+- Adds optional Project enrollment/index pointers plus owner-local Phase/Session registries and conditional Shared/Archive indexes. Existing schema-v1 workspaces remain readable and default to `NOT_ENROLLED`.
+- Adds read-only audit and enrollment preview plus dry-run/apply register, promote, supersede, and reconcile commands under `long_workspace.py artifact`.
+- Adds workspace-scoped locking, persisted hash-bound journals, full-state preconditions, staged atomic replacement, exact rollback, idempotent retry, stale-state reporting, and enrolled close gates.
+- Never creates a Session implicitly, moves/deletes Artifact payloads, invokes VCS, silently adopts legacy folders, recursively scans undeclared trees, or recreates a missing declared index.
+
+### Feedback and bug fixes
+
+- Resolves documentation/implementation drift (`DOC-001`), tool-local boot discovery ambiguity (`BOOT-001`), and CLI error/exit consistency gaps (`CLI-001`) with positive and negative regression coverage.
+- Preserves tool-local `MALTS_BOOT.md` plus registry/pointer/identity/`VERSION` cross-checks as the complete ordinary-startup authority; machine-global `GLOBAL_BOOT.md` remains retired.
+
+### Synchronization and compatibility
+
+- Synchronizes the canonical Skill/capability, EN/zh-CN templates, checklists, user documentation, and Codex/Claude Code/OpenCode projections.
+- Registers the Artifact suite in the standard workspace/full regression gate and classifies all new user versus maintainer files in the default-deny release policy.
+- Keeps update checks user-requested, all state-changing workspace commands dry-run by default, and remote publication outside local qualification.
+
 ## 1.1.1
 
 MALTS 1.1.1 removes the machine-global discovery boot from the product contract

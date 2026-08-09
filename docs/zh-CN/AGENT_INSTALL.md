@@ -32,6 +32,14 @@
 
 计划展示后不得替换为更新的仓库或 Release package。来源漂移会使计划失效，必须重新审阅。
 
+## 验证 v1.2.0 Capability Projection
+
+安装后，为每个选定工具启动 fresh process，确认 `malts-long-project-workspace-init` 通过工具相邻 boot 解析到 canonical Skill。Capability/bridge description 必须覆盖 Phase 与 Artifact lifecycle，而不是只描述 initialization。
+
+静态 projection check 必须证明 Codex、Claude Code、OpenCode 具有相同 shared lifecycle contract：Phase boundary review/pause/resume/transition、Artifact audit/enrollment/register/promote/supersede/reconcile、`NOT_ENROLLED` compatibility、no implicit Session 和显式 `--apply`。工具专属 dispatch/configuration 文案必须留在 shared contract 之外。
+
+这类检查不替代 G4。G4 需要所有 included tool 的可见 fresh-process invocation 与等价 behavior evidence；工具不可用时只能标为 `NOT RUN` 或 `BLOCKED`，绝不能推断 PASS。
+
 ## 隐私与纯净度
 
 不得把本地路径、凭据、令牌、用户配置、transaction journal、计划、交接、测试数据或缓存放入仓库或已安装版本。它们只能作为用户本地状态存在。

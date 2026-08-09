@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:malts:schema:workspace-control:1",
+  "$id": "urn:malts:schema:workspace-control:2",
   "title": "MALTS Long-Project Workspace Control",
   "type": "object",
   "additionalProperties": false,
@@ -9,7 +9,7 @@
     "phase_controls", "session_controls", "capacity_budget", "maintenance_state", "recovery_point"
   ],
   "properties": {
-    "schema_version": {"const": 1},
+    "schema_version": {"const": 2},
     "project_id": {"$ref": "#/$defs/id"},
     "active_phase_id": {
       "description": "The active Phase. A completed long-project init sets this to its initial Phase; null is valid only between or after registered Phases.",
@@ -37,7 +37,7 @@
       "properties": {
         "phase_id": {"$ref": "#/$defs/id"},
         "path": {"type": "string", "pattern": "^phases[/\\\\][A-Za-z0-9._-]+[/\\\\]PHASE_CONTROL\\.md$"},
-        "status": {"enum": ["PLANNED", "ACTIVE", "DONE", "BLOCKED", "FAILED"]}
+        "status": {"enum": ["PLANNED", "ACTIVE", "PAUSED", "DONE", "SUPERSEDED", "BLOCKED", "FAILED"]}
       }
     },
     "sessionControl": {

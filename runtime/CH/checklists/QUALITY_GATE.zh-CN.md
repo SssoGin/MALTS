@@ -24,6 +24,16 @@
 - [ ] 需要任务或阶段报告时，`WORK_TASK_REPORT.md` 已存在；叙述正文使用用户/项目语言，完整翻译镜像只在明确要求时生成。
 - [ ] 文档同步任务已记录源 / 目标文件、同步方向和模型 / 成本策略。
 
+## Artifact Lifecycle Gate
+
+- [ ] 除非已有精确 enrollment preview、已审阅 indexes、operation ID 和显式 `--apply` 授权，否则 workspace 保持 `NOT_ENROLLED`。
+- [ ] Project control 只保留紧凑 enrollment/index pointers；详细记录属于对应 Phase、Session、Shared 或 Archive registry。
+- [ ] `artifact audit`、`validate`、`maintain`、`compact`、`recover` 只沿已声明的有界引用读取，没有递归扫描未声明 payload tree。
+- [ ] 每个 Artifact mutation 都先 dry-run；apply 时具有精确 operation ID、workspace lock、persisted journal、full-state preconditions 以及 atomic replacement/rollback 证据。
+- [ ] Artifact mutation 没有移动/删除 payload、调用 VCS、创建 Session、静默接管 legacy directory 或重建已声明但缺失的 index。
+- [ ] Promotion/supersession 保持唯一 current Shared authority，并更新所有已声明 active reference；否则 fail closed。
+- [ ] 含 `UNRESOLVED` 记录的 enrolled owner 没有被关闭；stale lock/journal 只报告精确人工审阅动作且绝不自动删除。
+
 ## 验证证据
 
 - [ ] 至少使用了一种直接验证方法。

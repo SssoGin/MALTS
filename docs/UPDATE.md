@@ -50,7 +50,7 @@ Stable versions use `malts-v<version>`, while isolated previews use
 `malts-1.0.0-<hash>` remain migration inputs; MALTS does not rename them in
 place or treat their physical paths as current pointers.
 
-An update stages and prevalidates the target before switching the registry, active pointer, global boot, and selected tool projections. The old version is cleaned only after post-validation proves that no authoritative reference still points to it. A same-version exact match is a no-op; a same-version content conflict or unbound same-name directory fails before writes. Process loss resumes or rolls back through the transaction journal.
+An update stages and prevalidates the target before switching the registry, active pointer, and selected tool-local Boot/projection transaction unit. The installed managed instruction records the exact installed `MALTS_BOOT_PATH`; it is never resolved relative to `cwd` or a project file. The old version is cleaned only after post-validation proves that no authoritative reference still points to it. A same-version exact match is a no-op; a same-version content conflict or unbound same-name directory fails before writes. Process loss resumes or rolls back through the transaction journal.
 
 ## Optional Offline Archive Update
 
@@ -78,10 +78,20 @@ Use `Invoke-MALTSLifecycle.ps1 -Command Doctor` with the lifecycle root and all 
 
 For locally consistent core state, `DoctorRepairPlan` may scope derived repair targets from the active version, but that recommendation is not itself an executable mutation. Persist an executable repair plan only with the exact verified source that matches the installed binding; then review its hash and execute it as a separate authorized transaction.
 
+## Update To The v1.2.0 Workspace Lifecycle
+
+Updating MALTS installs new runtime behavior but does not rewrite project controls. Existing schema-v1 long-project workspaces remain readable and Artifact lifecycle stays `NOT_ENROLLED`.
+
+For an active legacy Phase that lacks the v1.2.0 boundary sections, first run `migrate-phase-control` without `--apply`, review the exact preimage-bound plan, then apply only under current workspace authorization. The migration preserves the Phase goal, queue, evidence, recovery point, and active ownership.
+
+Run `artifact audit` before considering enrollment. A legacy `shared/`-like directory is only a candidate observation; it is never silently adopted. If enrollment is wanted, run `artifact enrollment-preview`, review exact index paths and findings, then run `artifact enrollment-apply` with a unique operation ID and explicit `--apply`.
+
+No update path moves/deletes payloads, invokes VCS, creates a Session, or starts an automatic/background workspace scan. Roll back the installed MALTS generation through the lifecycle plan; do not attempt to downgrade canonical workspace controls by copying old templates over them.
+
 ## Recovery
 
 If an update is interrupted, inspect or recover the lifecycle transaction before creating another plan. See [Lifecycle](LIFECYCLE.md) for registry, journal, rollback, and residue behavior.
 
 ## Post-Update Discovery
 
-After a successful update, run read-only discovery for every selected tool root. All tool-local boots must resolve the same new active version and match registry, active pointer, `VERSION`, and any configured machine-global recovery boot. Do not keep using a stale tool boot or guess a version path; repair follows a separately reviewed lifecycle transaction.
+After a successful update, run read-only discovery for every selected tool root. Each exact installed `MALTS_BOOT_PATH` must resolve the same new active version and match registry, active pointer, and `VERSION`. MALTS does not use a machine-global Boot for ordinary discovery. Do not keep using a stale tool boot or guess a version path; repair follows a separately reviewed lifecycle transaction.

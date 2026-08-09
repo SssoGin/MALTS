@@ -32,6 +32,15 @@
 - Prohibited operations:
 
 <!-- MALTS:section=session-checkpoint -->
+<!-- MALTS:section=session-artifacts -->
+## Artifact Registry
+
+This optional owner-local registry is used only for an explicitly enrolled contract and explicitly bounded Session Artifacts. Its presence never creates or extends a Session.
+
+| Artifact ID | Role | Locator | Authority | VCS | Verification | Retention | Disposition | Relationships | Role Contract |
+|---|---|---|---|---|---|---|---|---|---|
+
+<!-- MALTS:section=session-checkpoint -->
 ## Checkpoint
 
 - Completed:

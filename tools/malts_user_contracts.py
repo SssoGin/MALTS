@@ -28,7 +28,9 @@ USER_CONTRACTS = {
     "external-capability-sidecar": "external_capability_sidecar.schema.json",
     "capability-registry": "capability_registry.schema.json",
     "projection-manifest": "projection_manifest.schema.json",
+    "tool-projection-manifest": "tool_projection_manifest.schema.json",
     "workspace-control": "workspace_control.schema.json",
+    "workspace-artifact-snapshot": "workspace_artifact_snapshot.schema.json",
     "generation-manifest": "generation_manifest.schema.json",
     "release-manifest": "release_manifest.schema.json",
     "installation-registry": "installation_registry.schema.json",
@@ -745,11 +747,54 @@ def _semantic_workspace(value: dict[str, Any]) -> list[ContractIssue]:
     active_session = value.get("active_session_id")
     if active_phase is not None and active_phase not in phase_ids:
         issues.append(_issue("WS_ACTIVE_PHASE_MISSING", "$.active_phase_id", "Active phase must reference phase_controls."))
+    active_phase_rows = [item for item in phases if item.get("status") == "ACTIVE"]
+    if len(active_phase_rows) > 1:
+        issues.append(_issue("WS_MULTIPLE_ACTIVE_PHASES", "$.phase_controls", "At most one Phase may have ACTIVE status."))
+    elif active_phase is None and active_phase_rows:
+        issues.append(_issue("WS_ACTIVE_PHASE_INDEX_MISSING", "$.active_phase_id", "An ACTIVE Phase requires active_phase_id."))
+    elif active_phase is not None:
+        indexed = next((item for item in phases if item.get("phase_id") == active_phase), None)
+        if indexed is not None and indexed.get("status") != "ACTIVE":
+            issues.append(_issue("WS_ACTIVE_PHASE_STATUS", "$.active_phase_id", "active_phase_id must reference an ACTIVE Phase row."))
+    if value.get("schema_version") == 1 and any(item.get("status") in {"PAUSED", "SUPERSEDED"} for item in phases):
+        issues.append(_issue("WS_LEGACY_PHASE_STATUS", "$.phase_controls", "PAUSED and SUPERSEDED require workspace-control schema v2."))
     session_map = {item.get("session_id"): item for item in sessions}
     if active_session is not None and active_session not in session_map:
         issues.append(_issue("WS_ACTIVE_SESSION_MISSING", "$.active_session_id", "Active session must reference session_controls."))
     elif active_session is not None and session_map[active_session].get("phase_id") != active_phase:
         issues.append(_issue("WS_SESSION_PHASE_MISMATCH", "$.active_session_id", "Active session must belong to the active phase."))
+    elif active_session is not None and session_map[active_session].get("status") != "ACTIVE":
+        issues.append(_issue("WS_ACTIVE_SESSION_STATUS", "$.active_session_id", "active_session_id must reference an ACTIVE Session row."))
+    return issues
+
+def _semantic_workspace_artifact_snapshot(value: dict[str, Any]) -> list[ContractIssue]:
+    issues: list[ContractIssue] = []
+    findings = value.get("findings", [])
+    expected_counts = {
+        "owner_registries": len(value.get("owners", [])),
+        "artifact_rows": len(value.get("artifacts", [])),
+        "issues": sum(item.get("severity") == "ISSUE" for item in findings),
+        "warnings": sum(item.get("severity") == "WARNING" for item in findings),
+        "candidates": sum(item.get("severity") == "CANDIDATE" for item in findings),
+    }
+    counts = value.get("counts", {})
+    for field, expected in expected_counts.items():
+        if counts.get(field) != expected:
+            issues.append(_issue("ART_SNAPSHOT_COUNT", f"$.counts.{field}", "Snapshot count does not match its canonical array content."))
+    input_keys = [f"{item.get('kind', '')}:{item.get('path', '')}" for item in value.get("input_hashes", [])]
+    if _duplicates(input_keys):
+        issues.append(_issue("ART_SNAPSHOT_DUPLICATE_INPUT", "$.input_hashes", "Snapshot input kind/path pairs must be unique."))
+    enrollment = value.get("enrollment", {})
+    fingerprint_payload = {
+        "captured_at": value.get("captured_at"),
+        "enrollment": enrollment,
+        "input_hashes": value.get("input_hashes", []),
+        "artifacts": value.get("artifacts", []),
+        "findings": findings,
+    }
+    expected_fingerprint = hashlib.sha256(canonical_json(fingerprint_payload) + b"\n").hexdigest().upper()
+    if value.get("capture_fingerprint") != expected_fingerprint:
+        issues.append(_issue("ART_SNAPSHOT_FINGERPRINT", "$.capture_fingerprint", "Snapshot fingerprint does not bind the declared frozen capture inputs."))
     return issues
 
 def _semantic_prerequisites(value: dict[str, Any], prefix: str) -> list[ContractIssue]:
@@ -1091,6 +1136,7 @@ SEMANTIC_VALIDATORS = {
     "capability-registry": _semantic_capability_registry,
     "projection-manifest": _semantic_projection,
     "workspace-control": _semantic_workspace,
+    "workspace-artifact-snapshot": _semantic_workspace_artifact_snapshot,
     "generation-manifest": _semantic_generation,
     "release-manifest": _semantic_release,
     "installation-registry": _semantic_installation,
@@ -1114,12 +1160,12 @@ def validate_instance(
     validation_schema = schema
     if (
         schema_override is None
-        and contract_id == "generation-manifest"
+        and contract_id in {"generation-manifest", "tool-projection-manifest", "workspace-control"}
         and isinstance(instance, dict)
         and instance.get("schema_version") == 1
     ):
-        # v1 hash-suffix/opaque manifests remain readable migration inputs.
-        # v1.1.0 writes only the indexed canonical v2 semantic contract.
+        # Legacy generation and installed tool-projection manifests remain
+        # readable migration inputs; current writers emit canonical v2.
         validation_schema = copy.deepcopy(schema)
         validation_schema["properties"]["schema_version"] = {"const": 1}
     issues = validate_against_schema(instance, validation_schema)

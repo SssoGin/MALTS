@@ -1,13 +1,13 @@
 ---
 name: malts-long-project-workspace-init
-description: Initialize a phase-ready MALTS long-project workspace, then validate, maintain, compact, and recover it with explicit later Phase and Session controls.
+description: Initialize and govern a phase-ready MALTS long-project workspace with explicit Phase boundaries, owner-scoped Artifact lifecycle, validation, maintenance, compaction, and recovery.
 ---
 
 # Skill: MALTS Long Project Workspace Init
 
 ## Purpose
 
-Create a recoverable workspace for work that spans windows or phases without turning every conversation turn or persistent write into a Session.
+Create and govern a recoverable workspace for work that spans windows or phases without turning every conversation turn or persistent write into a Session. The same public CLI owns explicit Phase boundary transitions and an opt-in, owner-scoped Artifact lifecycle.
 
 Selecting this dedicated Skill is an affirmative long-project intent signal. Do not silently reduce it to ordinary project initialization. Use `malts-project-init` when the user wants only lightweight root project control.
 
@@ -56,10 +56,11 @@ A legacy workspace with root controls but zero registered Phases is `NEEDS_INITI
 
 | Layer | Owns | Must not own |
 |---|---|---|
-| Project | Original goal, global acceptance, active phase index, cross-phase decisions | Per-turn logs |
-| Phase | Phase goal, active plan path/revision/hash, Plan Recheck state, queue, deliverables, evidence, close and growth | Other phases' active state |
-| Session | Inherited plan binding, bounded scope, commands, touch set, checkpoint, next step | Canonical project goal or plan authority |
-| `runtime/` | Cache, generated state, lock, journal and measurements | Canonical truth |
+| Project | Original goal, global acceptance, active phase index, cross-phase decisions, compact Artifact enrollment/index pointers | Per-Artifact rows or per-turn logs |
+| Phase | Phase goal, boundary contract, active plan binding, queue, deliverables, evidence, optional owner-local Artifact Registry, closure and growth | Other phases' active state |
+| Session | Inherited plan binding, bounded scope, commands, touch set, checkpoint, optional owner-local Artifact Registry | Canonical project goal, plan authority, or implicit creation authority |
+| Shared / Archive | Optional `shared/INDEX.md` current reusable authority and `archive/INDEX.md` cold/superseded history | Project goal or active queue |
+| `runtime/` | Cache, generated state, lock, journal and measurements | Canonical Markdown truth or live Artifact authority |
 
 `runtime/workspace_control.json` is an index and recovery aid. Canonical Markdown controls remain authoritative.
 
@@ -72,6 +73,12 @@ python -B <MALTS_ROOT>\tools\long_workspace.py init --workspace <workspace> --pr
 python -B <MALTS_ROOT>\tools\long_workspace.py init --workspace <workspace> --project-id <id> --goal <goal> --language zh-CN --initial-phase-id <phase-id> --initial-phase-goal <phase-goal> --apply
 python -B <MALTS_ROOT>\tools\long_workspace.py open-phase --workspace <workspace> --phase-id <id> --goal <goal> --apply
 python -B <MALTS_ROOT>\tools\long_workspace.py close-phase --workspace <workspace> --status DONE --apply
+python -B <MALTS_ROOT>\tools\long_workspace.py phase-boundary-review --workspace <workspace> --candidate-goal <goal> --candidate-touch-set <paths> --candidate-mapping UNCLEAR --recommendation USER_DECISION_REQUIRED
+python -B <MALTS_ROOT>\tools\long_workspace.py migrate-phase-control --workspace <workspace> --phase-id <id> --milestone <milestone> --in-scope <scope> --out-of-scope <scope> --exit-criteria <criteria> --carry-over-policy <policy> --boundary-review-triggers <triggers>
+python -B <MALTS_ROOT>\tools\long_workspace.py pause-phase --workspace <workspace> --reason <reason> --boundary-review-ref <ref> --authorization-ref <ref> --apply
+python -B <MALTS_ROOT>\tools\long_workspace.py resume-phase --workspace <workspace> --phase-id <id> --boundary-review-ref <ref> --plan-review-ref <ref> --expected-plan-sha256 <sha256> --authorization-ref <ref> --apply
+python -B <MALTS_ROOT>\tools\long_workspace.py plan-phase-transition --workspace <workspace> --source-phase-id <id> --target-phase-id <id> --target-goal <goal> --carry-over-file <json> --disposition-file <json> --boundary-review-ref <ref> --authorization-ref <ref> --plan-out <json>
+python -B <MALTS_ROOT>\tools\long_workspace.py apply-phase-transition --workspace <workspace> --plan <json> --expected-plan-sha256 <sha256> --apply
 python -B <MALTS_ROOT>\tools\long_workspace.py open-session --workspace <workspace> --session-id <id> --goal <goal> --reason bounded-work-session --apply
 python -B <MALTS_ROOT>\tools\long_workspace.py close-session --workspace <workspace> --status DONE --next-action <action> --apply
 python -B <MALTS_ROOT>\tools\long_workspace.py validate --workspace <workspace>
@@ -83,6 +90,30 @@ python -B <MALTS_ROOT>\tools\long_workspace.py recover --workspace <workspace>
 ```
 
 If either initial Phase argument is missing, `init` fails closed with `WS_INITIAL_PHASE_REQUIRED` and writes nothing. Use `--apply` only after the corresponding write scope is authorized. `close-phase` requires no active Session. A new Phase or Session cannot be opened while one at the same layer is active.
+
+## Phase lifecycle contract
+
+- `phase-boundary-review` is read-only. Run it when the candidate goal or touch set may cross the active Phase boundary; an `UNCLEAR` or outside-scope result cannot authorize a write.
+- `migrate-phase-control` upgrades a legacy active Phase without overwriting its existing goal, queue, evidence, or recovery record.
+- `pause-phase` preserves ownership and recovery state but forbids new Phase work until `resume-phase` rebinds boundary review, plan review, exact plan hash, and authorization evidence.
+- Cross-Phase carry-over uses `plan-phase-transition` followed by hash-bound `apply-phase-transition`. The source record is immutable, the target record is mutable, and their provenance is bidirectional.
+- `SUPERSEDED` is terminal. At most one Phase may be `ACTIVE`; transition apply fails closed on stale bytes, active Sessions, incomplete disposition, or changed plan/hash preconditions.
+
+## Artifact lifecycle contract
+
+The contract defaults to `NOT_ENROLLED`. Read-only `artifact audit`, top-level `validate`, `maintain`, `compact`, and `recover` preserve legacy schema-v1 behavior and never enroll a workspace, create a Session, create empty Artifact directories, or recursively scan undeclared payload trees.
+
+```powershell
+python -B <MALTS_ROOT>\tools\long_workspace.py artifact audit --workspace <workspace> --captured-at <timestamp>
+python -B <MALTS_ROOT>\tools\long_workspace.py artifact enrollment-preview --workspace <workspace> --captured-at <timestamp>
+python -B <MALTS_ROOT>\tools\long_workspace.py artifact enrollment-apply --workspace <workspace> --operation-id <id> --captured-at <timestamp> --apply
+python -B <MALTS_ROOT>\tools\long_workspace.py artifact register --workspace <workspace> --owner phase:<phase-id> --role WORKING --locator <path> --authority WORKSPACE --vcs LOCAL_ONLY --verification UNVERIFIED --retention <contract> --disposition KEEP_OWNED --operation-id <id> --apply
+python -B <MALTS_ROOT>\tools\long_workspace.py artifact promote --workspace <workspace> --source phase:<phase-id>:<artifact-id> --purpose <purpose> --applies-to <scope> --retention <contract> --last-verified <timestamp> --operation-id <id> --apply
+python -B <MALTS_ROOT>\tools\long_workspace.py artifact supersede --workspace <workspace> --old shared:<old-id> --new shared:<new-id> --operation-id <id> --apply
+python -B <MALTS_ROOT>\tools\long_workspace.py artifact reconcile --workspace <workspace> --owner phase:<phase-id> --disposition <json> --operation-id <id> --apply
+```
+
+All Artifact mutations are dry-run unless `--apply` is explicit. They require an enrolled contract, stable owner-local IDs, exact locator/authority/VCS/verification/retention/disposition fields, a unique operation ID, a workspace-scoped lock, a persisted journal, and full-state hash preconditions. Mutation never moves or deletes payloads and never runs VCS. Promotion and supersession update every declared control atomically or roll back exact bytes. Closing an enrolled Phase or Session with `UNRESOLVED` rows is blocked; no Artifact command performs implicit Session creation.
 
 ## Plan Recheck contract
 
@@ -114,7 +145,8 @@ Read current sources in this order:
 2. root `PROJECT_CONTROL.md`;
 3. active `PHASE_CONTROL.md`;
 4. active/latest `SESSION_CONTROL.md`, report, or handoff;
-5. current files and `runtime/workspace_control.json` evidence.
+5. only owner/Shared/Archive Artifact indexes explicitly referenced by those current controls;
+6. current files and `runtime/workspace_control.json` evidence.
 
 Treat summaries and runtime state as recovery aids only. They never replace the active MALTS version, current files, or a required runtime probe.
 
@@ -129,3 +161,4 @@ Before reporting success:
 5. For recovery-sensitive delivery, run `recover` from a fresh process and record its ordered read evidence.
 6. Keep full three-tool discovery/invocation/behavior verification for the G4 runtime gate; component tests alone are not G4.
 7. For an active S3/S4 Phase, run the matching `plan-recheck` trigger and require `recheck_result=PASS` before the gated action or completion claim.
+8. If Artifact enrollment is `ENROLLED`, require `artifact audit`, top-level `validate`, exact registry/index references, zero unresolved close blockers, and no stale transaction lock/journal before qualification.

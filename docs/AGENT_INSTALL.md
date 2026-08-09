@@ -32,6 +32,14 @@ Reading a repository, validating identity, inspecting a ZIP, or creating a revie
 
 Do not substitute a newer repository or Release package after the plan is shown. Source drift invalidates the plan and requires a new review.
 
+## Verify The v1.2.0 Capability Projection
+
+After install, use a fresh process for each selected tool and verify that `malts-long-project-workspace-init` resolves through the tool-adjacent boot to the canonical Skill. Its capability/bridge description must include Phase and Artifact lifecycle rather than initialization only.
+
+Static projection checks must show the same shared lifecycle contract for Codex, Claude Code, and OpenCode: Phase boundary review/pause/resume/transition, Artifact audit/enrollment/register/promote/supersede/reconcile, `NOT_ENROLLED` compatibility, no implicit Session, and explicit `--apply`. Tool-specific dispatch or configuration text must remain outside that shared contract.
+
+This inspection does not replace G4. G4 requires visible, fresh-process tool invocation and equivalent behavior evidence for all included tools; an unavailable tool is `NOT RUN` or `BLOCKED`, never inferred PASS.
+
 ## Privacy and Purity
 
 Do not place local paths, credentials, tokens, user configuration, transaction journals, plans, handoffs, test data, or caches in the repository or the installed version. Keep these as local user state only.

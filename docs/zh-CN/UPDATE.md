@@ -49,7 +49,7 @@ MALTS 默认从经过独立审阅的当前仓库 checkout 更新。更新器不�
 `malts-v<version>-preview.<sequence>`。`malts-1.0.0-<hash>` 等已识别 legacy ID
 只作为迁移输入；MALTS 不会原地改名，也不会把其物理路径当作当前 pointer。
 
-更新会先 stage 并 prevalidate 目标，再切换 registry、active pointer、global boot 和已选工具投影。只有 post-validation 证明所有权威引用都不再指向旧版本后，才会清理旧版本。相同版本且精确一致时为 no-op；相同版本内容冲突或未绑定同名目录会在写入前失败。进程中断通过 transaction journal 继续或回滚。
+更新会先 stage 并 prevalidate 目标，再把 registry、active pointer、各工具本地 Boot 与投影作为一个 transaction unit 切换。安装后的受管指令记录安装时生成的精确 `MALTS_BOOT_PATH`，不得相对于 `cwd` 或项目文件重新解释。只有 post-validation 证明所有权威引用都不再指向旧版本后，才会清理旧版本。相同版本且精确一致时为 no-op；相同版本内容冲突或未绑定同名目录会在写入前失败。进程中断通过 transaction journal 继续或回滚。
 
 ## 可选离线归档更新
 
@@ -77,10 +77,20 @@ MALTS 会在变更前分类已有投影文件：
 
 core 状态本地一致时，`DoctorRepairPlan` 可从活动版本限定派生 repair 目标，但该建议本身不是可执行变更。只有与已安装绑定精确一致的已验证来源才能生成可持久化的 executable repair plan；随后必须审阅其 hash，并作为独立授权 transaction 执行。
 
+## 更新到 v1.2.0 Workspace Lifecycle
+
+更新 MALTS 会安装新 runtime behavior，但不会重写项目 controls。现有 schema-v1 long-project workspace 保持可读，Artifact lifecycle 仍为 `NOT_ENROLLED`。
+
+如果 active legacy Phase 缺少 v1.2.0 boundary sections，先运行不带 `--apply` 的 `migrate-phase-control`，审阅精确且绑定 preimage 的 plan；只有当前 workspace 授权覆盖时才 apply。迁移会保留 Phase goal、queue、evidence、recovery point 与 active ownership。
+
+考虑 enrollment 前先运行 `artifact audit`。Legacy `shared/` 类目录只是 candidate observation，绝不会被静默接管。如果确实需要 enrollment，运行 `artifact enrollment-preview`，审阅精确 index path 与 finding，然后使用唯一 operation ID 和显式 `--apply` 运行 `artifact enrollment-apply`。
+
+任何 update path 都不会移动/删除 payload、调用 VCS、创建 Session，或启动自动/后台 workspace scan。已安装 MALTS generation 的回滚应通过 lifecycle plan 完成；不得把旧 template 复制覆盖 canonical workspace control 来“降级”。
+
 ## 恢复
 
 更新中断时，先检查或恢复 lifecycle transaction，再创建新的计划。registry、journal、回滚和残留行为见[生命周期](LIFECYCLE.md)。
 
 ## 更新后 Discovery
 
-更新成功后，对每个已选 tool root 运行只读发现命令。所有 tool-local boot 必须解析到同一个新活动版本，并与 registry、active pointer、`VERSION` 一致；MALTS v1.1.1 起不再使用机器全局恢复 boot。不得继续使用陈旧 tool boot 或猜测版本路径；repair 必须进入单独审阅的 lifecycle transaction。
+更新成功后，对每个已选 tool root 运行只读发现命令。安装时生成的精确 `MALTS_BOOT_PATH` 必须全部解析到同一个新活动版本，并与 registry、active pointer、`VERSION` 一致；MALTS 的普通发现不使用机器全局 Boot。不得继续使用陈旧 tool boot 或猜测版本路径；repair 必须进入单独审阅的 lifecycle transaction。

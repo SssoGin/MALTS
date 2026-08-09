@@ -31,6 +31,13 @@
 - [ ] If bilingual control files are used, the final report says which file is Agent-facing, which file is user-facing, and whether both were updated.
 - [ ] If a task report is required, `WORK_TASK_REPORT.md` exists and uses the user's/project's language for narrative content; translated mirrors are generated only when explicitly requested.
 
+## Artifact Lifecycle Delivery
+
+- [ ] Enrollment status and every live owner/Shared/Archive registry pointer are stated; runtime snapshots are labeled non-canonical.
+- [ ] Artifact audit/validation evidence, unresolved rows, verification/retention/disposition state, and any stale transaction lock/journal are reported.
+- [ ] Applied mutations are bound to reviewed operation IDs and final hashes; dry runs are not described as applied changes.
+- [ ] No implicit Session, payload move/delete, VCS action, undeclared recursive scan, or silent legacy adoption is presented as completed work.
+
 ## Risks And Limits
 
 - [ ] Known risks are stated.

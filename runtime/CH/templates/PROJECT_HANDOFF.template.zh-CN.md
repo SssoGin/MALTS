@@ -49,6 +49,25 @@
 - Launch review invalidated：Yes / No / N/A
 - Owning Phase / inherited Session：
 
+<!-- MALTS:section=current-phase-binding -->
+## Current Phase Binding
+
+- Active Phase ID: `N/A`
+- Active Phase control: `N/A`
+- Phase control SHA-256: `N/A`
+
+<!-- MALTS:section=artifact-recovery -->
+## Artifact Lifecycle Recovery
+
+- Enrollment：`N/A`
+- Active owner registry：`N/A`
+- Shared index：`N/A`
+- Archive index：`N/A`
+- Latest audit / validation evidence：`N/A`
+- Pending transaction lock or journal：`N/A`
+- Next exact Artifact action：`N/A`
+- Recorded at: `N/A`
+
 ## 验证
 
 | 检查 | 结果 | 证据 |

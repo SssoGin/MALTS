@@ -37,6 +37,16 @@ verifier、recovery、rollback 与 final-delivery 边界运行只读 `plan-reche
 `codex-peer-task` route 不是可移植 Claude Code API；应使用 Claude Code 的可见 native
 dispatch，并保留等价 route、return、acceptance 与 closure evidence。
 
+## Workspace lifecycle contract
+
+`MALTS_WORKSPACE_LIFECYCLE_CONTRACT: 1`
+
+- Phase 审阅与转换命令：`phase-boundary-review`、`pause-phase`、`resume-phase`、`plan-phase-transition`、`apply-phase-transition`。
+- Artifact 命令：`artifact audit`、`artifact enrollment-preview`、`artifact enrollment-apply`、`artifact register`、`artifact promote`、`artifact supersede`、`artifact reconcile`。
+- Artifact contract 默认 `NOT_ENROLLED`。Invariant: no implicit Session.
+- 状态修改默认 dry-run，只有显式 `--apply` 才执行；不会移动/删除 payload、调用 VCS 或递归扫描未声明目录。
+- Project 只保留紧凑 lifecycle pointer；详细记录属于对应 Phase、Session、Shared 或 Archive registry。
+
 ## 包含的运行时材料
 
 - `CLAUDE.example.md`：项目使用的 MALTS managed instruction block。

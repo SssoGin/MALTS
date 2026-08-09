@@ -24,6 +24,16 @@
 - [ ] `WORK_TASK_REPORT.md` exists when a task or phase report is required; narrative uses the user's/project's language, and any full translated mirror exists only when explicitly requested.
 - [ ] For documentation sync work, source/target files, sync direction, and model/cost strategy were recorded.
 
+## Artifact Lifecycle Gate
+
+- [ ] The workspace remains `NOT_ENROLLED` unless an exact enrollment preview, reviewed indexes, operation ID, and explicit `--apply` authorization exist.
+- [ ] Project control contains only compact enrollment/index pointers; detailed rows belong to the owning Phase, Session, Shared, or Archive registry.
+- [ ] `artifact audit`, `validate`, `maintain`, `compact`, and `recover` used bounded declared references and did not recursively scan undeclared payload trees.
+- [ ] Every Artifact mutation was dry-run first and, on apply, used an exact operation ID, workspace lock, persisted journal, full-state preconditions, and atomic replacement/rollback evidence.
+- [ ] Artifact mutation did not move/delete payloads, invoke VCS, create a Session, silently adopt legacy directories, or recreate a missing declared index.
+- [ ] Promotion/supersession preserved one current Shared authority and updated every declared active reference or failed closed.
+- [ ] An enrolled owner with `UNRESOLVED` rows was not closed; stale lock/journal state was reported for exact manual review and never auto-deleted.
+
 ## Verification Evidence
 
 - [ ] At least one direct verification method was used.
