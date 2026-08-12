@@ -150,7 +150,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-MALTS.ps1 
 
 `MergeSafe` 默认使用 `InstructionMode ManagedMerge`：更新 MALTS 管理指令块，同时保留周围用户规则。使用 `InstructionMode Skip` 可完全不修改指令文件。
 
-## Workspace Lifecycle 与 v1.2.2 Discovery Hardening
+## Workspace Lifecycle、Discovery Hardening 与 Release 测试深路径修复
 
 MALTS 1.2.0 扩展了长项目工作区，但不改变最小默认行为。Phase 现在具有显式 boundary contract、只读 boundary review、pause/resume、hash-bound transition plan、双向 carry-over provenance，以及终态 `SUPERSEDED`。
 
@@ -159,6 +159,8 @@ Artifact lifecycle 是 opt-in，默认 `NOT_ENROLLED`。Phase 与 Session contro
 合同见[生命周期](docs/zh-CN/LIFECYCLE.md)，精确命令见[使用指南](docs/zh-CN/USAGE.md)。当前长项目 workspace 使用 schema v3 controls；现有 schema-v1 workspace 保持可读，不会被静默迁移或 enrollment。
 
 MALTS 1.2.2 保留 v1.2.1 的 cross-control consistency 与 recovery 强化，并让普通 discovery 的权威路径显式化。成功的 `discover` 结果会返回 deterministic `authority_paths`，其中包含精确的 `<lifecycle-root>/registry/active_generation.json` pointer；调用方不得探测或推导旁路的 `<lifecycle-root>/active_generation.json`。权威面缺失、畸形、陈旧或冲突时仍然 fail closed。
+
+MALTS 1.2.3 修复 release 测试 fixture 复制超出 Windows 路径长度限制的问题。release 测试套件现在排除私有的 `.release-control/archive` 历史树，与生产 clean-source 分类保持一致；五个 `WinError 206` 失败已解决，九个测试套件全绿。本版本没有改变任何 runtime、schema、Artifact、依赖、payload、VCS、更新检查或远程发布行为。
 
 ## 文档语言
 
@@ -169,7 +171,7 @@ MALTS 1.2.2 保留 v1.2.1 的 cross-control consistency 与 recovery 强化，�
 当前发布版本：
 
 ```text
-1.2.2
+1.2.3
 ```
 
 ## License

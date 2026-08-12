@@ -6,6 +6,28 @@ All notable public changes to MALTS are documented here.
 
 No unreleased user changes.
 
+## 1.2.3
+
+MALTS 1.2.3 fixes the release test fixture copying that exceeded the Windows path limit, without changing any runtime, lifecycle, or public-surface behavior.
+
+### Release test deep-path fix
+
+- `SOURCE_COPY_IGNORE` in the release test suite now excludes the private `.release-control/archive` historical tree, matching the production clean-source classification that never includes it.
+- Five release tests that previously failed with `WinError 206` on Windows deep paths now pass; the full nine-suite run is green.
+- The repository-only CI test now classifies the isolated clean-source fixture, and the fixture filter assertion covers both `candidates` and `archive`.
+
+### Delivery
+
+- No runtime code, schema, Artifact, dependency, payload, VCS, update-check, or remote-publication behavior changed in this release.
+
+## 1.2.3（中文摘要）
+
+MALTS 1.2.3 修复 release 测试 fixture 复制超出 Windows 路径长度限制的问题，不改变任何运行时、生命周期或公开面行为。
+
+- release 测试套件的 `SOURCE_COPY_IGNORE` 现在排除私有的 `.release-control/archive` 历史树，与生产 clean-source 分类保持一致。
+- 原先因 Windows 深路径触发 `WinError 206` 的五个 release 测试现已通过，九个套件全绿。
+- repository-only CI 测试改为对隔离的 clean-source fixture 分类，fixture filter 断言同时覆盖 `candidates` 与 `archive`。
+
 ## 1.2.2
 
 MALTS 1.2.2 hardens ordinary discovery against authority-path assumptions while preserving the v1.2.1 lifecycle and workspace safety contracts.

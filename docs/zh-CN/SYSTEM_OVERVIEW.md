@@ -178,9 +178,13 @@ MALTS 不做以下事情：
 
 MALTS v1.1 增加三项关联保护：事件触发的 Plan Recheck 把 active plan bytes 绑定到 owning Phase；受治理的 Codex peer task 保存已批准 model / effort、当前工作区、lifecycle 与归档证据；tool-local discovery 交叉核对 registry、active pointer 与 `VERSION`。三者均先读 / 审阅，并在漂移时 fail closed。
 
-## 12. v1.2.2 Candidate Discovery Authority Gate
+## 12. v1.2.2 Discovery Authority Gate（历史）
 
 v1.2.2 candidate 保留 v1.2.1 的 schema-v1/v2/v3 dispatch、hash-bound review/recovery 与 crash-recoverable workspace transaction domain，并新增 deterministic discovery `authority_paths`，将 active pointer 固定为 `<lifecycle-root>/registry/active_generation.json`；错误的旁路 pointer 永远不会被采用。Operation success 不等于 semantic resolution、persistence 或 authorization。Candidate 不改变 Artifact、payload、VCS、Session creation、update check 与 publication boundary。
+
+## 13. v1.2.3 Release 测试深路径修复
+
+v1.2.3 candidate 修复 release 测试 fixture 复制超出 Windows 路径长度限制的问题：测试套件的 `SOURCE_COPY_IGNORE` 排除私有的 `.release-control/archive` 历史树，与生产 clean-source 分类保持一致；repository-only CI 测试改为对隔离的 clean-source fixture 分类。五个 `WinError 206` 失败已解决，九个套件全绿。本版本没有改变任何 runtime、schema、Artifact、依赖、payload、VCS、更新检查或远程发布行为。
 
 ## 13. 与详细设计的关系
 

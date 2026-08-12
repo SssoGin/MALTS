@@ -175,9 +175,13 @@ The release repository should not contain handoff outputs, project-specific cont
 
 MALTS v1.1 adds three related safeguards: event-triggered Plan Recheck binds active plan bytes to the owning Phase; governed Codex peer tasks preserve approved model/effort, current-workspace, lifecycle, and archival evidence; and tool-local discovery cross-checks registry, active pointer, and `VERSION`. All three are read/review first and fail closed on drift.
 
-## 12. v1.2.2 Candidate Discovery Authority Gate
+## 12. v1.2.2 Discovery Authority Gate（历史）
 
 The v1.2.2 candidate preserves the v1.2.1 schema-v1/v2/v3 dispatch, hash-bound review/recovery, and crash-recoverable workspace transaction domain. It additionally exposes deterministic discovery `authority_paths` and fixes the active pointer contract to `<lifecycle-root>/registry/active_generation.json`; a wrong sibling pointer is never used. Operation success is not semantic resolution, persistence, or authorization. The candidate keeps Artifact, payload, VCS, Session-creation, update-check, and publication boundaries unchanged.
+
+## 13. v1.2.3 Release Test Deep-Path Fix
+
+The v1.2.3 candidate fixes release test fixture copying that exceeded the Windows path length limit: the test suite's `SOURCE_COPY_IGNORE` excludes the private `.release-control/archive` historical tree, matching production clean-source classification, and the repository-only CI test classifies the isolated clean-source fixture. Five `WinError 206` failures are resolved and all nine suites are green. No runtime, schema, Artifact, dependency, payload, VCS, update-check, or remote-publication behavior changed.
 
 ## 13. Relationship To Detailed Design
 

@@ -150,7 +150,7 @@ Installed users can update from a current repository checkout without manually d
 
 `MergeSafe` defaults to `InstructionMode ManagedMerge`: it updates the MALTS-managed instruction block while preserving surrounding user rules. Use `InstructionMode Skip` to leave the instruction file untouched.
 
-## Workspace Lifecycle and v1.2.2 Discovery Hardening
+## Workspace Lifecycle, Discovery Hardening, and Release Test Deep-Path Fix
 
 MALTS 1.2.0 extends the long-project workspace without changing its minimal default. A Phase now has an explicit boundary contract, read-only boundary review, pause/resume, hash-bound transition planning, bidirectional carry-over, and terminal `SUPERSEDED` state.
 
@@ -159,6 +159,8 @@ Artifact lifecycle is opt-in and defaults to `NOT_ENROLLED`. Phase and Session c
 See [Lifecycle](docs/LIFECYCLE.md) for the contract and [Usage](docs/USAGE.md) for exact commands. Current long-project workspaces use schema v3 controls; existing schema-v1 workspaces remain readable and are not silently migrated or enrolled.
 
 MALTS 1.2.2 preserves the v1.2.1 cross-control consistency and recovery hardening, and makes ordinary discovery authority paths explicit. A successful `discover` result exposes deterministic `authority_paths`, including the exact `<lifecycle-root>/registry/active_generation.json` pointer; callers must not probe or infer a sibling `<lifecycle-root>/active_generation.json` path. Missing, malformed, stale, or conflicting authority still fails closed.
+
+MALTS 1.2.3 fixes release test fixture copying that exceeded the Windows path length limit. The release test suite now excludes the private `.release-control/archive` historical tree, matching production clean-source classification; five `WinError 206` failures are resolved and all nine test suites are green. No runtime, schema, Artifact, dependency, payload, VCS, update-check, or remote-publication behavior changed.
 
 ## Documentation Language
 
@@ -169,7 +171,7 @@ The repository defaults to English source documents. Simplified Chinese document
 Current release version:
 
 ```text
-1.2.2
+1.2.3
 ```
 
 ## License
