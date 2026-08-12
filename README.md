@@ -150,15 +150,15 @@ Installed users can update from a current repository checkout without manually d
 
 `MergeSafe` defaults to `InstructionMode ManagedMerge`: it updates the MALTS-managed instruction block while preserving surrounding user rules. Use `InstructionMode Skip` to leave the instruction file untouched.
 
-## Workspace Lifecycle and v1.2.1 Consistency Hardening
+## Workspace Lifecycle and v1.2.2 Discovery Hardening
 
 MALTS 1.2.0 extends the long-project workspace without changing its minimal default. A Phase now has an explicit boundary contract, read-only boundary review, pause/resume, hash-bound transition planning, bidirectional carry-over, and terminal `SUPERSEDED` state.
 
 Artifact lifecycle is opt-in and defaults to `NOT_ENROLLED`. Phase and Session controls may own compact local registries; Project holds only enrollment and Shared/Archive pointers. Audit is read-only, mutation is dry-run by default and requires explicit `--apply`, and no Artifact command creates a Session, moves/deletes payloads, invokes VCS, or recursively scans undeclared trees.
 
-See [Lifecycle](docs/LIFECYCLE.md) for the contract and [Usage](docs/USAGE.md) for exact commands. Existing schema-v1 workspaces remain readable and are not silently migrated or enrolled.
+See [Lifecycle](docs/LIFECYCLE.md) for the contract and [Usage](docs/USAGE.md) for exact commands. Current long-project workspaces use schema v3 controls; existing schema-v1 workspaces remain readable and are not silently migrated or enrolled.
 
-MALTS 1.2.1 hardens cross-control consistency without changing those safety defaults. Fresh workspaces use schema v3; schema v1/v2 remain exact readable compatibility contracts with explicit migration only. The active Phase owns Boundary Review and recovery records, while the required current report and any existing handoff are exact hash-bound projections. Validation and cold recovery fail closed on structural, binding, boundary/recovery, typed-source, or interrupted workspace-transaction drift. Recovery never guesses from the latest historical Session.
+MALTS 1.2.2 preserves the v1.2.1 cross-control consistency and recovery hardening, and makes ordinary discovery authority paths explicit. A successful `discover` result exposes deterministic `authority_paths`, including the exact `<lifecycle-root>/registry/active_generation.json` pointer; callers must not probe or infer a sibling `<lifecycle-root>/active_generation.json` path. Missing, malformed, stale, or conflicting authority still fails closed.
 
 ## Documentation Language
 
@@ -169,7 +169,7 @@ The repository defaults to English source documents. Simplified Chinese document
 Current release version:
 
 ```text
-1.2.1
+1.2.2
 ```
 
 ## License

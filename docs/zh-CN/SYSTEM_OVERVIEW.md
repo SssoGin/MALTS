@@ -178,9 +178,9 @@ MALTS 不做以下事情：
 
 MALTS v1.1 增加三项关联保护：事件触发的 Plan Recheck 把 active plan bytes 绑定到 owning Phase；受治理的 Codex peer task 保存已批准 model / effort、当前工作区、lifecycle 与归档证据；tool-local discovery 交叉核对 registry、active pointer 与 `VERSION`。三者均先读 / 审阅，并在漂移时 fail closed。
 
-## 12. v1.2.1 Candidate Cross-Control Gate
+## 12. v1.2.2 Candidate Discovery Authority Gate
 
-v1.2.1 candidate 增加精确 schema-v1/v2/v3 dispatch、完整与 normalized section hash、显式 review recording/migration/reconciliation、typed recovery authority、current report/handoff projection check，以及 crash-recoverable workspace transaction domain。Operation success 不等于 semantic resolution、persistence 或 authorization。Candidate 不改变 Artifact、payload、VCS、Session creation、update check 与 publication boundary。
+v1.2.2 candidate 保留 v1.2.1 的 schema-v1/v2/v3 dispatch、hash-bound review/recovery 与 crash-recoverable workspace transaction domain，并新增 deterministic discovery `authority_paths`，将 active pointer 固定为 `<lifecycle-root>/registry/active_generation.json`；错误的旁路 pointer 永远不会被采用。Operation success 不等于 semantic resolution、persistence 或 authorization。Candidate 不改变 Artifact、payload、VCS、Session creation、update check 与 publication boundary。
 
 ## 13. 与详细设计的关系
 

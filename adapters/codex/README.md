@@ -34,9 +34,13 @@ plan-hash review, transactional execution, and a new fresh-process discovery
 check.
 
 Normal discovery starts from Codex's adjacent `MALTS_BOOT.md`, then requires
-the registry, `active_generation.json`, generation identity, and active
-`VERSION` to agree. MALTS v1.1.1+ does not use a machine-global `GLOBAL_BOOT.md`. Missing, malformed, reparse-point, stale, or split-brain
-state is `BLOCKED` and must not fall back to another root.
+the registry, the exact `<lifecycle-root>/registry/active_generation.json`
+pointer, generation identity, and active `VERSION` to agree. Use
+`discover.authority_paths.active_generation_pointer` as the pointer locator;
+never probe a sibling `<lifecycle-root>/active_generation.json`. MALTS v1.1.1+
+does not use a machine-global `GLOBAL_BOOT.md`. Missing, malformed,
+reparse-point, stale, or split-brain state is `BLOCKED` and must not fall back
+to another root.
 
 For a long-project Phase with an active plan, run read-only `plan-recheck` at
 the defined launch, write-scope, delegated-return, verifier, recovery, rollback,

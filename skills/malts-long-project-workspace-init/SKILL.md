@@ -64,6 +64,8 @@ A legacy workspace with root controls but zero registered Phases is `NEEDS_INITI
 
 `runtime/workspace_control.json` is an index and recovery aid. Canonical Markdown controls remain authoritative.
 
+For ordinary discovery, the active-generation pointer is exactly `<lifecycle-root>\\registry\\active_generation.json`. Use the successful `discover` result's `authority_paths.active_generation_pointer`; never probe `<lifecycle-root>\\active_generation.json` or derive a pointer from a copied generation path.
+
 ## Commands
 
 Resolve `MALTS_ROOT` from the active boot pointer, then invoke:

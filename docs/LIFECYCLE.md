@@ -171,6 +171,6 @@ Schema-v1 and schema-v2 workspaces remain readable. Fresh workspaces use schema 
 
 ## Ordinary Startup Discovery
 
-Each tool starts from its own adjacent `MALTS_BOOT.md`, whose schema is exactly one absolute `MALTS_ROOT:` line. MALTS v1.1.1+ does not use or create a machine-global `GLOBAL_BOOT.md`. The read-only `discover` command verifies tool boot, stable registry state, the sole active record, exact `active_generation.json`, active `VERSION`, and version identity. It computes no full-tree hash during ordinary startup and writes nothing. Missing, malformed, stale, or conflicting authoritative surfaces fail closed.
+Each tool starts from its own adjacent `MALTS_BOOT.md`, whose schema is exactly one absolute `MALTS_ROOT:` line. MALTS v1.1.1+ does not use or create a machine-global `GLOBAL_BOOT.md`. The read-only `discover` command verifies tool boot, stable registry state, the sole active record, the exact `<lifecycle-root>\\registry\\active_generation.json` pointer, active `VERSION`, and version identity. Its PASS result exposes `authority_paths.active_generation_pointer` so callers do not guess a sibling `<lifecycle-root>\\active_generation.json`. It computes no full-tree hash during ordinary startup and writes nothing. Missing, malformed, stale, or conflicting authoritative surfaces fail closed.
 
 See [Install](INSTALL.md), [Update](UPDATE.md), and [Security](SECURITY.md).

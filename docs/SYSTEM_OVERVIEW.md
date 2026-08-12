@@ -175,9 +175,9 @@ The release repository should not contain handoff outputs, project-specific cont
 
 MALTS v1.1 adds three related safeguards: event-triggered Plan Recheck binds active plan bytes to the owning Phase; governed Codex peer tasks preserve approved model/effort, current-workspace, lifecycle, and archival evidence; and tool-local discovery cross-checks registry, active pointer, and `VERSION`. All three are read/review first and fail closed on drift.
 
-## 12. v1.2.1 Candidate Cross-Control Gate
+## 12. v1.2.2 Candidate Discovery Authority Gate
 
-The v1.2.1 candidate adds exact schema-v1/v2/v3 dispatch, full and normalized section hashes, explicit review recording/migration/reconciliation, typed recovery authority, current report/handoff projection checks, and a crash-recoverable workspace transaction domain. Operation success is not semantic resolution, persistence, or authorization. The candidate keeps Artifact, payload, VCS, Session-creation, update-check, and publication boundaries unchanged.
+The v1.2.2 candidate preserves the v1.2.1 schema-v1/v2/v3 dispatch, hash-bound review/recovery, and crash-recoverable workspace transaction domain. It additionally exposes deterministic discovery `authority_paths` and fixes the active pointer contract to `<lifecycle-root>/registry/active_generation.json`; a wrong sibling pointer is never used. Operation success is not semantic resolution, persistence, or authorization. The candidate keeps Artifact, payload, VCS, Session-creation, update-check, and publication boundaries unchanged.
 
 ## 13. Relationship To Detailed Design
 

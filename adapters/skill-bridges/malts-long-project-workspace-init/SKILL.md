@@ -12,6 +12,6 @@ This lightweight package exists only for native tool discovery. The canonical sk
 1. Resolve the tool configuration root as the parent of this bridge's `skills` directory.
 2. Read `MALTS_BOOT.md` from that tool configuration root and parse its `MALTS_ROOT:` value.
 3. Verify `<MALTS_ROOT>/skills/malts-long-project-workspace-init/SKILL.md` exists.
-4. Read that canonical `SKILL.md` completely and follow it instead of this bridge.
+4. Read that canonical `SKILL.md` completely and follow it instead of this bridge. For discovery, the canonical pointer is `<lifecycle-root>\\registry\\active_generation.json`; do not probe a sibling `<lifecycle-root>\\active_generation.json`.
 
 If the boot pointer or canonical skill is missing, stop and report the exact missing path. Do not substitute this bridge for the canonical workflow.

@@ -10,8 +10,8 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
 
-$script:BootstrapVersion = '1.2.1'
-$script:BootstrapTag = 'v1.2.1'
+$script:BootstrapVersion = '1.2.2'
+$script:BootstrapTag = 'v1.2.2'
 $script:ReservedNames = @('CON', 'PRN', 'AUX', 'NUL') + (1..9 | ForEach-Object { "COM$_" }) + (1..9 | ForEach-Object { "LPT$_" })
 
 function Fail-Bootstrap {

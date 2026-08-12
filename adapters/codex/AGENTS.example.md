@@ -171,6 +171,7 @@ MALTS_BOOT_PATH: {{MALTS_TOOL_BOOT_PATH}}
 - Treat that boot pointer as the active-generation locator. Do not treat copied absolute paths in examples, wrappers, handoffs, or reports as authoritative.
 - If that exact `MALTS_BOOT_PATH` is missing or its target cannot be verified, stop and report the rendered path; do not guess another installation.
 - Require exactly one absolute `MALTS_ROOT:` value and a regular, non-reparse target. Cross-check the lifecycle registry, sole active record, `active_generation.json`, generation identity, and active `VERSION`; any mismatch is `split_brain` and must fail closed.
+- The active-generation pointer is exactly `<lifecycle-root>\\registry\\active_generation.json`; prefer `discover.authority_paths.active_generation_pointer` and never probe `<lifecycle-root>\\active_generation.json`.
 - MALTS v1.1.1+ does not use or create a machine-global `GLOBAL_BOOT.md`; ordinary startup relies only on the exact installed `MALTS_BOOT_PATH` with registry/pointer/`VERSION` cross-checks.
 
 - MALTS version metadata must be read from the active boot file and `<MALTS_ROOT>/VERSION`; never copy the current version from old control/report/handoff/template files.

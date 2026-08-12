@@ -343,6 +343,26 @@ def _same_locator(left: str | Path, right: str | Path) -> bool:
     return os.path.normcase(str(_absolute(left))) == os.path.normcase(str(_absolute(right)))
 
 
+def _discovery_authority_paths(
+    *,
+    tool_boot: dict[str, Any],
+    lifecycle_root: Path,
+    active_generation_root: Path,
+    active_version_path: Path,
+    active_generation_pointer: Path,
+) -> dict[str, str]:
+    """Return the exact surfaces used by successful ordinary discovery."""
+    return {
+        "tool_boot": str(_absolute(tool_boot["boot_path"])),
+        "lifecycle_root": str(_absolute(lifecycle_root)),
+        "installation_registry": str(_absolute(_registry_path(lifecycle_root))),
+        "active_generation_pointer": str(_absolute(active_generation_pointer)),
+        "active_generation_pointer_relative": POINTER_RELATIVE.as_posix(),
+        "active_generation_root": str(_absolute(active_generation_root)),
+        "active_version": str(_absolute(active_version_path)),
+    }
+
+
 def resolve_discovery(
     tool_root_value: str | Path,
     *,
@@ -467,6 +487,14 @@ def resolve_discovery(
         global_result = None
         global_status = "ABSENT_OPTIONAL"
 
+    authority_paths = _discovery_authority_paths(
+        tool_boot=tool_boot,
+        lifecycle_root=root,
+        active_generation_root=active_root,
+        active_version_path=version_path,
+        active_generation_pointer=pointer_path,
+    )
+
     return {
         "status": "PASS",
         "mode": "READ_ONLY",
@@ -479,6 +507,7 @@ def resolve_discovery(
         "generation_id": active["generation_id"],
         "version": version,
         "artifact_sha256": active["artifact_sha256"],
+        "authority_paths": authority_paths,
         "cross_checks": {
             "registry": "MATCH",
             "active_pointer": "MATCH",

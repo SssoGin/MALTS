@@ -6,6 +6,28 @@ All notable public changes to MALTS are documented here.
 
 No unreleased user changes.
 
+## 1.2.2
+
+MALTS 1.2.2 hardens ordinary discovery against authority-path assumptions while preserving the v1.2.1 lifecycle and workspace safety contracts.
+
+### Discovery authority paths
+
+- Adds deterministic `authority_paths` to a successful `discover` result, including the tool-local boot, installation registry, exact `registry/active_generation.json` pointer, active generation root, and active `VERSION` path.
+- Makes the pointer locator explicit so callers do not probe or infer a sibling `<lifecycle-root>/active_generation.json` path.
+- Adds regression coverage proving a wrong sibling pointer file is ignored and ordinary discovery remains read-only.
+
+### Documentation and adapters
+
+- Synchronizes the canonical long-project workspace Skill, its native bridge, Codex/Claude Code/OpenCode adapter guidance, and EN/zh-CN lifecycle documentation with the explicit pointer contract.
+
+## 1.2.2（中文摘要）
+
+MALTS 1.2.2 在保留 v1.2.1 生命周期与工作区安全合同的前提下，修复普通 discovery 对权威路径的假设风险。
+
+- 成功的 `discover` 结果新增 deterministic `authority_paths`，明确 tool-local boot、installation registry、精确的 `registry/active_generation.json` pointer、active generation root 与 active `VERSION` 路径。
+- 明确禁止探测或推导旁路的 `<lifecycle-root>/active_generation.json`，并增加错误候选路径回归测试，证明普通 discovery 仍为只读。
+- 同步 canonical long-project workspace Skill、native bridge、Codex/Claude Code/OpenCode 适配器和中英文生命周期文档。
+
 ## 1.2.1
 
 MALTS 1.2.1 hardens deterministic cross-control consistency, recovery authority, and interrupted workspace-control writes while preserving the v1.2.0 Phase and opt-in Artifact lifecycle defaults.
