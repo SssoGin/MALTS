@@ -139,7 +139,17 @@ The engine distinguishes MALTS-owned paths from user-owned or uncertain paths. I
 
 ### Phase boundary and state
 
-Every v1.2.0 Phase records its milestone, in-scope and out-of-scope work, exit criteria, carry-over policy, and boundary-review triggers. `phase-boundary-review` is read-only and classifies a proposed goal/touch set without granting write authorization. `PAUSED` preserves ownership and recovery evidence; `resume-phase` requires fresh boundary, plan, exact hash, and authorization references. Cross-Phase work uses a persisted `plan-phase-transition` followed by hash-bound `apply-phase-transition`; the old Phase becomes terminal `SUPERSEDED`, the new Phase becomes the sole `ACTIVE` owner, and carry-over provenance is recorded in both directions.
+Every current Phase records its milestone, in-scope and out-of-scope work, exit criteria, carry-over policy, and boundary-review triggers. `phase-boundary-review` is read-only and classifies a proposed goal/touch set without granting write authorization. Its compatibility `status` and `operation_status` describe command execution only; read `review_outcome`, `candidate_mapping`, `recommendation`, and `persisted` separately. Only `record-phase-boundary-review` persists the structured review, and that record is not authorization for later work. `PAUSED` preserves ownership and recovery evidence; `resume-phase` requires fresh boundary, plan, exact hash, and authorization references. Cross-Phase work uses a persisted `plan-phase-transition` followed by hash-bound `apply-phase-transition`; the old Phase becomes terminal `SUPERSEDED`, the new Phase becomes the sole `ACTIVE` owner, and carry-over provenance is recorded in both directions.
+
+### Cross-control consistency and recovery authority
+
+Fresh long-project workspaces use exact schema v3. Exact schema v1/v2 inputs remain readable compatibility contracts and are never silently rewritten by `validate`, `recover`, maintenance, installation update, or active-generation switching. An active v2 workspace that lacks the required current projection is classified for explicit migration rather than guessed repair.
+
+The active `PHASE_CONTROL.md` owns Boundary Review and Phase recovery records; an active Session owns its checkpoint. Schema v3 requires a current `WORK_TASK_REPORT.md` binding. `PROJECT_HANDOFF.md` remains optional, but when present it must bind the same exact Phase-control, normalized boundary/review, and normalized recovery hashes. Runtime JSON is a typed non-canonical projection. Validation reports structural, binding, deterministic-consistency, and advisory-semantic findings separately; deterministic drift blocks cold recovery and ordinary lifecycle mutation.
+
+Migration, review recording, and reconciliation use `migrate-consistency-records`, `record-phase-boundary-review`, and `reconcile-consistency-records`. All are dry-run-first and bind explicit authority, operation ID, and exact expected hashes. Workspace-control writes use a separate `runtime/workspace_transaction.lock.json`, `runtime/workspace_transactions/`, and `WS_TRANSACTION_*` domain. An incomplete journal is retained until exact-hash `recover-workspace-transaction` succeeds; failed recovery keeps its evidence. Artifact transaction paths and `ART_TRANSACTION_*` codes are unchanged.
+
+Canonical recovery selection is active Session checkpoint, otherwise active Phase recovery, otherwise an explicitly bound terminal Phase, otherwise Project recovery. It never chooses the latest historical Session by timestamp or registry order.
 
 ### Artifact enrollment and ownership
 
@@ -155,7 +165,7 @@ Artifact mutation never moves/deletes payloads or invokes VCS. It never creates 
 
 ### Compatibility and non-goals
 
-Schema-v1 workspaces remain readable and retain existing close behavior while not enrolled. v1.2.0 does not add automatic update checks, background watchers, project-wide hashing, directory organization, Unity defaults, or remote publication. G4 still requires real Codex, Claude Code, and OpenCode invocation; component/projection tests alone are not G4.
+Schema-v1 and schema-v2 workspaces remain readable. Fresh workspaces use schema v3; migration is explicit, safe duplicate-marker cleanup is limited to empty duplicate sections, and non-empty duplicates or ambiguous legacy review semantics fail closed for manual reconciliation. Workspace consistency does not add automatic update checks, background watchers, project-wide payload hashing, directory organization, Unity defaults, or remote publication. G4 still requires real Codex, Claude Code, and OpenCode invocation; component/projection tests alone are not G4.
 
 ## Ordinary Startup Discovery
 

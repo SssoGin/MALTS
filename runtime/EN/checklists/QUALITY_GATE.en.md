@@ -34,6 +34,17 @@
 - [ ] Promotion/supersession preserved one current Shared authority and updated every declared active reference or failed closed.
 - [ ] An enrolled owner with `UNRESOLVED` rows was not closed; stale lock/journal state was reported for exact manual review and never auto-deleted.
 
+## Workspace Cross-Control Consistency Gate
+
+- [ ] Fresh workspaces use exact schema v3; schema v1/v2 inputs are classified explicitly and are not silently migrated by validation, recovery, maintenance, or installation update.
+- [ ] The active Phase owns its Boundary Review and recovery records; an active Session owns its checkpoint; the current report binding is required and an existing handoff binding is checked.
+- [ ] `phase-boundary-review` operation status is not treated as review outcome, persistence, decision, or authorization; only `record-phase-boundary-review` persists the record, and later mutation authorization remains separate.
+- [ ] Full Phase-control SHA-256 plus normalized boundary/review/recovery hashes agree across canonical authority, required report, optional handoff, and typed runtime projection.
+- [ ] Structural, binding, deterministic-consistency, and advisory-semantic findings are reported separately; deterministic drift blocks `validate`, cold `recover`, and ordinary lifecycle mutations.
+- [ ] Recovery selects active Session checkpoint, active Phase recovery, explicitly bound terminal Phase, then Project recovery; no latest-historical-Session fallback exists.
+- [ ] Workspace consistency mutations used dry-run, exact expected hashes, a unique operation ID, `runtime/workspace_transaction.lock.json`, and `runtime/workspace_transactions/`; Artifact transaction paths/codes remain unchanged.
+- [ ] An interrupted workspace transaction is recovered only through exact journal-hash `recover-workspace-transaction` review/apply; failed recovery retains lock/journal evidence.
+
 ## Verification Evidence
 
 - [ ] At least one direct verification method was used.

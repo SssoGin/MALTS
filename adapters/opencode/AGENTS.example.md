@@ -210,7 +210,12 @@ Cross-project stable rules learned from experience. These apply in every project
 ## Long-Workspace Phase And Artifact Lifecycle
 
 - The active Phase owns a written boundary contract. Use read-only `phase-boundary-review` before a candidate goal or touch set crosses that boundary; unresolved scope does not authorize writes.
+- `phase-boundary-review` reports operation execution separately from review outcome and persistence. Only `record-phase-boundary-review` persists the structured record, and that record is not later mutation authorization.
 - Explicit Phase state changes use `pause-phase`, `resume-phase`, and hash-bound `plan-phase-transition` / `apply-phase-transition`. `SUPERSEDED` is terminal, carry-over keeps bidirectional provenance, and at most one Phase may be `ACTIVE`.
+- Fresh workspaces use exact schema v3; schema v1/v2 remain readable and require explicit `migrate-consistency-records` rather than silent migration.
+- Schema v3 requires a current `WORK_TASK_REPORT.md` binding. An existing `PROJECT_HANDOFF.md` is optional but must bind the same exact Phase control, boundary/review, and recovery hashes.
+- Structural, binding, or deterministic consistency drift blocks validation, cold recovery, and ordinary lifecycle mutation. Recovery selects active Session checkpoint, active Phase recovery, explicitly bound terminal Phase, then Project recovery; never the latest historical Session.
+- `migrate-consistency-records`, `record-phase-boundary-review`, and `reconcile-consistency-records` are dry-run-first and exact-hash-bound. Workspace transactions use `runtime/workspace_transaction.lock.json`, `runtime/workspace_transactions/`, and `WS_TRANSACTION_*`; Artifact transaction paths and codes remain separate.
 - Artifact lifecycle defaults to `NOT_ENROLLED`. Read-only or maintenance commands do not enroll it and perform no implicit Session creation.
 - The public nested commands are `artifact audit`, `artifact enrollment-preview`, `artifact enrollment-apply`, `artifact register`, `artifact promote`, `artifact supersede`, and `artifact reconcile`.
 - Owner-local rows belong in the owning Phase or Session; Project keeps only compact enrollment/Shared/Archive pointers. Missing declared indexes, duplicate authority, unresolved close rows, stale transaction state, or full-state hash drift fail closed.

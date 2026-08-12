@@ -77,15 +77,21 @@ MALTS 会在变更前分类已有投影文件：
 
 core 状态本地一致时，`DoctorRepairPlan` 可从活动版本限定派生 repair 目标，但该建议本身不是可执行变更。只有与已安装绑定精确一致的已验证来源才能生成可持久化的 executable repair plan；随后必须审阅其 hash，并作为独立授权 transaction 执行。
 
-## 更新到 v1.2.0 Workspace Lifecycle
+## 在 v1.2.x 间更新 Workspace Control
 
-更新 MALTS 会安装新 runtime behavior，但不会重写项目 controls。现有 schema-v1 long-project workspace 保持可读，Artifact lifecycle 仍为 `NOT_ENROLLED`。
+更新 MALTS 会安装新 runtime behavior，但不会重写项目 controls。精确 schema-v1/v2 long-project workspace 保持可读，全新 workspace 使用 schema v3，Artifact lifecycle 仍为 `NOT_ENROLLED`。
 
 如果 active legacy Phase 缺少 v1.2.0 boundary sections，先运行不带 `--apply` 的 `migrate-phase-control`，审阅精确且绑定 preimage 的 plan；只有当前 workspace 授权覆盖时才 apply。迁移会保留 Phase goal、queue、evidence、recovery point 与 active ownership。
 
 考虑 enrollment 前先运行 `artifact audit`。Legacy `shared/` 类目录只是 candidate observation，绝不会被静默接管。如果确实需要 enrollment，运行 `artifact enrollment-preview`，审阅精确 index path 与 finding，然后使用唯一 operation ID 和显式 `--apply` 运行 `artifact enrollment-apply`。
 
-任何 update path 都不会移动/删除 payload、调用 VCS、创建 Session，或启动自动/后台 workspace scan。已安装 MALTS generation 的回滚应通过 lifecycle plan 完成；不得把旧 template 复制覆盖 canonical workspace control 来“降级”。
+对 v1/v2 workspace，先运行 `validate` 并保留其精确 state hash/classification。若需要 consistency migration，先在不带 `--apply` 的情况下审阅 `migrate-consistency-records --authority workspace-state --expected-state-sha256 <sha256> --operation-id <id>`，然后只在当前 workspace authorization 内 apply 同一 expected state。Validation/recovery 不会自动执行该迁移。
+
+若 migrated Boundary Review 仍 unresolved，只能通过携带精确 Phase SHA-256 的 `record-phase-boundary-review` 持久化 structured result；记录并不是后续 mutation authorization。Canonical control 与 projection 不一致时，用精确 state/source/Phase hash 运行 dry-run `reconcile-consistency-records --authority canonical-controls`。Ambiguous non-empty duplicate marker 或 legacy prose semantics 必须 fail closed，不做推断。
+
+Interrupted workspace-control write 使用 `runtime/workspace_transaction.lock.json` 与 `runtime/workspace_transactions/`，和 Artifact transaction 分离。添加 `--apply` 前，用精确 journal SHA-256 审阅 `recover-workspace-transaction`；失败 recovery 会保留 evidence。
+
+任何 update path 都不会移动/删除 payload、调用 VCS、创建 Session、把最新历史 Session 选作 recovery authority，或启动自动/后台 workspace scan。已安装 MALTS generation 的回滚应通过 lifecycle plan 完成；不得把旧 template 复制覆盖 canonical workspace control 来“降级”。
 
 ## 恢复
 

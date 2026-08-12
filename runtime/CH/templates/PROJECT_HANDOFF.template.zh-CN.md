@@ -52,9 +52,17 @@
 <!-- MALTS:section=current-phase-binding -->
 ## Current Phase Binding
 
+- Binding schema: `2`
 - Active Phase ID: `N/A`
 - Active Phase control: `N/A`
 - Phase control SHA-256: `N/A`
+- Phase boundary SHA-256: `N/A`
+- Boundary review ID: `N/A`
+- Boundary review SHA-256: `N/A`
+- Candidate mapping: `N/A`
+- Recommendation: `N/A`
+- Phase recovery SHA-256: `N/A`
+- Recorded at: `N/A`
 
 <!-- MALTS:section=artifact-recovery -->
 ## Artifact Lifecycle Recovery

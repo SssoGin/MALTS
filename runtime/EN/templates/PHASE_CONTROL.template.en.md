@@ -76,13 +76,15 @@
 <!-- MALTS:section=phase-boundary-review -->
 ## Last Boundary Review
 
+- Review schema: `1`
+- Review ID: `N/A`
 - Review status: `NOT_RUN`
+- Candidate mapping: `UNCLEAR`
 - Recommended review: `USER_DECISION_REQUIRED`
 - Reviewed at: `N/A`
 - Evidence reference: `N/A`
 - Authorization reference: `N/A`
 
-<!-- MALTS:section=phase-recovery -->
 <!-- MALTS:section=phase-artifacts -->
 ## Artifact Registry
 
@@ -94,8 +96,12 @@ This optional owner-local registry exists only after explicit Artifact enrollmen
 <!-- MALTS:section=phase-recovery -->
 ## Recovery Point
 
-- Latest evidence:
-- Next action:
+- Recovery schema: `1`
+- Record ID: `phase:<PHASE_ID>:recovery`
+- Summary: Phase <PHASE_ID> is active; no Session is active.
+- Next action: Open a Session only for an explicit bounded work-session boundary.
+- Evidence references: `phase:<PHASE_ID>`
+- Recorded at: `<TIMESTAMP>`
 
 <!-- MALTS:section=phase-lifecycle -->
 ## Phase Lifecycle

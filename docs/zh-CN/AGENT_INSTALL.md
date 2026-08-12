@@ -32,7 +32,7 @@
 
 计划展示后不得替换为更新的仓库或 Release package。来源漂移会使计划失效，必须重新审阅。
 
-## 验证 v1.2.0 Capability Projection
+## 验证 v1.2.1 Capability Projection
 
 安装后，为每个选定工具启动 fresh process，确认 `malts-long-project-workspace-init` 通过工具相邻 boot 解析到 canonical Skill。Capability/bridge description 必须覆盖 Phase 与 Artifact lifecycle，而不是只描述 initialization。
 

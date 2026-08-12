@@ -41,3 +41,9 @@ Use `runtime/EN/templates/PROJECT_HANDOFF.template.en.md`.
 ## Plan Binding
 
 For an active S3/S4 Phase, include the Phase-owned active plan path, revision, raw-byte SHA-256, last trigger/result, launch-review invalidation state, and inherited Session binding. Run the read-only `FINAL_DELIVERY` Plan Recheck before a handoff-ready claim; preserve a blocked result and reconciliation action rather than hiding drift.
+
+## Cross-Control Binding
+
+In workspace schema v3, `WORK_TASK_REPORT.md` is the required current projection. `PROJECT_HANDOFF.md` remains optional, but when it exists its `current-phase-binding` section must bind the exact active Phase control SHA-256, normalized boundary SHA-256, Boundary Review ID/SHA-256/mapping/recommendation, and normalized Phase recovery SHA-256. Re-run `validate` after writing the handoff; for recovery-sensitive delivery, run fresh-process `recover` and require the expected typed canonical recovery source.
+
+A handoff is a projection, not permission or canonical Phase authority. It must not convert a successful review command into semantic acceptance, infer authorization from prose, select the latest historical Session, or hide an incomplete workspace transaction.

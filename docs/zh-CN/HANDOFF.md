@@ -47,3 +47,9 @@ runtime/EN/templates/PROJECT_HANDOFF.template.en.md
 ## Plan Binding
 
 Active S3/S4 Phase 的交接必须包含 Phase-owned active plan path、revision、raw-byte SHA-256、last trigger/result、launch-review invalidation 与继承的 Session binding。在声称 handoff-ready 前运行只读 `FINAL_DELIVERY` Plan Recheck；若结果 `BLOCKED`，保留该结果与对账动作，不得掩盖漂移。
+
+## Cross-Control Binding
+
+workspace schema v3 中，`WORK_TASK_REPORT.md` 是 required current projection。`PROJECT_HANDOFF.md` 仍然可选，但存在时，其 `current-phase-binding` section 必须绑定精确 active Phase control SHA-256、normalized boundary SHA-256、Boundary Review ID/SHA-256/mapping/recommendation 与 normalized Phase recovery SHA-256。写入 handoff 后重新运行 `validate`；recovery-sensitive delivery 还要用全新进程运行 `recover`，并要求它返回预期 typed canonical recovery source。
+
+Handoff 是 projection，不是权限或 canonical Phase authority。它不得把成功 review command 转换成 semantic acceptance，不得从 prose 推断 authorization，不得选择最新历史 Session，也不得隐藏 incomplete workspace transaction。

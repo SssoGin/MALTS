@@ -38,6 +38,15 @@
 - [ ] Applied mutations are bound to reviewed operation IDs and final hashes; dry runs are not described as applied changes.
 - [ ] No implicit Session, payload move/delete, VCS action, undeclared recursive scan, or silent legacy adoption is presented as completed work.
 
+## Workspace Consistency Delivery
+
+- [ ] Workspace schema class and any explicit v1/v2-to-v3 migration/reconciliation action are reported; no compatibility input is described as silently upgraded.
+- [ ] The required report and any existing handoff declare the exact current Phase full-control, boundary/review, and recovery binding hashes.
+- [ ] The delivered `validate` result has no structural, binding, or deterministic-consistency failures, and fresh-process `recover` names the expected typed canonical recovery source.
+- [ ] Boundary Review execution status, recorded outcome, decision, and authorization are described separately.
+- [ ] Any incomplete workspace transaction and exact `recover-workspace-transaction` action are disclosed; no lock/journal evidence was silently removed.
+- [ ] Recovery evidence proves there is no latest historical Session fallback.
+
 ## Risks And Limits
 
 - [ ] Known risks are stated.

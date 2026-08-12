@@ -361,6 +361,13 @@ L1 分析不创建 durable record；L2 项目维护需要当前项目写入授�
 <!-- MALTS:section=recovery-notes -->
 ## 恢复说明
 
+- Recovery schema: `1`
+- Record ID: `project:recovery`
+- Summary: 仅当不存在适用的 Phase 或 Session 恢复来源时，Project recovery 才是当前来源。
+- Next action: 只有完成显式 boundary 与 authorization review 后才打开 Phase。
+- Evidence references: `project:recovery`
+- Recorded at: `N/A`
+
 最低恢复单元：
 
 - Result 执行状态：

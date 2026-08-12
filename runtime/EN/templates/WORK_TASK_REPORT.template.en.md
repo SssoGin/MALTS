@@ -43,9 +43,16 @@
 <!-- MALTS:section=current-phase-binding -->
 ## Current Phase Binding
 
+- Binding schema: `2`
 - Active Phase ID: `<CURRENT_PHASE_ID>`
 - Active Phase control: `<CURRENT_PHASE_CONTROL>`
 - Phase control SHA-256: `<CURRENT_PHASE_SHA256>`
+- Phase boundary SHA-256: `<CURRENT_PHASE_BOUNDARY_SHA256>`
+- Boundary review ID: `<CURRENT_BOUNDARY_REVIEW_ID>`
+- Boundary review SHA-256: `<CURRENT_BOUNDARY_REVIEW_SHA256>`
+- Candidate mapping: `<CURRENT_BOUNDARY_CANDIDATE_MAPPING>`
+- Recommendation: `<CURRENT_BOUNDARY_RECOMMENDATION>`
+- Phase recovery SHA-256: `<CURRENT_PHASE_RECOVERY_SHA256>`
 - Recorded at: `<CURRENT_PHASE_RECORDED_AT>`
 
 ## Verification

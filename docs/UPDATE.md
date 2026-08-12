@@ -78,15 +78,21 @@ Use `Invoke-MALTSLifecycle.ps1 -Command Doctor` with the lifecycle root and all 
 
 For locally consistent core state, `DoctorRepairPlan` may scope derived repair targets from the active version, but that recommendation is not itself an executable mutation. Persist an executable repair plan only with the exact verified source that matches the installed binding; then review its hash and execute it as a separate authorized transaction.
 
-## Update To The v1.2.0 Workspace Lifecycle
+## Update Workspace Controls Across v1.2.x
 
-Updating MALTS installs new runtime behavior but does not rewrite project controls. Existing schema-v1 long-project workspaces remain readable and Artifact lifecycle stays `NOT_ENROLLED`.
+Updating MALTS installs new runtime behavior but does not rewrite project controls. Exact schema-v1/v2 long-project workspaces remain readable, fresh workspaces use schema v3, and Artifact lifecycle stays `NOT_ENROLLED`.
 
 For an active legacy Phase that lacks the v1.2.0 boundary sections, first run `migrate-phase-control` without `--apply`, review the exact preimage-bound plan, then apply only under current workspace authorization. The migration preserves the Phase goal, queue, evidence, recovery point, and active ownership.
 
 Run `artifact audit` before considering enrollment. A legacy `shared/`-like directory is only a candidate observation; it is never silently adopted. If enrollment is wanted, run `artifact enrollment-preview`, review exact index paths and findings, then run `artifact enrollment-apply` with a unique operation ID and explicit `--apply`.
 
-No update path moves/deletes payloads, invokes VCS, creates a Session, or starts an automatic/background workspace scan. Roll back the installed MALTS generation through the lifecycle plan; do not attempt to downgrade canonical workspace controls by copying old templates over them.
+For a v1/v2 workspace, run `validate` first and preserve its exact state hash/classification. If consistency migration is required, review `migrate-consistency-records --authority workspace-state --expected-state-sha256 <sha256> --operation-id <id>` without `--apply`, then apply only the same expected state inside current workspace authorization. Validation/recovery never performs this migration automatically.
+
+If a migrated Boundary Review remains unresolved, persist a structured result only through `record-phase-boundary-review` with the exact Phase SHA-256; recording is not authorization for later mutation. If canonical controls and projections disagree, use dry-run `reconcile-consistency-records --authority canonical-controls` with exact state/source/Phase hashes. Ambiguous non-empty duplicate markers or legacy prose semantics fail closed rather than being inferred.
+
+An interrupted workspace-control write uses `runtime/workspace_transaction.lock.json` and `runtime/workspace_transactions/`, separate from Artifact transactions. Review `recover-workspace-transaction` with the exact journal SHA-256 before adding `--apply`; failed recovery retains the evidence.
+
+No update path moves/deletes payloads, invokes VCS, creates a Session, selects the newest historical Session as recovery authority, or starts an automatic/background workspace scan. Roll back the installed MALTS generation through the lifecycle plan; do not attempt to downgrade canonical workspace controls by copying old templates over them.
 
 ## Recovery
 

@@ -65,6 +65,10 @@ Artifact lifecycle remains `NOT_ENROLLED` until a real need exists. Begin with r
 
 Run `validate` and `recover` after meaningful control changes. For S3/S4 work with an active plan, run the matching read-only Plan Recheck trigger at write-scope, recovery, failure/rollback, verifier, and final-delivery boundaries.
 
+Fresh long-project workspaces use schema v3. Existing schema v1/v2 controls remain readable but are never silently rewritten. If `validate` reports migration or reconciliation required, review `migrate-consistency-records`, `record-phase-boundary-review`, or `reconcile-consistency-records` without `--apply`, bind the exact expected hashes, and apply only inside the current workspace authorization.
+
+Current recovery authority is deterministic: active Session checkpoint, otherwise active Phase recovery, otherwise an explicitly bound terminal Phase, otherwise Project recovery. A historical Session is never selected merely because it is newest. An incomplete workspace transaction keeps its lock/journal evidence until an exact-journal-hash `recover-workspace-transaction` review/apply succeeds.
+
 ## Next Reading
 
 - [Install](INSTALL.md)

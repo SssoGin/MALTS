@@ -54,7 +54,7 @@ hash 授权流程。
 
 ### 审阅和改变 Phase
 
-候选 goal 或 touch set 可能离开 active boundary 时，先运行 `phase-boundary-review`。它只读，不授予实施权限。需要保留 ownership 但停止工作时用 `pause-phase`；只有具备当前 boundary/plan/authorization 证据时才用 `resume-phase`。跨 Phase 交接分两步：先生成 hash-bound `plan-phase-transition`，再用显式 carry-over 与 disposition file 执行 `apply-phase-transition`。
+候选 goal 或 touch set 可能离开 active boundary 时，先运行 `phase-boundary-review`。它只读，不授予实施权限。`status`/`operation_status` 只表示 command execution；必须分别检查 `review_outcome`、mapping、recommendation 与 `persisted`。用 `record-phase-boundary-review` 持久化 structured result；该记录仍不授予实施权限。需要保留 ownership 但停止工作时用 `pause-phase`；只有具备当前 boundary/plan/authorization 证据时才用 `resume-phase`。跨 Phase 交接分两步：先生成 hash-bound `plan-phase-transition`，再用显式 carry-over 与 disposition file 执行 `apply-phase-transition`。
 
 ```powershell
 python -B <MALTS_ROOT>\tools\long_workspace.py phase-boundary-review --workspace <workspace> --candidate-goal <goal> --candidate-touch-set <paths> --candidate-mapping UNCLEAR --recommendation USER_DECISION_REQUIRED
@@ -63,6 +63,19 @@ python -B <MALTS_ROOT>\tools\long_workspace.py resume-phase --workspace <workspa
 ```
 
 先审阅 dry-run output，再添加 `--apply`。`SUPERSEDED` 是终态，最多只能有一个 `ACTIVE` Phase。
+
+### Migration、record 与 reconcile consistency
+
+全新 workspace 使用 schema v3。schema v1/v2 保持可读且不会被静默升级。先运行 `validate`；如果返回 migration 或 reconciliation classification，使用其报告的精确 hash，并在不带 `--apply` 的情况下审阅匹配命令。
+
+```powershell
+python -B <MALTS_ROOT>\tools\long_workspace.py migrate-consistency-records --workspace <workspace> --authority workspace-state --expected-state-sha256 <sha256> --operation-id <id>
+python -B <MALTS_ROOT>\tools\long_workspace.py record-phase-boundary-review --workspace <workspace> --phase-id <id> --review-id <id> --candidate-mapping SAME_PHASE --recommendation KEEP --evidence-ref <ref> --expected-phase-sha256 <sha256> --operation-id <id>
+python -B <MALTS_ROOT>\tools\long_workspace.py reconcile-consistency-records --workspace <workspace> --authority canonical-controls --expected-state-sha256 <sha256> --expected-source-sha256 <sha256> --expected-phase-sha256 <sha256> --operation-id <id>
+python -B <MALTS_ROOT>\tools\long_workspace.py recover-workspace-transaction --workspace <workspace> --operation-id <id> --expected-journal-sha256 <sha256>
+```
+
+Applied consistency write 使用独立 workspace transaction lock/journal 与 `WS_TRANSACTION_*` error。禁止删除 incomplete journal；先运行 exact-journal-hash recovery dry run，再添加 `--apply`。Current recovery authority 固定为 active Session checkpoint、active Phase recovery、显式绑定 terminal Phase、Project recovery——绝不选择最新历史 Session。
 
 ### Audit、enroll 与 mutate Artifact
 

@@ -49,7 +49,13 @@ equivalent route, return, acceptance, and closure evidence.
 
 `MALTS_WORKSPACE_LIFECYCLE_CONTRACT: 1`
 
+`MALTS_WORKSPACE_CONSISTENCY_CONTRACT: 1`
+
 - Phase review and transition commands: `phase-boundary-review`, `pause-phase`, `resume-phase`, `plan-phase-transition`, and `apply-phase-transition`.
+- Boundary review operation success is not semantic resolution, persistence, or authorization. Use exact-hash, dry-run-first `migrate-consistency-records`, `record-phase-boundary-review`, and `reconcile-consistency-records`.
+- Fresh workspaces use schema v3. Schema v1/v2 remain readable and require explicit migration; current `WORK_TASK_REPORT.md` is required and an existing handoff must bind exact Phase, boundary/review, and recovery hashes.
+- Deterministic drift blocks validation, cold recovery, and ordinary lifecycle mutation. Recovery never chooses the latest historical Session; it uses active Session, active Phase, explicitly bound terminal Phase, then Project authority.
+- Workspace transactions use the isolated `runtime/workspace_transaction.lock.json` / `runtime/workspace_transactions/` namespace and `WS_TRANSACTION_*` codes.
 - Artifact commands: `artifact audit`, `artifact enrollment-preview`, `artifact enrollment-apply`, `artifact register`, `artifact promote`, `artifact supersede`, and `artifact reconcile`.
 - The Artifact contract defaults to `NOT_ENROLLED`. Invariant: no implicit Session.
 - State changes are dry-run by default and require explicit `--apply`; they do not move/delete payloads, invoke VCS, or recursively scan undeclared trees.

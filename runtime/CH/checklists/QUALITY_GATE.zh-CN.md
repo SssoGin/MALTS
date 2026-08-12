@@ -34,6 +34,17 @@
 - [ ] Promotion/supersession 保持唯一 current Shared authority，并更新所有已声明 active reference；否则 fail closed。
 - [ ] 含 `UNRESOLVED` 记录的 enrolled owner 没有被关闭；stale lock/journal 只报告精确人工审阅动作且绝不自动删除。
 
+## Workspace Cross-Control Consistency Gate
+
+- [ ] 全新工作区使用精确 schema v3；schema v1/v2 输入被显式分类，validation、recovery、maintenance 或 installation update 不会静默迁移。
+- [ ] Active Phase 拥有 Boundary Review 与 recovery record；active Session 拥有 checkpoint；current report binding 必需，existing handoff binding 存在时也会检查。
+- [ ] 没有把 `phase-boundary-review` operation status 当成 review outcome、persistence、decision 或 authorization；只有 `record-phase-boundary-review` 持久化记录，后续 mutation authorization 仍然独立。
+- [ ] 完整 Phase-control SHA-256 与 normalized boundary/review/recovery hashes 在 canonical authority、required report、optional handoff 和 typed runtime projection 间一致。
+- [ ] Structural、binding、deterministic-consistency 与 advisory-semantic finding 分层报告；deterministic drift 会阻断 `validate`、cold `recover` 和普通 lifecycle mutation。
+- [ ] Recovery 顺序固定为 active Session checkpoint、active Phase recovery、显式绑定的 terminal Phase、Project recovery；不存在 latest historical Session fallback。
+- [ ] Workspace consistency mutation 使用 dry-run、精确 expected hashes、唯一 operation ID、`runtime/workspace_transaction.lock.json` 与 `runtime/workspace_transactions/`；Artifact transaction path/code 保持不变。
+- [ ] Interrupted workspace transaction 只能通过精确 journal-hash `recover-workspace-transaction` review/apply 恢复；恢复失败时保留 lock/journal evidence。
+
 ## 验证证据
 
 - [ ] 至少使用了一种直接验证方法。

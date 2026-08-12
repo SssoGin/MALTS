@@ -76,13 +76,15 @@
 <!-- MALTS:section=phase-boundary-review -->
 ## Last Boundary Review
 
+- Review schema: `1`
+- Review ID: `N/A`
 - Review status: `NOT_RUN`
+- Candidate mapping: `UNCLEAR`
 - Recommended review: `USER_DECISION_REQUIRED`
 - Reviewed at: `N/A`
 - Evidence reference: `N/A`
 - Authorization reference: `N/A`
 
-<!-- MALTS:section=phase-recovery -->
 <!-- MALTS:section=phase-artifacts -->
 ## Artifact Registry
 
@@ -94,8 +96,12 @@
 <!-- MALTS:section=phase-recovery -->
 ## Recovery Point
 
-- Latest evidence:
-- Next action:
+- Recovery schema: `1`
+- Record ID: `phase:<PHASE_ID>:recovery`
+- Summary: Phase <PHASE_ID> 已激活；当前没有 active Session。
+- Next action: 仅在显式 bounded work-session 边界下创建 Session。
+- Evidence references: `phase:<PHASE_ID>`
+- Recorded at: `<TIMESTAMP>`
 
 <!-- MALTS:section=phase-lifecycle -->
 ## Phase Lifecycle

@@ -11,9 +11,10 @@ This workspace uses MALTS long-project controls.
 
 ## Canonical ownership
 
-- `PROJECT_CONTROL.md` owns the original goal, global acceptance criteria, active Phase index, and cross-phase decisions.
-- `phases/<phase-id>/PHASE_CONTROL.md` owns only that Phase's goal, queue, deliverables, evidence, closure, and growth review.
-- `sessions/<session-id>/SESSION_CONTROL.md` owns only one explicitly bounded work session's scope, commands, touch set, checkpoint, and next step.
+- `PROJECT_CONTROL.md` owns the original goal, global acceptance criteria, active Phase index, cross-phase decisions, and Project recovery record.
+- `phases/<phase-id>/PHASE_CONTROL.md` owns that Phase's goal, boundary and Boundary Review records, plan, queue, deliverables, evidence, recovery record, closure, and growth review.
+- `sessions/<session-id>/SESSION_CONTROL.md` owns one explicitly bounded work session's scope, commands, touch set, checkpoint/recovery record, and next step.
+- `WORK_TASK_REPORT.md` is the required current projection in schema v3. `PROJECT_HANDOFF.md` is optional, but when present its current Phase binding must also be exact.
 - `runtime/` is non-canonical generated state. It must never overwrite canonical Markdown controls.
 
 Do not create a Session for every conversation turn or ordinary persistent write. Open one only for an explicit bounded work-session boundary.
@@ -23,10 +24,19 @@ Do not create a Session for every conversation turn or ordinary persistent write
 1. Read the nearest applicable instruction file.
 2. Read root `PROJECT_CONTROL.md`.
 3. Read the active `PHASE_CONTROL.md`, if any.
-4. Read the active/latest `SESSION_CONTROL.md`, report, or handoff, if any.
-5. Verify current files and runtime evidence.
+4. Read the active `SESSION_CONTROL.md` only when one exists, then the current report and optional handoff.
+5. Verify current files and non-canonical runtime evidence.
 
 Summaries cannot replace the active MALTS version, current files, or required runtime probes.
+
+For schema v3, canonical recovery authority is: active Session checkpoint, otherwise active Phase recovery, otherwise an explicitly bound terminal Phase, otherwise Project recovery. Never select the latest historical Session by time or list order.
+
+## Cross-control consistency
+
+- Fresh workspaces use exact workspace schema v3. Schema v1/v2 remain readable compatibility contracts; migrate only through explicit dry-run/apply commands.
+- `phase-boundary-review` reports operation execution separately from `review_outcome`; it never persists or authorizes work. Persist only with `record-phase-boundary-review` and keep later mutation authorization separate.
+- Missing/stale current report binding, stale optional handoff binding, full Phase-control drift, normalized Boundary/Recovery drift, unresolved review state, typed recovery-source drift, or an incomplete workspace transaction blocks validation, cold recovery, and ordinary lifecycle mutation.
+- Workspace consistency writes use `runtime/workspace_transaction.lock.json`, `runtime/workspace_transactions/`, and `WS_TRANSACTION_*`. Artifact transactions retain their separate paths and `ART_TRANSACTION_*` codes.
 
 ## Discovery and Plan Recheck
 

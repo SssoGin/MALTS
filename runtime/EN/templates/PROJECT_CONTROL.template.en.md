@@ -361,6 +361,13 @@ L1 analysis creates no durable record. L2 project maintenance requires current p
 <!-- MALTS:section=recovery-notes -->
 ## Recovery Notes
 
+- Recovery schema: `1`
+- Record ID: `project:recovery`
+- Summary: Project recovery is current when no applicable Phase or Session recovery source exists.
+- Next action: Open a Phase only after explicit boundary and authorization review.
+- Evidence references: `project:recovery`
+- Recorded at: `N/A`
+
 Minimum recovery unit:
 
 - Result execution status:

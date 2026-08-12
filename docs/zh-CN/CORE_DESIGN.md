@@ -247,6 +247,16 @@ Recovery Notes
 
 对于小型 MALTS-enabled work，该文件可以保持紧凑。目标是可恢复状态，而不是为了文档体积而增加文档。
 
+### Long-Workspace Cross-Control Consistency
+
+Long-project state 不是一个扁平文件。Project 拥有 original goal/global acceptance/active Phase index 与 Project recovery；Phase 拥有 boundary、Boundary Review、plan、queue、evidence、Phase recovery 与 closure；显式 Session 只拥有 bounded scope 与 checkpoint。`WORK_TASK_REPORT.md` 是 required current schema-v3 projection。`PROJECT_HANDOFF.md` 可选，但存在时同样是 checked projection。Runtime JSON 是 typed non-canonical state，不能覆盖 Markdown authority。
+
+全新工作区使用精确 closed schema v3。精确 schema v1/v2 作为可读 compatibility contract 保留且必须显式迁移；validator 按 declared version dispatch，拒绝 unknown version。Active Phase full-file SHA-256 与 normalized boundary、Boundary Review、recovery hash 把 authority 绑定到 report/handoff/runtime projection。Normalization 将 line ending 转为 LF、移除每行 trailing whitespace，并在 SHA-256 前保留恰好一个 trailing LF。
+
+Boundary review execution、recorded outcome、decision 与 authorization 是分离的状态维度。只读 `phase-boundary-review` 永不持久化或授权工作。显式 `record-phase-boundary-review` 只持久化 structured record；后续 lifecycle mutation 仍需自己的 authorization evidence。Structural、binding、deterministic-consistency 与 advisory-semantic finding 分开，避免 semantic advice 掩盖 byte drift。
+
+Applied consistency migration/record/reconciliation 使用独立 persisted workspace transaction domain，带精确 precondition 与 original-byte rollback。其 `runtime/workspace_transaction.lock.json`、`runtime/workspace_transactions/` 与 `WS_TRANSACTION_*` code 不会和 Artifact transaction state 冲突。Interrupted journal 会保留给 exact-hash recovery，而不是自动删除。
+
 ## 产物矩阵
 
 | Artifact | 默认位置 | 受众 | 目的 |
@@ -360,6 +370,8 @@ Main Controller 是每个 multi-agent round 必需的责任所有者。下表中
 Sub-agent reports 必须在 merge 前回收并审阅。偏离 scope、不可验证、不完整或与 task contract 不一致的 reports，应被拒绝、以更小任务重试，或升级给用户。
 
 Failures 应被记录为 failures。Partial 或 failed sub-agent output 必须保持 incomplete work 分类，而不是完成进度。
+
+schema-v3 recovery authority 固定为：active Session checkpoint；否则 active Phase recovery；否则显式绑定的 terminal Phase；否则 Project recovery。Registry time/order 与最新历史 Session 永远不是 authority。Recovery-sensitive dispatch 或 delivery 前，required current report 与 optional current handoff binding 必须一致。
 
 ## 验证与交付
 

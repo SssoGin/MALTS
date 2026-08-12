@@ -108,7 +108,8 @@ This preflight is not multi-agent dispatch and does not require `确认运行`. 
 20. At long-task start, ask whether the user wants to enable unattended auto-continue. It requires explicit authorization recorded in `PROJECT_CONTROL.md`; without that authorization, unattended auto-running is forbidden and the system must stop at user checkpoints.
 21. If unattended continuation needs a new multi-agent batch that was not already reviewed and confirmed, stop and ask for the normal launch review confirmation.
 22. Standalone task or tool artifacts must keep their boundary explicit. Do not register a one-off artifact as a system entry, shared tool, or index item unless the user asks for that scope.
-23. Cross-window or cross-project continuation starts from external state: project instructions, latest `PROJECT_CONTROL`, latest `WORK_TASK_REPORT` or `PROJECT_HANDOFF`, and current files. If that state is missing or stale, update it before continuing.
+23. Cross-window or cross-project continuation starts from external state: project instructions, `PROJECT_CONTROL`, the active Phase, the active Session if one exists, the required current `WORK_TASK_REPORT`, an optional current `PROJECT_HANDOFF`, and current files. Never select the latest historical Session by time or list order.
+24. In workspace schema v3, run `validate` and cold `recover` before dispatch or recovery-sensitive delivery. Missing/stale current bindings, Boundary/Recovery drift, unresolved review records, typed recovery-source drift, or an incomplete workspace transaction is `BLOCKED` until explicitly migrated, recorded, reconciled, or recovered.
 
 ## Role Model
 
@@ -132,7 +133,7 @@ This preflight is not multi-agent dispatch and does not require `确认运行`. 
 7. Offer MALTS-native Grill-Me Preflight for non-trivial or unclear starts, unless it is clearly N/A, and record offered/accepted/declined/N/A.
 8. Run the Multi-Agent Fit Assessment and decide whether to stay single-agent, suggest multi-agent, or ask for clarification.
 9. Ask whether the user wants to specify sub-agent model and effort choices and show the accepted format.
-10. Prepare task contracts and a user-visible launch review packet.
+10. Prepare task contracts and a user-visible launch review packet. When the active Phase owns a plan, require a matching `BEFORE_LAUNCH_REVIEW` Plan Recheck; when schema v3 is active, require current report/handoff bindings and deterministic consistency first.
 11. Wait for the user's explicit `确认运行`.
 12. Dispatch only READY tasks with clear task contracts after confirmation.
 13. Record each real dispatch in the Agent Dispatch Log, including runtime agent ID and model policy when available.
@@ -324,7 +325,7 @@ Require confirmation or a safety mechanism before:
 - Standalone task artifacts stay in their own directory and are documented locally. They are not added to global `README`, handoff indexes, `tools/`, or adapter docs unless the user explicitly asks to promote them.
 - If a directory becomes a system entry, shared tool, adapter asset, or documented workflow location, update the relevant index and usage docs before delivery.
 - If a project workspace accidentally contains global skills or tool install copies, first verify the correct Agent global paths, promote or copy missing items there if appropriate, then remove or document the project copies. Do not leave unexplained agent-style skill folders in a task workspace.
-- At recovery time, a new window or another project folder should first read the project instruction entry, the latest `PROJECT_CONTROL`, the latest work task report or handoff, and the directory guide when one exists. Continue only from facts recorded there, not from memory alone.
+- At recovery time, a new window or another project folder should read the project instruction entry, root `PROJECT_CONTROL`, the active Phase, the active Session only when one exists, the required current report, an optional current handoff, and the directory guide when one exists. Continue only from verified current facts; do not fall back to the newest historical Session.
 
 ## Runtime Duration And Round-Based Continuity
 
@@ -400,6 +401,7 @@ At delivery, report:
 - [ ] Dispatch logs, task contracts, reports, and feedback logs agree before claiming validation.
 - [ ] Any claim of multi-agent validation is backed by dispatched contracts and recycled reports.
 - [ ] Verification evidence exists before DONE.
+- [ ] For schema v3, structural/binding/deterministic consistency is clean, report/handoff bindings match exact Phase bytes, the typed recovery source is current, and no incomplete workspace transaction remains.
 - [ ] Main controller performed final acceptance mapping.
 - [ ] Risks are transparent.
 - [ ] Growth candidates are filtered before long-term memory writes.

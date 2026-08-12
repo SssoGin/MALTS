@@ -56,9 +56,9 @@ A legacy workspace with root controls but zero registered Phases is `NEEDS_INITI
 
 | Layer | Owns | Must not own |
 |---|---|---|
-| Project | Original goal, global acceptance, active phase index, cross-phase decisions, compact Artifact enrollment/index pointers | Per-Artifact rows or per-turn logs |
-| Phase | Phase goal, boundary contract, active plan binding, queue, deliverables, evidence, optional owner-local Artifact Registry, closure and growth | Other phases' active state |
-| Session | Inherited plan binding, bounded scope, commands, touch set, checkpoint, optional owner-local Artifact Registry | Canonical project goal, plan authority, or implicit creation authority |
+| Project | Original goal, global acceptance, active phase index, cross-phase decisions, Project recovery record, compact Artifact enrollment/index pointers | Per-Artifact rows, Phase recovery, or per-turn logs |
+| Phase | Phase goal, boundary contract, Boundary Review record, active plan binding, queue, deliverables, evidence, Phase recovery, optional owner-local Artifact Registry, closure and growth | Other phases' active state or report projection authority |
+| Session | Inherited plan binding, bounded scope, commands, touch set, checkpoint/recovery record, optional owner-local Artifact Registry | Canonical project goal, plan authority, or implicit creation authority |
 | Shared / Archive | Optional `shared/INDEX.md` current reusable authority and `archive/INDEX.md` cold/superseded history | Project goal or active queue |
 | `runtime/` | Cache, generated state, lock, journal and measurements | Canonical Markdown truth or live Artifact authority |
 
@@ -82,6 +82,10 @@ python -B <MALTS_ROOT>\tools\long_workspace.py apply-phase-transition --workspac
 python -B <MALTS_ROOT>\tools\long_workspace.py open-session --workspace <workspace> --session-id <id> --goal <goal> --reason bounded-work-session --apply
 python -B <MALTS_ROOT>\tools\long_workspace.py close-session --workspace <workspace> --status DONE --next-action <action> --apply
 python -B <MALTS_ROOT>\tools\long_workspace.py validate --workspace <workspace>
+python -B <MALTS_ROOT>\tools\long_workspace.py migrate-consistency-records --workspace <workspace> --authority workspace-state --expected-state-sha256 <sha256> --operation-id <id>
+python -B <MALTS_ROOT>\tools\long_workspace.py record-phase-boundary-review --workspace <workspace> --phase-id <id> --review-id <id> --candidate-mapping SAME_PHASE --recommendation KEEP --evidence-ref <ref> --authorization-ref <ref-or-N/A> --expected-phase-sha256 <sha256> --operation-id <id>
+python -B <MALTS_ROOT>\tools\long_workspace.py reconcile-consistency-records --workspace <workspace> --authority canonical-controls --expected-state-sha256 <sha256> --expected-source-sha256 <sha256> --expected-phase-sha256 <sha256> --operation-id <id>
+python -B <MALTS_ROOT>\tools\long_workspace.py recover-workspace-transaction --workspace <workspace> --operation-id <id> --expected-journal-sha256 <sha256>
 python -B <MALTS_ROOT>\tools\long_workspace.py plan-recheck --workspace <workspace> --trigger CONTEXT_RECOVERY
 python -B <MALTS_ROOT>\tools\long_workspace.py plan-recheck --workspace <workspace> --trigger BEFORE_NEW_WRITE_SCOPE --require-active-plan
 python -B <MALTS_ROOT>\tools\long_workspace.py maintain --workspace <workspace>
@@ -94,10 +98,22 @@ If either initial Phase argument is missing, `init` fails closed with `WS_INITIA
 ## Phase lifecycle contract
 
 - `phase-boundary-review` is read-only. Run it when the candidate goal or touch set may cross the active Phase boundary; an `UNCLEAR` or outside-scope result cannot authorize a write.
+- `phase-boundary-review.status` is compatibility-only operation execution status. Read `operation_status`, `review_outcome`, `candidate_mapping`, `recommendation`, and `persisted`; operation success never means that a semantic decision was resolved or recorded.
+- `record-phase-boundary-review` is the only public command that persists the structured review into the Phase authority and refreshes its projections. The record is not later mutation authorization; pause/resume/transition still require their own authorization reference.
 - `migrate-phase-control` upgrades a legacy active Phase without overwriting its existing goal, queue, evidence, or recovery record.
 - `pause-phase` preserves ownership and recovery state but forbids new Phase work until `resume-phase` rebinds boundary review, plan review, exact plan hash, and authorization evidence.
 - Cross-Phase carry-over uses `plan-phase-transition` followed by hash-bound `apply-phase-transition`. The source record is immutable, the target record is mutable, and their provenance is bidirectional.
 - `SUPERSEDED` is terminal. At most one Phase may be `ACTIVE`; transition apply fails closed on stale bytes, active Sessions, incomplete disposition, or changed plan/hash preconditions.
+
+## Cross-control consistency contract
+
+- Fresh workspaces use exact closed workspace schema v3. Schema v1 and v2 remain readable compatibility contracts and are never silently rewritten by `validate`, `recover`, maintenance, or installation switching.
+- An active schema-v2 workspace that lacks the required current report binding is `MIGRATION_REQUIRED_V2`. Use `migrate-consistency-records` as a dry run first, bind the exact full-state hash and explicit `workspace-state` authority, then use `--apply` only inside the reviewed workspace authorization.
+- `PHASE_CONTROL.md` owns the Boundary Review and Phase recovery records. An active Session owns its checkpoint. `WORK_TASK_REPORT.md` and an optional existing `PROJECT_HANDOFF.md` are hash-bound projections; runtime JSON is a typed non-canonical projection.
+- Schema v3 requires the current report binding. A handoff remains optional, but when present its declared binding must be current. Missing/stale bindings, full-control drift, normalized Boundary/Recovery drift, unresolved review records, or typed recovery-source drift block `validate`, cold `recover`, and ordinary lifecycle mutations.
+- `validate` reports structural, binding, deterministic-consistency, and advisory-semantic layers separately. Only stable structured fields are authoritative; never infer mapping, recommendation, or authorization from prose or timestamps.
+- `migrate-consistency-records`, `record-phase-boundary-review`, and `reconcile-consistency-records` are dry-run-first. Apply requires exact expected hashes and uses `runtime/workspace_transaction.lock.json`, `runtime/workspace_transactions/<operation-id>.json`, and `WS_TRANSACTION_*` failures. Artifact transaction paths and `ART_TRANSACTION_*` codes remain separate and unchanged.
+- An incomplete workspace transaction is never auto-deleted. Use `recover-workspace-transaction` with the exact reviewed journal SHA-256; dry-run before `--apply`. Recovery restores recorded original bytes or fails closed while retaining its lock/journal evidence.
 
 ## Artifact lifecycle contract
 
@@ -144,11 +160,13 @@ Read current sources in this order:
 1. nearest `AGENTS.md` instruction;
 2. root `PROJECT_CONTROL.md`;
 3. active `PHASE_CONTROL.md`;
-4. active/latest `SESSION_CONTROL.md`, report, or handoff;
+4. active `SESSION_CONTROL.md` when one exists, then current report and optional handoff;
 5. only owner/Shared/Archive Artifact indexes explicitly referenced by those current controls;
 6. current files and `runtime/workspace_control.json` evidence.
 
 Treat summaries and runtime state as recovery aids only. They never replace the active MALTS version, current files, or a required runtime probe.
+
+For schema v3, recovery authority is deterministic: active Session checkpoint, otherwise active Phase recovery, otherwise an explicitly bound terminal Phase, otherwise Project recovery. Never select the latest historical Session by time or list order.
 
 ## Verification
 
@@ -162,3 +180,5 @@ Before reporting success:
 6. Keep full three-tool discovery/invocation/behavior verification for the G4 runtime gate; component tests alone are not G4.
 7. For an active S3/S4 Phase, run the matching `plan-recheck` trigger and require `recheck_result=PASS` before the gated action or completion claim.
 8. If Artifact enrollment is `ENROLLED`, require `artifact audit`, top-level `validate`, exact registry/index references, zero unresolved close blockers, and no stale transaction lock/journal before qualification.
+9. For schema v3, require empty structural/binding/deterministic issue lists, `workspace_schema_class=CURRENT_V3`, and a fresh-process `recover` result that names the same typed canonical recovery source.
+10. Confirm no `runtime/workspace_transaction.lock.json` or incomplete workspace journal remains; committed/rolled-back journals are evidence and are not treated as current locks.

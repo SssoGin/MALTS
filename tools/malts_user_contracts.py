@@ -765,6 +765,37 @@ def _semantic_workspace(value: dict[str, Any]) -> list[ContractIssue]:
         issues.append(_issue("WS_SESSION_PHASE_MISMATCH", "$.active_session_id", "Active session must belong to the active phase."))
     elif active_session is not None and session_map[active_session].get("status") != "ACTIVE":
         issues.append(_issue("WS_ACTIVE_SESSION_STATUS", "$.active_session_id", "active_session_id must reference an ACTIVE Session row."))
+    if value.get("schema_version") == 3:
+        binding = value.get("current_phase_binding")
+        if active_phase is None and binding is not None:
+            issues.append(_issue("WS_CURRENT_BINDING_TOPOLOGY", "$.current_phase_binding", "No active Phase requires a null current_phase_binding."))
+        elif active_phase is not None and (
+            not isinstance(binding, dict) or binding.get("active_phase_id") != active_phase
+        ):
+            issues.append(_issue("WS_CURRENT_BINDING_TOPOLOGY", "$.current_phase_binding", "current_phase_binding must identify the active Phase."))
+        recovery = value.get("recovery_binding")
+        if isinstance(recovery, dict):
+            source_kind = recovery.get("source_kind")
+            if active_session is not None and (
+                source_kind != "ACTIVE_SESSION_CHECKPOINT"
+                or recovery.get("source_session_id") != active_session
+                or recovery.get("source_phase_id") != active_phase
+            ):
+                issues.append(_issue("WS_RECOVERY_BINDING_TOPOLOGY", "$.recovery_binding", "An active Session must own the runtime recovery binding."))
+            elif active_session is None and active_phase is not None and (
+                source_kind != "ACTIVE_PHASE_RECOVERY"
+                or recovery.get("source_phase_id") != active_phase
+                or recovery.get("source_session_id") is not None
+            ):
+                issues.append(_issue("WS_RECOVERY_BINDING_TOPOLOGY", "$.recovery_binding", "An active Phase without an active Session must own the runtime recovery binding."))
+            elif active_session is None and active_phase is None and source_kind == "PROJECT_RECOVERY" and (
+                recovery.get("source_phase_id") is not None or recovery.get("source_session_id") is not None
+            ):
+                issues.append(_issue("WS_RECOVERY_BINDING_TOPOLOGY", "$.recovery_binding", "Project recovery cannot claim a Phase or Session source."))
+            elif active_session is None and active_phase is None and source_kind == "TERMINAL_PHASE_RECOVERY":
+                source_phase = next((item for item in phases if item.get("phase_id") == recovery.get("source_phase_id")), None)
+                if source_phase is None or source_phase.get("status") == "ACTIVE" or recovery.get("source_session_id") is not None:
+                    issues.append(_issue("WS_RECOVERY_BINDING_TOPOLOGY", "$.recovery_binding", "Terminal Phase recovery must bind an existing non-active Phase and no Session."))
     return issues
 
 def _semantic_workspace_artifact_snapshot(value: dict[str, Any]) -> list[ContractIssue]:
@@ -1160,7 +1191,21 @@ def validate_instance(
     validation_schema = schema
     if (
         schema_override is None
-        and contract_id in {"generation-manifest", "tool-projection-manifest", "workspace-control"}
+        and contract_id == "workspace-control"
+        and isinstance(instance, dict)
+    ):
+        version = instance.get("schema_version")
+        definition = {1: "workspaceControlV1", 2: "workspaceControlV2", 3: "workspaceControlV3"}.get(version)
+        if definition is None:
+            return [_issue("SCHEMA_VERSION_UNSUPPORTED", "$.schema_version", f"Unsupported workspace-control schema_version: {version!r}.")]
+        selected = schema.get("$defs", {}).get(definition)
+        if not isinstance(selected, dict):
+            return [_issue("SCHEMA_REF", "$", f"Missing workspace-control compatibility definition: {definition}")]
+        validation_schema = copy.deepcopy(selected)
+        validation_schema["$defs"] = copy.deepcopy(schema["$defs"])
+    elif (
+        schema_override is None
+        and contract_id in {"generation-manifest", "tool-projection-manifest"}
         and isinstance(instance, dict)
         and instance.get("schema_version") == 1
     ):

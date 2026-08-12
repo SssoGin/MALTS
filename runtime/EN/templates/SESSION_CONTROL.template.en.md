@@ -31,7 +31,6 @@
 - Allowed touch set:
 - Prohibited operations:
 
-<!-- MALTS:section=session-checkpoint -->
 <!-- MALTS:section=session-artifacts -->
 ## Artifact Registry
 
@@ -43,9 +42,14 @@ This optional owner-local registry is used only for an explicitly enrolled contr
 <!-- MALTS:section=session-checkpoint -->
 ## Checkpoint
 
+- Recovery schema: `1`
+- Record ID: `session:<SESSION_ID>:checkpoint`
+- Summary: Session <SESSION_ID> is active in Phase <PHASE_ID>.
+- Next action: <SESSION_GOAL>
+- Evidence references: `session:<SESSION_ID>`
+- Recorded at: `<TIMESTAMP>`
 - Completed:
 - Evidence:
 - Risks or blockers:
-- Next action:
 
 This Session control does not own or redefine the canonical project goal.

@@ -1,35 +1,36 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:malts:schema:workspace-control:2",
+  "$id": "urn:malts:schema:workspace-control:3",
   "title": "MALTS Long-Project Workspace Control",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schema_version", "project_id", "active_phase_id", "active_session_id", "project_control",
-    "phase_controls", "session_controls", "capacity_budget", "maintenance_state", "recovery_point"
+    "phase_controls", "session_controls", "capacity_budget", "maintenance_state", "recovery_point",
+    "current_phase_binding", "recovery_binding"
   ],
   "properties": {
-    "schema_version": {"const": 2},
+    "schema_version": {"const": 3},
     "project_id": {"$ref": "#/$defs/id"},
-    "active_phase_id": {
-      "description": "The active Phase. A completed long-project init sets this to its initial Phase; null is valid only between or after registered Phases.",
-      "type": ["string", "null"],
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
-    },
+    "active_phase_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
     "active_session_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
     "project_control": {"const": "PROJECT_CONTROL.md"},
-    "phase_controls": {
-      "description": "Registered Phase controls. An empty array is accepted only so a legacy silent-minimal workspace can be diagnosed and migrated; it is not a phase-ready initialized state.",
-      "type": "array",
-      "items": {"$ref": "#/$defs/phaseControl"}
-    },
+    "phase_controls": {"type": "array", "items": {"$ref": "#/$defs/phaseControl"}},
     "session_controls": {"type": "array", "items": {"$ref": "#/$defs/sessionControl"}},
     "capacity_budget": {"$ref": "#/$defs/capacityBudget"},
     "maintenance_state": {"$ref": "#/$defs/maintenanceState"},
-    "recovery_point": {"$ref": "#/$defs/recoveryPoint"}
+    "recovery_point": {"$ref": "#/$defs/recoveryPoint"},
+    "current_phase_binding": {"$ref": "#/$defs/currentPhaseBinding"},
+    "recovery_binding": {"$ref": "#/$defs/recoveryBinding"}
   },
   "$defs": {
     "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "recordId": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,191}$"},
+    "sha256": {"type": "string", "pattern": "^[A-F0-9]{64}$"},
+    "controlPath": {
+      "type": "string",
+      "pattern": "^(PROJECT_CONTROL\\.md|phases[/\\\\][A-Za-z0-9._-]+[/\\\\]PHASE_CONTROL\\.md|sessions[/\\\\][A-Za-z0-9._-]+[/\\\\]SESSION_CONTROL\\.md)$"
+    },
     "phaseControl": {
       "type": "object",
       "additionalProperties": false,
@@ -85,6 +86,104 @@
         "summary": {"type": "string", "minLength": 1},
         "next_action": {"type": "string", "minLength": 1},
         "evidence_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "currentPhaseBinding": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": [
+        "binding_schema", "active_phase_id", "phase_control_path", "phase_control_sha256",
+        "phase_boundary_sha256", "boundary_review_id", "boundary_review_sha256",
+        "candidate_mapping", "recommendation", "phase_recovery_sha256", "recorded_at"
+      ],
+      "properties": {
+        "binding_schema": {"const": 2},
+        "active_phase_id": {"$ref": "#/$defs/id"},
+        "phase_control_path": {"type": "string", "pattern": "^phases[/\\\\][A-Za-z0-9._-]+[/\\\\]PHASE_CONTROL\\.md$"},
+        "phase_control_sha256": {"$ref": "#/$defs/sha256"},
+        "phase_boundary_sha256": {"$ref": "#/$defs/sha256"},
+        "boundary_review_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,191}$"},
+        "boundary_review_sha256": {"$ref": "#/$defs/sha256"},
+        "candidate_mapping": {"type": ["string", "null"], "enum": ["SAME_PHASE", "UNCLEAR", "OUTSIDE_EXPLICIT_SCOPE", null]},
+        "recommendation": {"type": ["string", "null"], "enum": ["KEEP", "REBASE_PLAN", "RESCOPE_REVIEW", "TRANSITION_REVIEW", "USER_DECISION_REQUIRED", null]},
+        "phase_recovery_sha256": {"$ref": "#/$defs/sha256"},
+        "recorded_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "recoveryBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record_schema", "record_id", "source_kind", "source_phase_id", "source_session_id",
+        "source_control_path", "source_control_sha256", "source_recovery_sha256",
+        "summary", "next_action", "evidence_refs", "projected_at"
+      ],
+      "properties": {
+        "record_schema": {"const": 1},
+        "record_id": {"$ref": "#/$defs/recordId"},
+        "source_kind": {"enum": ["ACTIVE_SESSION_CHECKPOINT", "ACTIVE_PHASE_RECOVERY", "TERMINAL_PHASE_RECOVERY", "PROJECT_RECOVERY"]},
+        "source_phase_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+        "source_session_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+        "source_control_path": {"$ref": "#/$defs/controlPath"},
+        "source_control_sha256": {"$ref": "#/$defs/sha256"},
+        "source_recovery_sha256": {"$ref": "#/$defs/sha256"},
+        "summary": {"type": "string", "minLength": 1},
+        "next_action": {"type": "string", "minLength": 1},
+        "evidence_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "projected_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "workspaceControlV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "project_id", "active_phase_id", "active_session_id", "project_control", "phase_controls", "session_controls", "capacity_budget", "maintenance_state", "recovery_point"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "project_id": {"$ref": "#/$defs/id"},
+        "active_phase_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+        "active_session_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+        "project_control": {"const": "PROJECT_CONTROL.md"},
+        "phase_controls": {"type": "array", "items": {"$ref": "#/$defs/phaseControl"}},
+        "session_controls": {"type": "array", "items": {"$ref": "#/$defs/sessionControl"}},
+        "capacity_budget": {"$ref": "#/$defs/capacityBudget"},
+        "maintenance_state": {"$ref": "#/$defs/maintenanceState"},
+        "recovery_point": {"$ref": "#/$defs/recoveryPoint"}
+      }
+    },
+    "workspaceControlV2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "project_id", "active_phase_id", "active_session_id", "project_control", "phase_controls", "session_controls", "capacity_budget", "maintenance_state", "recovery_point"],
+      "properties": {
+        "schema_version": {"const": 2},
+        "project_id": {"$ref": "#/$defs/id"},
+        "active_phase_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+        "active_session_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+        "project_control": {"const": "PROJECT_CONTROL.md"},
+        "phase_controls": {"type": "array", "items": {"$ref": "#/$defs/phaseControl"}},
+        "session_controls": {"type": "array", "items": {"$ref": "#/$defs/sessionControl"}},
+        "capacity_budget": {"$ref": "#/$defs/capacityBudget"},
+        "maintenance_state": {"$ref": "#/$defs/maintenanceState"},
+        "recovery_point": {"$ref": "#/$defs/recoveryPoint"}
+      }
+    },
+    "workspaceControlV3": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "project_id", "active_phase_id", "active_session_id", "project_control", "phase_controls", "session_controls", "capacity_budget", "maintenance_state", "recovery_point", "current_phase_binding", "recovery_binding"],
+      "properties": {
+        "schema_version": {"const": 3},
+        "project_id": {"$ref": "#/$defs/id"},
+        "active_phase_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+        "active_session_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+        "project_control": {"const": "PROJECT_CONTROL.md"},
+        "phase_controls": {"type": "array", "items": {"$ref": "#/$defs/phaseControl"}},
+        "session_controls": {"type": "array", "items": {"$ref": "#/$defs/sessionControl"}},
+        "capacity_budget": {"$ref": "#/$defs/capacityBudget"},
+        "maintenance_state": {"$ref": "#/$defs/maintenanceState"},
+        "recovery_point": {"$ref": "#/$defs/recoveryPoint"},
+        "current_phase_binding": {"$ref": "#/$defs/currentPhaseBinding"},
+        "recovery_binding": {"$ref": "#/$defs/recoveryBinding"}
       }
     }
   }

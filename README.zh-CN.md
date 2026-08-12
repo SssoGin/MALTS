@@ -150,13 +150,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-MALTS.ps1 
 
 `MergeSafe` 默认使用 `InstructionMode ManagedMerge`：更新 MALTS 管理指令块，同时保留周围用户规则。使用 `InstructionMode Skip` 可完全不修改指令文件。
 
-## v1.2.0 Workspace Lifecycle
+## Workspace Lifecycle 与 v1.2.1 Consistency Hardening
 
 MALTS 1.2.0 扩展了长项目工作区，但不改变最小默认行为。Phase 现在具有显式 boundary contract、只读 boundary review、pause/resume、hash-bound transition plan、双向 carry-over provenance，以及终态 `SUPERSEDED`。
 
 Artifact lifecycle 是 opt-in，默认 `NOT_ENROLLED`。Phase 与 Session control 可拥有紧凑的本地 registry；Project 只保留 enrollment 与 Shared/Archive pointer。Audit 只读，mutation 默认 dry-run 且需要显式 `--apply`；任何 Artifact 命令都不会创建 Session、移动/删除 payload、调用 VCS 或递归扫描未声明目录。
 
 合同见[生命周期](docs/zh-CN/LIFECYCLE.md)，精确命令见[使用指南](docs/zh-CN/USAGE.md)。现有 schema-v1 workspace 保持可读，不会被静默迁移或 enrollment。
+
+MALTS 1.2.1 在不改变上述安全默认值的前提下强化 cross-control consistency。全新工作区使用 schema v3；schema v1/v2 作为精确可读兼容合同保留，只允许显式迁移。Active Phase 拥有 Boundary Review 与 recovery record；required current report 和 existing handoff（如有）是精确 hash-bound projection。Structural、binding、boundary/recovery、typed-source 或 interrupted workspace-transaction 漂移都会让 validation 与 cold recovery fail closed；Recovery 绝不会从最新历史 Session 猜测来源。
 
 ## 文档语言
 
@@ -167,7 +169,7 @@ Artifact lifecycle 是 opt-in，默认 `NOT_ENROLLED`。Phase 与 Session contro
 当前发布版本：
 
 ```text
-1.2.0
+1.2.1
 ```
 
 ## License

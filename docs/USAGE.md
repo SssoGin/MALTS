@@ -77,7 +77,7 @@ separate review-only plan and exact plan-hash authorization flow.
 
 ### Review and change a Phase
 
-Use `phase-boundary-review` before a candidate goal or touch set may leave the active boundary. It is read-only and does not authorize implementation. Use `pause-phase` when ownership must be preserved but work must stop; use `resume-phase` only with current boundary/plan/authorization evidence. A cross-Phase handoff is a two-step, hash-bound `plan-phase-transition` then `apply-phase-transition` operation with explicit carry-over and disposition files.
+Use `phase-boundary-review` before a candidate goal or touch set may leave the active boundary. It is read-only and does not authorize implementation. Treat `status`/`operation_status` as command execution only; inspect `review_outcome`, mapping, recommendation, and `persisted` separately. Use `record-phase-boundary-review` to persist a structured result; that record still does not authorize implementation. Use `pause-phase` when ownership must be preserved but work must stop; use `resume-phase` only with current boundary/plan/authorization evidence. A cross-Phase handoff is a two-step, hash-bound `plan-phase-transition` then `apply-phase-transition` operation with explicit carry-over and disposition files.
 
 ```powershell
 python -B <MALTS_ROOT>\tools\long_workspace.py phase-boundary-review --workspace <workspace> --candidate-goal <goal> --candidate-touch-set <paths> --candidate-mapping UNCLEAR --recommendation USER_DECISION_REQUIRED
@@ -86,6 +86,19 @@ python -B <MALTS_ROOT>\tools\long_workspace.py resume-phase --workspace <workspa
 ```
 
 Review the dry-run output before adding `--apply`. `SUPERSEDED` is terminal and at most one Phase can be `ACTIVE`.
+
+### Migrate, record, and reconcile consistency
+
+Fresh workspaces use schema v3. Schema v1/v2 remain readable and are not silently upgraded. Begin with `validate`; if it returns a migration or reconciliation classification, use the exact hashes it reports and review the matching command without `--apply`.
+
+```powershell
+python -B <MALTS_ROOT>\tools\long_workspace.py migrate-consistency-records --workspace <workspace> --authority workspace-state --expected-state-sha256 <sha256> --operation-id <id>
+python -B <MALTS_ROOT>\tools\long_workspace.py record-phase-boundary-review --workspace <workspace> --phase-id <id> --review-id <id> --candidate-mapping SAME_PHASE --recommendation KEEP --evidence-ref <ref> --expected-phase-sha256 <sha256> --operation-id <id>
+python -B <MALTS_ROOT>\tools\long_workspace.py reconcile-consistency-records --workspace <workspace> --authority canonical-controls --expected-state-sha256 <sha256> --expected-source-sha256 <sha256> --expected-phase-sha256 <sha256> --operation-id <id>
+python -B <MALTS_ROOT>\tools\long_workspace.py recover-workspace-transaction --workspace <workspace> --operation-id <id> --expected-journal-sha256 <sha256>
+```
+
+Applied consistency writes use an isolated workspace transaction lock/journal and `WS_TRANSACTION_*` errors. Do not delete an incomplete journal; run the exact-journal-hash recovery dry run before `--apply`. Current recovery authority is active Session checkpoint, active Phase recovery, explicitly bound terminal Phase, then Project recovery—never the latest historical Session.
 
 ### Audit, enroll, and mutate Artifacts
 

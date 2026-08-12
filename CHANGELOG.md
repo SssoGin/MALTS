@@ -6,6 +6,33 @@ All notable public changes to MALTS are documented here.
 
 No unreleased user changes.
 
+## 1.2.1
+
+MALTS 1.2.1 hardens deterministic cross-control consistency, recovery authority, and interrupted workspace-control writes while preserving the v1.2.0 Phase and opt-in Artifact lifecycle defaults.
+
+### Deterministic workspace consistency
+
+- Fresh long-project workspaces use exact schema v3. Exact schema v1/v2 inputs remain readable compatibility contracts and are never silently rewritten by validation, recovery, maintenance, installation update, or active-generation switching.
+- Binds the active Phase's full bytes plus normalized Boundary, recorded Boundary Review, and recovery hashes into the required current report, optional existing handoff, and typed runtime projection.
+- Separates structural, binding, deterministic-consistency, and advisory-semantic findings so a successful command or semantic recommendation cannot hide stale or conflicting authority.
+
+### Explicit migration and recovery
+
+- Adds dry-run-first `migrate-consistency-records`, `record-phase-boundary-review`, and `reconcile-consistency-records` commands with exact expected hashes, explicit authority, and unique operation IDs.
+- Makes recovery authority deterministic: active Session checkpoint, otherwise active Phase recovery, otherwise an explicitly bound terminal Phase, otherwise Project recovery. It never guesses from the newest historical Session.
+- Keeps review execution, persisted review outcome, decision, and later mutation authorization as separate states.
+
+### Transaction and Windows fixes
+
+- Adds a persisted workspace transaction domain with original-byte rollback, exact-hash retry/recovery, retained interrupted evidence, and `WS_TRANSACTION_*` errors isolated from Artifact transactions.
+- Fixes deep Windows workspace paths by using short exclusive same-directory staging names and extended-length-safe reads; recovery accepts only contained, cardinality-checked legacy or short staged files.
+- Fails closed on missing/stale current projections, full-control or normalized-section drift, unresolved review state, typed recovery-source drift, incomplete workspace transactions, ambiguous non-empty duplicate markers, and unknown schema versions.
+
+### Synchronization and compatibility
+
+- Synchronizes EN/zh-CN Skills, templates, checklists, public documentation, and Codex/Claude Code/OpenCode projections, including marker uniqueness and command/field parity checks.
+- Keeps Artifact lifecycle `NOT_ENROLLED` by default, preserves separate `ART_TRANSACTION_*` paths and codes, never creates Sessions implicitly, and adds no automatic update check, payload scan/mutation, VCS action, or remote publication.
+
 ## 1.2.0
 
 MALTS 1.2.0 hardens workspace initialization, Phase boundaries, command-line behavior, and cross-window recovery, and adds an opt-in Artifact lifecycle with transactional mutation.

@@ -62,6 +62,12 @@ The lightweight `malts-project-init` workflow establishes root project control. 
 
 A root-only legacy workspace remains readable for diagnosis but validates as `NEEDS_INITIAL_PHASE` until its first Phase is registered without overwriting existing user files.
 
+### Cross-Control Consistency And Typed Recovery
+
+Fresh long-project workspaces use schema v3. Exact schema v1/v2 remain readable and migrate only through reviewed, explicit, hash-bound operations. The active Phase owns its Boundary Review and recovery records; an active Session owns its checkpoint; the required current report and an optional existing handoff bind exact current hashes. Runtime state remains non-canonical.
+
+Validation separates structural, binding, deterministic-consistency, and advisory-semantic findings. Deterministic drift blocks cold recovery and ordinary lifecycle mutation. Recovery selects active Session checkpoint, active Phase recovery, explicitly bound terminal Phase, then Project recovery; it never guesses from the newest historical Session. Persisted workspace transactions use a namespace separate from Artifact transactions and retain interrupted evidence until exact-hash recovery succeeds.
+
 ### Phase And Final Reporting
 
 `WORK_TASK_REPORT.md` records phase or final delivery information. It should include the result, changed files, verification evidence, known risks, and next steps. It is normally user-facing and can follow the user's project language.
@@ -169,6 +175,10 @@ The release repository should not contain handoff outputs, project-specific cont
 
 MALTS v1.1 adds three related safeguards: event-triggered Plan Recheck binds active plan bytes to the owning Phase; governed Codex peer tasks preserve approved model/effort, current-workspace, lifecycle, and archival evidence; and tool-local discovery cross-checks registry, active pointer, and `VERSION`. All three are read/review first and fail closed on drift.
 
-## 12. Relationship To Detailed Design
+## 12. v1.2.1 Candidate Cross-Control Gate
+
+The v1.2.1 candidate adds exact schema-v1/v2/v3 dispatch, full and normalized section hashes, explicit review recording/migration/reconciliation, typed recovery authority, current report/handoff projection checks, and a crash-recoverable workspace transaction domain. Operation success is not semantic resolution, persistence, or authorization. The candidate keeps Artifact, payload, VCS, Session-creation, update-check, and publication boundaries unchanged.
+
+## 13. Relationship To Detailed Design
 
 This overview explains what MALTS does and how a user should evaluate it. `docs/CORE_DESIGN.md` provides the detailed design baseline, operating commitments, task sizing model, project state model, multi-agent protocol, memory pipeline, and release boundaries.

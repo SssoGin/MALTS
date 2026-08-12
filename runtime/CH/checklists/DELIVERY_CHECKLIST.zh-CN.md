@@ -38,6 +38,15 @@
 - [ ] 已 apply 的 mutation 绑定 reviewed operation ID 与最终 hash；dry-run 没有被描述成已执行修改。
 - [ ] 没有把 implicit Session、payload move/delete、VCS action、未声明递归扫描或 silent legacy adoption 描述为已完成工作。
 
+## Workspace Consistency Delivery
+
+- [ ] 已报告 workspace schema class 及显式 v1/v2-to-v3 migration/reconciliation 动作；没有把 compatibility input 描述为静默升级。
+- [ ] Required report 与 existing handoff（如有）声明精确 current Phase full-control、boundary/review 和 recovery binding hashes。
+- [ ] 交付的 `validate` 没有 structural、binding 或 deterministic-consistency failure，fresh-process `recover` 指向预期 typed canonical recovery source。
+- [ ] Boundary Review execution status、recorded outcome、decision 与 authorization 分开描述。
+- [ ] 已披露 incomplete workspace transaction 与精确 `recover-workspace-transaction` action；没有静默移除 lock/journal evidence。
+- [ ] Recovery evidence 证明不存在 latest historical Session fallback。
+
 ## 风险与限制
 
 - [ ] 已说明已知风险。

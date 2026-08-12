@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
-  "release_id": "MALTS-1.2.0",
-  "version": "1.2.0",
-  "release_tag": "v1.2.0",
-  "source_tree_sha256": "81FD0803975A950B800809B59261951AC9BD2118017E6EB248BE3254446F0318",
+  "release_id": "MALTS-1.2.1",
+  "version": "1.2.1",
+  "release_tag": "v1.2.1",
+  "source_tree_sha256": "680DBF36B02D8BC483D4A72645C65DB217A68F59D9F372874A30A3F058CD19A3",
   "user_file_count": 161,
   "repository_only_paths": [
     ".gitattributes",
@@ -11,5 +11,5 @@
     ".gitignore",
     "MALTS_RELEASE.json"
   ],
-  "created_at": "2026-08-09T05:44:52Z"
+  "created_at": "2026-08-11T17:01:48Z"
 }

@@ -31,7 +31,6 @@
 - Allowed touch set:
 - Prohibited operations:
 
-<!-- MALTS:section=session-checkpoint -->
 <!-- MALTS:section=session-artifacts -->
 ## Artifact Registry
 
@@ -43,9 +42,14 @@
 <!-- MALTS:section=session-checkpoint -->
 ## Checkpoint
 
+- Recovery schema: `1`
+- Record ID: `session:<SESSION_ID>:checkpoint`
+- Summary: Session <SESSION_ID> 在 Phase <PHASE_ID> 中处于 active 状态。
+- Next action: <SESSION_GOAL>
+- Evidence references: `session:<SESSION_ID>`
+- Recorded at: `<TIMESTAMP>`
 - Completed:
 - Evidence:
 - Risks or blockers:
-- Next action:
 
 此 Session control 不拥有、也不得重新定义 canonical project goal。

@@ -64,6 +64,12 @@ delivery loop 保持工作与用户目标一致。scheduling loop 让长期任�
 
 旧 root-only 工作区仍可只读诊断，但在不覆盖现有用户文件地登记首个 Phase 前，验证结果必须是 `NEEDS_INITIAL_PHASE`。
 
+### Cross-Control Consistency 与 Typed Recovery
+
+全新 long-project workspace 使用 schema v3。精确 schema v1/v2 保持可读，只能通过已审阅、显式、hash-bound operation 迁移。Active Phase 拥有 Boundary Review 与 recovery record；active Session 拥有 checkpoint；required current report 与 optional existing handoff 绑定精确 current hash。Runtime state 保持 non-canonical。
+
+Validation 分层报告 structural、binding、deterministic-consistency 与 advisory-semantic finding。Deterministic drift 会阻断 cold recovery 和普通 lifecycle mutation。Recovery 依次选择 active Session checkpoint、active Phase recovery、显式绑定 terminal Phase、Project recovery，绝不从最新历史 Session 猜测。Persisted workspace transaction 使用与 Artifact transaction 分离的 namespace，并保留 interrupted evidence，直到 exact-hash recovery 成功。
+
 ### 阶段和最终报告
 
 `WORK_TASK_REPORT.md` 记录阶段或最终交付信息。它应包含结果、改动文件、验证证据、已知风险和下一步。它通常面向用户，并可使用用户或项目语言。
@@ -172,6 +178,10 @@ MALTS 不做以下事情：
 
 MALTS v1.1 增加三项关联保护：事件触发的 Plan Recheck 把 active plan bytes 绑定到 owning Phase；受治理的 Codex peer task 保存已批准 model / effort、当前工作区、lifecycle 与归档证据；tool-local discovery 交叉核对 registry、active pointer 与 `VERSION`。三者均先读 / 审阅，并在漂移时 fail closed。
 
-## 12. 与详细设计的关系
+## 12. v1.2.1 Candidate Cross-Control Gate
+
+v1.2.1 candidate 增加精确 schema-v1/v2/v3 dispatch、完整与 normalized section hash、显式 review recording/migration/reconciliation、typed recovery authority、current report/handoff projection check，以及 crash-recoverable workspace transaction domain。Operation success 不等于 semantic resolution、persistence 或 authorization。Candidate 不改变 Artifact、payload、VCS、Session creation、update check 与 publication boundary。
+
+## 13. 与详细设计的关系
 
 本文说明 MALTS 做什么，以及用户如何评估它。[核心设计](CORE_DESIGN.md) 提供详细 design baseline、operating commitments、task sizing model、project state model、multi-agent protocol、memory pipeline 和 release boundaries。
