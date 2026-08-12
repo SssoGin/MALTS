@@ -24,6 +24,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+sys.dont_write_bytecode = True
+
 from malts_user_contracts import canonical_plan_hash, validate_instance
 
 

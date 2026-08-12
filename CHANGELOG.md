@@ -26,6 +26,7 @@ MALTS 1.2.1 hardens deterministic cross-control consistency, recovery authority,
 
 - Adds a persisted workspace transaction domain with original-byte rollback, exact-hash retry/recovery, retained interrupted evidence, and `WS_TRANSACTION_*` errors isolated from Artifact transactions.
 - Fixes deep Windows workspace paths by using short exclusive same-directory staging names and extended-length-safe reads; recovery accepts only contained, cardinality-checked legacy or short staged files.
+- Prevents public Python CLI entrypoints from writing `__pycache__` or `.pyc` files into an immutable installed generation, even when invoked with plain `python` instead of `python -B`.
 - Fails closed on missing/stale current projections, full-control or normalized-section drift, unresolved review state, typed recovery-source drift, incomplete workspace transactions, ambiguous non-empty duplicate markers, and unknown schema versions.
 
 ### Synchronization and compatibility

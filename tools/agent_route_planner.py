@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any
+
+sys.dont_write_bytecode = True
 
 from malts_user_contracts import load_json, validate_instance
 

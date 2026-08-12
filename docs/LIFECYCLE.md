@@ -91,17 +91,19 @@ The lifecycle root contains immutable version directories, registry state, trans
 
 Do not copy a physical version path into a project control file. Resolve the boot pointer first and read the active `VERSION` when current runtime information is needed.
 
+Public Python CLI entrypoints suppress bytecode writes before importing MALTS-local modules, so ordinary read-only startup cannot create `__pycache__` or `.pyc` files inside an immutable installed generation. Examples still use `python -B` as defense in depth; installed-generation purity and Doctor checks fail closed on any generated cache residue.
+
 For a legacy long-project workspace that contains an old physical version
 path in its generated `PROJECT_CONTROL.md`, inspect the migration first:
 
 ```powershell
-python .\tools\long_workspace.py refresh-runtime-references --workspace <PROJECT_WORKSPACE>
+python -B .\tools\long_workspace.py refresh-runtime-references --workspace <PROJECT_WORKSPACE>
 ```
 
 Apply it only after reviewing the returned plan:
 
 ```powershell
-python .\tools\long_workspace.py refresh-runtime-references --workspace <PROJECT_WORKSPACE> --apply
+python -B .\tools\long_workspace.py refresh-runtime-references --workspace <PROJECT_WORKSPACE> --apply
 ```
 
 The command changes only the generated version-source metadata line. A static

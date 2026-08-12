@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+sys.dont_write_bytecode = True
+
 from malts_user_contracts import validate_instance
 from workspace_artifacts import (
     ArtifactMutationError,

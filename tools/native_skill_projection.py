@@ -15,6 +15,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+sys.dont_write_bytecode = True
+
 from capability_router import (
     CapabilityError,
     TOOLS,

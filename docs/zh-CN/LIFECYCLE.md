@@ -81,16 +81,18 @@ lifecycle root 包含不可变版本目录、registry 状态、transaction journ
 
 不要把物理版本路径复制进项目控制文件。需要当前 runtime 信息时，先解析 boot pointer，再读取活动 `VERSION`。
 
+公开 Python CLI entrypoint 会在导入 MALTS 本地模块前抑制 bytecode 写入，因此普通只读启动也不会在 immutable installed generation 中创建 `__pycache__` 或 `.pyc`。示例仍使用 `python -B` 作为纵深防护；installed-generation purity 与 Doctor 检查会对任何生成缓存残留 fail closed。
+
 如果旧的长项目工作区在生成的 `PROJECT_CONTROL.md` 中保留了物理版本路径，先检查迁移计划：
 
 ```powershell
-python .\tools\long_workspace.py refresh-runtime-references --workspace <PROJECT_WORKSPACE>
+python -B .\tools\long_workspace.py refresh-runtime-references --workspace <PROJECT_WORKSPACE>
 ```
 
 仅在审阅返回计划后再应用：
 
 ```powershell
-python .\tools\long_workspace.py refresh-runtime-references --workspace <PROJECT_WORKSPACE> --apply
+python -B .\tools\long_workspace.py refresh-runtime-references --workspace <PROJECT_WORKSPACE> --apply
 ```
 
 该命令只改写生成的版本来源元数据行。静态版本引用会使 `validate` 以
