@@ -190,6 +190,10 @@ v1.2.3 candidate 修复 release 测试 fixture 复制超出 Windows 路径长度
 
 v1.3.0 candidate 将 workspace schema 升级到 v4、Result Contract 升级到 v2：每个受治理 Task 拥有唯一 typed lineage 权威，Phase、Session、report、handoff 与 runtime 只保留绑定与投影。一次 Attempt 失败只终止该 Attempt；`max_authorized_rounds` 是独立运行时 STOP 门。迁移只提供显式冷迁移（`migrate-workspace-v3-to-v4`、`migrate-result-contract-v1-to-v2`）；旧 schema 保持可读。多面写入使用带 lock、journal、preimage 与显式 recovery 的可恢复事务。只读 `scoped-readiness` Fast Path 与显式 marker-owned `refresh-project-instructions` 降低 S0/S1 治理成本，同时不绕过授权与一致性门。
 
-## 15. 与详细设计的关系
+## 15. v1.3.1 历史 Session 迁移修复
+
+v1.3.1 candidate 修复含历史已关闭 Session 的工作区 v3→v4 迁移：已关闭的 Session registry 行被归档进迁移计划，不再因缺少 lease 字段而 v4 schema 校验失败；不伪造 lease/owner 权威，历史 Session 文件保持字节不变，ACTIVE Session 行仍然阻断迁移。
+
+## 16. 与详细设计的关系
 
 本文说明 MALTS 做什么，以及用户如何评估它。[核心设计](CORE_DESIGN.md) 提供详细 design baseline、operating commitments、task sizing model、project state model、multi-agent protocol、memory pipeline 和 release boundaries。

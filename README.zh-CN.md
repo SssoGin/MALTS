@@ -164,6 +164,8 @@ MALTS 1.2.3 修复 release 测试 fixture 复制超出 Windows 路径长度限�
 
 MALTS 1.3.0 将 workspace schema 升级到 v4、Result Contract 升级到 v2，加入成果导向 Phase 与 typed Attempt 语义、独立的 `max_authorized_rounds` STOP 门、可恢复多面事务，以及更低开销的 S0/S1 Fast Path。Schema 与合同迁移只提供显式冷迁移（`migrate-workspace-v3-to-v4`、`migrate-result-contract-v1-to-v2`）；EN/CH 文档与 Codex/Claude Code/OpenCode 适配器由单一机器可检查 invariant 源同步。
 
+MALTS 1.3.1 修复含历史已关闭 Session 的工作区 v3→v4 迁移：已关闭的 Session registry 行被归档进迁移计划，而不是因 v4 schema 校验失败阻断迁移；不伪造任何 lease 或 owner 权威，历史 Session 文件保持字节不变。
+
 ## 文档语言
 
 仓库默认以英文为技术参考。简体中文文档位于 `README.zh-CN.md` 与 `docs/zh-CN/`，本地化 runtime 参考位于 `runtime/CH/`。项目 runtime 产物默认保持单一标准文件。见[双语文档](docs/zh-CN/BILINGUAL_DOCS.md)。
@@ -173,7 +175,7 @@ MALTS 1.3.0 将 workspace schema 升级到 v4、Result Contract 升级到 v2，�
 当前发布版本：
 
 ```text
-1.3.0
+1.3.1
 ```
 
 ## License

@@ -64,7 +64,7 @@ To use it, obtain `scripts/Verify-MALTSBootstrap.ps1` from the same reviewed sou
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Verify-MALTSBootstrap.ps1 `
-    -ArchivePath .\MALTS-1.3.0.zip `
+    -ArchivePath .\MALTS-1.3.1.zip `
   -ExtractOutput <EXTRACTED_RELEASE_ROOT> `
   -Apply
 ```
@@ -97,9 +97,9 @@ Run the read-only doctor with the lifecycle root and every selected tool root:
 
 Lifecycle operations also keep bounded audit records (one current binding plus recent success, failure/recovery, and monthly summaries). See [Lifecycle](LIFECYCLE.md).
 
-## Verify The v1.3.0 Workspace Lifecycle
+## Verify The v1.3.1 Workspace Lifecycle
 
-Installation changes the selected MALTS lifecycle/tool roots only; it never migrates or enrolls an existing project workspace. After discovery verification, confirm the installed source reports `1.3.0` and exposes both command families:
+Installation changes the selected MALTS lifecycle/tool roots only; it never migrates or enrolls an existing project workspace. After discovery verification, confirm the installed source reports `1.3.1` and exposes both command families:
 
 ```powershell
 Get-Content -LiteralPath <MALTS_ROOT>\VERSION

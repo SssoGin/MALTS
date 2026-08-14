@@ -35,6 +35,11 @@
       "items": {"$ref": "#/$defs/outputRow"}
     },
     "paused_phase": {"$ref": "#/$defs/pausedPhase"},
+    "legacy_session_rows": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/legacySessionRow"}
+    },
     "compatibility": {
       "type": "object",
       "additionalProperties": false,
@@ -130,6 +135,19 @@
         "pause_review_ref": {"type": "string", "minLength": 1},
         "pause_authorization_ref": {"type": "string", "minLength": 1},
         "resume_required": {"const": true}
+      }
+    },
+    "legacySessionRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_id", "phase_id", "path", "status", "reason", "created_at"],
+      "properties": {
+        "session_id": {"$ref": "#/$defs/id"},
+        "phase_id": {"$ref": "#/$defs/id"},
+        "path": {"type": "string", "pattern": "^sessions[/\\\\][A-Za-z0-9._-]+[/\\\\]SESSION_CONTROL\\.md$"},
+        "status": {"enum": ["DONE", "BLOCKED", "FAILED"]},
+        "reason": {"type": "string", "minLength": 1},
+        "created_at": {"type": "string", "format": "date-time"}
       }
     }
   }

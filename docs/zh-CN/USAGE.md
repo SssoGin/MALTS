@@ -66,7 +66,7 @@ python -B <MALTS_ROOT>\tools\long_workspace.py resume-phase --workspace <workspa
 
 ### Migration、record 与 reconcile consistency
 
-全新 workspace 使用 schema v4。schema v1/v2/v3 保持可读且不会被静默升级。先运行 `validate`；如果返回 migration 或 reconciliation classification，使用其报告的精确 hash，并在不带 `--apply` 的情况下审阅匹配命令（v1.3.0 冷迁移为 `migrate-workspace-v3-to-v4` 与 `migrate-result-contract-v1-to-v2`；legacy `migrate-consistency-records`、`record-phase-boundary-review`、`reconcile-consistency-records` 仍为 dry-run-first）。
+全新 workspace 使用 schema v4。schema v1/v2/v3 保持可读且不会被静默升级。先运行 `validate`；如果返回 migration 或 reconciliation classification，使用其报告的精确 hash，并在不带 `--apply` 的情况下审阅匹配命令（v1.3.x 冷迁移为 `migrate-workspace-v3-to-v4` 与 `migrate-result-contract-v1-to-v2`；legacy `migrate-consistency-records`、`record-phase-boundary-review`、`reconcile-consistency-records` 仍为 dry-run-first）。
 
 ```powershell
 python -B <MALTS_ROOT>\tools\long_workspace.py migrate-consistency-records --workspace <workspace> --authority workspace-state --expected-state-sha256 <sha256> --operation-id <id>

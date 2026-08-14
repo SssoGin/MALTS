@@ -89,7 +89,7 @@ Review the dry-run output before adding `--apply`. `SUPERSEDED` is terminal and 
 
 ### Migrate, record, and reconcile consistency
 
-Fresh workspaces use schema v4. Schema v1/v2/v3 remain readable and are not silently upgraded. Begin with `validate`; if it returns a migration or reconciliation classification, use the exact hashes it reports and review the matching command without `--apply` (`migrate-workspace-v3-to-v4` and `migrate-result-contract-v1-to-v2` for v1.3.0 cold migration; legacy `migrate-consistency-records`, `record-phase-boundary-review`, and `reconcile-consistency-records` stay dry-run-first).
+Fresh workspaces use schema v4. Schema v1/v2/v3 remain readable and are not silently upgraded. Begin with `validate`; if it returns a migration or reconciliation classification, use the exact hashes it reports and review the matching command without `--apply` (`migrate-workspace-v3-to-v4` and `migrate-result-contract-v1-to-v2` for v1.3.x cold migration; legacy `migrate-consistency-records`, `record-phase-boundary-review`, and `reconcile-consistency-records` stay dry-run-first).
 
 ```powershell
 python -B <MALTS_ROOT>\tools\long_workspace.py migrate-consistency-records --workspace <workspace> --authority workspace-state --expected-state-sha256 <sha256> --operation-id <id>

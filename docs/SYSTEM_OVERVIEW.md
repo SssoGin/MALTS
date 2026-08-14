@@ -187,6 +187,10 @@ The v1.2.3 candidate fixes release test fixture copying that exceeded the Window
 
 The v1.3.0 candidate upgrades the workspace schema to v4 and the Result Contract to v2: each governed Task owns one typed lineage authority while Phase, Session, report, handoff, and runtime keep only bindings and projections. A failed Attempt terminates only that Attempt; `max_authorized_rounds` is an independent runtime STOP gate. Migration is explicit cold migration (`migrate-workspace-v3-to-v4`, `migrate-result-contract-v1-to-v2`); legacy schemas remain readable. Multi-surface writes use recoverable transactions with lock, journal, preimages, and explicit recovery. A read-only `scoped-readiness` Fast Path and explicit marker-owned `refresh-project-instructions` lower S0/S1 governance cost without bypassing authorization or consistency gates.
 
-## 15. Relationship To Detailed Design
+## 15. v1.3.1 Migration Fix For Historical Sessions
+
+The v1.3.1 candidate fixes the v3-to-v4 workspace migration for workspaces with historical closed Sessions: closed Session registry rows are archived into the migration plan instead of failing v4 schema validation on missing lease fields, no lease/owner authority is fabricated, historical Session files remain byte-identical, and ACTIVE Session rows still block migration.
+
+## 16. Relationship To Detailed Design
 
 This overview explains what MALTS does and how a user should evaluate it. `docs/CORE_DESIGN.md` provides the detailed design baseline, operating commitments, task sizing model, project state model, multi-agent protocol, memory pipeline, and release boundaries.

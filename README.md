@@ -164,6 +164,8 @@ MALTS 1.2.3 fixes release test fixture copying that exceeded the Windows path le
 
 MALTS 1.3.0 upgrades the workspace schema to v4 and the Result Contract to v2, adds outcome-oriented Phase and typed Attempt semantics, an independent `max_authorized_rounds` STOP gate, recoverable multi-surface transactions, and a lower-overhead S0/S1 Fast Path. Schema and contract migration is explicit cold migration only (`migrate-workspace-v3-to-v4`, `migrate-result-contract-v1-to-v2`); EN/CH documents and the Codex/Claude Code/OpenCode adapters are synchronized from one machine-checkable invariant source.
 
+MALTS 1.3.1 fixes the v3-to-v4 workspace migration for workspaces with historical closed Sessions: closed Session registry rows are archived in the migration plan instead of failing v4 schema validation, no lease or owner authority is fabricated, and historical Session files remain byte-identical.
+
 ## Documentation Language
 
 The repository defaults to English source documents. Simplified Chinese documents live in `README.zh-CN.md` and `docs/zh-CN/`; localized runtime references live under `runtime/CH/`. Runtime project artifacts stay single and canonical by default. See [Bilingual Docs](docs/BILINGUAL_DOCS.md).
@@ -173,7 +175,7 @@ The repository defaults to English source documents. Simplified Chinese document
 Current release version:
 
 ```text
-1.3.0
+1.3.1
 ```
 
 ## License

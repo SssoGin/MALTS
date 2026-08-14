@@ -2010,12 +2010,31 @@ def command_migrate_workspace_v3_to_v4(args: argparse.Namespace) -> dict[str, An
         raise WorkspaceError("WS_MIGRATION_NOT_QUIESCENT", "Close the active Session before workspace migration.")
     if state["active_phase_id"] is not None:
         raise WorkspaceError("WS_MIGRATION_NOT_QUIESCENT", "Pause the active Phase before workspace migration.")
+    active_session_rows = [item for item in state["session_controls"] if item.get("status") == "ACTIVE"]
+    if active_session_rows:
+        raise WorkspaceError(
+            "WS_MIGRATION_NOT_QUIESCENT",
+            "Resolve ACTIVE Session registry rows before workspace migration.",
+            STATE_RELATIVE.as_posix(),
+        )
+    legacy_session_rows = [
+        {
+            "session_id": item["session_id"],
+            "phase_id": item.get("phase_id"),
+            "path": item.get("path"),
+            "status": item.get("status"),
+            "reason": item.get("reason"),
+            "created_at": item.get("created_at"),
+        }
+        for item in state["session_controls"]
+    ]
     declared_lineages = _declared_lineage_rows(root, getattr(args, "declared_lineage", None))
     now = _timestamp(args.timestamp)
     updated = json.loads(json.dumps(state))
     updated["schema_version"] = 4
     updated["current_task_bindings"] = []
     updated["current_session_binding"] = None
+    updated["session_controls"] = []
     updated["maintenance_state"].update({"state": "clean", "last_action": "migrate-workspace-v3-to-v4", "last_checked_at": now})
     changes: dict[Path, bytes] = {}
     paused_phase: dict[str, Any] | None = None
@@ -2154,10 +2173,11 @@ def command_migrate_workspace_v3_to_v4(args: argparse.Namespace) -> dict[str, An
             "pause_authorization_ref": authorization_ref,
             "resume_required": True,
         },
+        "legacy_session_rows": legacy_session_rows,
         "compatibility": {
             "result": "COMPATIBLE",
             "added_fields": ["current_session_binding", "current_task_bindings", "phase-boundary-revision-index", "task-lineage-index"],
-            "changed_fields": ["schema_version", "current_phase_binding", "recovery_binding"],
+            "changed_fields": ["schema_version", "current_phase_binding", "recovery_binding", "session_controls"],
             "legacy_read_preserved": True,
         },
         "rollback": {"preimages": preimage_rows, "created_outputs": created_outputs},

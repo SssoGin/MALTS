@@ -2,6 +2,26 @@
 
 All notable public changes to MALTS are documented here.
 
+## 1.3.1
+
+MALTS 1.3.1 fixes the v3-to-v4 workspace migration for workspaces with historical closed Sessions.
+
+### Migration fix
+
+- `migrate-workspace-v3-to-v4` archives closed historical Session registry rows in the migration plan instead of failing v4 schema validation on missing lease fields.
+- No lease, owner, or authorization data is fabricated for historical Sessions; their control files remain byte-identical.
+- ACTIVE Session rows still block migration (`WS_MIGRATION_NOT_QUIESCENT`).
+- Added regression `M17` covering historical v3 Sessions, archive content, byte preservation, and post-migration validate/recover.
+
+## 1.3.1（中文摘要）
+
+MALTS 1.3.1 修复含历史已关闭 Session 的工作区 v3→v4 迁移。
+
+- `migrate-workspace-v3-to-v4` 把已关闭的历史 Session registry 行归档进迁移计划，不再因缺少 lease 字段而 v4 schema 校验失败。
+- 不为历史 Session 伪造任何 lease、owner 或授权数据；其 control 文件保持字节不变。
+- ACTIVE Session 行仍然阻断迁移（`WS_MIGRATION_NOT_QUIESCENT`）。
+- 新增回归 `M17`，覆盖历史 v3 Session、归档内容、字节保留与迁移后 validate/recover。
+
 ## 1.3.0
 
 MALTS 1.3.0 upgrades the workspace schema to v4 and the Result Contract to v2, adds outcome-oriented Phase and typed Attempt semantics, enforces the authorized-rounds STOP gate, and lowers S0/S1 daily governance cost while keeping legacy workspaces readable.
