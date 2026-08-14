@@ -78,9 +78,9 @@ Use `Invoke-MALTSLifecycle.ps1 -Command Doctor` with the lifecycle root and all 
 
 For locally consistent core state, `DoctorRepairPlan` may scope derived repair targets from the active version, but that recommendation is not itself an executable mutation. Persist an executable repair plan only with the exact verified source that matches the installed binding; then review its hash and execute it as a separate authorized transaction.
 
-## Update Workspace Controls Across v1.2.x
+## Update Workspace Controls
 
-Updating MALTS installs new runtime behavior but does not rewrite project controls. Exact schema-v1/v2 long-project workspaces remain readable, fresh workspaces use schema v3, and Artifact lifecycle stays `NOT_ENROLLED`.
+Updating MALTS installs new runtime behavior but does not rewrite project controls. Exact schema-v1/v2/v3 long-project workspaces remain readable, fresh workspaces use schema v4, and Artifact lifecycle stays `NOT_ENROLLED`.
 
 For an active legacy Phase that lacks the v1.2.0 boundary sections, first run `migrate-phase-control` without `--apply`, review the exact preimage-bound plan, then apply only under current workspace authorization. The migration preserves the Phase goal, queue, evidence, recovery point, and active ownership.
 

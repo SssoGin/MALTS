@@ -98,3 +98,8 @@
 - 未验证：
 - 已知风险：
 - 建议用户确认：
+
+## MALTS v1.3.0 交付
+
+- [ ] 新命令已记录：`record-result-events`、迁移、amendment、lease transfer、`scoped-readiness`、`refresh-project-instructions`。
+- [ ] active/公开/Git/GitHub 写入都走各自精确审阅包；本 checklist 本身不是授权。

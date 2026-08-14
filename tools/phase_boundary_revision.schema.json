@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:malts:schema:phase-boundary-revision:1",
+  "title": "MALTS Phase Boundary Revision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["revision_schema", "phase_id", "revision_id", "revision_number", "previous_revision", "milestone", "in_scope", "out_of_scope", "exit_criteria", "carry_over_policy", "boundary_review_triggers", "review_id", "review_evidence_refs", "authorization_ref", "accepted_at"],
+  "properties": {
+    "revision_schema": {"const": 1}, "phase_id": {"$ref": "#/$defs/id"}, "revision_id": {"$ref": "#/$defs/id"},
+    "revision_number": {"type": "integer", "minimum": 1}, "previous_revision": {"$ref": "#/$defs/nullableBinding"},
+    "milestone": {"type": "string", "minLength": 1}, "in_scope": {"$ref": "#/$defs/nonEmptyStrings"}, "out_of_scope": {"$ref": "#/$defs/nonEmptyStrings"},
+    "exit_criteria": {"$ref": "#/$defs/nonEmptyStrings"}, "carry_over_policy": {"type": "string", "minLength": 1},
+    "boundary_review_triggers": {"$ref": "#/$defs/nonEmptyStrings"}, "review_id": {"$ref": "#/$defs/id"},
+    "review_evidence_refs": {"$ref": "#/$defs/nonEmptyStrings"}, "authorization_ref": {"type": "string", "minLength": 1},
+    "accepted_at": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"}, "sha256": {"type": "string", "pattern": "^[A-F0-9]{64}$"},
+    "relativeJsonPath": {"type": "string", "pattern": "^(?![A-Za-z]:|[/\\\\]|.*(?:^|[/\\\\])\\.\\.(?:[/\\\\]|$)).+\\.json$"},
+    "nonEmptyStrings": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "nullableBinding": {"type": ["object", "null"], "additionalProperties": false, "required": ["revision_id", "path", "sha256"], "properties": {"revision_id": {"$ref": "#/$defs/id"}, "path": {"$ref": "#/$defs/relativeJsonPath"}, "sha256": {"$ref": "#/$defs/sha256"}}}
+  }
+}

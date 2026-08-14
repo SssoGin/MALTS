@@ -156,11 +156,13 @@ MALTS 1.2.0 扩展了长项目工作区，但不改变最小默认行为。Phase
 
 Artifact lifecycle 是 opt-in，默认 `NOT_ENROLLED`。Phase 与 Session control 可拥有紧凑的本地 registry；Project 只保留 enrollment 与 Shared/Archive pointer。Audit 只读，mutation 默认 dry-run 且需要显式 `--apply`；任何 Artifact 命令都不会创建 Session、移动/删除 payload、调用 VCS 或递归扫描未声明目录。
 
-合同见[生命周期](docs/zh-CN/LIFECYCLE.md)，精确命令见[使用指南](docs/zh-CN/USAGE.md)。当前长项目 workspace 使用 schema v3 controls；现有 schema-v1 workspace 保持可读，不会被静默迁移或 enrollment。
+合同见[生命周期](docs/zh-CN/LIFECYCLE.md)，精确命令见[使用指南](docs/zh-CN/USAGE.md)。当前长项目 workspace 使用 schema v4 controls；现有 schema v1/v2/v3 workspace 保持可读，不会被静默迁移或 enrollment。
 
 MALTS 1.2.2 保留 v1.2.1 的 cross-control consistency 与 recovery 强化，并让普通 discovery 的权威路径显式化。成功的 `discover` 结果会返回 deterministic `authority_paths`，其中包含精确的 `<lifecycle-root>/registry/active_generation.json` pointer；调用方不得探测或推导旁路的 `<lifecycle-root>/active_generation.json`。权威面缺失、畸形、陈旧或冲突时仍然 fail closed。
 
 MALTS 1.2.3 修复 release 测试 fixture 复制超出 Windows 路径长度限制的问题。release 测试套件现在排除私有的 `.release-control/archive` 历史树，与生产 clean-source 分类保持一致；五个 `WinError 206` 失败已解决，九个测试套件全绿。本版本没有改变任何 runtime、schema、Artifact、依赖、payload、VCS、更新检查或远程发布行为。
+
+MALTS 1.3.0 将 workspace schema 升级到 v4、Result Contract 升级到 v2，加入成果导向 Phase 与 typed Attempt 语义、独立的 `max_authorized_rounds` STOP 门、可恢复多面事务，以及更低开销的 S0/S1 Fast Path。Schema 与合同迁移只提供显式冷迁移（`migrate-workspace-v3-to-v4`、`migrate-result-contract-v1-to-v2`）；EN/CH 文档与 Codex/Claude Code/OpenCode 适配器由单一机器可检查 invariant 源同步。
 
 ## 文档语言
 
@@ -171,7 +173,7 @@ MALTS 1.2.3 修复 release 测试 fixture 复制超出 Windows 路径长度限�
 当前发布版本：
 
 ```text
-1.2.3
+1.3.0
 ```
 
 ## License

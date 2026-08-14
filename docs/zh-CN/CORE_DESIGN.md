@@ -249,9 +249,9 @@ Recovery Notes
 
 ### Long-Workspace Cross-Control Consistency
 
-Long-project state 不是一个扁平文件。Project 拥有 original goal/global acceptance/active Phase index 与 Project recovery；Phase 拥有 boundary、Boundary Review、plan、queue、evidence、Phase recovery 与 closure；显式 Session 只拥有 bounded scope 与 checkpoint。`WORK_TASK_REPORT.md` 是 required current schema-v3 projection。`PROJECT_HANDOFF.md` 可选，但存在时同样是 checked projection。Runtime JSON 是 typed non-canonical state，不能覆盖 Markdown authority。
+Long-project state 不是一个扁平文件。Project 拥有 original goal/global acceptance/active Phase index 与 Project recovery；Phase 拥有 boundary、Boundary Review、plan、queue、evidence、Phase recovery 与 closure；显式 Session 只拥有 bounded scope 与 checkpoint。`WORK_TASK_REPORT.md` 是 required current schema-v4 projection。`PROJECT_HANDOFF.md` 可选，但存在时同样是 checked projection。Runtime JSON 是 typed non-canonical state，不能覆盖 Markdown authority。
 
-全新工作区使用精确 closed schema v3。精确 schema v1/v2 作为可读 compatibility contract 保留且必须显式迁移；validator 按 declared version dispatch，拒绝 unknown version。Active Phase full-file SHA-256 与 normalized boundary、Boundary Review、recovery hash 把 authority 绑定到 report/handoff/runtime projection。Normalization 将 line ending 转为 LF、移除每行 trailing whitespace，并在 SHA-256 前保留恰好一个 trailing LF。
+全新工作区使用精确 closed schema v4。精确 schema v1/v2/v3 作为可读 compatibility contract 保留且必须显式迁移；validator 按 declared version dispatch，拒绝 unknown version。Active Phase full-file SHA-256 与 normalized boundary、Boundary Review、recovery hash 把 authority 绑定到 report/handoff/runtime projection。Normalization 将 line ending 转为 LF、移除每行 trailing whitespace，并在 SHA-256 前保留恰好一个 trailing LF。
 
 Boundary review execution、recorded outcome、decision 与 authorization 是分离的状态维度。只读 `phase-boundary-review` 永不持久化或授权工作。显式 `record-phase-boundary-review` 只持久化 structured record；后续 lifecycle mutation 仍需自己的 authorization evidence。Structural、binding、deterministic-consistency 与 advisory-semantic finding 分开，避免 semantic advice 掩盖 byte drift。
 
@@ -371,7 +371,7 @@ Sub-agent reports 必须在 merge 前回收并审阅。偏离 scope、不可验�
 
 Failures 应被记录为 failures。Partial 或 failed sub-agent output 必须保持 incomplete work 分类，而不是完成进度。
 
-schema-v3 recovery authority 固定为：active Session checkpoint；否则 active Phase recovery；否则显式绑定的 terminal Phase；否则 Project recovery。Registry time/order 与最新历史 Session 永远不是 authority。Recovery-sensitive dispatch 或 delivery 前，required current report 与 optional current handoff binding 必须一致。
+schema-v4 recovery authority 固定为：active Session checkpoint；否则 active Phase recovery；否则显式绑定的 terminal Phase；否则 Project recovery。Registry time/order 与最新历史 Session 永远不是 authority。Recovery-sensitive dispatch 或 delivery 前，required current report 与 optional current handoff binding 必须一致。
 
 ## 验证与交付
 

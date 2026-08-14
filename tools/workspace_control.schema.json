@@ -1,27 +1,29 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:malts:schema:workspace-control:3",
+  "$id": "urn:malts:schema:workspace-control:4",
   "title": "MALTS Long-Project Workspace Control",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schema_version", "project_id", "active_phase_id", "active_session_id", "project_control",
     "phase_controls", "session_controls", "capacity_budget", "maintenance_state", "recovery_point",
-    "current_phase_binding", "recovery_binding"
+    "current_phase_binding", "current_session_binding", "current_task_bindings", "recovery_binding"
   ],
   "properties": {
-    "schema_version": {"const": 3},
+    "schema_version": {"const": 4},
     "project_id": {"$ref": "#/$defs/id"},
     "active_phase_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
     "active_session_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
     "project_control": {"const": "PROJECT_CONTROL.md"},
     "phase_controls": {"type": "array", "items": {"$ref": "#/$defs/phaseControl"}},
-    "session_controls": {"type": "array", "items": {"$ref": "#/$defs/sessionControl"}},
+    "session_controls": {"type": "array", "items": {"$ref": "#/$defs/sessionControlV4"}},
     "capacity_budget": {"$ref": "#/$defs/capacityBudget"},
     "maintenance_state": {"$ref": "#/$defs/maintenanceState"},
     "recovery_point": {"$ref": "#/$defs/recoveryPoint"},
-    "current_phase_binding": {"$ref": "#/$defs/currentPhaseBinding"},
-    "recovery_binding": {"$ref": "#/$defs/recoveryBinding"}
+    "current_phase_binding": {"$ref": "#/$defs/currentPhaseBindingV3"},
+    "current_session_binding": {"$ref": "#/$defs/currentSessionBinding"},
+    "current_task_bindings": {"type": "array", "items": {"$ref": "#/$defs/taskBindingV4"}},
+    "recovery_binding": {"$ref": "#/$defs/recoveryBindingV2"}
   },
   "$defs": {
     "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
@@ -54,6 +56,45 @@
         "created_at": {"type": "string", "format": "date-time"}
       }
     },
+    "taskStatusV4": {"enum": ["DRAFT", "PREFLIGHT", "AWAITING_INITIAL_AUTHORIZATION", "AUTHORIZED", "PLANNING", "EXECUTING", "VERIFYING", "REPLANNING", "AWAITING_ATTEMPT_AUTHORIZATION", "FINALIZING", "DONE", "PARTIAL", "BLOCKED", "FAILED"]},
+    "sessionControlV4": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_id", "phase_id", "path", "status", "reason", "created_at", "updated_at", "owner_kind", "owner_id", "lease"],
+      "properties": {
+        "session_id": {"$ref": "#/$defs/id"},
+        "phase_id": {"$ref": "#/$defs/id"},
+        "path": {"type": "string", "pattern": "^sessions[/\\\\][A-Za-z0-9._-]+[/\\\\]SESSION_CONTROL\\.md$"},
+        "status": {"enum": ["ACTIVE", "DONE", "BLOCKED", "FAILED"]},
+        "reason": {"enum": ["bounded-work-session", "recovery", "manual-checkpoint"]},
+        "created_at": {"type": "string", "format": "date-time"},
+        "updated_at": {"type": "string", "format": "date-time"},
+        "owner_kind": {"enum": ["MAIN_CONTROLLER", "DELEGATED_AGENT"]},
+        "owner_id": {"$ref": "#/$defs/id"},
+        "lease": {"$ref": "#/$defs/sessionLease"}
+      }
+    },
+    "sessionLease": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lease_id", "state", "granted_at", "expires_at", "authorization_ref", "allowed_operations", "read_scope", "write_scope", "touch_set", "excluded_surfaces", "bound_lineage_ids", "checkpoint_sha256", "evidence_refs"],
+      "properties": {
+        "lease_id": {"$ref": "#/$defs/id"},
+        "state": {"enum": ["ACTIVE", "RELEASED", "EXPIRED", "REVOKED"]},
+        "granted_at": {"type": "string", "format": "date-time"},
+        "expires_at": {"type": ["string", "null"], "format": "date-time"},
+        "authorization_ref": {"type": "string", "minLength": 1},
+        "allowed_operations": {"$ref": "#/$defs/nonEmptyStrings"},
+        "read_scope": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "write_scope": {"$ref": "#/$defs/nonEmptyStrings"},
+        "touch_set": {"$ref": "#/$defs/nonEmptyStrings"},
+        "excluded_surfaces": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "bound_lineage_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "checkpoint_sha256": {"$ref": "#/$defs/sha256"},
+        "evidence_refs": {"$ref": "#/$defs/nonEmptyStrings"}
+      }
+    },
+    "nonEmptyStrings": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
     "capacityBudget": {
       "type": "object",
       "additionalProperties": false,
@@ -133,6 +174,67 @@
         "projected_at": {"type": "string", "format": "date-time"}
       }
     },
+    "nullableJsonBinding": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {"path": {"type": "string", "pattern": "^(?![A-Za-z]:|[/\\\\]|.*(?:^|[/\\\\])\\.\\.(?:[/\\\\]|$)).+\\.json$"}, "sha256": {"$ref": "#/$defs/sha256"}}
+    },
+    "currentPhaseBindingV3": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["binding_schema", "active_phase_id", "phase_control_path", "phase_control_sha256", "boundary_revision_id", "boundary_revision_path", "boundary_revision_sha256", "phase_boundary_sha256", "boundary_review_id", "boundary_review_sha256", "candidate_mapping", "recommendation", "active_plan_path", "active_plan_revision", "active_plan_sha256", "phase_recovery_sha256", "task_binding_index_sha256", "recorded_at"],
+      "properties": {
+        "binding_schema": {"const": 3}, "active_phase_id": {"$ref": "#/$defs/id"},
+        "phase_control_path": {"type": "string", "pattern": "^phases[/\\\\][A-Za-z0-9._-]+[/\\\\]PHASE_CONTROL\\.md$"},
+        "phase_control_sha256": {"$ref": "#/$defs/sha256"}, "boundary_revision_id": {"$ref": "#/$defs/id"},
+        "boundary_revision_path": {"type": "string", "pattern": "^phases[/\\\\][A-Za-z0-9._-]+[/\\\\]boundary-revisions[/\\\\][A-Za-z0-9._-]+\\.json$"},
+        "boundary_revision_sha256": {"$ref": "#/$defs/sha256"}, "phase_boundary_sha256": {"$ref": "#/$defs/sha256"},
+        "boundary_review_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,191}$"},
+        "boundary_review_sha256": {"$ref": "#/$defs/sha256"},
+        "candidate_mapping": {"type": ["string", "null"], "enum": ["SAME_PHASE", "UNCLEAR", "OUTSIDE_EXPLICIT_SCOPE", null]},
+        "recommendation": {"type": ["string", "null"], "enum": ["KEEP", "REBASE_PLAN", "RESCOPE_REVIEW", "TRANSITION_REVIEW", "USER_DECISION_REQUIRED", null]},
+        "active_plan_path": {"type": ["string", "null"], "minLength": 1}, "active_plan_revision": {"type": ["string", "null"], "minLength": 1},
+        "active_plan_sha256": {"type": ["string", "null"], "pattern": "^[A-F0-9]{64}$"}, "phase_recovery_sha256": {"$ref": "#/$defs/sha256"},
+        "task_binding_index_sha256": {"$ref": "#/$defs/sha256"}, "recorded_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "taskBindingV4": {
+      "type": "object", "additionalProperties": false,
+      "required": ["task_id", "lineage_id", "phase_id", "latest_contract_revision", "latest_event", "projection_path", "projection_sha256", "task_status", "current_round_id", "current_attempt_id", "current_invocation_id", "projected_at"],
+      "properties": {
+        "task_id": {"$ref": "#/$defs/id"}, "lineage_id": {"$ref": "#/$defs/id"}, "phase_id": {"$ref": "#/$defs/id"},
+        "latest_contract_revision": {"$ref": "#/$defs/revisionBinding"}, "latest_event": {"$ref": "#/$defs/eventBinding"},
+        "projection_path": {"type": "string", "pattern": "^task-state[/\\\\][A-Za-z0-9._-]+[/\\\\]RESULT_LINEAGE\\.json$"},
+        "projection_sha256": {"$ref": "#/$defs/sha256"}, "task_status": {"$ref": "#/$defs/taskStatusV4"},
+        "current_round_id": {"$ref": "#/$defs/nullableId"}, "current_attempt_id": {"$ref": "#/$defs/nullableId"}, "current_invocation_id": {"$ref": "#/$defs/nullableId"},
+        "projected_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "nullableId": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "revisionBinding": {"type": "object", "additionalProperties": false, "required": ["revision_id", "path", "sha256"], "properties": {"revision_id": {"$ref": "#/$defs/id"}, "path": {"type": "string", "pattern": "^task-state[/\\\\][A-Za-z0-9._-]+[/\\\\]contracts[/\\\\][A-Za-z0-9._-]+\\.json$"}, "sha256": {"$ref": "#/$defs/sha256"}}},
+    "eventBinding": {"type": ["object", "null"], "additionalProperties": false, "required": ["sequence", "event_id", "path", "sha256"], "properties": {"sequence": {"type": "integer", "minimum": 1}, "event_id": {"$ref": "#/$defs/id"}, "path": {"type": "string", "pattern": "^task-state[/\\\\][A-Za-z0-9._-]+[/\\\\]events[/\\\\][1-9][0-9]*-[A-Za-z0-9._-]+\\.json$"}, "sha256": {"$ref": "#/$defs/sha256"}}},
+    "currentSessionBinding": {
+      "type": ["object", "null"], "additionalProperties": false,
+      "required": ["session_id", "phase_id", "session_control_path", "session_control_sha256", "lease_id", "owner_kind", "owner_id", "lease_state", "granted_at", "expires_at", "scope_sha256", "touch_set_sha256", "allowed_operations_sha256", "checkpoint_sha256", "bound_lineage_heads", "recorded_at"],
+      "properties": {
+        "session_id": {"$ref": "#/$defs/id"}, "phase_id": {"$ref": "#/$defs/id"}, "session_control_path": {"type": "string", "pattern": "^sessions[/\\\\][A-Za-z0-9._-]+[/\\\\]SESSION_CONTROL\\.md$"}, "session_control_sha256": {"$ref": "#/$defs/sha256"},
+        "lease_id": {"$ref": "#/$defs/id"}, "owner_kind": {"enum": ["MAIN_CONTROLLER", "DELEGATED_AGENT"]}, "owner_id": {"$ref": "#/$defs/id"}, "lease_state": {"enum": ["ACTIVE", "RELEASED", "EXPIRED", "REVOKED"]},
+        "granted_at": {"type": "string", "format": "date-time"}, "expires_at": {"type": ["string", "null"], "format": "date-time"}, "scope_sha256": {"$ref": "#/$defs/sha256"}, "touch_set_sha256": {"$ref": "#/$defs/sha256"}, "allowed_operations_sha256": {"$ref": "#/$defs/sha256"}, "checkpoint_sha256": {"$ref": "#/$defs/sha256"},
+        "bound_lineage_heads": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["lineage_id", "latest_event_sha256"], "properties": {"lineage_id": {"$ref": "#/$defs/id"}, "latest_event_sha256": {"$ref": "#/$defs/sha256"}}}},
+        "recorded_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "recoveryBindingV2": {
+      "type": "object", "additionalProperties": false,
+      "required": ["record_schema", "record_id", "source_kind", "source_phase_id", "source_session_id", "source_control_path", "source_control_sha256", "source_boundary_revision", "source_recovery_sha256", "summary", "next_action", "evidence_refs", "resume_required", "projected_at"],
+      "properties": {
+        "record_schema": {"const": 2}, "record_id": {"$ref": "#/$defs/recordId"},
+        "source_kind": {"enum": ["ACTIVE_SESSION_CHECKPOINT", "ACTIVE_PHASE_RECOVERY", "PAUSED_PHASE_RECOVERY", "TERMINAL_PHASE_RECOVERY", "PROJECT_RECOVERY"]},
+        "source_phase_id": {"$ref": "#/$defs/nullableId"}, "source_session_id": {"$ref": "#/$defs/nullableId"}, "source_control_path": {"$ref": "#/$defs/controlPath"}, "source_control_sha256": {"$ref": "#/$defs/sha256"},
+        "source_boundary_revision": {"$ref": "#/$defs/nullableJsonBinding"}, "source_recovery_sha256": {"$ref": "#/$defs/sha256"}, "summary": {"type": "string", "minLength": 1}, "next_action": {"type": "string", "minLength": 1}, "evidence_refs": {"$ref": "#/$defs/nonEmptyStrings"}, "resume_required": {"type": "boolean"}, "projected_at": {"type": "string", "format": "date-time"}
+      }
+    },
     "workspaceControlV1": {
       "type": "object",
       "additionalProperties": false,
@@ -184,6 +286,17 @@
         "recovery_point": {"$ref": "#/$defs/recoveryPoint"},
         "current_phase_binding": {"$ref": "#/$defs/currentPhaseBinding"},
         "recovery_binding": {"$ref": "#/$defs/recoveryBinding"}
+      }
+    },
+    "workspaceControlV4": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "project_id", "active_phase_id", "active_session_id", "project_control", "phase_controls", "session_controls", "capacity_budget", "maintenance_state", "recovery_point", "current_phase_binding", "current_session_binding", "current_task_bindings", "recovery_binding"],
+      "properties": {
+        "schema_version": {"const": 4}, "project_id": {"$ref": "#/$defs/id"}, "active_phase_id": {"$ref": "#/$defs/nullableId"}, "active_session_id": {"$ref": "#/$defs/nullableId"},
+        "project_control": {"const": "PROJECT_CONTROL.md"}, "phase_controls": {"type": "array", "items": {"$ref": "#/$defs/phaseControl"}}, "session_controls": {"type": "array", "items": {"$ref": "#/$defs/sessionControlV4"}},
+        "capacity_budget": {"$ref": "#/$defs/capacityBudget"}, "maintenance_state": {"$ref": "#/$defs/maintenanceState"}, "recovery_point": {"$ref": "#/$defs/recoveryPoint"},
+        "current_phase_binding": {"$ref": "#/$defs/currentPhaseBindingV3"}, "current_session_binding": {"$ref": "#/$defs/currentSessionBinding"}, "current_task_bindings": {"type": "array", "items": {"$ref": "#/$defs/taskBindingV4"}}, "recovery_binding": {"$ref": "#/$defs/recoveryBindingV2"}
       }
     }
   }

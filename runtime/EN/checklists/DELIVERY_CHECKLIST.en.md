@@ -98,3 +98,8 @@
 - Not verified:
 - Known risks:
 - Recommended user confirmation:
+
+## MALTS v1.3.0 delivery
+
+- [ ] New commands documented: `record-result-events`, migrations, amendments, lease transfer, `scoped-readiness`, `refresh-project-instructions`.
+- [ ] Active/public/Git/GitHub writes follow their exact reviewed packet; this checklist alone is not authorization.

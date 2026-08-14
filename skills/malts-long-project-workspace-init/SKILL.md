@@ -93,6 +93,15 @@ python -B <MALTS_ROOT>\tools\long_workspace.py plan-recheck --workspace <workspa
 python -B <MALTS_ROOT>\tools\long_workspace.py maintain --workspace <workspace>
 python -B <MALTS_ROOT>\tools\long_workspace.py compact --workspace <workspace>
 python -B <MALTS_ROOT>\tools\long_workspace.py recover --workspace <workspace>
+python -B <MALTS_ROOT>\tools\long_workspace.py record-result-events --workspace <workspace> --contract <v2-contract> --events <batch.json>
+python -B <MALTS_ROOT>\tools\long_workspace.py rebuild-result-lineage --workspace <workspace> --contract <v2-contract> --operation-id <id>
+python -B <MALTS_ROOT>\tools\long_workspace.py plan-phase-boundary-amendment --workspace <workspace> --phase-id <id> --revision-id <rid> --review-id <review> --review-evidence-ref <ref> --authorization-ref <ref> --accepted-at <ts>
+python -B <MALTS_ROOT>\tools\long_workspace.py apply-phase-boundary-amendment --workspace <workspace> --phase-id <id> --revision-id <rid> --review-id <review> --review-evidence-ref <ref> --authorization-ref <ref> --accepted-at <ts> --apply
+python -B <MALTS_ROOT>\tools\long_workspace.py transfer-session-lease --workspace <workspace> --operation-id <id> --expected-session-sha256 <sha> --actor-kind MAIN_CONTROLLER --actor-id <owner> --new-owner-kind <kind> --new-owner-id <id> --new-lease-id <lease> --authorization-ref <ref> --evidence-ref <ref>
+python -B <MALTS_ROOT>\tools\long_workspace.py migrate-workspace-v3-to-v4 --workspace <workspace> --operation-id <id> --expected-state-sha256 <sha> [--paused-phase-id <pid> ...]
+python -B <MALTS_ROOT>\tools\long_workspace.py migrate-result-contract-v1-to-v2 --workspace <workspace> --contract <v1-path> --expected-contract-sha256 <sha> --task-id <tid> --lineage-id <lid> --phase-id <pid> --expected-phase-boundary-sha256 <sha> --operation-id <id> --review-ref <ref> --authorization-ref <ref>
+python -B <MALTS_ROOT>\tools\long_workspace.py scoped-readiness --workspace <workspace> [--durable-delta NONE|DURABLE|UNKNOWN]
+python -B <MALTS_ROOT>\tools\long_workspace.py refresh-project-instructions --workspace <workspace> --operation-id <id> --target AGENTS.md=<sha> --block <marker>=<source>=<sha>
 ```
 
 If either initial Phase argument is missing, `init` fails closed with `WS_INITIAL_PHASE_REQUIRED` and writes nothing. Use `--apply` only after the corresponding write scope is authorized. `close-phase` requires no active Session. A new Phase or Session cannot be opened while one at the same layer is active.
@@ -109,10 +118,12 @@ If either initial Phase argument is missing, `init` fails closed with `WS_INITIA
 
 ## Cross-control consistency contract
 
-- Fresh workspaces use exact closed workspace schema v3. Schema v1 and v2 remain readable compatibility contracts and are never silently rewritten by `validate`, `recover`, maintenance, or installation switching.
+- Fresh workspaces use exact closed workspace schema v4. Schema v1/v2/v3 and Result Contract v1 remain readable compatibility contracts and are never silently rewritten by `validate`, `recover`, maintenance, or installation switching. Cold migration uses `migrate-workspace-v3-to-v4` and `migrate-result-contract-v1-to-v2`; each is dry-run-first, hash-bound, and never triggered implicitly.
 - An active schema-v2 workspace that lacks the required current report binding is `MIGRATION_REQUIRED_V2`. Use `migrate-consistency-records` as a dry run first, bind the exact full-state hash and explicit `workspace-state` authority, then use `--apply` only inside the reviewed workspace authorization.
 - `PHASE_CONTROL.md` owns the Boundary Review and Phase recovery records. An active Session owns its checkpoint. `WORK_TASK_REPORT.md` and an optional existing `PROJECT_HANDOFF.md` are hash-bound projections; runtime JSON is a typed non-canonical projection.
-- Schema v3 requires the current report binding. A handoff remains optional, but when present its declared binding must be current. Missing/stale bindings, full-control drift, normalized Boundary/Recovery drift, unresolved review records, or typed recovery-source drift block `validate`, cold `recover`, and ordinary lifecycle mutations.
+- Schema v4 requires the current report and Task/Result lineage bindings. A handoff remains optional, but when present its declared binding must be current. Missing/stale bindings, full-control drift, normalized Boundary/Recovery drift, unresolved review records, or typed recovery-source drift block `validate`, cold `recover`, and ordinary lifecycle mutations.
+- Schema v4 requires the current Task/lineage index and exact Result lineage bindings. Typed events are append-only; corrections append events, projections are rebuildable, and no Phase/Session/report/handoff/runtime surface holds a second full Attempt ledger.
+- `max_authorized_rounds` is an independent runtime STOP gate; `scoped-readiness` advises only and never authorizes, writes, or dispatches.
 - `validate` reports structural, binding, deterministic-consistency, and advisory-semantic layers separately. Only stable structured fields are authoritative; never infer mapping, recommendation, or authorization from prose or timestamps.
 - `migrate-consistency-records`, `record-phase-boundary-review`, and `reconcile-consistency-records` are dry-run-first. Apply requires exact expected hashes and uses `runtime/workspace_transaction.lock.json`, `runtime/workspace_transactions/<operation-id>.json`, and `WS_TRANSACTION_*` failures. Artifact transaction paths and `ART_TRANSACTION_*` codes remain separate and unchanged.
 - An incomplete workspace transaction is never auto-deleted. Use `recover-workspace-transaction` with the exact reviewed journal SHA-256; dry-run before `--apply`. Recovery restores recorded original bytes or fails closed while retaining its lock/journal evidence.
@@ -168,7 +179,7 @@ Read current sources in this order:
 
 Treat summaries and runtime state as recovery aids only. They never replace the active MALTS version, current files, or a required runtime probe.
 
-For schema v3, recovery authority is deterministic: active Session checkpoint, otherwise active Phase recovery, otherwise an explicitly bound terminal Phase, otherwise Project recovery. Never select the latest historical Session by time or list order.
+For schema v4, recovery authority is deterministic: active Session checkpoint, otherwise active Phase recovery, otherwise an explicitly bound terminal Phase, otherwise Project recovery. Never select the latest historical Session by time or list order.
 
 ## Verification
 
@@ -182,5 +193,5 @@ Before reporting success:
 6. Keep full three-tool discovery/invocation/behavior verification for the G4 runtime gate; component tests alone are not G4.
 7. For an active S3/S4 Phase, run the matching `plan-recheck` trigger and require `recheck_result=PASS` before the gated action or completion claim.
 8. If Artifact enrollment is `ENROLLED`, require `artifact audit`, top-level `validate`, exact registry/index references, zero unresolved close blockers, and no stale transaction lock/journal before qualification.
-9. For schema v3, require empty structural/binding/deterministic issue lists, `workspace_schema_class=CURRENT_V3`, and a fresh-process `recover` result that names the same typed canonical recovery source.
+9. For schema v4, require empty structural/binding/deterministic issue lists, `workspace_schema_class=CURRENT_V4`, and a fresh-process `recover` result that names the same typed canonical recovery source.
 10. Confirm no `runtime/workspace_transaction.lock.json` or incomplete workspace journal remains; committed/rolled-back journals are evidence and are not treated as current locks.

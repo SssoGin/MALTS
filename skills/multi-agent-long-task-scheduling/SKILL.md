@@ -109,7 +109,7 @@ This preflight is not multi-agent dispatch and does not require `确认运行`. 
 21. If unattended continuation needs a new multi-agent batch that was not already reviewed and confirmed, stop and ask for the normal launch review confirmation.
 22. Standalone task or tool artifacts must keep their boundary explicit. Do not register a one-off artifact as a system entry, shared tool, or index item unless the user asks for that scope.
 23. Cross-window or cross-project continuation starts from external state: project instructions, `PROJECT_CONTROL`, the active Phase, the active Session if one exists, the required current `WORK_TASK_REPORT`, an optional current `PROJECT_HANDOFF`, and current files. Never select the latest historical Session by time or list order.
-24. In workspace schema v3, run `validate` and cold `recover` before dispatch or recovery-sensitive delivery. Missing/stale current bindings, Boundary/Recovery drift, unresolved review records, typed recovery-source drift, or an incomplete workspace transaction is `BLOCKED` until explicitly migrated, recorded, reconciled, or recovered.
+24. In workspace schema v4, run `validate` and cold `recover` before dispatch or recovery-sensitive delivery. Missing/stale current bindings, Boundary/Recovery drift, unresolved review records, typed recovery-source drift, or an incomplete workspace transaction is `BLOCKED` until explicitly migrated, recorded, reconciled, or recovered.
 
 ## Role Model
 
@@ -133,7 +133,7 @@ This preflight is not multi-agent dispatch and does not require `确认运行`. 
 7. Offer MALTS-native Grill-Me Preflight for non-trivial or unclear starts, unless it is clearly N/A, and record offered/accepted/declined/N/A.
 8. Run the Multi-Agent Fit Assessment and decide whether to stay single-agent, suggest multi-agent, or ask for clarification.
 9. Ask whether the user wants to specify sub-agent model and effort choices and show the accepted format.
-10. Prepare task contracts and a user-visible launch review packet. When the active Phase owns a plan, require a matching `BEFORE_LAUNCH_REVIEW` Plan Recheck; when schema v3 is active, require current report/handoff bindings and deterministic consistency first.
+10. Prepare task contracts and a user-visible launch review packet. When the active Phase owns a plan, require a matching `BEFORE_LAUNCH_REVIEW` Plan Recheck; when schema v4 is active, require current report/handoff bindings and deterministic consistency first.
 11. Wait for the user's explicit `确认运行`.
 12. Dispatch only READY tasks with clear task contracts after confirmation.
 13. Record each real dispatch in the Agent Dispatch Log, including runtime agent ID and model policy when available.
@@ -401,7 +401,7 @@ At delivery, report:
 - [ ] Dispatch logs, task contracts, reports, and feedback logs agree before claiming validation.
 - [ ] Any claim of multi-agent validation is backed by dispatched contracts and recycled reports.
 - [ ] Verification evidence exists before DONE.
-- [ ] For schema v3, structural/binding/deterministic consistency is clean, report/handoff bindings match exact Phase bytes, the typed recovery source is current, and no incomplete workspace transaction remains.
+- [ ] For schema v4, structural/binding/deterministic consistency is clean, report/handoff bindings match exact Phase bytes, the typed recovery source is current, and no incomplete workspace transaction remains.
 - [ ] Main controller performed final acceptance mapping.
 - [ ] Risks are transparent.
 - [ ] Growth candidates are filtered before long-term memory writes.

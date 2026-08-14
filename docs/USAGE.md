@@ -89,7 +89,7 @@ Review the dry-run output before adding `--apply`. `SUPERSEDED` is terminal and 
 
 ### Migrate, record, and reconcile consistency
 
-Fresh workspaces use schema v3. Schema v1/v2 remain readable and are not silently upgraded. Begin with `validate`; if it returns a migration or reconciliation classification, use the exact hashes it reports and review the matching command without `--apply`.
+Fresh workspaces use schema v4. Schema v1/v2/v3 remain readable and are not silently upgraded. Begin with `validate`; if it returns a migration or reconciliation classification, use the exact hashes it reports and review the matching command without `--apply` (`migrate-workspace-v3-to-v4` and `migrate-result-contract-v1-to-v2` for v1.3.0 cold migration; legacy `migrate-consistency-records`, `record-phase-boundary-review`, and `reconcile-consistency-records` stay dry-run-first).
 
 ```powershell
 python -B <MALTS_ROOT>\tools\long_workspace.py migrate-consistency-records --workspace <workspace> --authority workspace-state --expected-state-sha256 <sha256> --operation-id <id>
@@ -125,3 +125,12 @@ and recovery behavior.
 For an active S3/S4 long-project Phase, bind the active plan path, revision, and raw-byte SHA-256 in `PHASE_CONTROL.md`. Run read-only `long_workspace.py plan-recheck` at the applicable event before new write scope, launch review, verifier, recovery/rollback, or final delivery. The root control is only an index, and a Session only inherits the binding. `BLOCKED` stops the action; the command never edits controls or creates authorization.
 
 Codex can use a governed peer task when native sub-agent dispatch cannot satisfy an approved hard model/effort contract and the official task/thread interface can. The task uses the current project workspace, is recorded as `codex-peer-task` / `peer-task`, has no silent fallback, reuses the same task for rework, and is archived only after Main Controller acceptance or terminal closure. This is part of the existing multi-agent Skill, not a separate Skill or hidden child Agent.
+
+## MALTS v1.3.0 commands
+
+- `record-result-events` / `rebuild-result-lineage`: typed Result v2 event append and projection rebuild (dry-run by default).
+- `migrate-workspace-v3-to-v4` / `migrate-result-contract-v1-to-v2`: explicit hash-bound cold migrations; quiescence required.
+- `plan-phase-boundary-amendment` / `apply-phase-boundary-amendment`: immutable Phase boundary revisions.
+- `transfer-session-lease`: hash-bound Session lease owner transfer.
+- `scoped-readiness`: read-only S0/S1/S2/ESCALATE route advice; never authorizes or writes.
+- `refresh-project-instructions`: rewrites only `MALTS-PROJECT:`-owned blocks with an exact reviewed plan.

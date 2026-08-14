@@ -81,3 +81,8 @@ Passing this checklist establishes candidate quality, not write authority. L1 an
 - Review after future use: Yes / No
 - Authority reference:
 - Lifecycle status:
+
+## MALTS v1.3.0 memory writes
+
+- [ ] Growth candidate records distinguish Fast Path no-durable-delta observations from governed durable-delta work.
+- [ ] No claim of automatic retry, automatic terminal promotion, or cross-system exactly-once entered canonical memory.

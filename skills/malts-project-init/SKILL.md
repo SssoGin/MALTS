@@ -217,3 +217,9 @@ Use `git diff -- AGENTS.md CLAUDE.md PROJECT_CONTROL.md WORK_TASK_REPORT.md PROJ
 ## Relationship To Claude Code /init
 
 Claude Code `/init` generates or improves `CLAUDE.md` for Claude Code. This skill generates or maintains `AGENTS.md` and MALTS control files for Codex/MALTS workflows. Create a thin `CLAUDE.md` importing `AGENTS.md` only when compatibility is desired.
+
+## MALTS v1.3.0 routing
+
+- Fresh MALTS-enabled projects use workspace schema v4; legacy schema v1/v2/v3 remain readable and migrate only through explicit hash-bound commands.
+- Project instruction refresh is explicit and marker-owned: `refresh-project-instructions` rewrites only `MALTS-PROJECT:BEGIN/END` blocks with a reviewed plan; customized markerless files are never claimed automatically.
+- For a long-project workspace, delegate to `malts-long-project-workspace-init`; do not silently reduce it to minimal project control.

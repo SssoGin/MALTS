@@ -14,7 +14,7 @@ This workspace uses MALTS long-project controls.
 - `PROJECT_CONTROL.md` owns the original goal, global acceptance criteria, active Phase index, cross-phase decisions, and Project recovery record.
 - `phases/<phase-id>/PHASE_CONTROL.md` owns that Phase's goal, boundary and Boundary Review records, plan, queue, deliverables, evidence, recovery record, closure, and growth review.
 - `sessions/<session-id>/SESSION_CONTROL.md` owns one explicitly bounded work session's scope, commands, touch set, checkpoint/recovery record, and next step.
-- `WORK_TASK_REPORT.md` is the required current projection in schema v3. `PROJECT_HANDOFF.md` is optional, but when present its current Phase binding must also be exact.
+- `WORK_TASK_REPORT.md` is the required current projection in schema v4. `PROJECT_HANDOFF.md` is optional, but when present its current Phase binding must also be exact.
 - `runtime/` is non-canonical generated state. It must never overwrite canonical Markdown controls.
 
 Do not create a Session for every conversation turn or ordinary persistent write. Open one only for an explicit bounded work-session boundary.
@@ -29,14 +29,29 @@ Do not create a Session for every conversation turn or ordinary persistent write
 
 Summaries cannot replace the active MALTS version, current files, or required runtime probes.
 
-For schema v3, canonical recovery authority is: active Session checkpoint, otherwise active Phase recovery, otherwise an explicitly bound terminal Phase, otherwise Project recovery. Never select the latest historical Session by time or list order.
+Canonical recovery authority is: active Session checkpoint, otherwise active Phase recovery, otherwise an explicitly bound paused/terminal Phase, otherwise Project recovery. Never select the latest historical Session by time or list order.
 
 ## Cross-control consistency
 
-- Fresh workspaces use exact workspace schema v3. Schema v1/v2 remain readable compatibility contracts; migrate only through explicit dry-run/apply commands.
+- Fresh workspaces use exact workspace schema v4. Schema v1/v2/v3 and Result Contract v1 remain readable compatibility contracts; migrate only through explicit dry-run/apply commands (`migrate-workspace-v3-to-v4`, `migrate-result-contract-v1-to-v2`).
 - `phase-boundary-review` reports operation execution separately from `review_outcome`; it never persists or authorizes work. Persist only with `record-phase-boundary-review` and keep later mutation authorization separate.
 - Missing/stale current report binding, stale optional handoff binding, full Phase-control drift, normalized Boundary/Recovery drift, unresolved review state, typed recovery-source drift, or an incomplete workspace transaction blocks validation, cold recovery, and ordinary lifecycle mutation.
 - Workspace consistency writes use `runtime/workspace_transaction.lock.json`, `runtime/workspace_transactions/`, and `WS_TRANSACTION_*`. Artifact transactions retain their separate paths and `ART_TRANSACTION_*` codes.
+- Governed Tasks own one Result Contract v2 lineage with typed events; Phase/Session/report/handoff/runtime keep bindings and rebuildable projections only.
+- `max_authorized_rounds` is an independent runtime STOP gate. A failed Attempt terminates only that Attempt; no automatic retry and no automatic Task/Phase terminal promotion.
+- `scoped-readiness` is read-only routing advice (S0/S1/S2/ESCALATE); it never authorizes, writes, or dispatches. `refresh-project-instructions` rewrites only `MALTS-PROJECT:`-owned blocks with an exact reviewed plan; markerless customized files are never claimed automatically.
+
+## Project-managed instruction blocks
+
+Refresh only through the explicit command:
+
+```text
+<!-- MALTS-PROJECT:BEGIN <marker-id> -->
+...
+<!-- MALTS-PROJECT:END <marker-id> -->
+```
+
+`refresh-project-instructions` preserves bytes/BOM/EOL outside owned blocks, rejects reparse/hardlink targets, and is idempotent. Ordinary `init` / `validate` / `recover` never trigger it.
 
 ## Discovery and Plan Recheck
 

@@ -36,7 +36,7 @@
 
 ## Workspace Cross-Control Consistency Gate
 
-- [ ] Fresh workspaces use exact schema v3; schema v1/v2 inputs are classified explicitly and are not silently migrated by validation, recovery, maintenance, or installation update.
+- [ ] Fresh workspaces use exact schema v4; schema v1/v2/v3 inputs are classified explicitly and are not silently migrated by validation, recovery, maintenance, or installation update.
 - [ ] The active Phase owns its Boundary Review and recovery records; an active Session owns its checkpoint; the current report binding is required and an existing handoff binding is checked.
 - [ ] `phase-boundary-review` operation status is not treated as review outcome, persistence, decision, or authorization; only `record-phase-boundary-review` persists the record, and later mutation authorization remains separate.
 - [ ] Full Phase-control SHA-256 plus normalized boundary/review/recovery hashes agree across canonical authority, required report, optional handoff, and typed runtime projection.
@@ -120,3 +120,11 @@
 ## User Report
 
 - [ ] A clear work task report is ready for the user when the task or phase is complete.
+
+## MALTS v1.3.0 gates
+
+- [ ] Schema is v4/Result Contract v2 or an explicit reviewed cold migration was applied; no silent migration.
+- [ ] A failed Attempt did not auto-retry or promote Task/Phase terminal state; `max_authorized_rounds` STOP enforced.
+- [ ] External side effects have typed observations/counted units; UNKNOWN dispatch/outcome/charge failed closed under finite bounds.
+- [ ] Workspace transaction committed exactly once with preimages/recovery evidence; no instantaneous-atomicity claim.
+- [ ] `scoped-readiness` and `refresh-project-instructions` were used only as documented; markerless custom files untouched.

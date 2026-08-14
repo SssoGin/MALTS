@@ -2,9 +2,41 @@
 
 All notable public changes to MALTS are documented here.
 
-## Unreleased
+## 1.3.0
 
-No unreleased user changes.
+MALTS 1.3.0 upgrades the workspace schema to v4 and the Result Contract to v2, adds outcome-oriented Phase and typed Attempt semantics, enforces the authorized-rounds STOP gate, and lowers S0/S1 daily governance cost while keeping legacy workspaces readable.
+
+### Schema and contract
+
+- Workspace schema v4 and Result Contract v2: each governed Task owns one typed lineage authority; Phases, Sessions, reports, and handoffs keep only bindings and projections.
+- Outcome-oriented Phase: invocation count, retry count, provider choice, or conversation turns no longer become automatic Phase boundaries; one failed Attempt terminates only that Attempt.
+- `max_authorized_rounds` is now an independent runtime STOP gate and a release blocker.
+- Append-only typed event ledger; corrections append events and projections are rebuildable.
+
+### Migration, transactions, and side effects
+
+- Explicit cold migration only: `migrate-workspace-v3-to-v4` and `migrate-result-contract-v1-to-v2` are dry-run first, exact-hash bound, and require a quiescent workspace; v1/v2/v3 workspaces remain readable.
+- Recoverable multi-surface transactions with lock, journal, preimages, and explicit recovery; no instantaneous multi-file atomicity claim.
+- External side effects use typed observations and idempotency keys; unknown dispatch state fails closed.
+
+### Governance cost and delivery
+
+- Read-only `scoped-readiness` Fast Path for S0/S1/S2 routing; UNKNOWN durable delta, active Session, enrolled Artifact, or drift exits the Fast Path.
+- Explicit `refresh-project-instructions` rewrites only MALTS-managed blocks and preserves user-owned bytes, BOM, and line endings.
+- EN/CH documentation, templates, checklists, and Codex/Claude Code/OpenCode adapters are synchronized from one machine-checkable invariant source.
+
+## 1.3.0（中文摘要）
+
+MALTS 1.3.0 将 workspace schema 升级到 v4、Result Contract 升级到 v2，建立成果导向 Phase 与 typed Attempt 语义，落实授权轮次 STOP 门，并降低 S0/S1 日常治理成本，同时保持旧工作区可读。
+
+- workspace schema v4 与 Result Contract v2：每个受治理 Task 拥有唯一 typed lineage 权威；Phase、Session、report 与 handoff 只保留绑定与投影。
+- 成果导向 Phase：调用次数、重试次数、provider 选择或对话轮次不再自动成为 Phase 边界；一次 Attempt 失败只终止该 Attempt。
+- `max_authorized_rounds` 现在是独立的运行时 STOP 门，并作为发布阻断条件。
+- 仅支持显式冷迁移：`migrate-workspace-v3-to-v4` 与 `migrate-result-contract-v1-to-v2` 均为 dry-run 先行、精确哈希绑定并要求工作区静止；v1/v2/v3 工作区保持可读。
+- 带锁、journal、preimage 与显式 recovery 的可恢复多面事务；不宣称瞬时多文件原子可见。
+- 只读 `scoped-readiness` Fast Path 提供 S0/S1/S2 路由；UNKNOWN 持久增量、active Session、已 enrollment Artifact 或漂移都会退出 Fast Path。
+- 显式 `refresh-project-instructions` 只重写 MALTS 管理的 block，保留用户自有字节、BOM 与换行。
+- EN/CH 文档、模板、checklist 与 Codex/Claude Code/OpenCode 适配器由单一机器可检查的 invariant 源同步。
 
 ## 1.2.3
 

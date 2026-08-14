@@ -36,7 +36,7 @@
 
 ## Workspace Cross-Control Consistency Gate
 
-- [ ] 全新工作区使用精确 schema v3；schema v1/v2 输入被显式分类，validation、recovery、maintenance 或 installation update 不会静默迁移。
+- [ ] 全新工作区使用精确 schema v4；schema v1/v2/v3 输入被显式分类，validation、recovery、maintenance 或 installation update 不会静默迁移。
 - [ ] Active Phase 拥有 Boundary Review 与 recovery record；active Session 拥有 checkpoint；current report binding 必需，existing handoff binding 存在时也会检查。
 - [ ] 没有把 `phase-boundary-review` operation status 当成 review outcome、persistence、decision 或 authorization；只有 `record-phase-boundary-review` 持久化记录，后续 mutation authorization 仍然独立。
 - [ ] 完整 Phase-control SHA-256 与 normalized boundary/review/recovery hashes 在 canonical authority、required report、optional handoff 和 typed runtime projection 间一致。
@@ -120,3 +120,11 @@
 ## 用户报告
 
 - [ ] 任务或阶段完成时，已准备好给用户看的清晰工作任务报告。
+
+## MALTS v1.3.0 门禁
+
+- [ ] schema 为 v4 / Result Contract v2，或已执行显式审阅的冷迁移；无静默迁移。
+- [ ] Attempt 失败未自动重试或升级 Task/Phase 终态；`max_authorized_rounds` STOP 已生效。
+- [ ] 外部副作用有 typed observations/counted units；有限硬预算下 UNKNOWN dispatch/outcome/charge 已 fail closed。
+- [ ] workspace 事务恰好提交一次，含 preimage/recovery 证据；未宣称瞬时原子可见。
+- [ ] `scoped-readiness` 与 `refresh-project-instructions` 仅按文档使用；无 marker 自定义文件未被动过。

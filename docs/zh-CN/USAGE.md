@@ -66,7 +66,7 @@ python -B <MALTS_ROOT>\tools\long_workspace.py resume-phase --workspace <workspa
 
 ### Migration、record 与 reconcile consistency
 
-全新 workspace 使用 schema v3。schema v1/v2 保持可读且不会被静默升级。先运行 `validate`；如果返回 migration 或 reconciliation classification，使用其报告的精确 hash，并在不带 `--apply` 的情况下审阅匹配命令。
+全新 workspace 使用 schema v4。schema v1/v2/v3 保持可读且不会被静默升级。先运行 `validate`；如果返回 migration 或 reconciliation classification，使用其报告的精确 hash，并在不带 `--apply` 的情况下审阅匹配命令（v1.3.0 冷迁移为 `migrate-workspace-v3-to-v4` 与 `migrate-result-contract-v1-to-v2`；legacy `migrate-consistency-records`、`record-phase-boundary-review`、`reconcile-consistency-records` 仍为 dry-run-first）。
 
 ```powershell
 python -B <MALTS_ROOT>\tools\long_workspace.py migrate-consistency-records --workspace <workspace> --authority workspace-state --expected-state-sha256 <sha256> --operation-id <id>
@@ -99,3 +99,12 @@ Promotion 需要 verified source evidence。Supersession 会保留旧 payload/hi
 Active S3/S4 长项目 Phase 在 `PHASE_CONTROL.md` 中绑定 active plan path、revision 与 raw-byte SHA-256。在新写入范围、launch review、verifier、recovery/rollback 或 final delivery 前，按事件运行只读 `long_workspace.py plan-recheck`。Root control 只保存索引，Session 只继承绑定。`BLOCKED` 必须停止；该命令不会编辑 control 或创建授权。
 
 当原生子 Agent 无法满足已批准的 hard model / effort 契约，而官方 Codex task/thread 接口能够满足时，可使用受治理的 peer task。它使用当前项目工作区，记录为 `codex-peer-task` / `peer-task`，禁止静默 fallback，返工复用同一个 task，并只在 Main Controller 接受或终止闭合后归档。它属于现有 multi-agent Skill，不是新 Skill，也不是隐藏 child Agent。
+
+## MALTS v1.3.0 命令
+
+- `record-result-events` / `rebuild-result-lineage`：typed Result v2 事件追加与投影重建（默认 dry-run）。
+- `migrate-workspace-v3-to-v4` / `migrate-result-contract-v1-to-v2`：显式哈希绑定冷迁移；要求静止状态。
+- `plan-phase-boundary-amendment` / `apply-phase-boundary-amendment`：不可变 Phase boundary revision。
+- `transfer-session-lease`：哈希绑定的 Session lease owner 转移。
+- `scoped-readiness`：只读 S0/S1/S2/ESCALATE 路由建议；绝不授权或写入。
+- `refresh-project-instructions`：只按精确审阅计划重写 `MALTS-PROJECT:` 拥有的 block。

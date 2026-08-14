@@ -267,15 +267,33 @@
 项目终态严格只有四种：`DONE`、`PARTIAL`、`BLOCKED`、`FAILED`。内部执行状态不是额外终态。
 
 - 合同 / Result ID：
-- 执行状态：DRAFT / PREFLIGHT / AWAITING_AUTHORIZATION / AUTHORIZED / PLANNING / EXECUTING / VERIFYING / REPLANNING / FINALIZING / DONE / PARTIAL / BLOCKED / FAILED
+- Result Contract 版本：`1`（legacy 只读）/ `2`
+- Task 状态：DRAFT / PREFLIGHT / AWAITING_INITIAL_AUTHORIZATION / AUTHORIZED / PLANNING / EXECUTING / VERIFYING / REPLANNING / AWAITING_ATTEMPT_AUTHORIZATION / FINALIZING / DONE / PARTIAL / BLOCKED / FAILED
 - 终态：None / DONE / PARTIAL / BLOCKED / FAILED
+- Lineage ID / 最新事件序列 / 事件哈希：
 - Authorization Envelope 引用：
+- `max_authorized_rounds` 运行时 STOP 状态：below-limit / exhausted / not-applicable
 - hard acceptance criteria 对账：
 - 当前轮次 / 尝试次数 / strategy ID：
 - 预算使用量 / hard-limit 状态：
 - 最后状态事件 / 直接证据：
 - 剩余工作：
 - 恢复点：
+
+## Fast Path 路由
+
+`scoped-readiness` 只提供 S0/S1/S2 路由建议，绝不授权、写入或派发。
+
+- 路由：S0_UNRELATED / S1_SAME_SCOPE_NO_DELTA / S2_GOVERNED / ESCALATE
+- durable delta：NONE / DURABLE / UNKNOWN
+- 升级原因（Session lease / Artifact / 副作用 / 一致性 / 未知 delta）：
+
+## 指令刷新
+
+- 是否需要刷新：Yes / No
+- 目标文件：`AGENTS.md` / `CLAUDE.md`
+- marker profile：`MALTS-PROJECT:BEGIN/END`
+- Plan SHA-256 / 应用时间：
 
 ## 无人值守自动继续授权
 

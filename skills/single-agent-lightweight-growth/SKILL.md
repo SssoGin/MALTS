@@ -111,3 +111,8 @@ Growth review:
 - [ ] Harmful evidence opens a challenge; severe evidence suspends automatic use.
 - [ ] Failed or unavailable memory writes were preserved as local candidates instead of claimed as completed.
 - [ ] The user-facing report includes the growth result when the task is non-trivial or recovery-related.
+
+## Fast Path growth (MALTS v1.3.0)
+
+- S0/S1 project-external or same-scope no-durable-delta work records no Phase/Session growth and never creates a Session or reverse Phase trigger.
+- A durable state delta routes through `scoped-readiness` as `S2_GOVERNED`; `UNKNOWN` delta, active Session lease, enrolled Artifact, unresolved side effect, or consistency drift escalates and growth recording follows the governed path.

@@ -21,6 +21,9 @@ from typing import Any, Iterable
 sys.dont_write_bytecode = True
 
 from malts_user_contracts import validate_instance
+from malts_user_contracts import canonical_json, load_json
+import migrate_result_contract as result_migration
+from result_controller import apply_event_batch_v2, rebuild_lineage_projection_v2
 from workspace_artifacts import (
     ArtifactMutationError,
     artifact_close_gate,
@@ -42,6 +45,11 @@ from workspace_transactions import (
     recover_transaction,
     sha256_bytes,
 )
+
+try:
+    from workspace_transactions import plan_transaction
+except ImportError:  # Wave-B transaction implementation is integrated independently.
+    plan_transaction = None
 
 
 MALTS_ROOT = Path(__file__).resolve().parents[1]
@@ -112,6 +120,18 @@ PHASE_BOUNDARY_MARKERS = (
     "phase-lifecycle",
 )
 TRANSITION_PLAN_PREFIX = Path("runtime") / "phase-transitions"
+V4_ONLY_OPERATIONS = frozenset(
+    {
+        "record-result-events",
+        "rebuild-result-lineage",
+        "plan-phase-boundary-amendment",
+        "apply-phase-boundary-amendment",
+        "transfer-session-lease",
+    }
+)
+V4_TERMINAL_PHASE_STATES = frozenset({"DONE", "SUPERSEDED", "BLOCKED", "FAILED"})
+BOUNDARY_INDEX_MARKER = "phase-boundary-revision-index"
+TASK_INDEX_MARKER = "phase-task-lineage-index"
 
 
 class WorkspaceError(RuntimeError):
@@ -210,6 +230,46 @@ def _json_bytes(value: Any) -> bytes:
     return (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
 
+def _canonical_json_file_bytes(value: Any) -> bytes:
+    """Bytes used by immutable Result records and their exact SHA-256 bindings."""
+
+    return canonical_json(value)
+
+
+def _sha256_payload(payload: bytes) -> str:
+    return hashlib.sha256(payload).hexdigest().upper()
+
+
+def _sha256_path(path: Path) -> str:
+    return _sha256_payload(_path_read_bytes(path))
+
+
+def _canonical_string_array(values: Iterable[str]) -> bytes:
+    return canonical_json(sorted({_single_line(value) for value in values if _single_line(value)}))
+
+
+def _require_schema_v4(state: dict[str, Any], operation: str) -> None:
+    if state.get("schema_version") != 4:
+        raise WorkspaceError(
+            "WS_SCHEMA_V4_MIGRATION_REQUIRED",
+            f"{operation} requires workspace-control schema v4; legacy schemas remain read-only compatible.",
+            STATE_RELATIVE.as_posix(),
+        )
+
+
+def _require_no_incomplete_workspace_transaction(root: Path) -> None:
+    try:
+        inspection = inspect_transaction_state(root, WORKSPACE_TRANSACTION_PROFILE)
+    except TransactionError as exc:
+        raise WorkspaceError("WS_TRANSACTION_INCOMPLETE", exc.message, str(exc.detail)) from exc
+    if inspection.get("status") != "PASS":
+        raise WorkspaceError(
+            "WS_TRANSACTION_INCOMPLETE",
+            "An incomplete workspace transaction blocks governed reads and mutations.",
+            WORKSPACE_TRANSACTION_PROFILE.lock_relative.as_posix(),
+        )
+
+
 def _atomic_write(path: Path, payload: bytes) -> None:
     io_path = _io_path(path)
     io_path.parent.mkdir(parents=True, exist_ok=True)
@@ -240,6 +300,8 @@ def _transaction_write(
     must_be_new: Iterable[Path] = (),
     operation: str = "workspace-write",
     operation_id: str | None = None,
+    expected_plan_sha256: str | None = None,
+    target_roles: dict[Path, str] | None = None,
 ) -> dict[str, Any]:
     must_be_new_set = set(must_be_new)
     preconditions: dict[Path, str | None] = {}
@@ -261,14 +323,18 @@ def _transaction_write(
             digest.update(hashlib.sha256(changes[path]).hexdigest().upper().encode("ascii"))
         operation_id = f"{operation}-{digest.hexdigest()[:24]}"
     try:
-        return execute_transaction(
-            root,
-            operation_id=operation_id,
-            operation=operation,
-            changes=changes,
-            expected_input_hashes=preconditions,
-            profile=WORKSPACE_TRANSACTION_PROFILE,
-        )
+        transaction_arguments: dict[str, Any] = {
+            "operation_id": operation_id,
+            "operation": operation,
+            "changes": changes,
+            "expected_input_hashes": preconditions,
+            "profile": WORKSPACE_TRANSACTION_PROFILE,
+        }
+        if expected_plan_sha256 is not None:
+            transaction_arguments["plan_sha256"] = expected_plan_sha256
+        if target_roles is not None:
+            transaction_arguments["target_roles"] = target_roles
+        return execute_transaction(root, **transaction_arguments)
     except TransactionError as exc:
         raise WorkspaceError(exc.code, exc.message, exc.detail) from exc
 
@@ -319,7 +385,7 @@ def _load_state_capture(root: Path) -> tuple[dict[str, Any], bytes]:
 
 def _default_state(project_id: str, now: str) -> dict[str, Any]:
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "project_id": project_id,
         "active_phase_id": None,
         "active_session_id": None,
@@ -339,6 +405,8 @@ def _default_state(project_id: str, now: str) -> dict[str, Any]:
             "evidence_refs": ["workspace:init-prepared"],
         },
         "current_phase_binding": None,
+        "current_session_binding": None,
+        "current_task_bindings": [],
         "recovery_binding": None,
     }
 
@@ -427,6 +495,101 @@ def _phase_boundary_values(args: argparse.Namespace, *, required: bool) -> dict[
     if any(provided) and not all(provided):
         raise WorkspaceError("WS_PHASE_BOUNDARY_INCOMPLETE", "Provide all Phase Boundary fields together, or omit all of them.")
     return values
+
+
+def _split_boundary_list(value: str) -> list[str]:
+    values = [_single_line(item) for item in re.split(r"\s*(?:;|；)\s*", value) if _single_line(item)]
+    return values or [_single_line(value)]
+
+
+def _boundary_revision_document(
+    *,
+    phase_id: str,
+    revision_id: str,
+    revision_number: int,
+    previous_revision: dict[str, str] | None,
+    boundary_values: dict[str, str],
+    review_id: str,
+    review_evidence_refs: list[str],
+    authorization_ref: str,
+    accepted_at: str,
+) -> dict[str, Any]:
+    return {
+        "revision_schema": 1,
+        "phase_id": phase_id,
+        "revision_id": revision_id,
+        "revision_number": revision_number,
+        "previous_revision": previous_revision,
+        "milestone": boundary_values["PHASE_MILESTONE"],
+        "in_scope": _split_boundary_list(boundary_values["PHASE_IN_SCOPE"]),
+        "out_of_scope": _split_boundary_list(boundary_values["PHASE_OUT_OF_SCOPE"]),
+        "exit_criteria": _split_boundary_list(boundary_values["PHASE_EXIT_CRITERIA"]),
+        "carry_over_policy": boundary_values["PHASE_CARRY_OVER_POLICY"],
+        "boundary_review_triggers": _split_boundary_list(boundary_values["PHASE_BOUNDARY_REVIEW_TRIGGERS"]),
+        "review_id": review_id,
+        "review_evidence_refs": review_evidence_refs,
+        "authorization_ref": authorization_ref,
+        "accepted_at": accepted_at,
+    }
+
+
+def _insert_before_marker(text: str, target_marker: str, block: str, code: str) -> str:
+    marker = f"<!-- MALTS:section={target_marker} -->"
+    index = text.find(marker)
+    if index < 0:
+        raise WorkspaceError(code, f"Required MALTS insertion marker is missing: {target_marker}")
+    newline = "\r\n" if "\r\n" in text else "\n"
+    normalized = block.replace("\r\n", "\n").replace("\r", "\n").replace("\n", newline).rstrip("\r\n")
+    return text[:index] + normalized + newline + newline + text[index:]
+
+
+def _boundary_index_block(revision: dict[str, Any], path: str, sha256: str) -> str:
+    return (
+        f"<!-- MALTS:section={BOUNDARY_INDEX_MARKER} -->\n"
+        "## Phase Boundary Revision Index\n\n"
+        f"- Current revision ID: `{revision['revision_id']}`\n"
+        f"- Current revision number: `{revision['revision_number']}`\n"
+        f"- Current revision path: `{path}`\n"
+        f"- Current revision SHA-256: `{sha256}`\n"
+        f"- Accepted at: `{revision['accepted_at']}`\n"
+    )
+
+
+def _task_index_block(rows: list[dict[str, Any]], recorded_at: str) -> str:
+    lines = [
+        f"<!-- MALTS:section={TASK_INDEX_MARKER} -->",
+        "## Task Lineage Index",
+        "",
+        "| Task ID | Lineage ID | Status | Contract revision | Latest event | Projection |",
+        "|---|---|---|---|---|---|",
+    ]
+    for row in sorted(rows, key=lambda item: item["task_id"]):
+        latest_event = row.get("latest_event")
+        event_value = "N/A" if latest_event is None else f"{latest_event['path']}#{latest_event['sha256']}"
+        revision = row["latest_contract_revision"]
+        lines.append(
+            "| "
+            + " | ".join(
+                _markdown_cell(value)
+                for value in (
+                    row["task_id"], row["lineage_id"], row["task_status"],
+                    f"{revision['path']}#{revision['sha256']}", event_value,
+                    f"{row['projection_path']}#{row['projection_sha256']}",
+                )
+            )
+            + " |"
+        )
+    lines.extend(["", f"- Projected at: `{recorded_at}`"])
+    return "\n".join(lines) + "\n"
+
+
+def _replace_or_insert_section(text: str, section_name: str, block: str, before_marker: str, code: str) -> str:
+    existing = _marked_section(text, section_name)
+    if existing is not None:
+        newline = "\r\n" if "\r\n" in text else "\n"
+        normalized = block.replace("\r\n", "\n").replace("\r", "\n").replace("\n", newline)
+        return text.replace(existing, normalized, 1)
+    return _insert_before_marker(text, before_marker, block, code)
 
 
 def _render_phase_control(
@@ -566,6 +729,76 @@ def _plan(operation: str, root: Path, changes: Iterable[Path], apply: bool, **ex
     return value
 
 
+def _transaction_preview(
+    root: Path,
+    *,
+    operation_id: str,
+    operation: str,
+    changes: dict[Path, bytes],
+    preconditions: dict[Path, str | None],
+    target_roles: dict[Path, str],
+) -> dict[str, Any]:
+    if plan_transaction is None:
+        canonical = {
+            "plan_schema": 1,
+            "operation_id": operation_id,
+            "operation": operation,
+            "inputs": [
+                {"path": _relative(root, path), "expected_preimage": expected or "ABSENT"}
+                for path, expected in sorted(preconditions.items(), key=lambda item: _relative(root, item[0]))
+            ],
+            "targets": [
+                {
+                    "path": _relative(root, path),
+                    "role": target_roles[path],
+                    "planned_sha256": _sha256_payload(changes[path]),
+                    "planned_bytes": len(changes[path]),
+                }
+                for path in sorted(changes, key=lambda item: _relative(root, item))
+            ],
+        }
+        canonical["plan_sha256"] = _sha256_payload(canonical_json(canonical))
+        return canonical
+    try:
+        return plan_transaction(
+            root,
+            operation_id=operation_id,
+            operation=operation,
+            changes=changes,
+            expected_input_hashes=preconditions,
+            target_roles=target_roles,
+        )
+    except TransactionError as exc:
+        raise WorkspaceError(exc.code, exc.message, str(exc.detail)) from exc
+
+
+def _apply_transaction_plan(
+    root: Path,
+    *,
+    operation_id: str,
+    operation: str,
+    changes: dict[Path, bytes],
+    preconditions: dict[Path, str | None],
+    target_roles: dict[Path, str],
+    expected_plan_sha256: str,
+    fault_point: str | None = None,
+) -> dict[str, Any]:
+    try:
+        return execute_transaction(
+            root,
+            operation_id=operation_id,
+            operation=operation,
+            changes=changes,
+            expected_input_hashes=preconditions,
+            profile=WORKSPACE_TRANSACTION_PROFILE,
+            target_roles=target_roles,
+            plan_sha256=expected_plan_sha256,
+            fault_point=fault_point,
+        )
+    except TransactionError as exc:
+        raise WorkspaceError(exc.code, exc.message, str(exc.detail)) from exc
+
+
 def command_init(args: argparse.Namespace) -> dict[str, Any]:
     root = _workspace(args.workspace, may_not_exist=True)
     project_id = _validate_id(args.project_id, "Project ID")
@@ -649,7 +882,37 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
             now,
             boundary_values,
         )
-        updated_state["schema_version"] = 3 if existing_state is None else 2
+        if existing_state is None:
+            revision_id = f"{initial_phase_id}-boundary-r001"
+            revision_relative = f"phases/{initial_phase_id}/boundary-revisions/{revision_id}.json"
+            revision = _boundary_revision_document(
+                phase_id=initial_phase_id,
+                revision_id=revision_id,
+                revision_number=1,
+                previous_revision=None,
+                boundary_values=boundary_values,
+                review_id=f"{initial_phase_id}-initial-boundary",
+                review_evidence_refs=["workspace:init"],
+                authorization_ref="workspace:init-explicit",
+                accepted_at=now,
+            )
+            revision_payload = _canonical_json_file_bytes(revision)
+            rendered[revision_relative] = revision_payload
+            phase_text, phase_bom = _decode_markdown(rendered[initial_phase_relative])
+            phase_text = _insert_before_marker(
+                phase_text,
+                "phase-plan-recheck",
+                _boundary_index_block(revision, revision_relative, _sha256_payload(revision_payload)),
+                "WS_TEMPLATE_INVALID",
+            )
+            phase_text = _insert_before_marker(
+                phase_text,
+                "phase-queue",
+                _task_index_block([], now),
+                "WS_TEMPLATE_INVALID",
+            )
+            rendered[initial_phase_relative] = _encode_markdown(phase_text, phase_bom)
+        updated_state["schema_version"] = 4 if existing_state is None else 2
         updated_state["phase_controls"].append(
             {"phase_id": initial_phase_id, "path": initial_phase_relative, "status": "ACTIVE"}
         )
@@ -708,7 +971,7 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
 
     changes = {_target(root, relative): payload for relative, payload in rendered.items()}
     if not has_registered_phase:
-        if updated_state["schema_version"] == 3:
+        if updated_state["schema_version"] in {3, 4}:
             _finalize_v3_consistency(root, updated_state, changes, now)
         else:
             changes[_state_path(root)] = _json_bytes(updated_state)
@@ -737,7 +1000,15 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
     if args.apply:
         root.mkdir(parents=True, exist_ok=True)
         must_be_new = tuple(path for path in changes if not path.exists())
-        _transaction_write(root, changes, must_be_new=must_be_new, operation="init")
+        roles = {
+            path: "IMMUTABLE_RECORD" if "boundary-revisions" in _relative(root, path) else
+            "PHASE_CONTROL" if _relative(root, path).endswith("PHASE_CONTROL.md") else
+            "REPORT" if _relative(root, path) == "WORK_TASK_REPORT.md" else
+            "PROJECT_CONTROL" if _relative(root, path) == "PROJECT_CONTROL.md" else
+            "RUNTIME_STATE" if path == _state_path(root) else "PROJECT_CONTROL"
+            for path in changes
+        }
+        _transaction_write(root, changes, must_be_new=must_be_new, operation="init", target_roles=roles)
     return result
 
 
@@ -953,9 +1224,14 @@ def _phase_control_info(root: Path, phase: dict[str, Any]) -> tuple[Path, bytes,
     return path, data, text, bom
 
 
-def _phase_plan_binding(root: Path, phase: dict[str, Any]) -> dict[str, str] | None:
+def _phase_plan_binding(
+    root: Path,
+    phase: dict[str, Any],
+    payload: bytes | None = None,
+) -> dict[str, str] | None:
     phase_path = _target(root, phase["path"])
-    text, _ = _decode_markdown(phase_path.read_bytes())
+    source = payload if payload is not None else _path_read_bytes(phase_path)
+    text, _ = _decode_markdown(source)
     section = _marked_section(text, "phase-plan-recheck")
     if section is None:
         return None
@@ -1025,16 +1301,53 @@ def command_open_phase(args: argparse.Namespace) -> dict[str, Any]:
         "next_action": "Open a Session only for an explicit bounded work-session boundary.",
         "evidence_refs": [f"phase:{phase_id}"],
     }
+    boundary_path: Path | None = None
+    if updated["schema_version"] == 4:
+        revision_id = f"{phase_id}-boundary-r001"
+        revision_relative = f"phases/{phase_id}/boundary-revisions/{revision_id}.json"
+        boundary_path = _target(root, revision_relative)
+        if boundary_path.exists():
+            raise WorkspaceError("WS_FILE_EXISTS", "Refusing to overwrite an existing Phase boundary revision.", revision_relative)
+        revision = _boundary_revision_document(
+            phase_id=phase_id,
+            revision_id=revision_id,
+            revision_number=1,
+            previous_revision=None,
+            boundary_values=boundary_values,
+            review_id=f"{phase_id}-initial-boundary",
+            review_evidence_refs=[f"phase:{phase_id}:open"],
+            authorization_ref="open-phase:explicit",
+            accepted_at=now,
+        )
+        revision_payload = _canonical_json_file_bytes(revision)
+        control_text, control_bom = _decode_markdown(control)
+        control_text = _insert_before_marker(
+            control_text,
+            "phase-plan-recheck",
+            _boundary_index_block(revision, revision_relative, _sha256_payload(revision_payload)),
+            "WS_TEMPLATE_INVALID",
+        )
+        control_text = _insert_before_marker(control_text, "phase-queue", _task_index_block([], now), "WS_TEMPLATE_INVALID")
+        control = _encode_markdown(control_text, control_bom)
     changes = {
         phase_path: control,
         project_path: _encode_markdown(project_text, project_bom),
         _state_path(root): _json_bytes(updated),
     }
+    if boundary_path is not None:
+        changes[boundary_path] = revision_payload
     _finalize_v3_consistency(root, updated, changes, now)
     _validate_state(root, updated)
     result = _plan("open-phase", root, changes, args.apply, phase_id=phase_id, implicit_session_created=False)
     if args.apply:
-        _transaction_write(root, changes, must_be_new=(phase_path,), operation="open-phase")
+        must_be_new = (phase_path,) if boundary_path is None else (phase_path, boundary_path)
+        roles = {
+            path: "IMMUTABLE_RECORD" if path == boundary_path else
+            "PHASE_CONTROL" if path == phase_path else
+            "PROJECT_CONTROL" if path == project_path else "RUNTIME_STATE"
+            for path in changes
+        }
+        _transaction_write(root, changes, must_be_new=must_be_new, operation="open-phase", target_roles=roles)
     return result
 
 
@@ -1084,10 +1397,10 @@ def _refresh_current_phase_bindings(
 
     if state["schema_version"] == 1:
         return
-    if state["schema_version"] == 3:
+    if state["schema_version"] in {3, 4}:
         binding = state.get("current_phase_binding")
         values = {
-            "Binding schema": "2",
+            "Binding schema": "3" if state["schema_version"] == 4 else "2",
             "Active Phase ID": binding["active_phase_id"] if binding is not None else "N/A",
             "Active Phase control": binding["phase_control_path"] if binding is not None else "N/A",
             "Phase control SHA-256": binding["phase_control_sha256"] if binding is not None else "N/A",
@@ -1169,6 +1482,1196 @@ def _boundary_review_record(payload: bytes, relative: str) -> dict[str, str]:
     return values
 
 
+def _load_json_object(root: Path, relative: str, code: str) -> tuple[Path, bytes, dict[str, Any]]:
+    path = _target(root, relative)
+    if not _path_is_file(path):
+        raise WorkspaceError(code, "Required JSON file is missing.", relative)
+    payload = _path_read_bytes(path)
+    try:
+        value = json.loads(payload.decode("utf-8-sig"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise WorkspaceError(code, "Required JSON file is not valid UTF-8 JSON.", relative) from exc
+    if not isinstance(value, dict):
+        raise WorkspaceError(code, "Required JSON root must be an object.", relative)
+    return path, payload, value
+
+
+def _load_event_chain(root: Path, contract: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[Path, str]]:
+    task_id = str(contract["task_id"])
+    directory = _target(root, f"task-state/{task_id}/events")
+    if not directory.exists():
+        return [], {}
+    if not directory.is_dir() or directory.is_symlink():
+        raise WorkspaceError("RC_LINEAGE_STALE", "Declared Result event directory must be a regular directory.", _relative(root, directory))
+    rows: list[tuple[int, Path, dict[str, Any], bytes]] = []
+    with os.scandir(_io_path(directory)) as entries:
+        names = sorted((entry.name for entry in entries if entry.name.endswith(".json")), key=str.casefold)
+    for name in names:
+        match = re.fullmatch(r"([1-9][0-9]*)-([A-Za-z0-9][A-Za-z0-9._-]{0,127})\.json", name)
+        if match is None:
+            raise WorkspaceError("RC_LINEAGE_STALE", "Declared event directory contains an ambiguous event filename.", f"task-state/{task_id}/events/{name}")
+        relative = f"task-state/{task_id}/events/{name}"
+        path, payload, value = _load_json_object(root, relative, "RC_LINEAGE_STALE")
+        if canonical_json(value) != payload:
+            raise WorkspaceError("RC_LINEAGE_STALE", "Canonical Result event bytes do not match the required canonical JSON encoding.", relative)
+        rows.append((int(match.group(1)), path, value, payload))
+    rows.sort(key=lambda item: item[0])
+    return [row[2] for row in rows], {row[1]: _sha256_payload(row[3]) for row in rows}
+
+
+def _phase_task_control_payload(
+    root: Path,
+    state: dict[str, Any],
+    changes: dict[Path, bytes],
+    now: str,
+) -> tuple[Path, bytes]:
+    phase = _active_phase(state)
+    phase_path = _target(root, phase["path"])
+    phase_payload = _final_payload(root, changes, phase["path"])
+    if phase_payload is None:
+        raise WorkspaceError("WS_FILE_MISSING", "Active Phase control is missing.", phase["path"])
+    text, bom = _decode_markdown(phase_payload)
+    block = _task_index_block(state.get("current_task_bindings", []), now)
+    text = _replace_or_insert_section(text, TASK_INDEX_MARKER, block, "phase-queue", "WS_PHASE_TASK_INDEX_INVALID")
+    return phase_path, _encode_markdown(text, bom)
+
+
+def _replace_task_binding(state: dict[str, Any], projection: dict[str, Any], projection_sha256: str) -> dict[str, Any]:
+    row = {
+        "task_id": projection["task_id"],
+        "lineage_id": projection["lineage_id"],
+        "phase_id": projection["phase_id"],
+        "latest_contract_revision": projection["latest_contract_revision"],
+        "latest_event": projection["latest_event"],
+        "projection_path": f"task-state/{projection['task_id']}/RESULT_LINEAGE.json",
+        "projection_sha256": projection_sha256,
+        "task_status": projection["task_status"],
+        "current_round_id": projection["current_round_id"],
+        "current_attempt_id": projection["current_attempt_id"],
+        "current_invocation_id": projection["current_invocation_id"],
+        "projected_at": projection["projected_at"],
+    }
+    rows = [item for item in state.get("current_task_bindings", []) if item.get("task_id") != projection["task_id"]]
+    if any(item.get("lineage_id") == projection["lineage_id"] for item in rows):
+        raise WorkspaceError("WS_LINEAGE_BINDING_DUPLICATE", "Lineage ID is already bound to another active Task.", projection["lineage_id"])
+    rows.append(row)
+    state["current_task_bindings"] = sorted(rows, key=lambda item: item["task_id"])
+    return row
+
+
+def _v4_lease_gate(
+    state: dict[str, Any],
+    *,
+    operation: str,
+    actor_kind: str,
+    actor_id: str,
+    target_relatives: Iterable[str],
+    lineage_id: str | None,
+    at: str,
+) -> None:
+    if state["active_session_id"] is None:
+        return
+    session = _active_session(state)
+    lease = session.get("lease", {})
+    if lease.get("state") != "ACTIVE":
+        raise WorkspaceError("WS_SESSION_LEASE_REQUIRED", "Active Session lacks an ACTIVE structured lease.", session["path"])
+    if session.get("owner_kind") != actor_kind or session.get("owner_id") != actor_id:
+        raise WorkspaceError("WS_SESSION_LEASE_OWNER_MISMATCH", "Actor is not the exact active Session lease owner.", session["path"])
+    expiry = lease.get("expires_at")
+    if expiry is not None and datetime.fromisoformat(at.replace("Z", "+00:00")) >= datetime.fromisoformat(str(expiry).replace("Z", "+00:00")):
+        raise WorkspaceError("WS_SESSION_LEASE_REQUIRED", "Active Session lease is expired.", session["path"])
+    if operation not in set(lease.get("allowed_operations", [])):
+        raise WorkspaceError("WS_SESSION_SCOPE_VIOLATION", "Operation is outside the active Session lease.", operation)
+    touch = set(lease.get("touch_set", []))
+    write_scope = set(lease.get("write_scope", []))
+    excluded = set(lease.get("excluded_surfaces", []))
+    own_control = str(session["path"]).replace("\\", "/")
+    for relative in target_relatives:
+        normalized = relative.replace("\\", "/")
+        in_scope = any(normalized == scope or normalized.startswith(scope.rstrip("/") + "/") for scope in write_scope)
+        if normalized in excluded or not in_scope:
+            raise WorkspaceError("WS_SESSION_SCOPE_VIOLATION", "Transaction target is outside the active Session lease touch set/scope.", relative)
+        if normalized != own_control and normalized not in touch:
+            raise WorkspaceError("WS_SESSION_SCOPE_VIOLATION", "Transaction target is outside the active Session lease touch set/scope.", relative)
+    if lineage_id is not None and lineage_id not in set(lease.get("bound_lineage_ids", [])):
+        raise WorkspaceError("WS_SESSION_SCOPE_VIOLATION", "Result lineage is not bound to the active Session lease.", lineage_id)
+
+
+def _result_operation_id(events: list[dict[str, Any]]) -> str:
+    operation_ids = {str(event.get("operation_id")) for event in events}
+    if len(operation_ids) != 1:
+        raise WorkspaceError("RC_EVENT_REPLAY_CONFLICT", "Every Result event in one batch must share one operation_id.")
+    return next(iter(operation_ids))
+
+
+def _expected_hash(value: str | None, observed: str, code: str, path: str) -> None:
+    if value is not None and value.upper() != observed:
+        raise WorkspaceError(code, "Expected SHA-256 no longer matches the reviewed input.", path)
+
+
+def _build_result_orchestration(
+    args: argparse.Namespace,
+    *,
+    rebuild: bool,
+) -> tuple[Path, dict[str, Any], dict[Path, bytes], dict[Path, str | None], dict[Path, str], dict[str, Any], str]:
+    root = _workspace(args.workspace)
+    state, state_payload = _load_state_capture(root)
+    _require_schema_v4(state, "rebuild-result-lineage" if rebuild else "record-result-events")
+    contract_relative = args.contract
+    normalized_contract = contract_relative.replace("\\", "/")
+    rebuild_projection: str | None = None
+    if rebuild:
+        match = re.fullmatch(r"task-state/([A-Za-z0-9][A-Za-z0-9._-]{0,127})/contracts/[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.json", normalized_contract)
+        if match is not None:
+            rebuild_projection = f"task-state/{match.group(1)}/RESULT_LINEAGE.json"
+    if rebuild_projection is not None:
+        _require_consistent_mutation(root, state, allowed_paths={rebuild_projection})
+    else:
+        _require_consistent_mutation(root, state)
+    phase = _active_phase(state)
+    contract_path, contract_payload, contract = _load_json_object(root, contract_relative, "RC_LINEAGE_STALE")
+    contract_hash = _sha256_payload(contract_payload)
+    _expected_hash(getattr(args, "expected_contract_sha256", None), contract_hash, "RC_LINEAGE_STALE", contract_relative)
+    if contract.get("contract_version") != "2":
+        raise WorkspaceError("RC_V2_MIGRATION_REQUIRED", "Result event orchestration requires Result Contract v2.", contract_relative)
+    if contract.get("phase_id") != phase["phase_id"]:
+        raise WorkspaceError("RC_LINEAGE_STALE", "Result Contract belongs to a different Phase.", contract_relative)
+    expected_contract_path = f"task-state/{contract['task_id']}/contracts/{contract['revision_id']}.json"
+    if contract_relative.replace("\\", "/") != expected_contract_path:
+        raise WorkspaceError("RC_LINEAGE_STALE", "Result Contract locator is not its declared canonical owner path.", contract_relative)
+    committed, event_hashes = _load_event_chain(root, contract)
+    projection_relative = f"task-state/{contract['task_id']}/RESULT_LINEAGE.json"
+    projection_path = _target(root, projection_relative)
+    projection_payload = _path_read_bytes(projection_path) if _path_is_file(projection_path) else None
+    projection = None if projection_payload is None else json.loads(projection_payload.decode("utf-8-sig"))
+    expected_projection = getattr(args, "expected_projection_sha256", None)
+    if expected_projection is not None:
+        observed_projection = "ABSENT" if projection_payload is None else _sha256_payload(projection_payload)
+        if expected_projection.upper() != observed_projection:
+            raise WorkspaceError("RC_LINEAGE_STALE", "Expected Result lineage projection preimage no longer matches.", projection_relative)
+    if rebuild and rebuild_projection is not None:
+        binding_row = next((item for item in state.get("current_task_bindings", []) if item.get("task_id") == contract["task_id"]), None)
+        if binding_row is not None:
+            bound_observed = "ABSENT" if projection_payload is None else _sha256_payload(projection_payload)
+            if bound_observed != binding_row["projection_sha256"] and expected_projection is None:
+                raise WorkspaceError("RC_LINEAGE_STALE", "Stale lineage projection requires --expected-projection-sha256 to bind the reviewed preimage.", projection_relative)
+    if rebuild:
+        updated_projection, decision = rebuild_lineage_projection_v2(contract, committed, MALTS_ROOT, contract_hash)
+        operation_id = _validate_id(args.operation_id, "Operation ID")
+    else:
+        events_value = load_json(Path(args.events))
+        if not isinstance(events_value, list):
+            raise WorkspaceError("RC_EVENT_BATCH_EMPTY", "--events must identify a non-empty JSON array.", str(args.events))
+        events = events_value
+        operation_id = _result_operation_id(events)
+        updated_projection, decision = apply_event_batch_v2(contract, events, projection, committed, MALTS_ROOT, contract_hash)
+    if updated_projection is None:
+        issue = (decision.get("issues") or [{"code": "RC_LINEAGE_STALE", "message": "Result controller denied the operation."}])[0]
+        raise WorkspaceError(str(issue.get("code")), str(issue.get("message")), str(issue.get("path", contract_relative)))
+    now = _timestamp(args.timestamp or updated_projection["projected_at"])
+    projection_bytes = _canonical_json_file_bytes(updated_projection)
+    projection_hash = _sha256_payload(projection_bytes)
+    updated = json.loads(json.dumps(state))
+    _replace_task_binding(updated, updated_projection, projection_hash)
+    changes: dict[Path, bytes] = {projection_path: projection_bytes}
+    roles: dict[Path, str] = {projection_path: "RESULT_PROJECTION"}
+    if not rebuild and decision.get("decision") != "IDEMPOTENT_REPLAY":
+        for event in events:
+            relative = f"task-state/{contract['task_id']}/events/{event['sequence']}-{event['event_id']}.json"
+            path = _target(root, relative)
+            payload = _canonical_json_file_bytes(event)
+            if _path_is_file(path):
+                if _path_read_bytes(path) != payload:
+                    raise WorkspaceError("RC_EVENT_REPLAY_CONFLICT", "Existing event path contains different bytes.", relative)
+                continue
+            changes[path] = payload
+            roles[path] = "IMMUTABLE_RECORD"
+    phase_path, phase_payload = _phase_task_control_payload(root, updated, changes, now)
+    changes[phase_path] = phase_payload
+    roles[phase_path] = "PHASE_CONTROL"
+    updated["maintenance_state"].update({"state": "clean", "last_action": "rebuild-result-lineage" if rebuild else "record-result-events", "last_checked_at": now})
+    updated["recovery_point"] = {
+        "summary": f"Task {contract['task_id']} lineage head is bound at {updated_projection['latest_event']['event_id'] if updated_projection['latest_event'] else 'NO_EVENTS'}.",
+        "next_action": "Continue only from the exact Result lineage head and current Phase boundary revision.",
+        "evidence_refs": [f"lineage:{contract['lineage_id']}", f"projection:{projection_relative}"],
+    }
+    _finalize_v4_consistency(root, updated, changes, now)
+    for relative, role in (("WORK_TASK_REPORT.md", "REPORT"), ("PROJECT_HANDOFF.md", "HANDOFF"), ("PROJECT_CONTROL.md", "PROJECT_CONTROL")):
+        path = _target(root, relative)
+        if path in changes:
+            roles[path] = role
+    roles[_state_path(root)] = "RUNTIME_STATE"
+    target_relatives = [_relative(root, path) for path in changes]
+    actor_kind = str(getattr(args, "actor_kind", "MAIN_CONTROLLER"))
+    actor_id = str(getattr(args, "actor_id", "MAIN_CONTROLLER"))
+    _v4_lease_gate(
+        updated,
+        operation="rebuild-result-lineage" if rebuild else "record-result-events",
+        actor_kind=actor_kind,
+        actor_id=actor_id,
+        target_relatives=target_relatives,
+        lineage_id=str(contract["lineage_id"]),
+        at=now,
+    )
+    preconditions = {
+        path: _sha256_path(path) if _path_is_file(path) else None
+        for path in changes
+    }
+    preconditions[contract_path] = contract_hash
+    for path, event_hash in event_hashes.items():
+        preconditions[path] = event_hash
+    preconditions[_state_path(root)] = _sha256_payload(state_payload)
+    return root, updated, changes, preconditions, roles, decision, operation_id
+
+
+def command_record_result_events(args: argparse.Namespace) -> dict[str, Any]:
+    root, _, changes, preconditions, roles, decision, operation_id = _build_result_orchestration(args, rebuild=False)
+    preview = _transaction_preview(root, operation_id=operation_id, operation="record-result-events", changes=changes, preconditions=preconditions, target_roles=roles)
+    if args.apply:
+        expected = _require_expected_sha256(args.expected_plan_sha256, "WS_TRANSACTION_PLAN_STALE", "Expected transaction plan SHA-256")
+        if expected != preview["plan_sha256"]:
+            raise WorkspaceError("WS_TRANSACTION_PLAN_STALE", "Apply plan SHA-256 differs from the deterministic current preview.")
+        receipt = _apply_transaction_plan(root, operation_id=operation_id, operation="record-result-events", changes=changes, preconditions=preconditions, target_roles=roles, expected_plan_sha256=expected)
+    else:
+        receipt = None
+    return {
+        "status": "PASS", "operation": "record-result-events", "mode": "APPLY" if args.apply else "DRY_RUN",
+        "workspace": str(root), "writes_performed": bool(args.apply and receipt and receipt.get("writes_performed")),
+        "plan": preview, "controller_decision": decision, "receipt": receipt, "implicit_session_created": False,
+    }
+
+
+def command_rebuild_result_lineage(args: argparse.Namespace) -> dict[str, Any]:
+    root, _, changes, preconditions, roles, decision, operation_id = _build_result_orchestration(args, rebuild=True)
+    preview = _transaction_preview(root, operation_id=operation_id, operation="rebuild-result-lineage", changes=changes, preconditions=preconditions, target_roles=roles)
+    if args.apply:
+        expected = _require_expected_sha256(args.expected_plan_sha256, "WS_TRANSACTION_PLAN_STALE", "Expected transaction plan SHA-256")
+        if expected != preview["plan_sha256"]:
+            raise WorkspaceError("WS_TRANSACTION_PLAN_STALE", "Apply plan SHA-256 differs from the deterministic current preview.")
+        receipt = _apply_transaction_plan(root, operation_id=operation_id, operation="rebuild-result-lineage", changes=changes, preconditions=preconditions, target_roles=roles, expected_plan_sha256=expected)
+    else:
+        receipt = None
+    return {
+        "status": "PASS", "operation": "rebuild-result-lineage", "mode": "APPLY" if args.apply else "DRY_RUN",
+        "workspace": str(root), "writes_performed": bool(args.apply and receipt and receipt.get("writes_performed")),
+        "plan": preview, "controller_decision": decision, "receipt": receipt, "implicit_session_created": False,
+    }
+
+
+def _replace_phase_boundary_projection(text: str, boundary_values: dict[str, str]) -> str:
+    section = _marked_section(text, "phase-boundary", required=True)
+    assert section is not None
+    updated = section
+    for _, label, placeholder in PHASE_BOUNDARY_FIELDS:
+        updated = _replace_line(updated, f"- {label}:", f"- {label}: {boundary_values[placeholder]}", "WS_PHASE_BOUNDARY_RECORD_MISSING")
+    return text.replace(section, updated, 1)
+
+
+def _build_phase_amendment(args: argparse.Namespace) -> tuple[Path, dict[Path, bytes], dict[Path, str | None], dict[Path, str], dict[str, Any], str]:
+    root = _workspace(args.workspace)
+    state, state_payload = _load_state_capture(root)
+    _require_schema_v4(state, "phase-boundary-amendment")
+    _require_consistent_mutation(root, state)
+    phase = _active_phase(state)
+    if phase.get("status") in V4_TERMINAL_PHASE_STATES:
+        raise WorkspaceError("WS_PHASE_TERMINAL_IMMUTABLE", "A terminal Phase boundary is immutable.", phase["path"])
+    phase_path, phase_payload, phase_text, phase_bom = _phase_control_info(root, phase)
+    current = _boundary_revision_binding(root, phase_payload, phase)
+    current_path, current_payload, current_document = _load_json_object(root, current["path"], "WS_PHASE_AMENDMENT_STALE")
+    _expected_hash(getattr(args, "expected_phase_sha256", None), _sha256_payload(phase_payload), "WS_PHASE_AMENDMENT_STALE", phase["path"])
+    _expected_hash(getattr(args, "expected_boundary_sha256", None), _sha256_payload(current_payload), "WS_PHASE_AMENDMENT_STALE", current["path"])
+    binding = state["current_phase_binding"]
+    if binding.get("active_plan_path") is not None:
+        plan_path = _target(root, binding["active_plan_path"])
+        if not _path_is_file(plan_path) or _sha256_path(plan_path) != binding["active_plan_sha256"]:
+            raise WorkspaceError("WS_PHASE_AMENDMENT_STALE", "Active Phase plan changed or is missing.", binding["active_plan_path"])
+    boundary_values = _phase_boundary_values(args, required=True)
+    revision_id = _validate_id(args.revision_id, "Boundary revision ID")
+    revision_relative = f"phases/{phase['phase_id']}/boundary-revisions/{revision_id}.json"
+    revision_path = _target(root, revision_relative)
+    accepted_at = _timestamp(args.accepted_at)
+    revision = _boundary_revision_document(
+        phase_id=phase["phase_id"],
+        revision_id=revision_id,
+        revision_number=int(current_document["revision_number"]) + 1,
+        previous_revision={"revision_id": current["revision_id"], "path": current["path"], "sha256": current["sha256"]},
+        boundary_values=boundary_values,
+        review_id=_validate_id(args.review_id, "Boundary review ID"),
+        review_evidence_refs=[_require_reference(value, "WS_PHASE_AMENDMENT_STALE", "Review evidence") for value in args.review_evidence_ref],
+        authorization_ref=_require_reference(args.authorization_ref, "WS_PHASE_AMENDMENT_STALE", "Authorization reference"),
+        accepted_at=accepted_at,
+    )
+    issues = validate_instance(MALTS_ROOT, "phase-boundary-revision", revision)
+    if issues:
+        first = issues[0]
+        raise WorkspaceError("WS_PHASE_AMENDMENT_STALE", first.message, first.path)
+    revision_payload = _canonical_json_file_bytes(revision)
+    revision_hash = _sha256_payload(revision_payload)
+    phase_text = _replace_phase_boundary_projection(phase_text, boundary_values)
+    phase_text = _replace_or_insert_section(
+        phase_text,
+        BOUNDARY_INDEX_MARKER,
+        _boundary_index_block(revision, revision_relative, revision_hash),
+        "phase-plan-recheck",
+        "WS_PHASE_BOUNDARY_RECORD_MISSING",
+    )
+    phase_text = _replace_line(phase_text, "- Updated at:", f"- Updated at: {accepted_at}", "WS_PHASE_CONTROL_INVALID")
+    updated_phase_payload = _encode_markdown(phase_text, phase_bom)
+    updated = json.loads(json.dumps(state))
+    updated["maintenance_state"].update({"state": "clean", "last_action": "apply-phase-boundary-amendment", "last_checked_at": accepted_at})
+    changes: dict[Path, bytes] = {revision_path: revision_payload, phase_path: updated_phase_payload}
+    _finalize_v4_consistency(root, updated, changes, accepted_at)
+    roles = {
+        path: "IMMUTABLE_RECORD" if path == revision_path else
+        "PHASE_CONTROL" if path == phase_path else
+        "REPORT" if _relative(root, path) == "WORK_TASK_REPORT.md" else
+        "HANDOFF" if _relative(root, path) == "PROJECT_HANDOFF.md" else
+        "PROJECT_CONTROL" if _relative(root, path) == "PROJECT_CONTROL.md" else "RUNTIME_STATE"
+        for path in changes
+    }
+    _v4_lease_gate(
+        updated,
+        operation="apply-phase-boundary-amendment",
+        actor_kind=args.actor_kind,
+        actor_id=args.actor_id,
+        target_relatives=[_relative(root, path) for path in changes],
+        lineage_id=None,
+        at=accepted_at,
+    )
+    preconditions = {path: _sha256_path(path) if _path_is_file(path) else None for path in changes}
+    preconditions[_state_path(root)] = _sha256_payload(state_payload)
+    preconditions[current_path] = _sha256_payload(current_payload)
+    if binding.get("active_plan_path") is not None:
+        preconditions[_target(root, binding["active_plan_path"])] = binding["active_plan_sha256"]
+    operation_id = _validate_id(args.operation_id, "Operation ID")
+    return root, changes, preconditions, roles, revision, operation_id
+
+
+def command_plan_phase_boundary_amendment(args: argparse.Namespace) -> dict[str, Any]:
+    root, changes, preconditions, roles, revision, operation_id = _build_phase_amendment(args)
+    preview = _transaction_preview(root, operation_id=operation_id, operation="phase-boundary-amendment", changes=changes, preconditions=preconditions, target_roles=roles)
+    return {
+        "status": "PASS", "operation": "plan-phase-boundary-amendment", "mode": "DRY_RUN",
+        "workspace": str(root), "writes_performed": False, "proposed_revision": revision,
+        "proposed_revision_sha256": _sha256_payload(_canonical_json_file_bytes(revision)), "plan": preview,
+        "implicit_session_created": False,
+    }
+
+
+def command_apply_phase_boundary_amendment(args: argparse.Namespace) -> dict[str, Any]:
+    root, changes, preconditions, roles, revision, operation_id = _build_phase_amendment(args)
+    preview = _transaction_preview(root, operation_id=operation_id, operation="phase-boundary-amendment", changes=changes, preconditions=preconditions, target_roles=roles)
+    receipt = None
+    if args.apply:
+        expected = _require_expected_sha256(args.expected_plan_sha256, "WS_PHASE_AMENDMENT_STALE", "Expected amendment plan SHA-256")
+        if expected != preview["plan_sha256"]:
+            raise WorkspaceError("WS_PHASE_AMENDMENT_STALE", "Apply amendment plan differs from its exact reviewed preview.")
+        receipt = _apply_transaction_plan(root, operation_id=operation_id, operation="phase-boundary-amendment", changes=changes, preconditions=preconditions, target_roles=roles, expected_plan_sha256=expected)
+    return {
+        "status": "PASS", "operation": "apply-phase-boundary-amendment", "mode": "APPLY" if args.apply else "DRY_RUN",
+        "workspace": str(root), "writes_performed": bool(receipt and receipt.get("writes_performed")),
+        "proposed_revision": revision, "plan": preview, "receipt": receipt, "implicit_session_created": False,
+    }
+
+
+def _replace_or_insert_lease_section(text: str, session: dict[str, Any]) -> str:
+    lease = session["lease"]
+    block = (
+        "<!-- MALTS:section=session-lease -->\n"
+        "## Structured Session Lease\n\n"
+        f"- Owner kind: `{session['owner_kind']}`\n"
+        f"- Owner ID: `{session['owner_id']}`\n"
+        f"- Lease ID: `{lease['lease_id']}`\n"
+        f"- Lease state: `{lease['state']}`\n"
+        f"- Granted at: `{lease['granted_at']}`\n"
+        f"- Expires at: `{lease['expires_at'] if lease['expires_at'] is not None else 'N/A'}`\n"
+        f"- Authorization reference: `{lease['authorization_ref']}`\n"
+        f"- Allowed operations: `{';'.join(lease['allowed_operations'])}`\n"
+        f"- Read scope: `{';'.join(lease['read_scope']) if lease['read_scope'] else 'N/A'}`\n"
+        f"- Write scope: `{';'.join(lease['write_scope'])}`\n"
+        f"- Touch set: `{';'.join(lease['touch_set'])}`\n"
+        f"- Excluded surfaces: `{';'.join(lease['excluded_surfaces']) if lease['excluded_surfaces'] else 'N/A'}`\n"
+        f"- Bound lineage IDs: `{';'.join(lease['bound_lineage_ids']) if lease['bound_lineage_ids'] else 'N/A'}`\n"
+        f"- Checkpoint SHA-256: `{lease['checkpoint_sha256']}`\n"
+        f"- Evidence references: `{';'.join(lease['evidence_refs'])}`\n"
+    )
+    return _replace_or_insert_section(text, "session-lease", block, "session-plan-binding", "WS_SESSION_CONTROL_INVALID")
+
+
+def command_transfer_session_lease(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state, state_payload = _load_state_capture(root)
+    _require_schema_v4(state, "transfer-session-lease")
+    _require_consistent_mutation(root, state)
+    session = _active_session(state)
+    now = _timestamp(args.timestamp)
+    if session["lease"]["state"] != "ACTIVE":
+        raise WorkspaceError("WS_SESSION_LEASE_REQUIRED", "Only an ACTIVE Session lease may transfer.", session["path"])
+    if session["owner_kind"] != args.actor_kind or session["owner_id"] != args.actor_id:
+        raise WorkspaceError("WS_SESSION_LEASE_OWNER_MISMATCH", "Only the current exact Session lease owner may transfer ownership.", session["path"])
+    session_path, session_payload, session_text, session_bom = _phase_control_info(root, {"path": session["path"]})
+    _expected_hash(args.expected_session_sha256, _sha256_payload(session_payload), "WS_TRANSACTION_PLAN_STALE", session["path"])
+    new_owner_kind = args.new_owner_kind
+    new_owner_id = _validate_id(args.new_owner_id, "New owner ID")
+    new_lease_id = _validate_id(args.new_lease_id, "New lease ID")
+    authorization_ref = _require_reference(args.authorization_ref, "WS_SESSION_LEASE_REQUIRED", "New owner authorization")
+    updated = json.loads(json.dumps(state))
+    row = next(item for item in updated["session_controls"] if item["session_id"] == session["session_id"])
+    row["owner_kind"] = new_owner_kind
+    row["owner_id"] = new_owner_id
+    row["updated_at"] = now
+    row["lease"]["lease_id"] = new_lease_id
+    row["lease"]["granted_at"] = now
+    row["lease"]["expires_at"] = args.expires_at
+    row["lease"]["authorization_ref"] = authorization_ref
+    row["lease"]["evidence_refs"] = [_require_reference(value, "WS_SESSION_LEASE_REQUIRED", "Transfer evidence") for value in args.evidence_ref]
+    session_text = _replace_line(session_text, "- Updated at:", f"- Updated at: {now}", "WS_SESSION_CONTROL_INVALID")
+    session_text = _replace_or_insert_lease_section(session_text, row)
+    changes: dict[Path, bytes] = {session_path: _encode_markdown(session_text, session_bom)}
+    updated["maintenance_state"].update({"state": "clean", "last_action": "transfer-session-lease", "last_checked_at": now})
+    _finalize_v4_consistency(root, updated, changes, now)
+    roles = {
+        path: "SESSION_CONTROL" if path == session_path else
+        "PHASE_CONTROL" if _relative(root, path).endswith("PHASE_CONTROL.md") else
+        "REPORT" if _relative(root, path) == "WORK_TASK_REPORT.md" else
+        "HANDOFF" if _relative(root, path) == "PROJECT_HANDOFF.md" else
+        "PROJECT_CONTROL" if _relative(root, path) == "PROJECT_CONTROL.md" else "RUNTIME_STATE"
+        for path in changes
+    }
+    preconditions = {path: _sha256_path(path) if _path_is_file(path) else None for path in changes}
+    preconditions[_state_path(root)] = _sha256_payload(state_payload)
+    operation_id = _validate_id(args.operation_id, "Operation ID")
+    preview = _transaction_preview(root, operation_id=operation_id, operation="transfer-session-lease", changes=changes, preconditions=preconditions, target_roles=roles)
+    receipt = None
+    if args.apply:
+        expected = _require_expected_sha256(args.expected_plan_sha256, "WS_TRANSACTION_PLAN_STALE", "Expected lease transfer plan SHA-256")
+        if expected != preview["plan_sha256"]:
+            raise WorkspaceError("WS_TRANSACTION_PLAN_STALE", "Lease transfer plan differs from its exact reviewed preview.")
+        receipt = _apply_transaction_plan(root, operation_id=operation_id, operation="transfer-session-lease", changes=changes, preconditions=preconditions, target_roles=roles, expected_plan_sha256=expected)
+    return {
+        "status": "PASS", "operation": "transfer-session-lease", "mode": "APPLY" if args.apply else "DRY_RUN",
+        "workspace": str(root), "writes_performed": bool(receipt and receipt.get("writes_performed")),
+        "session_id": session["session_id"], "new_owner_kind": new_owner_kind, "new_owner_id": new_owner_id,
+        "new_lease_id": new_lease_id, "plan": preview, "receipt": receipt, "implicit_session_created": False,
+    }
+
+
+def _artifact_transaction_incomplete(root: Path) -> bool:
+    lock_path = _target(root, "runtime/artifact_transaction.lock.json")
+    return _path_is_file(lock_path)
+
+
+def _declared_lineage_rows(root: Path, values: list[str] | None) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for value in values or []:
+        if "=" not in value:
+            raise WorkspaceError("WS_MIGRATION_LINEAGE_INPUT_INVALID", "Declared lineage rows must use RELATIVE=SHA256.", value)
+        relative, expected = value.split("=", 1)
+        relative = relative.replace("\\", "/")
+        path = _target(root, relative)
+        if not _path_is_file(path):
+            raise WorkspaceError("WS_MIGRATION_LINEAGE_INPUT_INVALID", "Declared lineage file is missing.", relative)
+        observed = _sha256_path(path)
+        if expected.upper() != observed:
+            raise WorkspaceError("WS_TRANSACTION_PLAN_STALE", "Declared lineage hash does not match the reviewed input.", relative)
+        try:
+            document = json.loads(_path_read_bytes(path).decode("utf-8-sig"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            document = None
+        if isinstance(document, dict) and document.get("execution_status") in {"EXECUTING", "VERIFYING"}:
+            raise WorkspaceError("WS_MIGRATION_NOT_QUIESCENT", "A declared lineage is still EXECUTING or VERIFYING.", relative)
+        rows.append({"path": relative, "role": "DECLARED_LINEAGE", "sha256": observed})
+    return rows
+
+
+def _migration_plan_document(values: dict[str, Any]) -> dict[str, Any]:
+    plan_sha256 = _sha256_payload(canonical_json(values))
+    document = json.loads(json.dumps(values))
+    document["plan_sha256"] = plan_sha256
+    return document
+
+
+def command_migrate_workspace_v3_to_v4(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state, state_payload = _load_state_capture(root)
+    if state["schema_version"] != 3:
+        raise WorkspaceError(
+            "WS_MIGRATION_SOURCE_SCHEMA",
+            "migrate-workspace-v3-to-v4 requires workspace-control schema exactly 3.",
+            STATE_RELATIVE.as_posix(),
+        )
+    expected_state = _require_expected_sha256(args.expected_state_sha256, "WS_TRANSACTION_PLAN_STALE", "Expected workspace state SHA-256")
+    if expected_state != _sha256_payload(state_payload):
+        raise WorkspaceError("WS_TRANSACTION_PLAN_STALE", "Workspace state changed after review.", STATE_RELATIVE.as_posix())
+    _require_no_incomplete_workspace_transaction(root)
+    if _artifact_transaction_incomplete(root):
+        raise WorkspaceError("WS_MIGRATION_NOT_QUIESCENT", "An incomplete Artifact transaction blocks workspace migration.")
+    if state["active_session_id"] is not None:
+        raise WorkspaceError("WS_MIGRATION_NOT_QUIESCENT", "Close the active Session before workspace migration.")
+    if state["active_phase_id"] is not None:
+        raise WorkspaceError("WS_MIGRATION_NOT_QUIESCENT", "Pause the active Phase before workspace migration.")
+    declared_lineages = _declared_lineage_rows(root, getattr(args, "declared_lineage", None))
+    now = _timestamp(args.timestamp)
+    updated = json.loads(json.dumps(state))
+    updated["schema_version"] = 4
+    updated["current_task_bindings"] = []
+    updated["current_session_binding"] = None
+    updated["maintenance_state"].update({"state": "clean", "last_action": "migrate-workspace-v3-to-v4", "last_checked_at": now})
+    changes: dict[Path, bytes] = {}
+    paused_phase: dict[str, Any] | None = None
+    paused_plan_sha256: str | None = None
+    paused_boundary_sha256: str | None = None
+    paused_recovery_sha256: str | None = None
+    revision_relative: str | None = None
+    revision_document: dict[str, Any] | None = None
+    review_ref = "migration:v3-to-v4"
+    authorization_ref = "migration:v3-to-v4"
+    if getattr(args, "paused_phase_id", None) is not None:
+        paused_phase = _phase_entry(state, args.paused_phase_id)
+        if paused_phase["status"] != "PAUSED":
+            raise WorkspaceError("WS_MIGRATION_NOT_QUIESCENT", "The declared Phase must be PAUSED before workspace migration.", paused_phase["path"])
+        phase_path, phase_payload, phase_text, phase_bom = _phase_control_info(root, paused_phase)
+        _expected_hash(args.expected_phase_sha256, _sha256_payload(phase_payload), "WS_TRANSACTION_PLAN_STALE", paused_phase["path"])
+        if _markdown_phase_status(phase_text) != "PAUSED":
+            raise WorkspaceError("WS_PHASE_CONTROL_DRIFT", "Runtime and Markdown Phase status disagree.", paused_phase["path"])
+        boundary = _phase_boundary_contract(phase_text)
+        if boundary["status"] != "COMPLETE":
+            raise WorkspaceError("WS_MIGRATION_NOT_QUIESCENT", "The paused Phase requires a complete Boundary Contract.", paused_phase["path"])
+        paused_boundary_sha256 = _normalized_section_sha256(phase_payload, "phase-boundary", "WS_PHASE_BOUNDARY_RECORD_MISSING", paused_phase["path"])
+        _expected_hash(args.expected_boundary_sha256, paused_boundary_sha256, "WS_TRANSACTION_PLAN_STALE", paused_phase["path"])
+        paused_recovery_sha256 = _normalized_section_sha256(phase_payload, "phase-recovery", "WS_RECOVERY_RECORD_DRIFT", paused_phase["path"])
+        _expected_hash(args.expected_recovery_sha256, paused_recovery_sha256, "WS_TRANSACTION_PLAN_STALE", paused_phase["path"])
+        plan_binding = _phase_plan_binding(root, paused_phase)
+        expected_plan = (getattr(args, "expected_paused_plan_sha256", None) or "N/A").upper()
+        if plan_binding is None or plan_binding["Active plan"] == "N/A":
+            if expected_plan != "N/A":
+                raise WorkspaceError("WS_PHASE_PLAN_STALE", "A Phase without an active plan must use --expected-plan-sha256 N/A.", paused_phase["path"])
+            paused_plan_sha256 = None
+        else:
+            plan_path = _target(root, plan_binding["Active plan"])
+            if not _path_is_file(plan_path):
+                raise WorkspaceError("WS_PHASE_PLAN_STALE", "The active plan file is missing.", plan_binding["Active plan"])
+            observed_plan = _sha256_path(plan_path)
+            if expected_plan != observed_plan or plan_binding["Plan content SHA-256"].upper() != expected_plan:
+                raise WorkspaceError("WS_PHASE_PLAN_STALE", "Active plan bytes or binding disagree with the reviewed SHA-256.", plan_binding["Active plan"])
+            paused_plan_sha256 = expected_plan
+        review_ref = _require_reference(getattr(args, "pause_review_ref", None), "WS_MIGRATION_REVIEW_REQUIRED", "Pause review reference")
+        authorization_ref = _require_reference(getattr(args, "pause_authorization_ref", None), "WS_MIGRATION_AUTHORIZATION_REQUIRED", "Pause authorization reference")
+        revision_id = f"{paused_phase['phase_id']}-boundary-r001"
+        revision_relative = f"phases/{paused_phase['phase_id']}/boundary-revisions/{revision_id}.json"
+        revision_path = _target(root, revision_relative)
+        if revision_path.exists():
+            raise WorkspaceError("WS_FILE_EXISTS", "Refusing to overwrite an existing Phase boundary revision.", revision_relative)
+        boundary_values = {placeholder: boundary["fields"][label] for _, label, placeholder in PHASE_BOUNDARY_FIELDS}
+        revision_document = _boundary_revision_document(
+            phase_id=paused_phase["phase_id"],
+            revision_id=revision_id,
+            revision_number=1,
+            previous_revision=None,
+            boundary_values=boundary_values,
+            review_id=review_ref,
+            review_evidence_refs=[review_ref, "migration:v3-to-v4"],
+            authorization_ref=authorization_ref,
+            accepted_at=now,
+        )
+        revision_payload = _canonical_json_file_bytes(revision_document)
+        changes[revision_path] = revision_payload
+        phase_text = _replace_or_insert_section(
+            phase_text,
+            BOUNDARY_INDEX_MARKER,
+            _boundary_index_block(revision_document, revision_relative, _sha256_payload(revision_payload)),
+            "phase-plan-recheck",
+            "WS_TEMPLATE_INVALID",
+        )
+        phase_text = _replace_or_insert_section(phase_text, TASK_INDEX_MARKER, _task_index_block([], now), "phase-queue", "WS_TEMPLATE_INVALID")
+        changes[phase_path] = _encode_markdown(phase_text, phase_bom)
+        updated["recovery_point"] = {
+            "summary": f"Phase {paused_phase['phase_id']} remains PAUSED across the explicit workspace v4 migration.",
+            "next_action": "Validate v4, cold-recover, then explicitly resume with reviewed boundary, plan, and authorization.",
+            "evidence_refs": [review_ref, authorization_ref, "migration:v3-to-v4"],
+        }
+        terminal_phase_id: str | None = paused_phase["phase_id"]
+    else:
+        updated["recovery_point"] = {
+            "summary": "Workspace migrated to schema v4 with no active or paused Phase.",
+            "next_action": "Open a new outcome-oriented Phase or explicitly resume an existing one.",
+            "evidence_refs": ["migration:v3-to-v4"],
+        }
+        updated["recovery_binding"] = None
+        terminal_phase_id = None
+    _finalize_v4_consistency(root, updated, changes, now, terminal_phase_id=terminal_phase_id)
+    state_bytes = changes[_state_path(root)]
+    input_rows: list[dict[str, str]] = [
+        {"path": STATE_RELATIVE.as_posix(), "role": "WORKSPACE_STATE", "sha256": _sha256_payload(state_payload)},
+    ]
+    input_rows.extend(declared_lineages)
+    invariant_source_path = MALTS_ROOT / "tools" / "lifecycle_invariants.json"
+    input_rows.append({"path": "tools/lifecycle_invariants.json", "role": "INVARIANT_SOURCE", "sha256": _sha256_path(invariant_source_path)})
+    if paused_phase is not None:
+        input_rows.append({"path": paused_phase["path"], "role": "PHASE_CONTROL", "sha256": args.expected_phase_sha256.upper()})
+    report_path = _target(root, "WORK_TASK_REPORT.md")
+    report_hash = _sha256_path(report_path)
+    input_rows.append({"path": "WORK_TASK_REPORT.md", "role": "REPORT", "sha256": report_hash})
+    handoff_path = _target(root, "PROJECT_HANDOFF.md")
+    handoff_hash: str | None = None
+    if _path_is_file(handoff_path):
+        handoff_hash = _sha256_path(handoff_path)
+        input_rows.append({"path": "PROJECT_HANDOFF.md", "role": "HANDOFF", "sha256": handoff_hash})
+    output_rows: list[dict[str, Any]] = []
+    preimage_rows: list[dict[str, str | None]] = []
+    created_outputs: list[str] = []
+    for path in sorted(changes, key=lambda item: _relative(root, item)):
+        relative = _relative(root, path)
+        payload = changes[path]
+        role = "BOUNDARY_REVISION" if path == _target(root, revision_relative or "none") else (
+            "PHASE_CONTROL" if relative.endswith("PHASE_CONTROL.md") else
+            "REPORT" if relative == "WORK_TASK_REPORT.md" else
+            "HANDOFF" if relative == "PROJECT_HANDOFF.md" else "WORKSPACE_STATE"
+        )
+        output_rows.append({"path": relative, "role": role, "bytes": len(payload), "sha256": _sha256_payload(payload)})
+        preimage_rows.append({"path": relative, "sha256": _sha256_path(path) if _path_is_file(path) else None})
+        if not _path_is_file(path):
+            created_outputs.append(relative)
+    plan_values: dict[str, Any] = {
+        "schema_version": 1,
+        "operation_id": args.operation_id,
+        "operation": "migrate-workspace-v3-to-v4",
+        "plan_id": args.operation_id,
+        "workspace_identity": {"project_id": state["project_id"]},
+        "source_schema_version": 3,
+        "target_schema_version": 4,
+        "inputs": input_rows,
+        "outputs": output_rows,
+        "paused_phase": None if paused_phase is None else {
+            "phase_id": paused_phase["phase_id"],
+            "path": paused_phase["path"],
+            "status": "PAUSED",
+            "phase_control_sha256": args.expected_phase_sha256.upper(),
+            "phase_boundary_sha256": paused_boundary_sha256,
+            "plan_sha256": paused_plan_sha256,
+            "phase_recovery_sha256": paused_recovery_sha256,
+            "pause_review_ref": review_ref,
+            "pause_authorization_ref": authorization_ref,
+            "resume_required": True,
+        },
+        "compatibility": {
+            "result": "COMPATIBLE",
+            "added_fields": ["current_session_binding", "current_task_bindings", "phase-boundary-revision-index", "task-lineage-index"],
+            "changed_fields": ["schema_version", "current_phase_binding", "recovery_binding"],
+            "legacy_read_preserved": True,
+        },
+        "rollback": {"preimages": preimage_rows, "created_outputs": created_outputs},
+        "declarations": {
+            "implicit_session_created": False,
+            "recursive_discovery_performed": False,
+            "git_or_network_performed": False,
+            "active_runtime_or_public_touched": False,
+        },
+    }
+    migration_plan = _migration_plan_document(plan_values)
+    plan_issues = validate_instance(MALTS_ROOT, "workspace-migration-plan", migration_plan)
+    if plan_issues:
+        first = plan_issues[0]
+        raise WorkspaceError("WS_MIGRATION_PLAN_INVALID", f"{first.code}: {first.message}", first.path)
+    preconditions = {
+        path: _sha256_path(path) if _path_is_file(path) else None
+        for path in changes
+    }
+    preconditions[_state_path(root)] = _sha256_payload(state_payload)
+    if paused_phase is not None:
+        preconditions[_target(root, paused_phase["path"])] = args.expected_phase_sha256.upper()
+    roles: dict[Path, str] = {}
+    for path in changes:
+        relative = _relative(root, path)
+        if "/boundary-revisions/" in relative:
+            roles[path] = "IMMUTABLE_RECORD"
+        elif relative.endswith("PHASE_CONTROL.md"):
+            roles[path] = "PHASE_CONTROL"
+        elif relative == "WORK_TASK_REPORT.md":
+            roles[path] = "REPORT"
+        elif relative == "PROJECT_HANDOFF.md":
+            roles[path] = "HANDOFF"
+        else:
+            roles[path] = "RUNTIME_STATE"
+    preview = _transaction_preview(root, operation_id=args.operation_id, operation="migrate-workspace-v3-to-v4", changes=changes, preconditions=preconditions, target_roles=roles)
+    receipt = None
+    if args.apply:
+        expected = _require_expected_sha256(args.expected_plan_sha256, "WS_TRANSACTION_PLAN_STALE", "Expected migration plan SHA-256")
+        if expected != migration_plan["plan_sha256"]:
+            raise WorkspaceError("WS_TRANSACTION_PLAN_STALE", "Migration plan SHA-256 differs from the reviewed plan.")
+        receipt = _apply_transaction_plan(root, operation_id=args.operation_id, operation="migrate-workspace-v3-to-v4", changes=changes, preconditions=preconditions, target_roles=roles, expected_plan_sha256=preview["plan_sha256"], fault_point=os.environ.get("MALTS_TEST_WORKSPACE_FAULT_POINT"))
+    return {
+        "status": "PASS",
+        "operation": "migrate-workspace-v3-to-v4",
+        "mode": "APPLY" if args.apply else "DRY_RUN",
+        "workspace": str(root),
+        "writes_performed": bool(receipt and receipt.get("writes_performed")),
+        "source_schema_version": 3,
+        "target_schema_version": 4,
+        "paused_phase_id": None if paused_phase is None else paused_phase["phase_id"],
+        "migration_plan": migration_plan,
+        "transaction": preview,
+        "receipt": receipt,
+        "implicit_session_created": False,
+    }
+
+
+def command_migrate_result_contract_v1_to_v2(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state, state_payload = _load_state_capture(root)
+    if state["schema_version"] not in {3, 4}:
+        raise WorkspaceError(
+            "WS_SCHEMA_V4_MIGRATION_REQUIRED",
+            "Result Contract migration requires workspace-control schema v3 or v4.",
+            STATE_RELATIVE.as_posix(),
+        )
+    _require_consistent_mutation(root, state)
+    contract_relative = args.contract.replace("\\", "/")
+    contract_path, contract_payload, v1_contract = _load_json_object(root, contract_relative, "RC_V2_MIGRATION_REQUIRED")
+    v1_sha256 = _sha256_payload(contract_payload)
+    _expected_hash(args.expected_contract_sha256, v1_sha256, "RC_V2_MIGRATION_REQUIRED", contract_relative)
+    if v1_contract.get("contract_version") != "1":
+        raise WorkspaceError("RC_V2_MIGRATION_REQUIRED", "Only Result Contract v1 can migrate to v2.", contract_relative)
+    task_id = _validate_id(args.task_id, "Task ID")
+    lineage_id = _validate_id(args.lineage_id, "Lineage ID")
+    phase_id = _validate_id(args.phase_id, "Phase ID")
+    phase_entry = _phase_entry(state, phase_id)
+    if state["schema_version"] == 4:
+        binding = state["current_phase_binding"]
+        if binding is None or binding["active_phase_id"] != phase_id:
+            raise WorkspaceError("RC_V2_MIGRATION_REQUIRED", "A v4 workspace requires the active Phase to own the migrated Task.", phase_entry["path"])
+        boundary_revision_id = binding["boundary_revision_id"]
+        boundary_revision_sha256 = binding["boundary_revision_sha256"]
+        _expected_hash(args.expected_phase_boundary_sha256, boundary_revision_sha256, "RC_V2_MIGRATION_REQUIRED", binding["boundary_revision_path"])
+        binding_mode = "V4_BOUND"
+    else:
+        phase_path, phase_payload, phase_text, _ = _phase_control_info(root, phase_entry)
+        boundary = _phase_boundary_contract(phase_text)
+        if boundary["status"] != "COMPLETE":
+            raise WorkspaceError("RC_V2_MIGRATION_REQUIRED", "The target Phase requires a complete Boundary Contract.", phase_entry["path"])
+        boundary_revision_id = f"{phase_id}-boundary-pending"
+        boundary_revision_sha256 = _normalized_section_sha256(phase_payload, "phase-boundary", "WS_PHASE_BOUNDARY_RECORD_MISSING", phase_entry["path"])
+        _expected_hash(args.expected_phase_boundary_sha256, boundary_revision_sha256, "RC_V2_MIGRATION_REQUIRED", phase_entry["path"])
+        binding_mode = "PENDING_WORKSPACE_BINDING"
+    now = _timestamp(args.timestamp)
+    review_ref = _require_reference(args.review_ref, "RC_V2_MIGRATION_REQUIRED", "Migration review reference")
+    authorization_ref = _require_reference(args.authorization_ref, "RC_V2_MIGRATION_REQUIRED", "Migration authorization reference")
+    revision_id = args.revision_id or f"{task_id}-RCV2-001"
+    revision_id = _validate_id(revision_id, "Result Contract revision ID")
+    event_id = args.event_id or f"{task_id}-LEGACY-IMPORT-001"
+    event_id = _validate_id(event_id, "Import event ID")
+    try:
+        planned = result_migration.plan_result_contract_migration(
+            MALTS_ROOT,
+            v1_contract,
+            v1_relative=contract_relative,
+            v1_sha256=v1_sha256,
+            lineage_id=lineage_id,
+            task_id=task_id,
+            phase_id=phase_id,
+            phase_boundary_revision_id=boundary_revision_id,
+            phase_boundary_revision_sha256=boundary_revision_sha256,
+            revision_id=revision_id,
+            event_id=event_id,
+            operation_id=args.operation_id,
+            review_ref=review_ref,
+            authorization_ref=authorization_ref,
+            recorded_at=now,
+        )
+    except ValueError as exc:
+        raise WorkspaceError("RC_V2_MIGRATION_REQUIRED", str(exc), contract_relative) from exc
+    changes: dict[Path, bytes] = {
+        _target(root, planned["contract_relative"]): planned["contract_payload"],
+        _target(root, planned["event_relative"]): planned["event_payload"],
+        _target(root, planned["projection_relative"]): _canonical_json_file_bytes(planned["projection"]),
+    }
+    roles = {
+        _target(root, planned["contract_relative"]): "IMMUTABLE_RECORD",
+        _target(root, planned["event_relative"]): "IMMUTABLE_RECORD",
+        _target(root, planned["projection_relative"]): "RESULT_PROJECTION",
+    }
+    updated = json.loads(json.dumps(state))
+    if binding_mode == "V4_BOUND":
+        _replace_task_binding(
+            updated,
+            planned["projection"],
+            _sha256_payload(_canonical_json_file_bytes(planned["projection"])),
+        )
+        phase_path, phase_payload = _phase_task_control_payload(root, updated, changes, now)
+        changes[phase_path] = phase_payload
+        roles[phase_path] = "PHASE_CONTROL"
+        updated["maintenance_state"].update({"state": "clean", "last_action": "migrate-result-contract-v1-to-v2", "last_checked_at": now})
+        updated["recovery_point"] = {
+            "summary": f"Result Contract {revision_id} migrated from v1 with one legacy import event.",
+            "next_action": "Continue only from the exact Result lineage head and current Phase boundary revision.",
+            "evidence_refs": [review_ref, authorization_ref, f"lineage:{lineage_id}"],
+        }
+        _finalize_v4_consistency(root, updated, changes, now)
+        for relative, role in (("WORK_TASK_REPORT.md", "REPORT"), ("PROJECT_HANDOFF.md", "HANDOFF")):
+            path = _target(root, relative)
+            if path in changes:
+                roles[path] = role
+    else:
+        receipt_document = {
+            "receipt_schema": 1,
+            "operation_id": args.operation_id,
+            "operation": "migrate-result-contract-v1-to-v2",
+            "binding_mode": "PENDING_WORKSPACE_BINDING",
+            "v1_source": {"path": contract_relative, "sha256": v1_sha256},
+            "v2_contract": {"path": planned["contract_relative"], "sha256": planned["contract_sha256"]},
+            "import_event": {"path": planned["event_relative"], "sha256": planned["event_sha256"]},
+            "target_phase": {"phase_id": phase_id, "boundary_revision_id": boundary_revision_id, "boundary_revision_sha256": boundary_revision_sha256},
+            "recorded_at": now,
+            "review_ref": review_ref,
+            "authorization_ref": authorization_ref,
+        }
+        receipt_relative = f"task-state/{task_id}/MIGRATION_RECEIPT.json"
+        receipt_payload = _canonical_json_file_bytes(receipt_document)
+        changes[_target(root, receipt_relative)] = receipt_payload
+        roles[_target(root, receipt_relative)] = "IMMUTABLE_RECORD"
+    plan_values: dict[str, Any] = {
+        "schema_version": 1,
+        "operation_id": args.operation_id,
+        "operation": "migrate-result-contract-v1-to-v2",
+        "plan_id": args.operation_id,
+        "source": {
+            "path": contract_relative,
+            "sha256": v1_sha256,
+            "contract_version": "1",
+            "execution_status": v1_contract.get("execution_status"),
+            "terminal_status": v1_contract.get("terminal_status"),
+        },
+        "target": {
+            "task_id": task_id,
+            "lineage_id": lineage_id,
+            "phase_id": phase_id,
+            "phase_boundary_revision_id": boundary_revision_id,
+            "phase_boundary_revision_sha256": boundary_revision_sha256,
+        },
+        "created": {
+            "v2_contract_path": planned["contract_relative"],
+            "import_event_path": planned["event_relative"],
+            "projection_path": planned["projection_relative"],
+        },
+        "binding_mode": binding_mode,
+        "declarations": {
+            "source_bytes_unchanged": True,
+            "fabricated_history": False,
+            "implicit_session_created": False,
+            "recursive_discovery_performed": False,
+            "git_or_network_performed": False,
+        },
+        "rollback": {
+            "preimages": [
+                {"path": _relative(root, path), "sha256": _sha256_path(path) if _path_is_file(path) else None}
+                for path in sorted(changes, key=lambda item: _relative(root, item))
+            ],
+            "created_outputs": [
+                _relative(root, path)
+                for path in sorted(changes, key=lambda item: _relative(root, item))
+                if not _path_is_file(path)
+            ],
+        },
+    }
+    migration_plan = _migration_plan_document(plan_values)
+    plan_issues = validate_instance(MALTS_ROOT, "result-migration-plan", migration_plan)
+    if plan_issues:
+        first = plan_issues[0]
+        raise WorkspaceError("WS_MIGRATION_PLAN_INVALID", f"{first.code}: {first.message}", first.path)
+    preconditions: dict[Path, str | None] = {
+        path: _sha256_path(path) if _path_is_file(path) else None
+        for path in changes
+    }
+    preconditions[contract_path] = v1_sha256
+    if binding_mode == "V4_BOUND":
+        preconditions[_state_path(root)] = _sha256_payload(state_payload)
+    preview = _transaction_preview(root, operation_id=args.operation_id, operation="migrate-result-contract-v1-to-v2", changes=changes, preconditions=preconditions, target_roles=roles)
+    receipt = None
+    if args.apply:
+        expected = _require_expected_sha256(args.expected_plan_sha256, "WS_TRANSACTION_PLAN_STALE", "Expected migration plan SHA-256")
+        if expected != migration_plan["plan_sha256"]:
+            raise WorkspaceError("WS_TRANSACTION_PLAN_STALE", "Migration plan SHA-256 differs from the reviewed plan.")
+        receipt = _apply_transaction_plan(root, operation_id=args.operation_id, operation="migrate-result-contract-v1-to-v2", changes=changes, preconditions=preconditions, target_roles=roles, expected_plan_sha256=preview["plan_sha256"], fault_point=os.environ.get("MALTS_TEST_WORKSPACE_FAULT_POINT"))
+    return {
+        "status": "PASS",
+        "operation": "migrate-result-contract-v1-to-v2",
+        "mode": "APPLY" if args.apply else "DRY_RUN",
+        "workspace": str(root),
+        "writes_performed": bool(receipt and receipt.get("writes_performed")),
+        "binding_mode": binding_mode,
+        "task_id": task_id,
+        "lineage_id": lineage_id,
+        "migration_plan": migration_plan,
+        "transaction": preview,
+        "receipt": receipt,
+        "implicit_session_created": False,
+    }
+
+
+PROJECT_MARKER_PREFIX = "MALTS-PROJECT:"
+PROJECT_INSTRUCTION_TARGETS = ("AGENTS.md", "CLAUDE.md")
+
+
+def _project_marker_lines(marker_id: str, begin: bool) -> str:
+    kind = "BEGIN" if begin else "END"
+    return f"<!-- {PROJECT_MARKER_PREFIX}{kind} {marker_id} -->"
+
+
+def _instruction_eol(text: str) -> str:
+    crlf = text.count("\r\n")
+    lf = text.count("\n") - crlf
+    return "\r\n" if crlf >= lf and crlf > 0 else "\n"
+
+
+def _instruction_file_issues(root: Path, relative: str) -> list[dict[str, str]]:
+    issues: list[dict[str, str]] = []
+    path = _target(root, relative)
+    if not _path_is_file(path):
+        issues.append({"code": "WS_INSTRUCTION_TARGET_INVALID", "path": relative, "message": "Instruction target is missing."})
+        return issues
+    stat_result = os.stat(_io_path(path))
+    if stat_result.st_nlink > 1:
+        issues.append({"code": "WS_INSTRUCTION_TARGET_INVALID", "path": relative, "message": "Hardlinked instruction target is not supported."})
+    try:
+        path.read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeDecodeError):
+        issues.append({"code": "WS_INSTRUCTION_TARGET_INVALID", "path": relative, "message": "Instruction target must be valid UTF-8."})
+    return issues
+
+
+def _instruction_marker_parse(text: str, relative: str) -> tuple[list[tuple[str, bool, int]], list[dict[str, str]]]:
+    pattern = re.compile(
+        rf"^[ \t]*<!-- {re.escape(PROJECT_MARKER_PREFIX)}(BEGIN|END) (?P<id>[A-Za-z0-9][A-Za-z0-9._-]{{0,63}}) -->[ \t]*\r?$",
+        re.MULTILINE,
+    )
+    tokens = [(match.group("id"), match.group(1) == "BEGIN", match.start()) for match in pattern.finditer(text)]
+    issues: list[dict[str, str]] = []
+    stack: list[str] = []
+    seen_ids: set[str] = set()
+    for marker_id, is_begin, _ in tokens:
+        if is_begin:
+            if marker_id in stack or marker_id in seen_ids:
+                issues.append({"code": "WS_INSTRUCTION_MARKER_AMBIGUOUS", "path": relative, "message": f"Duplicate or nested begin marker: {marker_id}"})
+            stack.append(marker_id)
+        else:
+            if not stack or stack[-1] != marker_id:
+                issues.append({"code": "WS_INSTRUCTION_MARKER_AMBIGUOUS", "path": relative, "message": f"Unbalanced project marker: {marker_id}"})
+                return tokens, issues
+            stack.pop()
+            seen_ids.add(marker_id)
+    if stack:
+        issues.append({"code": "WS_INSTRUCTION_MARKER_AMBIGUOUS", "path": relative, "message": f"Unclosed project marker: {stack[-1]}"})
+    return tokens, issues
+
+
+def _refresh_instruction_target(
+    root: Path,
+    relative: str,
+    expected_sha256: str,
+    blocks: list[tuple[str, str]],
+) -> tuple[Path, bytes, dict[str, Any]]:
+    path = _target(root, relative)
+    issues = _instruction_file_issues(root, relative)
+    if issues:
+        raise WorkspaceError(issues[0]["code"], issues[0]["message"], issues[0]["path"])
+    raw = _path_read_bytes(path)
+    observed = _sha256_payload(raw)
+    if observed != expected_sha256.upper():
+        raise WorkspaceError("WS_INSTRUCTION_PLAN_STALE", "Instruction target changed after review.", relative)
+    has_bom = raw.startswith(b"\xef\xbb\xbf")
+    text = raw.decode("utf-8-sig")
+    tokens, marker_issues = _instruction_marker_parse(text, relative)
+    if marker_issues:
+        raise WorkspaceError(marker_issues[0]["code"], marker_issues[0]["message"], marker_issues[0]["path"])
+    owned_ids = {marker_id for marker_id, _, _ in tokens}
+    if not owned_ids:
+        raise WorkspaceError(
+            "WS_INSTRUCTION_MANUAL_MIGRATION_REQUIRED",
+            "The instruction file has no MALTS-PROJECT markers. Custom markerless files are never claimed automatically; use a reviewed manual migration instead.",
+            relative,
+        )
+    eol = _instruction_eol(text)
+    updated = text
+    target_rows: list[dict[str, Any]] = []
+    for marker_id, block_text in blocks:
+        begin_line = _project_marker_lines(marker_id, True)
+        end_line = _project_marker_lines(marker_id, False)
+        normalized_block = block_text.replace("\r\n", "\n").replace("\r", "\n")
+        if normalized_block.endswith("\n"):
+            normalized_block = normalized_block[:-1]
+        rendered = begin_line + eol + normalized_block.replace("\n", eol) + eol + end_line + eol
+        begin_pattern = re.compile(rf"(?m)^[ \t]*<!-- {re.escape(PROJECT_MARKER_PREFIX)}BEGIN {re.escape(marker_id)} -->[ \t]*\r?\n?")
+        end_pattern = re.compile(rf"(?m)^[ \t]*<!-- {re.escape(PROJECT_MARKER_PREFIX)}END {re.escape(marker_id)} -->[ \t]*\r?\n?")
+        begin_match = begin_pattern.search(updated)
+        end_match = end_pattern.search(updated)
+        if begin_match is not None and end_match is not None and end_match.start() > begin_match.start():
+            updated = updated[:begin_match.start()] + rendered + updated[end_match.end():]
+        else:
+            updated = updated.rstrip("\r\n") + eol + eol + rendered
+        target_rows.append({
+            "path": relative,
+            "marker_id": marker_id,
+            "inserted": begin_match is None or end_match is None or end_match.start() <= begin_match.start(),
+        })
+    if updated == text:
+        return path, raw, {"changed": False, "rows": target_rows}
+    final_payload = (b"\xef\xbb\xbf" if has_bom else b"") + updated.encode("utf-8")
+    return path, final_payload, {"changed": True, "rows": target_rows}
+
+
+def command_scoped_readiness(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state = _load_state(root)
+    reasons: list[str] = []
+    checks: dict[str, Any] = {}
+    consistency_ok = True
+    drift_code = None
+    try:
+        _require_consistent_mutation(root, state)
+    except WorkspaceError as exc:
+        consistency_ok = False
+        drift_code = exc.code
+        reasons.append(f"consistency-drift:{drift_code}")
+    checks["consistency"] = "PASS" if consistency_ok else f"DRIFT:{drift_code}"
+    checks["active_session"] = state["active_session_id"] is not None
+    if state["active_session_id"] is not None:
+        reasons.append("active-session-lease")
+    artifact_status = "UNKNOWN"
+    try:
+        snapshot = _artifact_snapshot(root, state, captured_at=_timestamp(None))
+        artifact_status = str(snapshot.get("enrollment", {}).get("status", "UNKNOWN"))
+    except Exception:
+        artifact_status = "UNKNOWN"
+    checks["artifact_enrollment"] = artifact_status
+    if artifact_status == "UNKNOWN":
+        reasons.append("artifact-status-unknown")
+    if artifact_status not in {"NOT_ENROLLED", "LEGACY_UNDECLARED", "UNKNOWN"}:
+        reasons.append("artifact-enrolled")
+    unresolved = False
+    for row in state.get("current_task_bindings", []):
+        projection_path = _target(root, row["projection_path"])
+        if not _path_is_file(projection_path):
+            continue
+        try:
+            projection = json.loads(_path_read_bytes(projection_path).decode("utf-8-sig"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            unresolved = True
+            break
+        if projection.get("unresolved_side_effects") or projection.get("recovery_required"):
+            unresolved = True
+            break
+    checks["unresolved_side_effects"] = unresolved
+    if unresolved:
+        reasons.append("unresolved-side-effects")
+    durable_delta = args.durable_delta
+    checks["durable_delta"] = durable_delta
+    if durable_delta == "UNKNOWN":
+        reasons.append("durable-delta-unknown")
+    if reasons:
+        route = "ESCALATE"
+    elif durable_delta == "DURABLE":
+        route = "S2_GOVERNED"
+    elif state["active_phase_id"] is not None:
+        route = "S1_SAME_SCOPE_NO_DELTA"
+    else:
+        route = "S0_UNRELATED"
+    return {
+        "status": "PASS",
+        "operation": "scoped-readiness",
+        "mode": "READ_ONLY",
+        "workspace": str(root),
+        "subject": args.subject,
+        "route": route,
+        "reasons": reasons,
+        "checks": checks,
+        "writes_performed": False,
+        "authorization_conferred": False,
+        "dispatch_performed": False,
+        "implicit_session_created": False,
+    }
+
+
+def command_refresh_project_instructions(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    _load_state(root)
+    targets: list[tuple[str, str]] = []
+    for value in args.target:
+        if "=" not in value:
+            raise WorkspaceError("WS_INSTRUCTION_TARGET_INVALID", "Target rows must use RELATIVE=SHA256.", value)
+        relative, expected = value.split("=", 1)
+        relative = relative.replace("\\", "/")
+        if relative not in PROJECT_INSTRUCTION_TARGETS:
+            raise WorkspaceError("WS_INSTRUCTION_TARGET_INVALID", "Only AGENTS.md and CLAUDE.md are supported targets.", relative)
+        if not re.fullmatch(r"[0-9A-F]{64}", expected, re.IGNORECASE):
+            raise WorkspaceError("WS_INSTRUCTION_TARGET_INVALID", "Target SHA-256 must be 64 hexadecimal characters.", relative)
+        targets.append((relative, expected.upper()))
+    blocks: list[tuple[str, str]] = []
+    source_rows: list[dict[str, str]] = []
+    for value in args.block:
+        parts = value.split("=", 2)
+        if len(parts) != 3:
+            raise WorkspaceError("WS_INSTRUCTION_SOURCE_INVALID", "Block rows must use MARKER_ID=SOURCE_PATH=SHA256.", value)
+        marker_id, source_relative, expected = parts
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", marker_id):
+            raise WorkspaceError("WS_INSTRUCTION_SOURCE_INVALID", "Invalid project marker ID.", marker_id)
+        source_relative = source_relative.replace("\\", "/")
+        source_path = _target(root, source_relative)
+        if not _path_is_file(source_path):
+            raise WorkspaceError("WS_INSTRUCTION_SOURCE_INVALID", "Block source file is missing.", source_relative)
+        source_stat = os.stat(_io_path(source_path))
+        if source_stat.st_nlink > 1:
+            raise WorkspaceError("WS_INSTRUCTION_SOURCE_INVALID", "Hardlinked block source is not supported.", source_relative)
+        source_raw = _path_read_bytes(source_path)
+        observed_source = _sha256_payload(source_raw)
+        if observed_source != expected.upper():
+            raise WorkspaceError("WS_INSTRUCTION_PLAN_STALE", "Block source changed after review.", source_relative)
+        block_text = source_raw.decode("utf-8-sig")
+        blocks.append((marker_id, block_text))
+        source_rows.append({"path": source_relative, "marker_id": marker_id, "sha256": observed_source})
+    now = _timestamp(args.timestamp)
+    changes: dict[Path, bytes] = {}
+    target_rows: list[dict[str, Any]] = []
+    for relative, expected_sha256 in targets:
+        path, payload, detail = _refresh_instruction_target(root, relative, expected_sha256, blocks)
+        target_rows.extend(detail["rows"])
+        if detail["changed"]:
+            changes[path] = payload
+    plan_values: dict[str, Any] = {
+        "plan_schema": 1,
+        "operation_id": args.operation_id,
+        "operation": "refresh-project-instructions",
+        "targets": [
+            {"path": relative, "expected_sha256": expected_sha256, "planned_sha256": _sha256_payload(changes[_target(root, relative)]) if _target(root, relative) in changes else expected_sha256}
+            for relative, expected_sha256 in targets
+        ],
+        "blocks": source_rows,
+        "target_rows": target_rows,
+        "recorded_at": now,
+    }
+    plan_sha256 = _sha256_payload(canonical_json(plan_values))
+    plan_values["plan_sha256"] = plan_sha256
+    if args.apply:
+        expected_plan = _require_expected_sha256(args.expected_plan_sha256, "WS_INSTRUCTION_PLAN_STALE", "Expected instruction refresh plan SHA-256")
+        if expected_plan != plan_sha256:
+            raise WorkspaceError("WS_INSTRUCTION_PLAN_STALE", "Instruction refresh plan differs from its exact reviewed preview.")
+        expected_inputs = {_target(root, relative): expected_sha256 for relative, expected_sha256 in targets}
+        for path in changes:
+            if _sha256_path(path) != expected_inputs[path]:
+                raise WorkspaceError("WS_INSTRUCTION_PLAN_STALE", "Instruction target changed after review.", _relative(root, path))
+        for path, payload in changes.items():
+            _io_path(path).write_bytes(payload)
+    return {
+        "status": "PASS",
+        "operation": "refresh-project-instructions",
+        "mode": "APPLY" if args.apply else "DRY_RUN",
+        "workspace": str(root),
+        "writes_performed": bool(args.apply and changes),
+        "plan": plan_values,
+        "planned_changes": sorted(_relative(root, path) for path in changes),
+        "implicit_session_created": False,
+    }
+
+
 def _recovery_record(payload: bytes, section_name: str, relative: str) -> dict[str, Any]:
     text, _ = _decode_markdown(payload)
     try:
@@ -1240,13 +2743,15 @@ def _select_recovery_source(state: dict[str, Any], terminal_phase_id: str | None
         return "ACTIVE_PHASE_RECOVERY", phase["phase_id"], None, phase["path"], "phase-recovery"
     if terminal_phase_id is not None:
         phase = _phase_entry(state, terminal_phase_id)
+        if state.get("schema_version") == 4 and phase.get("status") == "PAUSED":
+            return "PAUSED_PHASE_RECOVERY", phase["phase_id"], None, phase["path"], "phase-recovery"
         return "TERMINAL_PHASE_RECOVERY", phase["phase_id"], None, phase["path"], "phase-recovery"
     prior = state.get("recovery_binding")
-    if isinstance(prior, dict) and prior.get("source_kind") == "TERMINAL_PHASE_RECOVERY":
+    if isinstance(prior, dict) and prior.get("source_kind") in {"PAUSED_PHASE_RECOVERY", "TERMINAL_PHASE_RECOVERY"}:
         phase_id = prior.get("source_phase_id")
         phase = next((item for item in state["phase_controls"] if item["phase_id"] == phase_id and item["status"] != "ACTIVE"), None)
         if phase is not None:
-            return "TERMINAL_PHASE_RECOVERY", phase["phase_id"], None, phase["path"], "phase-recovery"
+            return prior["source_kind"], phase["phase_id"], None, phase["path"], "phase-recovery"
     return "PROJECT_RECOVERY", None, None, "PROJECT_CONTROL.md", "recovery-notes"
 
 
@@ -1258,6 +2763,9 @@ def _finalize_v3_consistency(
     *,
     terminal_phase_id: str | None = None,
 ) -> None:
+    if state["schema_version"] == 4:
+        _finalize_v4_consistency(root, state, changes, now, terminal_phase_id=terminal_phase_id)
+        return
     if state["schema_version"] != 3:
         changes[_state_path(root)] = _json_bytes(state)
         _refresh_current_phase_bindings(root, state, changes, now)
@@ -1320,6 +2828,157 @@ def _finalize_v3_consistency(
             "phase_recovery_sha256": _normalized_section_sha256(phase_payload, "phase-recovery", "WS_RECOVERY_RECORD_DRIFT", phase["path"]),
             "recorded_at": now,
         }
+    changes[_state_path(root)] = _json_bytes(state)
+    _refresh_current_phase_bindings(root, state, changes, now)
+    _validate_state(root, state)
+
+
+def _boundary_revision_binding(
+    root: Path,
+    phase_payload: bytes,
+    phase: dict[str, Any],
+    changes: dict[Path, bytes] | None = None,
+) -> dict[str, str]:
+    text, _ = _decode_markdown(phase_payload)
+    section = _marked_section(text, BOUNDARY_INDEX_MARKER, required=True)
+    assert section is not None
+    revision_id = _control_value(section, "Current revision ID", "WS_PHASE_BOUNDARY_RECORD_MISSING")
+    revision_path = _control_value(section, "Current revision path", "WS_PHASE_BOUNDARY_RECORD_MISSING")
+    revision_sha256 = _control_value(section, "Current revision SHA-256", "WS_PHASE_BOUNDARY_RECORD_MISSING").upper()
+    path = _target(root, revision_path)
+    revision_payload = (changes or {}).get(path)
+    if revision_payload is None and _path_is_file(path):
+        revision_payload = _path_read_bytes(path)
+    if revision_payload is None:
+        raise WorkspaceError("WS_PHASE_BOUNDARY_RECORD_MISSING", "Current immutable Phase boundary revision is missing.", revision_path)
+    if _sha256_payload(revision_payload) != revision_sha256:
+        raise WorkspaceError("WS_PHASE_BOUNDARY_RECORD_STALE", "Immutable Phase boundary revision bytes drifted.", revision_path)
+    document = json.loads(revision_payload.decode("utf-8-sig"))
+    if document.get("phase_id") != phase["phase_id"] or document.get("revision_id") != revision_id:
+        raise WorkspaceError("WS_PHASE_BOUNDARY_RECORD_STALE", "Phase boundary revision identity disagrees with its Phase index.", revision_path)
+    return {"revision_id": revision_id, "path": revision_path, "sha256": revision_sha256}
+
+
+def _task_binding_index_sha256(rows: list[dict[str, Any]]) -> str:
+    return _sha256_payload(canonical_json(sorted(rows, key=lambda item: item["task_id"])))
+
+
+def _v4_session_binding(root: Path, state: dict[str, Any], changes: dict[Path, bytes], now: str) -> dict[str, Any] | None:
+    if state["active_session_id"] is None:
+        return None
+    session = _active_session(state)
+    lease = session["lease"]
+    payload = _final_payload(root, changes, session["path"])
+    if payload is None:
+        raise WorkspaceError("WS_FILE_MISSING", "Active Session control is missing.", session["path"])
+    heads = [
+        {"lineage_id": row["lineage_id"], "latest_event_sha256": row["latest_event"]["sha256"]}
+        for row in state.get("current_task_bindings", [])
+        if row.get("latest_event") is not None and row["lineage_id"] in set(lease.get("bound_lineage_ids", []))
+    ]
+    return {
+        "session_id": session["session_id"],
+        "phase_id": session["phase_id"],
+        "session_control_path": session["path"],
+        "session_control_sha256": _sha256_payload(payload),
+        "lease_id": lease["lease_id"],
+        "owner_kind": session["owner_kind"],
+        "owner_id": session["owner_id"],
+        "lease_state": lease["state"],
+        "granted_at": lease["granted_at"],
+        "expires_at": lease["expires_at"],
+        "scope_sha256": _sha256_payload(canonical_json({"read": lease["read_scope"], "write": lease["write_scope"]})),
+        "touch_set_sha256": _sha256_payload(_canonical_string_array(lease["touch_set"])),
+        "allowed_operations_sha256": _sha256_payload(_canonical_string_array(lease["allowed_operations"])),
+        "checkpoint_sha256": lease["checkpoint_sha256"],
+        "bound_lineage_heads": sorted(heads, key=lambda item: item["lineage_id"]),
+        "recorded_at": now,
+    }
+
+
+def _finalize_v4_consistency(
+    root: Path,
+    state: dict[str, Any],
+    changes: dict[Path, bytes],
+    now: str,
+    *,
+    terminal_phase_id: str | None = None,
+) -> None:
+    source_kind, source_phase_id, source_session_id, source_relative, source_section = _select_recovery_source(state, terminal_phase_id)
+    source_payload = _final_payload(root, changes, source_relative)
+    if source_payload is None:
+        raise WorkspaceError("WS_FILE_MISSING", "Canonical recovery source is missing.", source_relative)
+    record_id = f"session:{source_session_id}:checkpoint" if source_session_id is not None else f"phase:{source_phase_id}:recovery" if source_phase_id is not None else "project:recovery"
+    source_payload = _replace_recovery_record(
+        source_payload,
+        source_section,
+        source_relative,
+        record_id=record_id,
+        summary=state["recovery_point"]["summary"],
+        next_action=state["recovery_point"]["next_action"],
+        evidence_refs=state["recovery_point"]["evidence_refs"],
+        recorded_at=now,
+    )
+    changes[_target(root, source_relative)] = source_payload
+    source_boundary_revision: dict[str, str] | None = None
+    if source_phase_id is not None:
+        source_phase = _phase_entry(state, source_phase_id)
+        phase_payload = _final_payload(root, changes, source_phase["path"])
+        if phase_payload is None:
+            raise WorkspaceError("WS_FILE_MISSING", "Recovery Phase control is missing.", source_phase["path"])
+        source_boundary_revision = _boundary_revision_binding(root, phase_payload, source_phase, changes)
+    state["recovery_binding"] = {
+        "record_schema": 2,
+        "record_id": record_id,
+        "source_kind": source_kind,
+        "source_phase_id": source_phase_id,
+        "source_session_id": source_session_id,
+        "source_control_path": source_relative,
+        "source_control_sha256": _sha256_payload(source_payload),
+        "source_boundary_revision": None if source_boundary_revision is None else {"path": source_boundary_revision["path"], "sha256": source_boundary_revision["sha256"]},
+        "source_recovery_sha256": _normalized_section_sha256(source_payload, source_section, "WS_RECOVERY_RECORD_DRIFT", source_relative),
+        "summary": state["recovery_point"]["summary"],
+        "next_action": state["recovery_point"]["next_action"],
+        "evidence_refs": list(state["recovery_point"]["evidence_refs"]),
+        "resume_required": source_kind == "PAUSED_PHASE_RECOVERY",
+        "projected_at": now,
+    }
+    if state["active_phase_id"] is None:
+        state["current_phase_binding"] = None
+    else:
+        phase = _active_phase(state)
+        phase_payload = _final_payload(root, changes, phase["path"])
+        if phase_payload is None:
+            raise WorkspaceError("WS_FILE_MISSING", "Active Phase control is missing.", phase["path"])
+        revision = _boundary_revision_binding(root, phase_payload, phase, changes)
+        review = _boundary_review_record(phase_payload, phase["path"])
+        plan = _phase_plan_binding(root, phase, phase_payload)
+        state["current_phase_binding"] = {
+            "binding_schema": 3,
+            "active_phase_id": phase["phase_id"],
+            "phase_control_path": phase["path"],
+            "phase_control_sha256": _sha256_payload(phase_payload),
+            "boundary_revision_id": revision["revision_id"],
+            "boundary_revision_path": revision["path"],
+            "boundary_revision_sha256": revision["sha256"],
+            "phase_boundary_sha256": _normalized_section_sha256(phase_payload, "phase-boundary", "WS_PHASE_BOUNDARY_RECORD_MISSING", phase["path"]),
+            "boundary_review_id": None if review["Review ID"] == "N/A" else review["Review ID"],
+            "boundary_review_sha256": _normalized_section_sha256(phase_payload, "phase-boundary-review", "WS_PHASE_BOUNDARY_RECORD_MISSING", phase["path"]),
+            "candidate_mapping": review["Candidate mapping"],
+            "recommendation": review["Recommended review"],
+            "active_plan_path": None if plan is None or plan["Active plan"] == "N/A" else plan["Active plan"],
+            "active_plan_revision": None if plan is None or plan["Active plan"] == "N/A" else plan["Plan revision"],
+            "active_plan_sha256": None if plan is None or plan["Active plan"] == "N/A" else plan["Plan content SHA-256"],
+            "phase_recovery_sha256": _normalized_section_sha256(phase_payload, "phase-recovery", "WS_RECOVERY_RECORD_DRIFT", phase["path"]),
+            "task_binding_index_sha256": _task_binding_index_sha256(state.get("current_task_bindings", [])),
+            "recorded_at": now,
+        }
+    state["current_session_binding"] = _v4_session_binding(root, state, changes, now)
+    if state["current_session_binding"] is not None:
+        session_relative = state["current_session_binding"]["session_control_path"]
+        final_session_payload = _final_payload(root, changes, session_relative)
+        if final_session_payload is not None:
+            state["current_session_binding"]["session_control_sha256"] = _sha256_payload(final_session_payload)
     changes[_state_path(root)] = _json_bytes(state)
     _refresh_current_phase_bindings(root, state, changes, now)
     _validate_state(root, state)
@@ -2129,8 +3788,8 @@ def command_record_phase_boundary_review(args: argparse.Namespace) -> dict[str, 
     root = _workspace(args.workspace)
     state = _load_state(root)
     _require_consistent_mutation(root, state, allowed_codes={"WS_REVIEW_OUTCOME_UNRESOLVED"})
-    if state["schema_version"] != 3:
-        raise WorkspaceError("WS_CONSISTENCY_MIGRATION_REQUIRED", "Boundary Review records require explicit workspace schema v3 migration.")
+    if state["schema_version"] not in {3, 4}:
+        raise WorkspaceError("WS_CONSISTENCY_MIGRATION_REQUIRED", "Boundary Review records require explicit workspace schema v3 or v4.")
     phase = _phase_entry(state, args.phase_id) if args.phase_id else _active_phase(state)
     path = _target(root, phase["path"])
     payload = _read_bytes(root, phase["path"])
@@ -2179,8 +3838,8 @@ def command_record_phase_boundary_review(args: argparse.Namespace) -> dict[str, 
 def command_reconcile_consistency_records(args: argparse.Namespace) -> dict[str, Any]:
     root = _workspace(args.workspace)
     state, state_payload = _load_state_capture(root)
-    if state["schema_version"] != 3:
-        raise WorkspaceError("WS_CONSISTENCY_MIGRATION_REQUIRED", "Reconciliation requires workspace schema v3.")
+    if state["schema_version"] not in {3, 4}:
+        raise WorkspaceError("WS_CONSISTENCY_MIGRATION_REQUIRED", "Reconciliation requires workspace schema v3 or v4.")
     expected_state = _require_expected_sha256(args.expected_state_sha256, "WS_CONSISTENCY_STATE_HASH", "Expected state hash")
     if hashlib.sha256(state_payload).hexdigest().upper() != expected_state:
         raise WorkspaceError("WS_CONSISTENCY_STATE_HASH", "workspace_control.json changed after reconciliation review.", STATE_RELATIVE.as_posix())
@@ -2196,7 +3855,7 @@ def command_reconcile_consistency_records(args: argparse.Namespace) -> dict[str,
         if hashlib.sha256(_read_bytes(root, phase["path"])).hexdigest().upper() != expected_phase:
             raise WorkspaceError("WS_CURRENT_BINDING_STALE", "Active Phase changed after reconciliation review.", phase["path"])
     now = _timestamp(args.timestamp)
-    section_name = "session-checkpoint" if recovery["source_kind"] == "ACTIVE_SESSION_CHECKPOINT" else "phase-recovery" if recovery["source_kind"] in {"ACTIVE_PHASE_RECOVERY", "TERMINAL_PHASE_RECOVERY"} else "recovery-notes"
+    section_name = "session-checkpoint" if recovery["source_kind"] == "ACTIVE_SESSION_CHECKPOINT" else "phase-recovery" if recovery["source_kind"] in {"ACTIVE_PHASE_RECOVERY", "PAUSED_PHASE_RECOVERY", "TERMINAL_PHASE_RECOVERY"} else "recovery-notes"
     canonical = _recovery_record(source_payload, section_name, source_relative)
     updated = json.loads(json.dumps(state))
     updated["recovery_point"] = {
@@ -2206,7 +3865,7 @@ def command_reconcile_consistency_records(args: argparse.Namespace) -> dict[str,
     }
     updated["maintenance_state"].update({"state": "clean", "last_action": "reconcile-consistency-records", "last_checked_at": now})
     changes: dict[Path, bytes] = {}
-    terminal_phase_id = recovery["source_phase_id"] if recovery["source_kind"] == "TERMINAL_PHASE_RECOVERY" else None
+    terminal_phase_id = recovery["source_phase_id"] if recovery["source_kind"] in {"PAUSED_PHASE_RECOVERY", "TERMINAL_PHASE_RECOVERY"} else None
     _finalize_v3_consistency(root, updated, changes, now, terminal_phase_id=terminal_phase_id)
     result = _plan(
         "reconcile-consistency-records",
@@ -2224,16 +3883,45 @@ def command_reconcile_consistency_records(args: argparse.Namespace) -> dict[str,
     return result
 
 
+def command_rebind_v4_consistency(args: argparse.Namespace) -> dict[str, Any]:
+    """Explicitly rebind v4 derived consistency records after reviewed canonical edits."""
+
+    root = _workspace(args.workspace)
+    state, state_payload = _load_state_capture(root)
+    _require_schema_v4(state, "rebind-v4-consistency")
+    expected_state = _require_expected_sha256(args.expected_state_sha256, "WS_CONSISTENCY_STATE_HASH", "Expected state hash")
+    if _sha256_payload(state_payload) != expected_state:
+        raise WorkspaceError("WS_CONSISTENCY_STATE_HASH", "workspace_control.json changed after rebind review.", STATE_RELATIVE.as_posix())
+    phase = _active_phase(state)
+    phase_payload = _read_bytes(root, phase["path"])
+    expected_phase = _require_expected_sha256(args.expected_phase_sha256, "WS_CURRENT_BINDING_STALE", "Expected active Phase hash")
+    if _sha256_payload(phase_payload) != expected_phase:
+        raise WorkspaceError("WS_CURRENT_BINDING_STALE", "Active Phase changed after rebind review.", phase["path"])
+    now = _timestamp(args.timestamp)
+    updated = json.loads(json.dumps(state))
+    canonical = _recovery_record(phase_payload, "phase-recovery", phase["path"])
+    updated["recovery_point"] = {"summary": canonical["summary"], "next_action": canonical["next_action"], "evidence_refs": canonical["evidence_refs"]}
+    updated["maintenance_state"].update({"state": "clean", "last_action": "rebind-v4-consistency", "last_checked_at": now})
+    changes: dict[Path, bytes] = {}
+    _finalize_v4_consistency(root, updated, changes, now)
+    result = _plan("rebind-v4-consistency", root, changes, args.apply, expected_state_sha256=expected_state, expected_phase_sha256=expected_phase, implicit_session_created=False)
+    if args.apply:
+        _transaction_write(root, changes, operation="rebind-v4-consistency", operation_id=args.operation_id)
+    return result
+
+
 def command_recover_workspace_transaction(args: argparse.Namespace) -> dict[str, Any]:
     root = _workspace(args.workspace)
     try:
-        recovery = recover_transaction(
-            root,
-            operation_id=args.operation_id,
-            expected_journal_sha256=args.expected_journal_sha256,
-            apply=args.apply,
-            profile=WORKSPACE_TRANSACTION_PROFILE,
-        )
+        recovery_arguments: dict[str, Any] = {
+            "operation_id": args.operation_id,
+            "expected_journal_sha256": args.expected_journal_sha256,
+            "apply": args.apply,
+            "profile": WORKSPACE_TRANSACTION_PROFILE,
+        }
+        if getattr(args, "expected_lock_sha256", None) is not None:
+            recovery_arguments["expected_lock_sha256"] = args.expected_lock_sha256
+        recovery = recover_transaction(root, **recovery_arguments)
     except TransactionError as exc:
         raise WorkspaceError(exc.code, exc.message, exc.detail) from exc
     return {
@@ -2265,7 +3953,7 @@ def command_pause_phase(args: argparse.Namespace) -> dict[str, Any]:
     root = _workspace(args.workspace)
     state = _load_state(root)
     _require_consistent_mutation(root, state)
-    if state["schema_version"] not in {2, 3}:
+    if state["schema_version"] not in {2, 3, 4}:
         raise WorkspaceError("WS_PHASE_MIGRATION_REQUIRED", "Pause requires explicit workspace/Phase migration to schema v2.")
     if state["active_session_id"] is not None:
         raise WorkspaceError("WS_SESSION_ACTIVE", "Close the active Session before pausing its Phase.")
@@ -2319,7 +4007,7 @@ def command_resume_phase(args: argparse.Namespace) -> dict[str, Any]:
     root = _workspace(args.workspace)
     state = _load_state(root)
     _require_consistent_mutation(root, state)
-    if state["schema_version"] not in {2, 3}:
+    if state["schema_version"] not in {2, 3, 4}:
         raise WorkspaceError("WS_PHASE_MIGRATION_REQUIRED", "Resume requires explicit workspace/Phase migration to schema v2.")
     if state["active_phase_id"] is not None:
         raise WorkspaceError("WS_PHASE_ACTIVE", "Close or pause the active Phase before resuming another one.")
@@ -2415,7 +4103,7 @@ def command_plan_phase_transition(args: argparse.Namespace) -> dict[str, Any]:
     root = _workspace(args.workspace)
     state = _load_state(root)
     _require_consistent_mutation(root, state)
-    if state["schema_version"] not in {2, 3}:
+    if state["schema_version"] not in {2, 3, 4}:
         raise WorkspaceError("WS_PHASE_MIGRATION_REQUIRED", "Phase transition planning requires workspace-control schema v2.")
     if state["active_session_id"] is not None:
         raise WorkspaceError("WS_SESSION_ACTIVE", "Close the active Session before planning a Phase transition.")
@@ -2638,6 +4326,31 @@ def command_apply_phase_transition(args: argparse.Namespace) -> dict[str, Any]:
     source_text = _replace_line(source_text, "- Closed at:", f"- Closed at: {plan['created_at']}", "WS_PHASE_CONTROL_INVALID")
     target_text = _append_table_rows(target_text, "phase-carried-in", target_provenance_rows, "WS_PHASE_CARRY_OVER_INVALID")
     target_text = _append_table_rows(target_text, "phase-queue", target_queue_rows, "WS_PHASE_CARRY_OVER_INVALID")
+    target_revision_path: Path | None = None
+    target_revision_payload: bytes | None = None
+    if state["schema_version"] == 4:
+        revision_id = f"{target_id}-boundary-r001"
+        revision_relative = f"phases/{target_id}/boundary-revisions/{revision_id}.json"
+        target_revision_path = _target(root, revision_relative)
+        revision = _boundary_revision_document(
+            phase_id=target_id,
+            revision_id=revision_id,
+            revision_number=1,
+            previous_revision=None,
+            boundary_values=target_plan["boundary_values"],
+            review_id=f"{target_id}-transition-boundary",
+            review_evidence_refs=[plan["boundary_review_ref"]],
+            authorization_ref=plan["authorization_ref"],
+            accepted_at=plan["created_at"],
+        )
+        target_revision_payload = _canonical_json_file_bytes(revision)
+        target_text = _insert_before_marker(
+            target_text,
+            "phase-plan-recheck",
+            _boundary_index_block(revision, revision_relative, _sha256_payload(target_revision_payload)),
+            "WS_PHASE_TRANSITION_PLAN_INVALID",
+        )
+        target_text = _insert_before_marker(target_text, "phase-queue", _task_index_block([], plan["created_at"]), "WS_PHASE_TRANSITION_PLAN_INVALID")
     project_text, project_bom = _decode_markdown(current_project_bytes)
     if _marked_section(project_text, "phase-carry-over-index") is None:
         raise WorkspaceError("WS_PHASE_MIGRATION_REQUIRED", "PROJECT_CONTROL requires an explicit v2 carry-over index migration.", "PROJECT_CONTROL.md")
@@ -2679,6 +4392,8 @@ def command_apply_phase_transition(args: argparse.Namespace) -> dict[str, Any]:
         _target(root, "PROJECT_CONTROL.md"): _encode_markdown(project_text, project_bom),
         _state_path(root): _json_bytes(updated),
     }
+    if target_revision_path is not None and target_revision_payload is not None:
+        changes[target_revision_path] = target_revision_payload
     _finalize_v3_consistency(root, updated, changes, plan["created_at"])
     _validate_state(root, updated)
     result = _plan(
@@ -2697,7 +4412,16 @@ def command_apply_phase_transition(args: argparse.Namespace) -> dict[str, Any]:
         implicit_session_created=False,
     )
     if args.apply:
-        _transaction_write(root, changes, must_be_new=(target_path,), operation="apply-phase-transition")
+        must_be_new = (target_path,) if target_revision_path is None else (target_revision_path, target_path)
+        roles = {
+            path: "IMMUTABLE_RECORD" if path == target_revision_path else
+            "PHASE_CONTROL" if path in {source_path, target_path} else
+            "REPORT" if _relative(root, path) == "WORK_TASK_REPORT.md" else
+            "HANDOFF" if _relative(root, path) == "PROJECT_HANDOFF.md" else
+            "PROJECT_CONTROL" if _relative(root, path) == "PROJECT_CONTROL.md" else "RUNTIME_STATE"
+            for path in changes
+        }
+        _transaction_write(root, changes, must_be_new=must_be_new, operation="apply-phase-transition", target_roles=roles)
     return result
 
 
@@ -2732,9 +4456,44 @@ def command_open_session(args: argparse.Namespace) -> dict[str, Any]:
             **plan_values,
         },
     )
+    structured_lease: dict[str, Any] | None = None
+    owner_kind = getattr(args, "owner_kind", "MAIN_CONTROLLER")
+    owner_id = _validate_id(getattr(args, "owner_id", "MAIN_CONTROLLER"), "Session owner ID")
+    if state["schema_version"] == 4:
+        lease_id = _validate_id(args.lease_id, "Session lease ID")
+        allowed_operations = list(dict.fromkeys(args.allowed_operation))
+        write_scope = list(dict.fromkeys(args.write_scope))
+        touch_set = list(dict.fromkeys(args.touch_set))
+        if not allowed_operations or not write_scope or not touch_set:
+            raise WorkspaceError("WS_SESSION_LEASE_REQUIRED", "v4 Session requires non-empty allowed operations, write scope, and exact touch set.")
+        checkpoint_hash = _sha256_payload(
+            canonical_json({"session_id": session_id, "phase_id": phase["phase_id"], "goal": args.goal.strip(), "at": now})
+        )
+        structured_lease = {
+            "lease_id": lease_id,
+            "state": "ACTIVE",
+            "granted_at": now,
+            "expires_at": args.expires_at,
+            "authorization_ref": _require_reference(args.authorization_ref, "WS_SESSION_LEASE_REQUIRED", "Session authorization"),
+            "allowed_operations": allowed_operations,
+            "read_scope": list(dict.fromkeys(args.read_scope)),
+            "write_scope": write_scope,
+            "touch_set": touch_set,
+            "excluded_surfaces": list(dict.fromkeys(args.excluded_surface)),
+            "bound_lineage_ids": list(dict.fromkeys(args.bound_lineage_id)),
+            "checkpoint_sha256": checkpoint_hash,
+            "evidence_refs": [_require_reference(value, "WS_SESSION_LEASE_REQUIRED", "Session lease evidence") for value in args.evidence_ref],
+        }
+        control_text, control_bom = _decode_markdown(control)
+        control = _encode_markdown(
+            _replace_or_insert_lease_section(
+                control_text,
+                {"owner_kind": owner_kind, "owner_id": owner_id, "lease": structured_lease},
+            ),
+            control_bom,
+        )
     updated = json.loads(json.dumps(state))
-    updated["session_controls"].append(
-        {
+    session_row = {
             "session_id": session_id,
             "phase_id": phase["phase_id"],
             "path": relative,
@@ -2742,7 +4501,9 @@ def command_open_session(args: argparse.Namespace) -> dict[str, Any]:
             "reason": args.reason,
             "created_at": now,
         }
-    )
+    if structured_lease is not None:
+        session_row.update({"updated_at": now, "owner_kind": owner_kind, "owner_id": owner_id, "lease": structured_lease})
+    updated["session_controls"].append(session_row)
     updated["active_session_id"] = session_id
     updated["maintenance_state"].update({"last_action": "open-session", "last_checked_at": now})
     updated["recovery_point"] = {
@@ -2787,7 +4548,11 @@ def command_close_session(args: argparse.Namespace) -> dict[str, Any]:
     text = _replace_line(text, "- Status: ACTIVE", f"- Status: {args.status}", "WS_SESSION_CONTROL_INVALID")
     text = _replace_line(text, "- Updated at:", f"- Updated at: {now}", "WS_SESSION_CONTROL_INVALID")
     updated = json.loads(json.dumps(state))
-    next(item for item in updated["session_controls"] if item["session_id"] == session["session_id"])["status"] = args.status
+    updated_session = next(item for item in updated["session_controls"] if item["session_id"] == session["session_id"])
+    updated_session["status"] = args.status
+    if updated["schema_version"] == 4:
+        updated_session["updated_at"] = now
+        updated_session["lease"]["state"] = "RELEASED"
     updated["active_session_id"] = None
     updated["maintenance_state"].update({"last_action": "close-session", "last_checked_at": now})
     updated["recovery_point"] = {
@@ -3196,7 +4961,7 @@ def _current_binding_issues(root: Path, state: dict[str, Any]) -> list[dict[str,
                 )
             continue
         labels = ["Active Phase ID", "Active Phase control", "Phase control SHA-256", "Recorded at"]
-        if state["schema_version"] == 3:
+        if state["schema_version"] in {3, 4}:
             labels = [
                 "Binding schema",
                 "Active Phase ID",
@@ -3215,17 +4980,17 @@ def _current_binding_issues(root: Path, state: dict[str, Any]) -> list[dict[str,
         except WorkspaceError as exc:
             issues.append(
                 {
-                    "code": "WS_CURRENT_BINDING_MISSING" if state["schema_version"] == 3 else exc.code,
+                    "code": "WS_CURRENT_BINDING_MISSING" if state["schema_version"] in {3, 4} else exc.code,
                     "path": relative,
                     "message": exc.message,
                     "required_action": "Run migrate-consistency-records or reconcile-consistency-records with exact reviewed hashes.",
                 }
             )
             continue
-        if state["schema_version"] == 3:
+        if state["schema_version"] in {3, 4}:
             binding = state.get("current_phase_binding")
             expected = {
-                "Binding schema": "2",
+                "Binding schema": "3" if state["schema_version"] == 4 else "2",
                 "Active Phase ID": binding["active_phase_id"] if binding is not None else "N/A",
                 "Active Phase control": binding["phase_control_path"] if binding is not None else "N/A",
                 "Phase control SHA-256": binding["phase_control_sha256"] if binding is not None else "N/A",
@@ -3259,6 +5024,8 @@ def _current_binding_issues(root: Path, state: dict[str, Any]) -> list[dict[str,
 
 
 def _deterministic_consistency_issues(root: Path, state: dict[str, Any]) -> list[dict[str, str]]:
+    if state["schema_version"] == 4:
+        return _deterministic_v4_consistency_issues(root, state)
     if state["schema_version"] != 3:
         return []
     issues: list[dict[str, str]] = []
@@ -3353,6 +5120,59 @@ def _deterministic_consistency_issues(root: Path, state: dict[str, Any]) -> list
     return issues
 
 
+def _deterministic_v4_consistency_issues(root: Path, state: dict[str, Any]) -> list[dict[str, str]]:
+    issues: list[dict[str, str]] = []
+
+    def add(code: str, path: str, message: str) -> None:
+        issues.append({"code": code, "path": path, "message": message})
+
+    binding = state.get("current_phase_binding")
+    if state.get("active_phase_id") is not None and isinstance(binding, dict):
+        phase = _active_phase(state)
+        phase_path = _target(root, phase["path"])
+        if not _path_is_file(phase_path):
+            add("WS_CURRENT_BINDING_STALE", phase["path"], "Active Phase control is missing.")
+        else:
+            payload = _path_read_bytes(phase_path)
+            if _sha256_payload(payload) != binding.get("phase_control_sha256"):
+                add("WS_CURRENT_BINDING_STALE", phase["path"], "Active Phase full-control hash disagrees with current_phase_binding.")
+            try:
+                revision = _boundary_revision_binding(root, payload, phase)
+                if revision["revision_id"] != binding.get("boundary_revision_id") or revision["path"] != binding.get("boundary_revision_path") or revision["sha256"] != binding.get("boundary_revision_sha256"):
+                    add("WS_PHASE_BOUNDARY_RECORD_STALE", phase["path"], "Current Phase immutable boundary revision binding drifted.")
+                if _normalized_section_sha256(payload, "phase-boundary", "WS_PHASE_BOUNDARY_RECORD_STALE", phase["path"]) != binding.get("phase_boundary_sha256"):
+                    add("WS_PHASE_BOUNDARY_RECORD_STALE", phase["path"], "Rendered Phase boundary projection drifted.")
+                if _normalized_section_sha256(payload, "phase-recovery", "WS_RECOVERY_PHASE_BINDING_STALE", phase["path"]) != binding.get("phase_recovery_sha256"):
+                    add("WS_RECOVERY_PHASE_BINDING_STALE", phase["path"], "Phase recovery binding drifted.")
+            except WorkspaceError as exc:
+                add(exc.code, exc.path or phase["path"], exc.message)
+            if _task_binding_index_sha256(state.get("current_task_bindings", [])) != binding.get("task_binding_index_sha256"):
+                add("WS_CURRENT_BINDING_STALE", STATE_RELATIVE.as_posix(), "Task binding index hash drifted.")
+    for row in state.get("current_task_bindings", []):
+        projection_path = _target(root, row["projection_path"])
+        if not _path_is_file(projection_path) or _sha256_path(projection_path) != row["projection_sha256"]:
+            add("RC_LINEAGE_STALE", row["projection_path"], "Task lineage projection is missing or hash-drifted.")
+        contract_path = _target(root, row["latest_contract_revision"]["path"])
+        if not _path_is_file(contract_path) or _sha256_path(contract_path) != row["latest_contract_revision"]["sha256"]:
+            add("RC_LINEAGE_STALE", row["latest_contract_revision"]["path"], "Latest contract revision is missing or hash-drifted.")
+        latest_event = row.get("latest_event")
+        if latest_event is not None:
+            event_path = _target(root, latest_event["path"])
+            if not _path_is_file(event_path) or _sha256_path(event_path) != latest_event["sha256"]:
+                add("RC_LINEAGE_STALE", latest_event["path"], "Latest Result event is missing or hash-drifted.")
+    recovery = state.get("recovery_binding")
+    if isinstance(recovery, dict):
+        source_path = _target(root, recovery["source_control_path"])
+        if not _path_is_file(source_path) or _sha256_path(source_path) != recovery.get("source_control_sha256"):
+            add("WS_RECOVERY_PHASE_BINDING_STALE", recovery["source_control_path"], "Canonical recovery source full-control hash drifted.")
+        boundary = recovery.get("source_boundary_revision")
+        if isinstance(boundary, dict):
+            boundary_path = _target(root, boundary["path"])
+            if not _path_is_file(boundary_path) or _sha256_path(boundary_path) != boundary["sha256"]:
+                add("WS_RECOVERY_PHASE_BINDING_STALE", boundary["path"], "Recovery boundary revision hash drifted.")
+    return issues
+
+
 def _mutation_consistency_issues(root: Path, state: dict[str, Any]) -> list[dict[str, str]]:
     structural, _, _ = _validate_workspace(root, state)
     return [*structural, *_current_binding_issues(root, state), *_deterministic_consistency_issues(root, state)]
@@ -3363,9 +5183,16 @@ def _require_consistent_mutation(
     state: dict[str, Any],
     *,
     allowed_codes: set[str] | None = None,
+    allowed_paths: set[str] | None = None,
 ) -> None:
+    _require_no_incomplete_workspace_transaction(root)
     allowed = allowed_codes or set()
-    issues = [item for item in _mutation_consistency_issues(root, state) if item["code"] not in allowed]
+    allowed_relatives = {value.replace("\\", "/") for value in (allowed_paths or set())}
+    issues = [
+        item
+        for item in _mutation_consistency_issues(root, state)
+        if item["code"] not in allowed and str(item.get("path", "")).replace("\\", "/") not in allowed_relatives
+    ]
     if issues:
         first = issues[0]
         raise WorkspaceError(
@@ -3377,6 +5204,7 @@ def _require_consistent_mutation(
 
 def command_validate(args: argparse.Namespace) -> dict[str, Any]:
     root = _workspace(args.workspace)
+    _require_no_incomplete_workspace_transaction(root)
     state = _load_state(root)
     structural_issues, metrics, breaches = _validate_workspace(root, state)
     artifact_audit = _artifact_snapshot(root, state, captured_at=_timestamp(None))
@@ -3465,7 +5293,9 @@ def command_validate(args: argparse.Namespace) -> dict[str, Any]:
         "active_session_id": state["active_session_id"],
         "initialization_status": initialization_status,
         "workspace_schema_class": (
-            "RECONCILIATION_REQUIRED_V3"
+            "CURRENT_V4"
+            if state["schema_version"] == 4
+            else "RECONCILIATION_REQUIRED_V3"
             if state["schema_version"] == 3 and (current_binding_issues or deterministic_issues)
             else "CURRENT_V3"
             if state["schema_version"] == 3
@@ -3640,7 +5470,7 @@ def _artifact_mutation_result(
     changes: dict[Path, bytes] = plan.pop("changes")
     preconditions: dict[Path, str | None] = plan.pop("precondition_hashes", {})
     post_state = state
-    if changes and state["schema_version"] == 3:
+    if changes and state["schema_version"] in (3, 4):
         updated_state = json.loads(json.dumps(state))
         consistency_time = _timestamp(getattr(args, "captured_at", None))
         _finalize_v3_consistency(root, updated_state, changes, consistency_time)
@@ -4202,6 +6032,7 @@ def _nearest_instruction(root: Path, state: dict[str, Any]) -> Path | None:
 
 def command_recover(args: argparse.Namespace) -> dict[str, Any]:
     root = _workspace(args.workspace)
+    _require_no_incomplete_workspace_transaction(root)
     state = _load_state(root)
     artifact_transaction_recovery = inspect_transaction_state(root)
     workspace_transaction_recovery = inspect_transaction_state(root, WORKSPACE_TRANSACTION_PROFILE)
@@ -4238,7 +6069,7 @@ def command_recover(args: argparse.Namespace) -> dict[str, Any]:
         add(_target(root, _active_phase(state)["path"]))
     if state["active_session_id"] is not None:
         add(_target(root, _active_session(state)["path"]))
-    if state["schema_version"] == 3 and isinstance(state.get("recovery_binding"), dict):
+    if state["schema_version"] in {3, 4} and isinstance(state.get("recovery_binding"), dict):
         add(_target(root, state["recovery_binding"]["source_control_path"]))
     for item in artifact_audit["input_hashes"]:
         if item["kind"] in {"CANONICAL_SHARED_INDEX", "CANONICAL_ARCHIVE_INDEX"}:
@@ -4297,7 +6128,7 @@ def command_recover(args: argparse.Namespace) -> dict[str, Any]:
         item["required_action"] for item in deterministic_issues
         if item.get("required_action") and item["required_action"] not in required_actions
     )
-    if state["schema_version"] == 3 and isinstance(state.get("recovery_binding"), dict):
+    if state["schema_version"] in {3, 4} and isinstance(state.get("recovery_binding"), dict):
         recovery = state["recovery_binding"]
         recovery_source = {
             "kind": recovery["source_kind"],
@@ -4450,10 +6281,18 @@ def build_parser() -> argparse.ArgumentParser:
     reconcile_consistency.add_argument("--operation-id", required=True)
     reconcile_consistency.set_defaults(handler=command_reconcile_consistency_records)
 
+    rebind_v4 = subparsers.add_parser("rebind-v4-consistency", help="Explicitly rebind derived v4 controls after reviewed canonical edits.")
+    _add_common_write_arguments(rebind_v4)
+    rebind_v4.add_argument("--expected-state-sha256", required=True)
+    rebind_v4.add_argument("--expected-phase-sha256", required=True)
+    rebind_v4.add_argument("--operation-id", required=True)
+    rebind_v4.set_defaults(handler=command_rebind_v4_consistency)
+
     recover_workspace_transaction = subparsers.add_parser("recover-workspace-transaction")
     recover_workspace_transaction.add_argument("--workspace", required=True)
     recover_workspace_transaction.add_argument("--operation-id", required=True)
-    recover_workspace_transaction.add_argument("--expected-journal-sha256", required=True)
+    recover_workspace_transaction.add_argument("--expected-journal-sha256")
+    recover_workspace_transaction.add_argument("--expected-lock-sha256")
     recover_workspace_transaction.add_argument("--apply", action="store_true")
     recover_workspace_transaction.set_defaults(handler=command_recover_workspace_transaction)
 
@@ -4497,6 +6336,18 @@ def build_parser() -> argparse.ArgumentParser:
     open_session.add_argument("--session-id", required=True)
     open_session.add_argument("--goal", required=True)
     open_session.add_argument("--reason", choices=("bounded-work-session", "recovery", "manual-checkpoint"), default="bounded-work-session")
+    open_session.add_argument("--owner-kind", choices=("MAIN_CONTROLLER", "DELEGATED_AGENT"), default="MAIN_CONTROLLER")
+    open_session.add_argument("--owner-id", default="MAIN_CONTROLLER")
+    open_session.add_argument("--lease-id", default="LEASE-001")
+    open_session.add_argument("--authorization-ref", default="explicit-open-session")
+    open_session.add_argument("--expires-at")
+    open_session.add_argument("--allowed-operation", action="append", default=["record-result-events"])
+    open_session.add_argument("--read-scope", action="append", default=[])
+    open_session.add_argument("--write-scope", action="append", default=["task-state", "phases", "sessions", "runtime"])
+    open_session.add_argument("--touch-set", action="append", default=["runtime/workspace_control.json"])
+    open_session.add_argument("--excluded-surface", action="append", default=[])
+    open_session.add_argument("--bound-lineage-id", action="append", default=[])
+    open_session.add_argument("--evidence-ref", action="append", default=["session:explicit-open"])
     open_session.set_defaults(handler=command_open_session)
 
     close_session = subparsers.add_parser("close-session")
@@ -4504,6 +6355,115 @@ def build_parser() -> argparse.ArgumentParser:
     close_session.add_argument("--status", choices=("DONE", "BLOCKED", "FAILED"), required=True)
     close_session.add_argument("--next-action", required=True)
     close_session.set_defaults(handler=command_close_session)
+
+    record_events = subparsers.add_parser("record-result-events", help="Dry-run/apply one typed Result v2 event batch and all governed bindings.")
+    _add_common_write_arguments(record_events)
+    record_events.add_argument("--contract", required=True, help="Workspace-relative immutable Result Contract v2 path.")
+    record_events.add_argument("--events", required=True, type=Path, help="JSON file containing the non-empty event batch.")
+    record_events.add_argument("--expected-contract-sha256")
+    record_events.add_argument("--expected-projection-sha256")
+    record_events.add_argument("--expected-plan-sha256")
+    record_events.add_argument("--actor-kind", choices=("MAIN_CONTROLLER", "DELEGATED_AGENT"), default="MAIN_CONTROLLER")
+    record_events.add_argument("--actor-id", default="MAIN_CONTROLLER")
+    record_events.set_defaults(handler=command_record_result_events)
+
+    rebuild_lineage = subparsers.add_parser("rebuild-result-lineage", help="Rebuild one declared Result v2 projection from its immutable chain.")
+    _add_common_write_arguments(rebuild_lineage)
+    rebuild_lineage.add_argument("--contract", required=True)
+    rebuild_lineage.add_argument("--operation-id", required=True)
+    rebuild_lineage.add_argument("--expected-contract-sha256")
+    rebuild_lineage.add_argument("--expected-projection-sha256")
+    rebuild_lineage.add_argument("--expected-plan-sha256")
+    rebuild_lineage.add_argument("--actor-kind", choices=("MAIN_CONTROLLER", "DELEGATED_AGENT"), default="MAIN_CONTROLLER")
+    rebuild_lineage.add_argument("--actor-id", default="MAIN_CONTROLLER")
+    rebuild_lineage.set_defaults(handler=command_rebuild_result_lineage)
+
+    def add_amendment_arguments(amendment: argparse.ArgumentParser, *, include_apply: bool) -> None:
+        if include_apply:
+            _add_common_write_arguments(amendment)
+        else:
+            amendment.add_argument("--workspace", required=True)
+            amendment.add_argument("--timestamp")
+        _add_phase_boundary_arguments(amendment)
+        amendment.add_argument("--operation-id", required=True)
+        amendment.add_argument("--revision-id", required=True)
+        amendment.add_argument("--review-id", required=True)
+        amendment.add_argument("--review-evidence-ref", action="append", required=True)
+        amendment.add_argument("--authorization-ref", required=True)
+        amendment.add_argument("--accepted-at", required=True)
+        amendment.add_argument("--expected-phase-sha256")
+        amendment.add_argument("--expected-boundary-sha256")
+        amendment.add_argument("--expected-plan-sha256")
+        amendment.add_argument("--actor-kind", choices=("MAIN_CONTROLLER", "DELEGATED_AGENT"), default="MAIN_CONTROLLER")
+        amendment.add_argument("--actor-id", default="MAIN_CONTROLLER")
+
+    plan_amendment = subparsers.add_parser("plan-phase-boundary-amendment", help="Preview an immutable Phase boundary revision.")
+    add_amendment_arguments(plan_amendment, include_apply=False)
+    plan_amendment.set_defaults(handler=command_plan_phase_boundary_amendment, apply=False)
+
+    apply_amendment = subparsers.add_parser("apply-phase-boundary-amendment", help="Dry-run/apply one exact reviewed Phase boundary revision.")
+    add_amendment_arguments(apply_amendment, include_apply=True)
+    apply_amendment.set_defaults(handler=command_apply_phase_boundary_amendment)
+
+    transfer_lease = subparsers.add_parser("transfer-session-lease", help="Dry-run/apply one exact structured Session lease transfer.")
+    _add_common_write_arguments(transfer_lease)
+    transfer_lease.add_argument("--operation-id", required=True)
+    transfer_lease.add_argument("--expected-session-sha256", required=True)
+    transfer_lease.add_argument("--expected-plan-sha256")
+    transfer_lease.add_argument("--actor-kind", choices=("MAIN_CONTROLLER", "DELEGATED_AGENT"), required=True)
+    transfer_lease.add_argument("--actor-id", required=True)
+    transfer_lease.add_argument("--new-owner-kind", choices=("MAIN_CONTROLLER", "DELEGATED_AGENT"), required=True)
+    transfer_lease.add_argument("--new-owner-id", required=True)
+    transfer_lease.add_argument("--new-lease-id", required=True)
+    transfer_lease.add_argument("--authorization-ref", required=True)
+    transfer_lease.add_argument("--expires-at")
+    transfer_lease.add_argument("--evidence-ref", action="append", required=True)
+    transfer_lease.set_defaults(handler=command_transfer_session_lease)
+
+    migrate_workspace = subparsers.add_parser("migrate-workspace-v3-to-v4", help="Dry-run/apply one explicit cold workspace v3-to-v4 migration.")
+    _add_common_write_arguments(migrate_workspace)
+    migrate_workspace.add_argument("--operation-id", required=True)
+    migrate_workspace.add_argument("--expected-state-sha256", required=True)
+    migrate_workspace.add_argument("--paused-phase-id")
+    migrate_workspace.add_argument("--expected-phase-sha256")
+    migrate_workspace.add_argument("--expected-boundary-sha256")
+    migrate_workspace.add_argument("--expected-paused-plan-sha256")
+    migrate_workspace.add_argument("--expected-plan-sha256")
+    migrate_workspace.add_argument("--expected-recovery-sha256")
+    migrate_workspace.add_argument("--pause-review-ref")
+    migrate_workspace.add_argument("--pause-authorization-ref")
+    migrate_workspace.add_argument("--declared-lineage", action="append")
+    migrate_workspace.set_defaults(handler=command_migrate_workspace_v3_to_v4)
+
+    migrate_result = subparsers.add_parser("migrate-result-contract-v1-to-v2", help="Dry-run/apply one declared Result Contract v1-to-v2 migration.")
+    _add_common_write_arguments(migrate_result)
+    migrate_result.add_argument("--contract", required=True)
+    migrate_result.add_argument("--expected-contract-sha256", required=True)
+    migrate_result.add_argument("--task-id", required=True)
+    migrate_result.add_argument("--lineage-id", required=True)
+    migrate_result.add_argument("--phase-id", required=True)
+    migrate_result.add_argument("--expected-phase-boundary-sha256", required=True)
+    migrate_result.add_argument("--operation-id", required=True)
+    migrate_result.add_argument("--revision-id")
+    migrate_result.add_argument("--event-id")
+    migrate_result.add_argument("--review-ref", required=True)
+    migrate_result.add_argument("--authorization-ref", required=True)
+    migrate_result.add_argument("--expected-plan-sha256")
+    migrate_result.set_defaults(handler=command_migrate_result_contract_v1_to_v2)
+
+    scoped_readiness = subparsers.add_parser("scoped-readiness", help="Read-only Fast Path route probe; advises only and never authorizes or writes.")
+    scoped_readiness.add_argument("--workspace", required=True)
+    scoped_readiness.add_argument("--subject")
+    scoped_readiness.add_argument("--durable-delta", choices=("NONE", "DURABLE", "UNKNOWN"), default="UNKNOWN")
+    scoped_readiness.set_defaults(handler=command_scoped_readiness)
+
+    refresh_instructions = subparsers.add_parser("refresh-project-instructions", help="Dry-run/apply exact project-owned managed instruction blocks.")
+    _add_common_write_arguments(refresh_instructions)
+    refresh_instructions.add_argument("--operation-id", required=True)
+    refresh_instructions.add_argument("--target", action="append", required=True, help="RELATIVE=SHA256 for AGENTS.md or CLAUDE.md; repeatable.")
+    refresh_instructions.add_argument("--block", action="append", required=True, help="MARKER_ID=SOURCE_PATH=SHA256; repeatable.")
+    refresh_instructions.add_argument("--expected-plan-sha256")
+    refresh_instructions.set_defaults(handler=command_refresh_project_instructions)
 
     validate = subparsers.add_parser("validate")
     validate.add_argument("--workspace", required=True)

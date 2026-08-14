@@ -156,11 +156,13 @@ MALTS 1.2.0 extends the long-project workspace without changing its minimal defa
 
 Artifact lifecycle is opt-in and defaults to `NOT_ENROLLED`. Phase and Session controls may own compact local registries; Project holds only enrollment and Shared/Archive pointers. Audit is read-only, mutation is dry-run by default and requires explicit `--apply`, and no Artifact command creates a Session, moves/deletes payloads, invokes VCS, or recursively scans undeclared trees.
 
-See [Lifecycle](docs/LIFECYCLE.md) for the contract and [Usage](docs/USAGE.md) for exact commands. Current long-project workspaces use schema v3 controls; existing schema-v1 workspaces remain readable and are not silently migrated or enrolled.
+See [Lifecycle](docs/LIFECYCLE.md) for the contract and [Usage](docs/USAGE.md) for exact commands. Current long-project workspaces use schema v4 controls; existing schema v1/v2/v3 workspaces remain readable and are not silently migrated or enrolled.
 
 MALTS 1.2.2 preserves the v1.2.1 cross-control consistency and recovery hardening, and makes ordinary discovery authority paths explicit. A successful `discover` result exposes deterministic `authority_paths`, including the exact `<lifecycle-root>/registry/active_generation.json` pointer; callers must not probe or infer a sibling `<lifecycle-root>/active_generation.json` path. Missing, malformed, stale, or conflicting authority still fails closed.
 
 MALTS 1.2.3 fixes release test fixture copying that exceeded the Windows path length limit. The release test suite now excludes the private `.release-control/archive` historical tree, matching production clean-source classification; five `WinError 206` failures are resolved and all nine test suites are green. No runtime, schema, Artifact, dependency, payload, VCS, update-check, or remote-publication behavior changed.
+
+MALTS 1.3.0 upgrades the workspace schema to v4 and the Result Contract to v2, adds outcome-oriented Phase and typed Attempt semantics, an independent `max_authorized_rounds` STOP gate, recoverable multi-surface transactions, and a lower-overhead S0/S1 Fast Path. Schema and contract migration is explicit cold migration only (`migrate-workspace-v3-to-v4`, `migrate-result-contract-v1-to-v2`); EN/CH documents and the Codex/Claude Code/OpenCode adapters are synchronized from one machine-checkable invariant source.
 
 ## Documentation Language
 
@@ -171,7 +173,7 @@ The repository defaults to English source documents. Simplified Chinese document
 Current release version:
 
 ```text
-1.2.3
+1.3.0
 ```
 
 ## License

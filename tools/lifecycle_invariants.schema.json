@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:malts:schema:lifecycle-invariants:1",
+  "title": "MALTS Lifecycle Invariants",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "invariant_set_id",
+    "target_release",
+    "status",
+    "contract_versions",
+    "terminology",
+    "task_state_machine",
+    "attempt_state_machine",
+    "invocation_state_machine",
+    "event_kinds",
+    "request_model",
+    "authorization_counted_units",
+    "invariants"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "invariant_set_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"},
+    "target_release": {"const": "1.3.0"},
+    "status": {"const": "DESIGN_FROZEN"},
+    "contract_versions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workspace_control",
+        "result_contract",
+        "result_event",
+        "result_lineage_projection",
+        "phase_boundary_revision",
+        "workspace_transaction_journal",
+        "workspace_migration_plan",
+        "result_migration_plan"
+      ],
+      "properties": {
+        "workspace_control": {"const": 4},
+        "result_contract": {"const": 2},
+        "result_event": {"const": 1},
+        "result_lineage_projection": {"const": 1},
+        "phase_boundary_revision": {"const": 1},
+        "workspace_transaction_journal": {"const": 1},
+        "workspace_migration_plan": {"const": 1},
+        "result_migration_plan": {"const": 1}
+      }
+    },
+    "terminology": {
+      "type": "array",
+      "minItems": 8,
+      "items": {"$ref": "#/$defs/term"}
+    },
+    "task_state_machine": {"$ref": "#/$defs/stateMachine"},
+    "attempt_state_machine": {"$ref": "#/$defs/stateMachine"},
+    "invocation_state_machine": {"$ref": "#/$defs/stateMachine"},
+    "event_kinds": {
+      "type": "array",
+      "minItems": 12,
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{2,63}$"}
+    },
+    "request_model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dispatch_assessments", "observation_completeness", "outcome_states", "charge_states"],
+      "properties": {
+        "dispatch_assessments": {"$ref": "#/$defs/nonEmptyUniqueEnum"},
+        "observation_completeness": {"$ref": "#/$defs/nonEmptyUniqueEnum"},
+        "outcome_states": {"$ref": "#/$defs/nonEmptyUniqueEnum"},
+        "charge_states": {"$ref": "#/$defs/nonEmptyUniqueEnum"}
+      }
+    },
+    "authorization_counted_units": {"$ref": "#/$defs/nonEmptyUniqueEnum"},
+    "invariants": {
+      "type": "array",
+      "minItems": 12,
+      "items": {"$ref": "#/$defs/invariant"}
+    }
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Z][A-Z0-9._-]{2,95}$"},
+    "enumValue": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{1,63}$"},
+    "nonEmptyUniqueEnum": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/enumValue"}
+    },
+    "term": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "definition", "authority"],
+      "properties": {
+        "name": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9 ]{1,63}$"},
+        "definition": {"type": "string", "minLength": 1},
+        "authority": {"type": "string", "minLength": 1}
+      }
+    },
+    "transition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to"],
+      "properties": {
+        "from": {"$ref": "#/$defs/enumValue"},
+        "to": {"$ref": "#/$defs/nonEmptyUniqueEnum"}
+      }
+    },
+    "stateMachine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["machine_id", "states", "terminal_states", "transitions"],
+      "properties": {
+        "machine_id": {"$ref": "#/$defs/id"},
+        "states": {"$ref": "#/$defs/nonEmptyUniqueEnum"},
+        "terminal_states": {"$ref": "#/$defs/nonEmptyUniqueEnum"},
+        "transitions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/transition"}
+        }
+      }
+    },
+    "invariant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "level", "statement", "verification_refs"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "level": {"enum": ["MUST", "MUST_NOT"]},
+        "statement": {"type": "string", "minLength": 1},
+        "verification_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}

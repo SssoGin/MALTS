@@ -213,10 +213,10 @@ Cross-project stable rules learned from experience. These apply in every project
 - The active Phase owns a written boundary contract. Use read-only `phase-boundary-review` before a candidate goal or touch set crosses that boundary; unresolved scope does not authorize writes.
 - `phase-boundary-review` reports operation execution separately from review outcome and persistence. Only `record-phase-boundary-review` persists the structured record, and that record is not later mutation authorization.
 - Explicit Phase state changes use `pause-phase`, `resume-phase`, and hash-bound `plan-phase-transition` / `apply-phase-transition`. `SUPERSEDED` is terminal, carry-over keeps bidirectional provenance, and at most one Phase may be `ACTIVE`.
-- Fresh workspaces use exact schema v3; schema v1/v2 remain readable and require explicit `migrate-consistency-records` rather than silent migration.
-- Schema v3 requires a current `WORK_TASK_REPORT.md` binding. An existing `PROJECT_HANDOFF.md` is optional but must bind the same exact Phase control, boundary/review, and recovery hashes.
+- Fresh workspaces use exact schema v4; schema v1/v2/v3 remain readable and require explicit migration rather than silent migration. Cold schema v3-to-v4 and Result Contract v1-to-v2 migration use `migrate-workspace-v3-to-v4` and `migrate-result-contract-v1-to-v2`.
+- Schema v4 requires a current `WORK_TASK_REPORT.md` binding and current Task/Result lineage bindings. An existing `PROJECT_HANDOFF.md` is optional but must bind the same exact Phase control, boundary/review, and recovery hashes.
 - Structural, binding, or deterministic consistency drift blocks validation, cold recovery, and ordinary lifecycle mutation. Recovery selects active Session checkpoint, active Phase recovery, explicitly bound terminal Phase, then Project recovery; never the latest historical Session.
-- `migrate-consistency-records`, `record-phase-boundary-review`, and `reconcile-consistency-records` are dry-run-first and exact-hash-bound. Workspace transactions use `runtime/workspace_transaction.lock.json`, `runtime/workspace_transactions/`, and `WS_TRANSACTION_*`; Artifact transaction paths and codes remain separate.
+- `migrate-workspace-v3-to-v4`, `migrate-result-contract-v1-to-v2`, and legacy `migrate-consistency-records`, `record-phase-boundary-review`, and `reconcile-consistency-records` are dry-run-first and exact-hash-bound. Workspace transactions use `runtime/workspace_transaction.lock.json`, `runtime/workspace_transactions/`, and `WS_TRANSACTION_*`; Artifact transaction paths and codes remain separate.
 - Artifact lifecycle defaults to `NOT_ENROLLED`. Read-only or maintenance commands do not enroll it and perform no implicit Session creation.
 - The public nested commands are `artifact audit`, `artifact enrollment-preview`, `artifact enrollment-apply`, `artifact register`, `artifact promote`, `artifact supersede`, and `artifact reconcile`.
 - Owner-local rows belong in the owning Phase or Session; Project keeps only compact enrollment/Shared/Archive pointers. Missing declared indexes, duplicate authority, unresolved close rows, stale transaction state, or full-state hash drift fail closed.
@@ -294,3 +294,12 @@ When the user asks for a handoff, project handoff, session summary for the next 
 - Do not delete files, change permissions, change dependencies, change build configuration, or modify long-term rules without confirmation or a safety mechanism.
 - Treat Git as optional unless the user explicitly asks for Git operations.
 <!-- MALTS:END managed instruction -->
+
+## MALTS v1.3.0 Shared Invariants
+
+- Phase is an outcome/milestone/delivery/governance boundary; invocation count, retry count, and conversation turns are not automatic Phase boundaries. A failed Attempt terminates only that Attempt; no automatic retry and no automatic Task/Phase terminal promotion.
+- Fresh workspaces use workspace schema v4 and Result Contract v2; legacy schemas remain read-only and migrate only through explicit hash-bound cold commands. `max_authorized_rounds` is an independent runtime STOP gate.
+- External side effects use typed observations and counted units; `UNKNOWN` dispatch/outcome/charge fails closed under finite hard bounds; MALTS never claims cross-system exactly-once.
+- Governed Tasks own one Result Contract v2 lineage; Phase/Session/report/handoff/runtime keep bindings and rebuildable projections only. Typed events are append-only; corrections append events.
+- `scoped-readiness` advises only (S0/S1/S2/ESCALATE) and never authorizes, writes, or dispatches. `refresh-project-instructions` rewrites only `MALTS-PROJECT:`-owned blocks with an exact reviewed plan; markerless customized files are never claimed automatically.
+- Workspace transactions promise recoverable consistency with locks/journals/preimages and explicit recovery; they are not filesystem-wide instantaneous multi-file atomic commits.

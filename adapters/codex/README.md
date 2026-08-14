@@ -58,7 +58,7 @@ fallback, and archive only after acceptance or another terminal closure.
 
 - Phase review and transition commands: `phase-boundary-review`, `pause-phase`, `resume-phase`, `plan-phase-transition`, and `apply-phase-transition`.
 - Boundary review operation success is not semantic resolution, persistence, or authorization. Use exact-hash, dry-run-first `migrate-consistency-records`, `record-phase-boundary-review`, and `reconcile-consistency-records`.
-- Fresh workspaces use schema v3. Schema v1/v2 remain readable and require explicit migration; current `WORK_TASK_REPORT.md` is required and an existing handoff must bind exact Phase, boundary/review, and recovery hashes.
+- Fresh workspaces use schema v4. Schema v1/v2/v3 remain readable and require explicit migration (`migrate-workspace-v3-to-v4`, `migrate-result-contract-v1-to-v2`); current `WORK_TASK_REPORT.md` is required and an existing handoff must bind exact Phase, boundary/review, and recovery hashes.
 - Deterministic drift blocks validation, cold recovery, and ordinary lifecycle mutation. Recovery never chooses the latest historical Session; it uses active Session, active Phase, explicitly bound terminal Phase, then Project authority.
 - Workspace transactions use the isolated `runtime/workspace_transaction.lock.json` / `runtime/workspace_transactions/` namespace and `WS_TRANSACTION_*` codes.
 - Artifact commands: `artifact audit`, `artifact enrollment-preview`, `artifact enrollment-apply`, `artifact register`, `artifact promote`, `artifact supersede`, and `artifact reconcile`.

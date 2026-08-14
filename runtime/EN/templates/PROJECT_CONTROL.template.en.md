@@ -267,15 +267,33 @@ No fixed one-shot runtime is guaranteed. Use this section to design long work as
 Project terminal status has exactly four values: `DONE`, `PARTIAL`, `BLOCKED`, and `FAILED`. Internal execution status is not an additional terminal.
 
 - Contract / result ID:
-- Execution status: DRAFT / PREFLIGHT / AWAITING_AUTHORIZATION / AUTHORIZED / PLANNING / EXECUTING / VERIFYING / REPLANNING / FINALIZING / DONE / PARTIAL / BLOCKED / FAILED
+- Result Contract version: `1` (legacy read-only) / `2`
+- Task status: DRAFT / PREFLIGHT / AWAITING_INITIAL_AUTHORIZATION / AUTHORIZED / PLANNING / EXECUTING / VERIFYING / REPLANNING / AWAITING_ATTEMPT_AUTHORIZATION / FINALIZING / DONE / PARTIAL / BLOCKED / FAILED
 - Terminal status: None / DONE / PARTIAL / BLOCKED / FAILED
-- Authorization envelope reference:
+- Lineage ID / latest event sequence / event hash:
+- Authorization envelope reference(s):
+- `max_authorized_rounds` runtime STOP state: below-limit / exhausted / not-applicable
 - Hard acceptance criteria reconciliation:
 - Current round / attempt / strategy ID:
 - Budget usage / hard-limit state:
 - Last status event / direct evidence:
 - Remaining work:
 - Recovery point:
+
+## Fast Path Routing
+
+Use `scoped-readiness` for S0/S1/S2 routing advice only. It never authorizes, writes, or dispatches.
+
+- Route: S0_UNRELATED / S1_SAME_SCOPE_NO_DELTA / S2_GOVERNED / ESCALATE
+- Durable delta: NONE / DURABLE / UNKNOWN
+- Escalation reasons (Session lease / Artifact / side effect / consistency / unknown delta):
+
+## Instruction Refresh
+
+- Refresh required: Yes / No
+- Target files: `AGENTS.md` / `CLAUDE.md`
+- Marker profile: `MALTS-PROJECT:BEGIN/END`
+- Plan SHA-256 / applied at:
 
 ## Unattended Auto-Continue Authorization
 

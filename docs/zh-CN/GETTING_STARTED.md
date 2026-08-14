@@ -65,7 +65,7 @@ Artifact lifecycle 在真实需求出现前保持 `NOT_ENROLLED`。先运行只�
 
 有意义的 control 变更后运行 `validate` 与 `recover`。S3/S4 工作存在 active plan 时，在 write-scope、recovery、failure/rollback、verifier、final-delivery 边界运行匹配的只读 Plan Recheck trigger。
 
-全新 long-project workspace 使用 schema v3。现有 schema v1/v2 control 保持可读，但绝不会被静默重写。若 `validate` 报告需要 migration 或 reconciliation，先在不带 `--apply` 的情况下审阅 `migrate-consistency-records`、`record-phase-boundary-review` 或 `reconcile-consistency-records`，绑定精确 expected hash，并且只在当前 workspace authorization 内 apply。
+全新 long-project workspace 使用 schema v4。现有 schema v1/v2/v3 control 保持可读，但绝不会被静默重写。若 `validate` 报告需要 migration 或 reconciliation，先在不带 `--apply` 的情况下审阅精确报告的匹配命令 —— `migrate-workspace-v3-to-v4`、`migrate-result-contract-v1-to-v2`，或 legacy 的 `migrate-consistency-records` / `record-phase-boundary-review` / `reconcile-consistency-records` —— 绑定精确 expected hash，并且只在当前 workspace authorization 内 apply。
 
 Current recovery authority 固定为：active Session checkpoint；否则 active Phase recovery；否则显式绑定的 terminal Phase；否则 Project recovery。历史 Session 不会仅因时间最新而被选择。Incomplete workspace transaction 会保留 lock/journal evidence，直到 exact-journal-hash `recover-workspace-transaction` review/apply 成功。
 

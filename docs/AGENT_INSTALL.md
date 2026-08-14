@@ -32,7 +32,7 @@ Reading a repository, validating identity, inspecting a ZIP, or creating a revie
 
 Do not substitute a newer repository or Release package after the plan is shown. Source drift invalidates the plan and requires a new review.
 
-## Verify The v1.2.3 Capability Projection
+## Verify The v1.3.0 Capability Projection
 
 After install, use a fresh process for each selected tool and verify that `malts-long-project-workspace-init` resolves through the tool-adjacent boot to the canonical Skill. Its capability/bridge description must include Phase and Artifact lifecycle rather than initialization only.
 

@@ -129,11 +129,11 @@ Lifecycle audit state 使用闭合 schema 与固定 ownership 规则，保留：
 
 ### Cross-control consistency 与 recovery authority
 
-全新 long-project workspace 使用精确 schema v3。精确 schema v1/v2 input 作为可读 compatibility contract 保留，`validate`、`recover`、maintenance、installation update 或 active-generation switch 绝不会静默重写。Active v2 workspace 缺少 required current projection 时会被分类为需要显式迁移，而不是猜测修复。
+全新 long-project workspace 使用精确 schema v4。精确 schema v1/v2/v3 input 作为可读 compatibility contract 保留，`validate`、`recover`、maintenance、installation update 或 active-generation switch 绝不会静默重写。Active v2 workspace 缺少 required current projection 时会被分类为需要显式迁移，而不是猜测修复。
 
-Active `PHASE_CONTROL.md` 拥有 Boundary Review 与 Phase recovery record；active Session 拥有 checkpoint。schema v3 要求 current `WORK_TASK_REPORT.md` binding。`PROJECT_HANDOFF.md` 仍然可选，但存在时必须绑定同一组精确 Phase-control、normalized boundary/review 与 normalized recovery hashes。Runtime JSON 是 typed non-canonical projection。Validation 分层报告 structural、binding、deterministic-consistency 与 advisory-semantic finding；deterministic drift 会阻断 cold recovery 和普通 lifecycle mutation。
+Active `PHASE_CONTROL.md` 拥有 Boundary Review 与 Phase recovery record；active Session 拥有 checkpoint。schema v4 要求 current `WORK_TASK_REPORT.md` binding 与 current Task/Result lineage binding。`PROJECT_HANDOFF.md` 仍然可选，但存在时必须绑定同一组精确 Phase-control、normalized boundary/review 与 normalized recovery hashes。Runtime JSON 是 typed non-canonical projection。Validation 分层报告 structural、binding、deterministic-consistency 与 advisory-semantic finding；deterministic drift 会阻断 cold recovery 和普通 lifecycle mutation。
 
-Migration、review recording 与 reconciliation 分别使用 `migrate-consistency-records`、`record-phase-boundary-review`、`reconcile-consistency-records`。三者均 dry-run-first，并绑定显式 authority、operation ID 与精确 expected hash。Workspace-control 写入使用独立 `runtime/workspace_transaction.lock.json`、`runtime/workspace_transactions/` 和 `WS_TRANSACTION_*` domain。Incomplete journal 会保留到 exact-hash `recover-workspace-transaction` 成功；失败 recovery 继续保留证据。Artifact transaction path 与 `ART_TRANSACTION_*` code 不变。
+Schema v3→v4 与 Result Contract v1→v2 冷迁移分别使用 `migrate-workspace-v3-to-v4` 与 `migrate-result-contract-v1-to-v2`。Legacy review recording 与 reconciliation 使用 `migrate-consistency-records`、`record-phase-boundary-review`、`reconcile-consistency-records`。所有命令均 dry-run-first，并绑定显式 authority、operation ID 与精确 expected hash。Workspace-control 写入使用独立 `runtime/workspace_transaction.lock.json`、`runtime/workspace_transactions/` 和 `WS_TRANSACTION_*` domain。Incomplete journal 会保留到 exact-hash `recover-workspace-transaction` 成功；失败 recovery 继续保留证据。Artifact transaction path 与 `ART_TRANSACTION_*` code 不变。
 
 Canonical recovery selection 固定为 active Session checkpoint；否则 active Phase recovery；否则显式绑定的 terminal Phase；否则 Project recovery。禁止按 timestamp 或 registry order 选择最新历史 Session。
 
@@ -151,10 +151,16 @@ Artifact mutation 绝不移动/删除 payload 或调用 VCS，也绝不创建 Se
 
 ### Compatibility 与 non-goals
 
-Schema-v1 与 schema-v2 workspace 保持可读。全新工作区使用 schema v3；migration 必须显式执行，安全 duplicate-marker cleanup 仅限空重复 section，non-empty duplicate 或 ambiguous legacy review semantics 必须 fail closed 并人工 reconciliation。Workspace consistency 不增加自动 update check、background watcher、project-wide payload hashing、目录整理、Unity 默认规则或远端 publication。G4 仍需真实 Codex、Claude Code、OpenCode invocation；component/projection test 不能冒充 G4。
+Schema-v1、schema-v2 与 schema-v3 workspace 保持可读。全新工作区使用 schema v4；migration 必须显式执行（`migrate-workspace-v3-to-v4`、`migrate-result-contract-v1-to-v2`），安全 duplicate-marker cleanup 仅限空重复 section，non-empty duplicate 或 ambiguous legacy review semantics 必须 fail closed 并人工 reconciliation。Workspace consistency 不增加自动 update check、background watcher、project-wide payload hashing、目录整理、Unity 默认规则或远端 publication。G4 仍需真实 Codex、Claude Code、OpenCode invocation；component/projection test 不能冒充 G4。
 
 ## 普通启动 Discovery
 
 每个工具从自身相邻的 `MALTS_BOOT.md` 启动，其 schema 只允许一条绝对 `MALTS_ROOT:` 行。MALTS v1.1.1 起不再使用或创建机器全局 `GLOBAL_BOOT.md`。只读 `discover` 命令验证 tool boot、stable registry 状态、唯一 active record、精确的 `<lifecycle-root>\\registry\\active_generation.json` pointer、active `VERSION` 与版本身份。PASS 结果会显式返回 `authority_paths.active_generation_pointer`，调用方不得猜测或探测 `<lifecycle-root>\\active_generation.json`。普通启动不计算完整树 hash，也不写入。权威面缺失、畸形、陈旧或冲突时全部 fail closed。
 
 另见[安装](INSTALL.md)、[更新](UPDATE.md)和[安全](SECURITY.md)。
+
+### v1.3.0 生命周期新增
+
+- 冷 workspace/Result 迁移是显式 dry-run/apply 操作，普通 init/validate/recover/update 绝不隐式触发。
+- workspace 控制事务使用 `runtime/workspace_transaction.lock.json` 与 `runtime/workspace_transactions/`；Artifact 与全局 lifecycle 事务保持独立域。
+- 仅记录 Plan Recheck 的更新必须保留精确 recovery summary、next action 与 evidence references。

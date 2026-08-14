@@ -17,7 +17,14 @@ from typing import Any
 
 
 USER_CONTRACTS = {
+    "lifecycle-invariants": "lifecycle_invariants.schema.json",
     "result-contract": "result_contract.schema.json",
+    "result-event": "result_event.schema.json",
+    "result-lineage-projection": "result_lineage_projection.schema.json",
+    "phase-boundary-revision": "phase_boundary_revision.schema.json",
+    "workspace-transaction-journal": "workspace_transaction_journal.schema.json",
+    "workspace-migration-plan": "workspace_migration_plan.schema.json",
+    "result-migration-plan": "result_migration_plan.schema.json",
     "growth-signal": "growth_signal.schema.json",
     "growth-candidate": "growth_candidate.schema.json",
     "future-use-validation": "future_use_validation.schema.json",
@@ -51,6 +58,45 @@ SEMANTIC_GENERATION_ID = re.compile(
     r"^malts-v(?P<version>(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))"
     r"(?:-preview\.(?P<sequence>[1-9][0-9]*))?$"
 )
+LIFECYCLE_INVARIANTS_FILE = "lifecycle_invariants.json"
+RESULT_EVENT_REQUIRED_FIELDS: dict[str, set[str]] = {
+    "CONTRACT_REVISION_ACCEPTED": {"revision_id"},
+    "LEGACY_SNAPSHOT_IMPORTED": {"source_contract_path", "source_contract_sha256", "legacy_status", "legacy_usage", "legacy_recovery_ref"},
+    "STATUS_TRANSITION": {"from_status", "to_status", "reason"},
+    "AUTHORIZATION_ENVELOPE_GRANTED": {"authorization_envelope"},
+    "AUTHORIZATION_ENVELOPE_REVOKED": {"envelope_id", "reason"},
+    "ROUND_STARTED": {"round_id", "envelope_id"},
+    "ATTEMPT_PLANNED": {"round_id", "attempt_id", "plan_ref"},
+    "ATTEMPT_STARTED": {"round_id", "attempt_id", "envelope_id"},
+    "ATTEMPT_COMPLETED": {"attempt_id", "attempt_state"},
+    "INVOCATION_PLANNED": {"attempt_id", "invocation_id", "plan_ref"},
+    "INVOCATION_STARTED": {"attempt_id", "invocation_id", "envelope_id"},
+    "INVOCATION_COMPLETED": {"invocation_id", "invocation_state", "dispatch_summary"},
+    "EXTERNAL_REQUEST_INTENT_RESERVED": {"invocation_id", "request_intent_id", "provider_locator", "side_effect_class", "idempotency_key_ref", "envelope_id", "provider_retry_bound_proven", "physical_request_limit"},
+    "EXTERNAL_REQUEST_OBSERVED": {"invocation_id", "request_intent_id", "observed_request_id", "provider_request_id_ref", "outcome_state", "charge_state", "idempotency_replay"},
+    "USAGE_OBSERVED": {"usage_delta", "envelope_id"},
+    "RECOVERY_OBSERVATION": {"observation"},
+    "CORRECTION_APPENDED": {"target_event_id", "target_event_sha256", "reason", "affected_fields"},
+}
+RESULT_EVENT_OPTIONAL_FIELDS: dict[str, set[str]] = {
+    "CONTRACT_REVISION_ACCEPTED": {"reason"},
+    "LEGACY_SNAPSHOT_IMPORTED": {"reason"},
+    "STATUS_TRANSITION": set(),
+    "AUTHORIZATION_ENVELOPE_GRANTED": {"reason"},
+    "AUTHORIZATION_ENVELOPE_REVOKED": set(),
+    "ROUND_STARTED": {"reason"},
+    "ATTEMPT_PLANNED": {"reason"},
+    "ATTEMPT_STARTED": {"reason"},
+    "ATTEMPT_COMPLETED": {"reason"},
+    "INVOCATION_PLANNED": {"reason"},
+    "INVOCATION_STARTED": {"reason"},
+    "INVOCATION_COMPLETED": {"reason"},
+    "EXTERNAL_REQUEST_INTENT_RESERVED": {"reason"},
+    "EXTERNAL_REQUEST_OBSERVED": {"sent_at", "response_at", "physical_request_bound_proven", "reason"},
+    "USAGE_OBSERVED": {"reason"},
+    "RECOVERY_OBSERVATION": {"unresolved_side_effects", "recovery_required", "reason"},
+    "CORRECTION_APPENDED": {"unresolved_side_effects", "recovery_required", "observation"},
+}
 
 
 @dataclass(frozen=True)
@@ -104,11 +150,18 @@ def _matches_type(value: Any, declared: str) -> bool:
         return isinstance(value, (int, float)) and not isinstance(value, bool)
     return False
 
+def _parse_datetime(value: str) -> datetime:
+    normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
+    parsed = datetime.fromisoformat(normalized)
+    if parsed.tzinfo is None:
+        raise ValueError("date-time requires timezone")
+    return parsed
+
+
 def _valid_datetime(value: str) -> bool:
     try:
-        normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
-        parsed = datetime.fromisoformat(normalized)
-        return parsed.tzinfo is not None
+        _parse_datetime(value)
+        return True
     except ValueError:
         return False
 
@@ -132,7 +185,7 @@ def validate_against_schema(instance: Any, schema: dict[str, Any], path: str = "
                 return
 
         if "const" in node and value != node["const"]:
-            code = "SCHEMA_VERSION_UNSUPPORTED" if current_path.endswith((".schema_version", ".contract_version")) else "SCHEMA_CONST"
+            code = "SCHEMA_VERSION_UNSUPPORTED" if current_path.endswith((".schema_version", ".contract_version", ".event_version", ".projection_schema", ".revision_schema", ".journal_schema")) else "SCHEMA_CONST"
             issues.append(_issue(code, current_path, f"Expected constant {node['const']!r}."))
         if "enum" in node and value not in node["enum"]:
             issues.append(_issue("SCHEMA_ENUM", current_path, f"Value {value!r} is not in the allowed enumeration."))
@@ -211,7 +264,177 @@ def _graph_has_cycle(graph: dict[str, set[str]]) -> bool:
 
     return any(visit(node) for node in graph)
 
-def _semantic_result_contract(value: dict[str, Any]) -> list[ContractIssue]:
+
+def load_lifecycle_invariants(malts_root: Path) -> tuple[dict[str, Any] | None, list[ContractIssue]]:
+    """Load and validate the sole shared lifecycle model used by v2/v4 semantics."""
+
+    model_path = malts_root / "tools" / LIFECYCLE_INVARIANTS_FILE
+    try:
+        model = load_json(model_path)
+        schema = load_json(malts_root / "tools" / USER_CONTRACTS["lifecycle-invariants"])
+    except (OSError, json.JSONDecodeError) as exc:
+        return None, [_issue("LIFECYCLE_INVARIANT_LOAD", "$", str(exc))]
+    issues = validate_against_schema(model, schema)
+    if issues:
+        return None, issues
+    invariant_ids = [str(item.get("id", "")) for item in model.get("invariants", [])]
+    if len(invariant_ids) != len(set(invariant_ids)):
+        issues.append(_issue("LIFECYCLE_INVARIANT_DUPLICATE", "$.invariants", "Invariant IDs must be unique."))
+    event_kinds = [str(item) for item in model.get("event_kinds", [])]
+    if len(event_kinds) != len(set(event_kinds)):
+        issues.append(_issue("LIFECYCLE_EVENT_DUPLICATE", "$.event_kinds", "Event kinds must be unique."))
+    for key in ("task_state_machine", "attempt_state_machine", "invocation_state_machine"):
+        machine = model.get(key, {})
+        states = [str(item) for item in machine.get("states", [])]
+        terminal = set(machine.get("terminal_states", []))
+        transitions = machine.get("transitions", [])
+        sources = [str(item.get("from", "")) for item in transitions]
+        if len(states) != len(set(states)) or len(sources) != len(set(sources)):
+            issues.append(_issue("LIFECYCLE_GRAPH_DUPLICATE", f"$.{key}", "States and transition sources must be unique."))
+        if not terminal.issubset(set(states)) or terminal.intersection(sources):
+            issues.append(_issue("LIFECYCLE_GRAPH_TERMINAL", f"$.{key}", "Terminal states must be declared and have no outgoing transition."))
+        for index, transition in enumerate(transitions):
+            if transition.get("from") not in states or not set(transition.get("to", [])).issubset(set(states)):
+                issues.append(_issue("LIFECYCLE_GRAPH_REFERENCE", f"$.{key}.transitions.{index}", "Transition references an undeclared state."))
+    return (model if not issues else None), issues
+
+
+def _semantic_result_contract_v2(value: dict[str, Any], model: dict[str, Any], invariant_sha256: str) -> list[ContractIssue]:
+    issues: list[ContractIssue] = []
+    previous = value.get("previous_revision")
+    revision_number = value.get("revision_number")
+    if revision_number == 1 and previous is not None:
+        issues.append(_issue("RC_REVISION_CHAIN", "$.previous_revision", "Revision one must have no previous revision."))
+    elif isinstance(revision_number, int) and revision_number > 1 and not isinstance(previous, dict):
+        issues.append(_issue("RC_REVISION_CHAIN", "$.previous_revision", "Revision two or later must bind the exact previous revision."))
+    if value.get("invariant_set_id") != model.get("invariant_set_id"):
+        issues.append(_issue("RC_INVARIANT_SET", "$.invariant_set_id", "Result revision must bind the active invariant set."))
+    if value.get("invariant_source_sha256") != invariant_sha256:
+        issues.append(_issue("RC_INVARIANT_SOURCE", "$.invariant_source_sha256", "Result revision must bind the exact lifecycle invariant file bytes."))
+    resources = value.get("authorized_scope", {}).get("resources", [])
+    locators = [str(item.get("locator", "")) for item in resources if isinstance(item, dict)]
+    if _duplicates(locators):
+        issues.append(_issue("RC_SCOPE_DUPLICATE", "$.authorized_scope.resources", "Authorized resource locators must be unique."))
+    criteria = value.get("acceptance_criteria", [])
+    criterion_ids = [str(item.get("criterion_id", "")) for item in criteria if isinstance(item, dict)]
+    if _duplicates(criterion_ids):
+        issues.append(_issue("RC_DUPLICATE_CRITERION", "$.acceptance_criteria", "Criterion IDs must be unique."))
+    budgets = value.get("budgets", {})
+    field_for_limit = {
+        "rounds": "max_rounds", "attempts": "max_attempts", "invocations": "max_invocations",
+        "request_intents": "max_request_intents", "physical_requests": "max_physical_requests", "tokens": "max_tokens", "cost": "max_cost_units",
+        "concurrency": "max_concurrency", "time": "max_elapsed_seconds",
+    }
+    for hard_limit in budgets.get("hard_limits", []):
+        if budgets.get(field_for_limit.get(hard_limit, "")) is None:
+            issues.append(_issue("RC_BUDGET_CONFIG", "$.budgets", f"Hard {hard_limit} budget requires a finite configured maximum."))
+    return issues
+
+
+def _semantic_lifecycle_invariants(value: dict[str, Any]) -> list[ContractIssue]:
+    # The graph is checked by load_lifecycle_invariants; direct fixture validation
+    # repeats the same checks without reading a second model.
+    issues: list[ContractIssue] = []
+    invariant_ids = [str(item.get("id", "")) for item in value.get("invariants", [])]
+    if len(invariant_ids) != len(set(invariant_ids)):
+        issues.append(_issue("LIFECYCLE_INVARIANT_DUPLICATE", "$.invariants", "Invariant IDs must be unique."))
+    for key in ("task_state_machine", "attempt_state_machine", "invocation_state_machine"):
+        machine = value.get(key, {})
+        states = set(machine.get("states", []))
+        terminal = set(machine.get("terminal_states", []))
+        transitions = machine.get("transitions", [])
+        sources = [item.get("from") for item in transitions]
+        if len(sources) != len(set(sources)):
+            issues.append(_issue("LIFECYCLE_GRAPH_DUPLICATE", f"$.{key}.transitions", "Transition sources must be unique."))
+        if not terminal.issubset(states) or terminal.intersection(sources):
+            issues.append(_issue("LIFECYCLE_GRAPH_TERMINAL", f"$.{key}", "Terminal states must be declared and have no outgoing transition."))
+    return issues
+
+
+def _semantic_phase_boundary_revision(value: dict[str, Any]) -> list[ContractIssue]:
+    revision_number = value.get("revision_number")
+    previous = value.get("previous_revision")
+    if revision_number == 1 and previous is not None:
+        return [_issue("WS_PHASE_REVISION_CHAIN", "$.previous_revision", "Phase boundary revision one must have no predecessor.")]
+    if isinstance(revision_number, int) and revision_number > 1 and not isinstance(previous, dict):
+        return [_issue("WS_PHASE_REVISION_CHAIN", "$.previous_revision", "Later Phase boundary revisions require the exact predecessor binding.")]
+    return []
+
+
+def _semantic_result_event(value: dict[str, Any]) -> list[ContractIssue]:
+    issues: list[ContractIssue] = []
+    sequence = value.get("sequence")
+    previous = value.get("previous_event")
+    if sequence == 1 and previous is not None:
+        issues.append(_issue("RC_LINEAGE_STALE", "$.previous_event", "Sequence one must have no previous event."))
+    elif isinstance(sequence, int) and sequence > 1 and not isinstance(previous, dict):
+        issues.append(_issue("RC_LINEAGE_STALE", "$.previous_event", "Sequence two or later must bind the exact previous event."))
+    kind = value.get("event_kind")
+    payload = value.get("payload", {})
+    required = RESULT_EVENT_REQUIRED_FIELDS.get(str(kind), set())
+    missing = sorted(required.difference(payload))
+    if missing:
+        issues.append(_issue("RC_EVENT_PAYLOAD_REQUIRED", "$.payload", f"{kind} requires: {', '.join(missing)}"))
+    unknown = sorted(set(payload).difference(required.union(RESULT_EVENT_OPTIONAL_FIELDS.get(str(kind), set()))))
+    if unknown:
+        issues.append(_issue("RC_EVENT_PAYLOAD_CLOSED", "$.payload", f"{kind} forbids payload fields: {', '.join(unknown)}"))
+    if kind == "INVOCATION_COMPLETED" and isinstance(payload.get("dispatch_summary"), dict):
+        summary = payload["dispatch_summary"]
+        minimum, maximum = summary.get("confirmed_request_count_min"), summary.get("confirmed_request_count_max")
+        if isinstance(minimum, int) and isinstance(maximum, int) and maximum < minimum:
+            issues.append(_issue("RC_REQUEST_OBSERVATION_INVALID", "$.payload.dispatch_summary", "Confirmed request maximum cannot be below the known minimum."))
+        if summary.get("dispatch_assessment") == "CONFIRMED_NOT_SENT" and not summary.get("direct_evidence_refs"):
+            issues.append(_issue("RC_REQUEST_NOT_SENT_EVIDENCE_REQUIRED", "$.payload.dispatch_summary.direct_evidence_refs", "CONFIRMED_NOT_SENT requires direct dispatch-order evidence."))
+    if kind == "EXTERNAL_REQUEST_INTENT_RESERVED" and payload.get("physical_request_limit") is not None and not payload.get("provider_retry_bound_proven"):
+        issues.append(_issue("RC_PHYSICAL_REQUEST_BOUND_UNPROVABLE", "$.payload.provider_retry_bound_proven", "Finite physical-request bounds require bounded observable provider retries."))
+    if kind == "AUTHORIZATION_ENVELOPE_GRANTED" and isinstance(payload.get("authorization_envelope"), dict):
+        envelope = payload["authorization_envelope"]
+        units = [str(item.get("unit")) for item in envelope.get("limits", []) if isinstance(item, dict)]
+        if len(units) != len(set(units)):
+            issues.append(_issue("RC_AUTHORIZATION_REQUIRED", "$.payload.authorization_envelope.limits", "Authorization limit units must be unique."))
+        granted = envelope.get("granted_at")
+        expires = envelope.get("expires_at")
+        if isinstance(granted, str) and isinstance(expires, str) and _valid_datetime(granted) and _valid_datetime(expires):
+            if _parse_datetime(expires) <= _parse_datetime(granted):
+                issues.append(_issue("RC_AUTHORIZATION_REQUIRED", "$.payload.authorization_envelope.expires_at", "Authorization expiry must be later than grant time."))
+    if kind in {"ROUND_STARTED", "ATTEMPT_STARTED", "INVOCATION_STARTED", "EXTERNAL_REQUEST_INTENT_RESERVED", "USAGE_OBSERVED"} and payload.get("envelope_id") is None:
+        issues.append(_issue("RC_AUTHORIZATION_REQUIRED", "$.payload.envelope_id", "Execution and counted-usage events require an authorization envelope reference."))
+    revision = value.get("contract_revision", {})
+    expected_prefix = f"task-state/{value.get('task_id')}/contracts/"
+    if isinstance(revision, dict) and (
+        not str(revision.get("path", "")).replace("\\", "/").startswith(expected_prefix)
+        or not str(revision.get("path", "")).replace("\\", "/").endswith(f"/{revision.get('revision_id')}.json")
+    ):
+        issues.append(_issue("RC_LINEAGE_PATH", "$.contract_revision.path", "Contract revision path must be inside the declared Task lineage and match revision_id."))
+    return issues
+
+
+def _semantic_result_lineage_projection(value: dict[str, Any]) -> list[ContractIssue]:
+    issues: list[ContractIssue] = []
+    latest_event = value.get("latest_event")
+    inputs = value.get("rebuild_inputs", [])
+    roles = [item.get("role") for item in inputs]
+    if roles.count("CONTRACT_REVISION") != 1:
+        issues.append(_issue("RC_PROJECTION_REBUILD_INPUT", "$.rebuild_inputs", "Projection requires exactly one latest contract revision input."))
+    event_inputs = [item for item in inputs if item.get("role") == "RESULT_EVENT"]
+    if latest_event is None and event_inputs:
+        issues.append(_issue("RC_PROJECTION_HEAD", "$.latest_event", "No latest event requires no event rebuild inputs."))
+    elif isinstance(latest_event, dict) and not any(item.get("path") == latest_event.get("path") and item.get("sha256") == latest_event.get("sha256") for item in event_inputs):
+        issues.append(_issue("RC_PROJECTION_HEAD", "$.latest_event", "Latest event must be present in exact rebuild inputs."))
+    terminal = value.get("terminal_status")
+    status = value.get("task_status")
+    if (status in TERMINAL_STATUSES and terminal != status) or (status not in TERMINAL_STATUSES and terminal is not None):
+        issues.append(_issue("RC_TERMINAL_STATUS", "$.terminal_status", "Projection terminal status must agree with Task status."))
+    expected_root = f"task-state/{value.get('task_id')}/"
+    for path, field in (
+        (value.get("latest_contract_revision", {}).get("path"), "$.latest_contract_revision.path"),
+        (value.get("latest_event", {}).get("path") if isinstance(value.get("latest_event"), dict) else None, "$.latest_event.path"),
+    ):
+        if path is not None and not str(path).replace("\\", "/").startswith(expected_root):
+            issues.append(_issue("RC_LINEAGE_PATH", field, "Projection bindings must stay inside the declared Task lineage."))
+    return issues
+
+def _semantic_result_contract_v1(value: dict[str, Any]) -> list[ContractIssue]:
     issues: list[ContractIssue] = []
     status = value.get("execution_status")
     terminal = value.get("terminal_status")
@@ -765,7 +988,7 @@ def _semantic_workspace(value: dict[str, Any]) -> list[ContractIssue]:
         issues.append(_issue("WS_SESSION_PHASE_MISMATCH", "$.active_session_id", "Active session must belong to the active phase."))
     elif active_session is not None and session_map[active_session].get("status") != "ACTIVE":
         issues.append(_issue("WS_ACTIVE_SESSION_STATUS", "$.active_session_id", "active_session_id must reference an ACTIVE Session row."))
-    if value.get("schema_version") == 3:
+    if value.get("schema_version") in {3, 4}:
         binding = value.get("current_phase_binding")
         if active_phase is None and binding is not None:
             issues.append(_issue("WS_CURRENT_BINDING_TOPOLOGY", "$.current_phase_binding", "No active Phase requires a null current_phase_binding."))
@@ -796,6 +1019,65 @@ def _semantic_workspace(value: dict[str, Any]) -> list[ContractIssue]:
                 source_phase = next((item for item in phases if item.get("phase_id") == recovery.get("source_phase_id")), None)
                 if source_phase is None or source_phase.get("status") == "ACTIVE" or recovery.get("source_session_id") is not None:
                     issues.append(_issue("WS_RECOVERY_BINDING_TOPOLOGY", "$.recovery_binding", "Terminal Phase recovery must bind an existing non-active Phase and no Session."))
+    if value.get("schema_version") == 4:
+        binding = value.get("current_phase_binding")
+        session_binding = value.get("current_session_binding")
+        task_bindings = value.get("current_task_bindings", [])
+        if active_phase is None and binding is not None:
+            issues.append(_issue("WS_CURRENT_BINDING_TOPOLOGY", "$.current_phase_binding", "No active Phase requires a null current_phase_binding."))
+        elif active_phase is not None and (not isinstance(binding, dict) or binding.get("active_phase_id") != active_phase):
+            issues.append(_issue("WS_CURRENT_BINDING_TOPOLOGY", "$.current_phase_binding", "v4 current_phase_binding must identify the active Phase."))
+        if active_session is None and session_binding is not None:
+            issues.append(_issue("WS_SESSION_BINDING_TOPOLOGY", "$.current_session_binding", "No active Session requires a null current_session_binding."))
+        elif active_session is not None and (
+            not isinstance(session_binding, dict)
+            or session_binding.get("session_id") != active_session
+            or session_binding.get("phase_id") != active_phase
+            or session_binding.get("lease_state") != "ACTIVE"
+        ):
+            issues.append(_issue("WS_SESSION_BINDING_TOPOLOGY", "$.current_session_binding", "The active Session requires its exact active lease binding."))
+        active_rows = [item for item in sessions if item.get("status") == "ACTIVE"]
+        if len(active_rows) > 1 or (active_session is None and active_rows) or (active_session is not None and len(active_rows) != 1):
+            issues.append(_issue("WS_ACTIVE_SESSION_TOPOLOGY", "$.session_controls", "v4 permits exactly one ACTIVE Session row when and only when active_session_id is set."))
+        if active_session is not None:
+            row = session_map.get(active_session, {})
+            lease = row.get("lease", {}) if isinstance(row, dict) else {}
+            binding = session_binding if isinstance(session_binding, dict) else {}
+            if lease.get("state") != "ACTIVE" or row.get("owner_kind") != binding.get("owner_kind") or row.get("owner_id") != binding.get("owner_id") or lease.get("lease_id") != binding.get("lease_id"):
+                issues.append(_issue("WS_SESSION_LEASE_REQUIRED", "$.session_controls", "Active Session row and current_session_binding must identify the same active lease owner."))
+        task_ids = [str(item.get("task_id", "")) for item in task_bindings if isinstance(item, dict)]
+        lineage_ids = [str(item.get("lineage_id", "")) for item in task_bindings if isinstance(item, dict)]
+        if len(task_ids) != len(set(task_ids)) or _duplicates(task_ids):
+            issues.append(_issue("WS_TASK_BINDING_DUPLICATE", "$.current_task_bindings", "Task IDs must be unique and case-portable."))
+        if len(lineage_ids) != len(set(lineage_ids)) or _duplicates(lineage_ids):
+            issues.append(_issue("WS_LINEAGE_BINDING_DUPLICATE", "$.current_task_bindings", "Lineage IDs must be unique and case-portable."))
+        for index, task in enumerate(task_bindings):
+            if task.get("phase_id") != active_phase:
+                issues.append(_issue("WS_TASK_PHASE_MISMATCH", f"$.current_task_bindings.{index}.phase_id", "Current Task binding must belong to the active Phase."))
+        recovery = value.get("recovery_binding")
+        if isinstance(recovery, dict):
+            source_kind = recovery.get("source_kind")
+            resume_required = recovery.get("resume_required")
+            expected_source = {
+                "ACTIVE_SESSION_CHECKPOINT": (active_phase, active_session),
+                "ACTIVE_PHASE_RECOVERY": (active_phase, None),
+                "PROJECT_RECOVERY": (None, None),
+            }.get(source_kind)
+            if expected_source is not None and (recovery.get("source_phase_id"), recovery.get("source_session_id")) != expected_source:
+                issues.append(_issue("WS_RECOVERY_BINDING_TOPOLOGY", "$.recovery_binding", "Recovery source IDs do not match the active workspace topology."))
+            if source_kind == "ACTIVE_SESSION_CHECKPOINT" and active_session is None:
+                issues.append(_issue("WS_RECOVERY_BINDING_TOPOLOGY", "$.recovery_binding", "Session checkpoint recovery requires an active Session."))
+            if source_kind == "ACTIVE_PHASE_RECOVERY" and (active_phase is None or active_session is not None):
+                issues.append(_issue("WS_RECOVERY_BINDING_TOPOLOGY", "$.recovery_binding", "Active Phase recovery requires an active Phase and no active Session."))
+            if source_kind in {"PAUSED_PHASE_RECOVERY", "TERMINAL_PHASE_RECOVERY"}:
+                source_row = next((item for item in phases if item.get("phase_id") == recovery.get("source_phase_id")), None)
+                allowed_status = {"PAUSED"} if source_kind == "PAUSED_PHASE_RECOVERY" else {"DONE", "SUPERSEDED", "BLOCKED", "FAILED"}
+                if active_phase is not None or active_session is not None or source_row is None or source_row.get("status") not in allowed_status or recovery.get("source_session_id") is not None:
+                    issues.append(_issue("WS_RECOVERY_BINDING_TOPOLOGY", "$.recovery_binding", "Paused/terminal recovery must bind one matching non-active Phase and no Session."))
+            if source_kind == "PAUSED_PHASE_RECOVERY" and not resume_required:
+                issues.append(_issue("WS_RECOVERY_BINDING_TOPOLOGY", "$.recovery_binding.resume_required", "Paused Phase recovery requires resume_required=true."))
+            if source_kind != "PAUSED_PHASE_RECOVERY" and resume_required:
+                issues.append(_issue("WS_RECOVERY_BINDING_TOPOLOGY", "$.recovery_binding.resume_required", "Only paused Phase recovery may require resume."))
     return issues
 
 def _semantic_workspace_artifact_snapshot(value: dict[str, Any]) -> list[ContractIssue]:
@@ -826,6 +1108,48 @@ def _semantic_workspace_artifact_snapshot(value: dict[str, Any]) -> list[Contrac
     expected_fingerprint = hashlib.sha256(canonical_json(fingerprint_payload) + b"\n").hexdigest().upper()
     if value.get("capture_fingerprint") != expected_fingerprint:
         issues.append(_issue("ART_SNAPSHOT_FINGERPRINT", "$.capture_fingerprint", "Snapshot fingerprint does not bind the declared frozen capture inputs."))
+    return issues
+
+
+def _semantic_workspace_transaction_journal(value: dict[str, Any]) -> list[ContractIssue]:
+    issues: list[ContractIssue] = []
+    targets = value.get("targets", [])
+    roles = {
+        "IMMUTABLE_RECORD": 1,
+        "RESULT_PROJECTION": 2,
+        "SESSION_CONTROL": 3,
+        "PHASE_CONTROL": 4,
+        "REPORT": 5,
+        "HANDOFF": 6,
+        "PROJECT_CONTROL": 7,
+        "RUNTIME_STATE": 8,
+    }
+    orders = [item.get("order") for item in targets if isinstance(item, dict)]
+    if orders != list(range(1, len(targets) + 1)):
+        issues.append(_issue("WS_TRANSACTION_ROLE_ORDER_INVALID", "$.targets", "Workspace journal target order must be consecutive from one."))
+    role_values = [roles.get(str(item.get("role")), 0) for item in targets if isinstance(item, dict)]
+    if role_values != sorted(role_values):
+        issues.append(_issue("WS_TRANSACTION_ROLE_ORDER_INVALID", "$.targets", "Workspace journal targets must follow the frozen replacement role order."))
+    paths = [str(item.get("path", "")) for item in targets if isinstance(item, dict)]
+    if len(paths) != len(set(paths)) or len({item.casefold() for item in paths}) != len(paths):
+        issues.append(_issue("WS_TRANSACTION_TARGET_DUPLICATE", "$.targets", "Workspace journal target paths must be unique and Windows-portable."))
+    if int(value.get("replacement_cursor", -1)) > len(targets) or int(value.get("replacement_count", -1)) > len(targets):
+        issues.append(_issue("WS_TRANSACTION_CURSOR_INVALID", "$.replacement_cursor", "Workspace journal cursor/count exceeds the target cardinality."))
+    if value.get("state") == "COMMITTED" and (
+        value.get("replacement_cursor") != len(targets)
+        or value.get("replacement_count") != len(targets)
+        or value.get("completed_at") is None
+    ):
+        issues.append(_issue("WS_TRANSACTION_COMMIT_INVALID", "$.state", "COMMITTED requires all targets replaced, a final cursor, and completed_at."))
+    for index, item in enumerate(targets):
+        if not isinstance(item, dict):
+            continue
+        existed = item.get("original_existed")
+        original_fields = (item.get("original_bytes"), item.get("original_sha256"), item.get("original_base64"))
+        if existed is True and any(field is None for field in original_fields):
+            issues.append(_issue("WS_TRANSACTION_PREIMAGE_INVALID", f"$.targets.{index}", "Existing targets require exact original bytes and hash."))
+        if existed is False and any(field is not None for field in original_fields):
+            issues.append(_issue("WS_TRANSACTION_PREIMAGE_INVALID", f"$.targets.{index}", "ABSENT targets cannot carry original bytes or a preimage hash."))
     return issues
 
 def _semantic_prerequisites(value: dict[str, Any], prefix: str) -> list[ContractIssue]:
@@ -1155,7 +1479,10 @@ def _semantic_residue(value: dict[str, Any]) -> list[ContractIssue]:
     return []
 
 SEMANTIC_VALIDATORS = {
-    "result-contract": _semantic_result_contract,
+    "lifecycle-invariants": _semantic_lifecycle_invariants,
+    "result-event": _semantic_result_event,
+    "result-lineage-projection": _semantic_result_lineage_projection,
+    "phase-boundary-revision": _semantic_phase_boundary_revision,
     "growth-signal": _semantic_growth_signal,
     "future-use-validation": _semantic_future_validation,
     "growth-candidate": _semantic_growth_candidate,
@@ -1167,6 +1494,7 @@ SEMANTIC_VALIDATORS = {
     "capability-registry": _semantic_capability_registry,
     "projection-manifest": _semantic_projection,
     "workspace-control": _semantic_workspace,
+    "workspace-transaction-journal": _semantic_workspace_transaction_journal,
     "workspace-artifact-snapshot": _semantic_workspace_artifact_snapshot,
     "generation-manifest": _semantic_generation,
     "release-manifest": _semantic_release,
@@ -1191,11 +1519,28 @@ def validate_instance(
     validation_schema = schema
     if (
         schema_override is None
+        and contract_id == "result-contract"
+        and isinstance(instance, dict)
+    ):
+        version = instance.get("contract_version")
+        definition = {"1": "resultContractV1"}.get(version)
+        if version == "2":
+            validation_schema = schema
+        elif definition is None:
+            return [_issue("SCHEMA_VERSION_UNSUPPORTED", "$.contract_version", f"Unsupported result-contract contract_version: {version!r}.")]
+        else:
+            selected = schema.get("$defs", {}).get(definition)
+            if not isinstance(selected, dict):
+                return [_issue("SCHEMA_REF", "$", f"Missing result-contract compatibility definition: {definition}")]
+            validation_schema = copy.deepcopy(selected)
+            validation_schema["$defs"] = copy.deepcopy(schema["$defs"])
+    elif (
+        schema_override is None
         and contract_id == "workspace-control"
         and isinstance(instance, dict)
     ):
         version = instance.get("schema_version")
-        definition = {1: "workspaceControlV1", 2: "workspaceControlV2", 3: "workspaceControlV3"}.get(version)
+        definition = {1: "workspaceControlV1", 2: "workspaceControlV2", 3: "workspaceControlV3", 4: "workspaceControlV4"}.get(version)
         if definition is None:
             return [_issue("SCHEMA_VERSION_UNSUPPORTED", "$.schema_version", f"Unsupported workspace-control schema_version: {version!r}.")]
         selected = schema.get("$defs", {}).get(definition)
@@ -1215,7 +1560,17 @@ def validate_instance(
         validation_schema["properties"]["schema_version"] = {"const": 1}
     issues = validate_against_schema(instance, validation_schema)
     if isinstance(instance, dict):
-        validator = SEMANTIC_VALIDATORS.get(contract_id)
-        if validator is not None:
-            issues.extend(validator(instance))
+        if contract_id == "result-contract":
+            if instance.get("contract_version") == "1":
+                issues.extend(_semantic_result_contract_v1(instance))
+            elif instance.get("contract_version") == "2":
+                model, model_issues = load_lifecycle_invariants(malts_root)
+                issues.extend(model_issues)
+                if model is not None:
+                    invariant_sha256 = hashlib.sha256((malts_root / "tools" / LIFECYCLE_INVARIANTS_FILE).read_bytes()).hexdigest().upper()
+                    issues.extend(_semantic_result_contract_v2(instance, model, invariant_sha256))
+        else:
+            validator = SEMANTIC_VALIDATORS.get(contract_id)
+            if validator is not None:
+                issues.extend(validator(instance))
     return issues

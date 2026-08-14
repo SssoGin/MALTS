@@ -1,0 +1,270 @@
+{
+  "schema_version": 1,
+  "invariant_set_id": "malts-v1.3.0-lifecycle-invariants",
+  "target_release": "1.3.0",
+  "status": "DESIGN_FROZEN",
+  "contract_versions": {
+    "workspace_control": 4,
+    "result_contract": 2,
+    "result_event": 1,
+    "result_lineage_projection": 1,
+    "phase_boundary_revision": 1,
+    "workspace_transaction_journal": 1,
+    "workspace_migration_plan": 1,
+    "result_migration_plan": 1
+  },
+  "terminology": [
+    {
+      "name": "Phase",
+      "definition": "An outcome, milestone, delivery, governance, or material risk boundary; not an invocation, retry, provider, model, or conversation-turn counter.",
+      "authority": "PHASE_CONTROL plus immutable boundary revision records"
+    },
+    {
+      "name": "Task",
+      "definition": "A stable governed unit of work inside a Phase; a persistent governed Task has exactly one Result Contract lineage.",
+      "authority": "Result Contract lineage with a Phase binding"
+    },
+    {
+      "name": "Round",
+      "definition": "A Result Contract execution-entry budget unit committed when Task state enters EXECUTING from a non-EXECUTING state.",
+      "authority": "ROUND_STARTED event"
+    },
+    {
+      "name": "Attempt",
+      "definition": "One explicitly authorized bounded try with its own identity, start, completion, result, evidence, and zero or more Invocations.",
+      "authority": "ATTEMPT_PLANNED, ATTEMPT_STARTED, and ATTEMPT_COMPLETED events"
+    },
+    {
+      "name": "Invocation",
+      "definition": "One tool, provider, process, or command invocation within an Attempt; it contains zero or more observed external requests.",
+      "authority": "INVOCATION_STARTED and INVOCATION_COMPLETED events"
+    },
+    {
+      "name": "Request Intent",
+      "definition": "One logical, pre-authorized external side-effect intent reserved before dispatch; it is not proof that a physical request was sent.",
+      "authority": "EXTERNAL_REQUEST_INTENT_RESERVED event"
+    },
+    {
+      "name": "Observed Request",
+      "definition": "One physical external request for which direct evidence exists; unknown additional provider retries remain represented by incomplete observation.",
+      "authority": "EXTERNAL_REQUEST_OBSERVED event plus Invocation dispatch summary"
+    },
+    {
+      "name": "Authorization Envelope",
+      "definition": "An immutable grant that binds an accepted contract revision and Phase boundary to allowed operations, scope, time, and incremental counted-unit limits.",
+      "authority": "AUTHORIZATION_ENVELOPE_GRANTED event"
+    },
+    {
+      "name": "Session Lease",
+      "definition": "The unique active canonical-write ownership grant for one bounded Session, intersected with Phase, Result Contract, and user authorization.",
+      "authority": "SESSION_CONTROL structured lease and workspace v4 binding"
+    }
+  ],
+  "task_state_machine": {
+    "machine_id": "RCV2-TASK-STATE",
+    "states": [
+      "DRAFT",
+      "PREFLIGHT",
+      "AWAITING_INITIAL_AUTHORIZATION",
+      "AUTHORIZED",
+      "PLANNING",
+      "EXECUTING",
+      "VERIFYING",
+      "REPLANNING",
+      "AWAITING_ATTEMPT_AUTHORIZATION",
+      "FINALIZING",
+      "DONE",
+      "PARTIAL",
+      "BLOCKED",
+      "FAILED"
+    ],
+    "terminal_states": ["DONE", "PARTIAL", "BLOCKED", "FAILED"],
+    "transitions": [
+      {"from": "DRAFT", "to": ["PREFLIGHT", "BLOCKED", "FAILED"]},
+      {"from": "PREFLIGHT", "to": ["AWAITING_INITIAL_AUTHORIZATION", "BLOCKED", "FAILED"]},
+      {"from": "AWAITING_INITIAL_AUTHORIZATION", "to": ["AUTHORIZED", "BLOCKED"]},
+      {"from": "AUTHORIZED", "to": ["PLANNING", "BLOCKED", "FAILED"]},
+      {"from": "PLANNING", "to": ["EXECUTING", "AWAITING_ATTEMPT_AUTHORIZATION", "BLOCKED", "FAILED"]},
+      {"from": "EXECUTING", "to": ["VERIFYING", "REPLANNING", "AWAITING_ATTEMPT_AUTHORIZATION", "PARTIAL", "BLOCKED", "FAILED"]},
+      {"from": "VERIFYING", "to": ["FINALIZING", "REPLANNING", "EXECUTING", "AWAITING_ATTEMPT_AUTHORIZATION", "PARTIAL", "BLOCKED", "FAILED"]},
+      {"from": "REPLANNING", "to": ["EXECUTING", "AWAITING_ATTEMPT_AUTHORIZATION", "BLOCKED", "FAILED"]},
+      {"from": "AWAITING_ATTEMPT_AUTHORIZATION", "to": ["AUTHORIZED", "BLOCKED", "FAILED"]},
+      {"from": "FINALIZING", "to": ["DONE", "PARTIAL", "BLOCKED", "FAILED"]}
+    ]
+  },
+  "attempt_state_machine": {
+    "machine_id": "RCV2-ATTEMPT-STATE",
+    "states": ["PLANNED", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED", "NOT_RUN", "UNKNOWN"],
+    "terminal_states": ["SUCCEEDED", "FAILED", "CANCELLED", "NOT_RUN", "UNKNOWN"],
+    "transitions": [
+      {"from": "PLANNED", "to": ["RUNNING", "NOT_RUN", "CANCELLED"]},
+      {"from": "RUNNING", "to": ["SUCCEEDED", "FAILED", "CANCELLED", "UNKNOWN"]}
+    ]
+  },
+  "invocation_state_machine": {
+    "machine_id": "RCV2-INVOCATION-STATE",
+    "states": ["PLANNED", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED", "NOT_RUN", "UNKNOWN"],
+    "terminal_states": ["SUCCEEDED", "FAILED", "CANCELLED", "NOT_RUN", "UNKNOWN"],
+    "transitions": [
+      {"from": "PLANNED", "to": ["RUNNING", "NOT_RUN", "CANCELLED"]},
+      {"from": "RUNNING", "to": ["SUCCEEDED", "FAILED", "CANCELLED", "UNKNOWN"]}
+    ]
+  },
+  "event_kinds": [
+    "CONTRACT_REVISION_ACCEPTED",
+    "LEGACY_SNAPSHOT_IMPORTED",
+    "STATUS_TRANSITION",
+    "AUTHORIZATION_ENVELOPE_GRANTED",
+    "AUTHORIZATION_ENVELOPE_REVOKED",
+    "ROUND_STARTED",
+    "ATTEMPT_PLANNED",
+    "ATTEMPT_STARTED",
+    "ATTEMPT_COMPLETED",
+    "INVOCATION_PLANNED",
+    "INVOCATION_STARTED",
+    "INVOCATION_COMPLETED",
+    "EXTERNAL_REQUEST_INTENT_RESERVED",
+    "EXTERNAL_REQUEST_OBSERVED",
+    "USAGE_OBSERVED",
+    "RECOVERY_OBSERVATION",
+    "CORRECTION_APPENDED"
+  ],
+  "request_model": {
+    "dispatch_assessments": ["NOT_APPLICABLE", "CONFIRMED_NOT_SENT", "CONFIRMED_SENT", "UNKNOWN"],
+    "observation_completeness": ["COMPLETE", "PARTIAL", "UNKNOWN"],
+    "outcome_states": ["NOT_APPLICABLE", "NOT_OBSERVED", "SUCCEEDED", "FAILED", "UNKNOWN"],
+    "charge_states": ["NOT_APPLICABLE", "NOT_OBSERVED", "CONFIRMED_NONE", "CONFIRMED_CHARGED", "UNKNOWN"]
+  },
+  "authorization_counted_units": [
+    "ROUNDS",
+    "ATTEMPTS",
+    "INVOCATIONS",
+    "REQUEST_INTENTS",
+    "TOKENS",
+    "COST_UNITS",
+    "ELAPSED_SECONDS",
+    "CONCURRENCY"
+  ],
+  "invariants": [
+    {
+      "id": "INV-PHASE-001",
+      "level": "MUST",
+      "statement": "A Phase is selected by outcome, milestone, delivery, governance, or material risk boundary; invocation, retry, provider, model, and conversation turn are not automatic Phase boundaries.",
+      "verification_refs": ["phase-granularity-positive-negative", "one-shot-counterexample"]
+    },
+    {
+      "id": "INV-PHASE-002",
+      "level": "MUST_NOT",
+      "statement": "Attempt, Invocation, or queue-Task failure must not automatically promote a Result Contract or Phase to terminal BLOCKED or FAILED.",
+      "verification_refs": ["attempt-task-phase-terminal-isolation"]
+    },
+    {
+      "id": "INV-PHASE-003",
+      "level": "MUST",
+      "statement": "An accepted Phase boundary is an immutable revision; material change requires a hash-bound boundary amendment revision or Phase transition, and terminal Phase bodies remain unchanged.",
+      "verification_refs": ["phase-amendment-stale-hash", "terminal-phase-byte-preservation"]
+    },
+    {
+      "id": "INV-TASK-001",
+      "level": "MUST",
+      "statement": "Each governed persistent Task has exactly one Result Contract v2 lineage; Phase, Session, report, handoff, runtime, and lineage index surfaces store only bindings or rebuildable projections.",
+      "verification_refs": ["one-task-one-lineage", "projection-no-second-ledger"]
+    },
+    {
+      "id": "INV-LINEAGE-001",
+      "level": "MUST",
+      "statement": "Contract revisions and typed events are immutable regular non-reparse workspace files; every event has one monotonically increasing sequence and binds the exact previous event hash except sequence one.",
+      "verification_refs": ["lineage-sequence-hash-chain", "reparse-hardlink-rejection"]
+    },
+    {
+      "id": "INV-LINEAGE-002",
+      "level": "MUST",
+      "statement": "Corrections append CORRECTION_APPENDED events; they do not edit committed revisions or events. The latest index can be rebuilt only from the declared lineage and must match the Phase binding.",
+      "verification_refs": ["correction-append-only", "index-rebuild-and-binding"]
+    },
+    {
+      "id": "INV-EVENT-001",
+      "level": "MUST",
+      "statement": "Task status transitions, Rounds, Attempts, Invocations, request intents, observed requests, authorization, and recovery observations are different event kinds with separate identifiers and cardinality.",
+      "verification_refs": ["typed-cardinality-matrix", "status-vs-execution-events"]
+    },
+    {
+      "id": "INV-EVENT-002",
+      "level": "MUST",
+      "statement": "Round retains the v1 execution-entry meaning and increments only when a committed ROUND_STARTED event moves a Task from non-EXECUTING to EXECUTING.",
+      "verification_refs": ["round-v1-compatibility", "round-replay-no-double-count"]
+    },
+    {
+      "id": "INV-AUTH-001",
+      "level": "MUST",
+      "statement": "A valid authorization envelope binds one contract revision, Phase boundary revision, allowed operation/scope, validity interval, and incremental limits; it does not replace hard contract budgets or Session lease checks.",
+      "verification_refs": ["authorization-intersection", "stale-revision-envelope"]
+    },
+    {
+      "id": "INV-AUTH-002",
+      "level": "MUST_NOT",
+      "statement": "No ROUND_STARTED event may commit when max_authorized_rounds is exhausted, even if max_rounds and other hard budgets remain.",
+      "verification_refs": ["authorized-rounds-below-equal-above", "concurrent-round-reservation"]
+    },
+    {
+      "id": "INV-REQUEST-001",
+      "level": "MUST",
+      "statement": "A logical request intent is reserved before dispatch; request observations separately record known physical requests, completeness, outcome, and charge state. Exit code alone does not prove CONFIRMED_NOT_SENT.",
+      "verification_refs": ["confirmed-not-sent-direct-evidence", "confirmed-at-least-once-unknown-remainder"]
+    },
+    {
+      "id": "INV-REQUEST-002",
+      "level": "MUST",
+      "statement": "UNKNOWN dispatch, observation completeness, outcome, or charge state under a finite hard request/side-effect bound stops further execution until explicit reconciliation and authorization; MALTS makes no cross-system exactly-once claim.",
+      "verification_refs": ["unknown-hard-stop", "idempotency-replay"]
+    },
+    {
+      "id": "INV-REQUEST-003",
+      "level": "MUST_NOT",
+      "statement": "A finite hard physical-request limit must not be accepted when the selected provider/tool can perform unbounded or unobservable internal retries; logical Request Intent reservation is not proof of a physical-request upper bound.",
+      "verification_refs": ["provider-retry-capability-preflight", "finite-physical-request-limit-rejection"]
+    },
+    {
+      "id": "INV-SESSION-001",
+      "level": "MUST",
+      "statement": "At most one Session is active. Its structured lease has one owner, scope, touch set, allowed operations, grant time, and optional expiry; only that valid owner commits canonical state while active.",
+      "verification_refs": ["session-owner-write", "session-lease-expired", "worker-candidate-only"]
+    },
+    {
+      "id": "INV-TX-001",
+      "level": "MUST",
+      "statement": "A canonical mutation is accepted only after exact plan/input preconditions, a workspace lock and journal, deterministic staged outputs, ordered replacements, and a COMMITTED journal state; governed readers fail closed while the transaction is incomplete.",
+      "verification_refs": ["fault-every-replacement", "reader-lock-fail-closed", "stale-plan-and-input"]
+    },
+    {
+      "id": "INV-TX-002",
+      "level": "MUST_NOT",
+      "statement": "MALTS must not claim instantaneous multi-file visibility or automatic crash rollback; interrupted transactions require explicit, exact-journal-bound recovery.",
+      "verification_refs": ["crash-recovery", "no-atomic-visibility-claim"]
+    },
+    {
+      "id": "INV-MIG-001",
+      "level": "MUST",
+      "statement": "Workspace v3 to v4 and Result Contract v1 to v2 are independent dry-run-first, exact-plan/input-hash-bound cold migrations; ordinary read, validate, recover, init, or lifecycle mutation never migrates silently.",
+      "verification_refs": ["independent-migration-operations", "ordinary-command-zero-migration"]
+    },
+    {
+      "id": "INV-MIG-002",
+      "level": "MUST_NOT",
+      "statement": "Migration must not proceed with an active Session, running Attempt or Invocation, unresolved external side effect, or incomplete workspace or Artifact transaction, and must not fabricate legacy typed events.",
+      "verification_refs": ["migration-quiescence-negative", "legacy-history-no-fabrication"]
+    },
+    {
+      "id": "INV-PLAN-001",
+      "level": "MUST",
+      "statement": "Recording only a Plan Recheck trigger/result preserves the existing canonical recovery summary, next action, and evidence references unless the reviewed operation explicitly replaces recovery.",
+      "verification_refs": ["plan-recheck-recovery-preservation"]
+    },
+    {
+      "id": "INV-FAST-001",
+      "level": "MUST_NOT",
+      "statement": "Fast Path may reduce record overhead only; it must not bypass authorization, Phase boundary, active plan, Session lease, Artifact ownership, external-side-effect, or structural and binding consistency gates.",
+      "verification_refs": ["scoped-readiness-fast-path", "durable-delta-unknown-escalation"]
+    }
+  ]
+}

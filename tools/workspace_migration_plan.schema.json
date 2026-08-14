@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:malts:schema:workspace-migration-plan:1",
+  "title": "MALTS Workspace v3-to-v4 Migration Plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "operation_id", "operation", "plan_id", "workspace_identity",
+    "source_schema_version", "target_schema_version", "inputs", "outputs", "paused_phase",
+    "compatibility", "rollback", "declarations", "plan_sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "operation_id": {"$ref": "#/$defs/id"},
+    "operation": {"const": "migrate-workspace-v3-to-v4"},
+    "plan_id": {"$ref": "#/$defs/id"},
+    "workspace_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_id"],
+      "properties": {"project_id": {"$ref": "#/$defs/id"}}
+    },
+    "source_schema_version": {"const": 3},
+    "target_schema_version": {"const": 4},
+    "inputs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/inputRow"}
+    },
+    "outputs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/outputRow"}
+    },
+    "paused_phase": {"$ref": "#/$defs/pausedPhase"},
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result", "added_fields", "changed_fields", "legacy_read_preserved"],
+      "properties": {
+        "result": {"const": "COMPATIBLE"},
+        "added_fields": {"$ref": "#/$defs/stringArray"},
+        "changed_fields": {"$ref": "#/$defs/stringArray"},
+        "legacy_read_preserved": {"const": true}
+      }
+    },
+    "rollback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["preimages", "created_outputs"],
+      "properties": {
+        "preimages": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/preimageRow"}
+        },
+        "created_outputs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^(?![A-Za-z]:|[/\\\\]|.*(?:^|[/\\\\])\\.\\.(?:[/\\\\]|$)).+"}
+        }
+      }
+    },
+    "declarations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["implicit_session_created", "recursive_discovery_performed", "git_or_network_performed", "active_runtime_or_public_touched"],
+      "properties": {
+        "implicit_session_created": {"const": false},
+        "recursive_discovery_performed": {"const": false},
+        "git_or_network_performed": {"const": false},
+        "active_runtime_or_public_touched": {"const": false}
+      }
+    },
+    "plan_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
+    "sha256": {"type": "string", "pattern": "^[A-F0-9]{64}$"},
+    "nullableSha256": {"type": ["string", "null"], "pattern": "^[A-F0-9]{64}$"},
+    "stringArray": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "relativePath": {"type": "string", "pattern": "^(?![A-Za-z]:|[/\\\\]|.*(?:^|[/\\\\])\\.\\.(?:[/\\\\]|$)).+"},
+    "inputRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "role", "sha256"],
+      "properties": {
+        "path": {"$ref": "#/$defs/relativePath"},
+        "role": {"enum": ["WORKSPACE_STATE", "PHASE_CONTROL", "PROJECT_CONTROL", "REPORT", "HANDOFF", "DECLARED_LINEAGE", "INVARIANT_SOURCE"]},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "outputRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "role", "bytes", "sha256"],
+      "properties": {
+        "path": {"$ref": "#/$defs/relativePath"},
+        "role": {"enum": ["WORKSPACE_STATE", "PHASE_CONTROL", "BOUNDARY_REVISION", "PROJECT_CONTROL", "REPORT", "HANDOFF"]},
+        "bytes": {"type": "integer", "minimum": 1},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "preimageRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"$ref": "#/$defs/relativePath"},
+        "sha256": {"$ref": "#/$defs/nullableSha256"}
+      }
+    },
+    "pausedPhase": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": [
+        "phase_id", "path", "status", "phase_control_sha256", "phase_boundary_sha256",
+        "plan_sha256", "phase_recovery_sha256", "pause_review_ref", "pause_authorization_ref", "resume_required"
+      ],
+      "properties": {
+        "phase_id": {"$ref": "#/$defs/id"},
+        "path": {"type": "string", "pattern": "^phases[/\\\\][A-Za-z0-9._-]+[/\\\\]PHASE_CONTROL\\.md$"},
+        "status": {"const": "PAUSED"},
+        "phase_control_sha256": {"$ref": "#/$defs/sha256"},
+        "phase_boundary_sha256": {"$ref": "#/$defs/sha256"},
+        "plan_sha256": {"$ref": "#/$defs/nullableSha256"},
+        "phase_recovery_sha256": {"$ref": "#/$defs/sha256"},
+        "pause_review_ref": {"type": "string", "minLength": 1},
+        "pause_authorization_ref": {"type": "string", "minLength": 1},
+        "resume_required": {"const": true}
+      }
+    }
+  }
+}

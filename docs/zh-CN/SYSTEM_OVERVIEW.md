@@ -66,7 +66,7 @@ delivery loop 保持工作与用户目标一致。scheduling loop 让长期任�
 
 ### Cross-Control Consistency 与 Typed Recovery
 
-全新 long-project workspace 使用 schema v3。精确 schema v1/v2 保持可读，只能通过已审阅、显式、hash-bound operation 迁移。Active Phase 拥有 Boundary Review 与 recovery record；active Session 拥有 checkpoint；required current report 与 optional existing handoff 绑定精确 current hash。Runtime state 保持 non-canonical。
+全新 long-project workspace 使用 schema v4。精确 schema v1/v2/v3 保持可读，只能通过已审阅、显式、hash-bound operation 迁移。Active Phase 拥有 Boundary Review 与 recovery record；active Session 拥有 checkpoint；required current report 与 optional existing handoff 绑定精确 current hash。Runtime state 保持 non-canonical。
 
 Validation 分层报告 structural、binding、deterministic-consistency 与 advisory-semantic finding。Deterministic drift 会阻断 cold recovery 和普通 lifecycle mutation。Recovery 依次选择 active Session checkpoint、active Phase recovery、显式绑定 terminal Phase、Project recovery，绝不从最新历史 Session 猜测。Persisted workspace transaction 使用与 Artifact transaction 分离的 namespace，并保留 interrupted evidence，直到 exact-hash recovery 成功。
 
@@ -186,6 +186,10 @@ v1.2.2 candidate 保留 v1.2.1 的 schema-v1/v2/v3 dispatch、hash-bound review/
 
 v1.2.3 candidate 修复 release 测试 fixture 复制超出 Windows 路径长度限制的问题：测试套件的 `SOURCE_COPY_IGNORE` 排除私有的 `.release-control/archive` 历史树，与生产 clean-source 分类保持一致；repository-only CI 测试改为对隔离的 clean-source fixture 分类。五个 `WinError 206` 失败已解决，九个套件全绿。本版本没有改变任何 runtime、schema、Artifact、依赖、payload、VCS、更新检查或远程发布行为。
 
-## 13. 与详细设计的关系
+## 14. v1.3.0 Schema v4、Result Contract v2 与 Fast Path
+
+v1.3.0 candidate 将 workspace schema 升级到 v4、Result Contract 升级到 v2：每个受治理 Task 拥有唯一 typed lineage 权威，Phase、Session、report、handoff 与 runtime 只保留绑定与投影。一次 Attempt 失败只终止该 Attempt；`max_authorized_rounds` 是独立运行时 STOP 门。迁移只提供显式冷迁移（`migrate-workspace-v3-to-v4`、`migrate-result-contract-v1-to-v2`）；旧 schema 保持可读。多面写入使用带 lock、journal、preimage 与显式 recovery 的可恢复事务。只读 `scoped-readiness` Fast Path 与显式 marker-owned `refresh-project-instructions` 降低 S0/S1 治理成本，同时不绕过授权与一致性门。
+
+## 15. 与详细设计的关系
 
 本文说明 MALTS 做什么，以及用户如何评估它。[核心设计](CORE_DESIGN.md) 提供详细 design baseline、operating commitments、task sizing model、project state model、multi-agent protocol、memory pipeline 和 release boundaries。

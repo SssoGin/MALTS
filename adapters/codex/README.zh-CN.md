@@ -50,7 +50,7 @@ closure 后归档。
 
 - Phase 审阅与转换命令：`phase-boundary-review`、`pause-phase`、`resume-phase`、`plan-phase-transition`、`apply-phase-transition`。
 - Boundary review operation success 不等于 semantic resolution、persistence 或 authorization。使用 exact-hash、dry-run-first 的 `migrate-consistency-records`、`record-phase-boundary-review` 与 `reconcile-consistency-records`。
-- 全新工作区使用 schema v3。schema v1/v2 保持可读且必须显式迁移；current `WORK_TASK_REPORT.md` 必需，existing handoff 必须绑定精确 Phase、boundary/review 与 recovery hashes。
+- 全新工作区使用 schema v4。schema v1/v2/v3 保持可读且必须显式迁移（`migrate-workspace-v3-to-v4`、`migrate-result-contract-v1-to-v2`）；current `WORK_TASK_REPORT.md` 必需，existing handoff 必须绑定精确 Phase、boundary/review 与 recovery hashes。
 - Deterministic drift 会阻断 validation、cold recovery 和普通 lifecycle mutation。Recovery 禁止选择最新历史 Session，固定使用 active Session、active Phase、显式绑定 terminal Phase、Project authority。
 - Workspace transaction 使用独立 `runtime/workspace_transaction.lock.json` / `runtime/workspace_transactions/` namespace 和 `WS_TRANSACTION_*` code。
 - Artifact 命令：`artifact audit`、`artifact enrollment-preview`、`artifact enrollment-apply`、`artifact register`、`artifact promote`、`artifact supersede`、`artifact reconcile`。

@@ -77,9 +77,9 @@ MALTS 会在变更前分类已有投影文件：
 
 core 状态本地一致时，`DoctorRepairPlan` 可从活动版本限定派生 repair 目标，但该建议本身不是可执行变更。只有与已安装绑定精确一致的已验证来源才能生成可持久化的 executable repair plan；随后必须审阅其 hash，并作为独立授权 transaction 执行。
 
-## 在 v1.2.x 间更新 Workspace Control
+## 更新 Workspace Control
 
-更新 MALTS 会安装新 runtime behavior，但不会重写项目 controls。精确 schema-v1/v2 long-project workspace 保持可读，全新 workspace 使用 schema v3，Artifact lifecycle 仍为 `NOT_ENROLLED`。
+更新 MALTS 会安装新 runtime behavior，但不会重写项目 controls。精确 schema-v1/v2/v3 long-project workspace 保持可读，全新 workspace 使用 schema v4，Artifact lifecycle 仍为 `NOT_ENROLLED`。
 
 如果 active legacy Phase 缺少 v1.2.0 boundary sections，先运行不带 `--apply` 的 `migrate-phase-control`，审阅精确且绑定 preimage 的 plan；只有当前 workspace 授权覆盖时才 apply。迁移会保留 Phase goal、queue、evidence、recovery point 与 active ownership。
 

@@ -247,9 +247,9 @@ For small MALTS-enabled work, the file can remain compact. The objective is reco
 
 ### Long-Workspace Cross-Control Consistency
 
-Long-project state is not one flat file. Project owns the original goal/global acceptance/active Phase index and Project recovery; Phase owns its boundary, Boundary Review, plan, queue, evidence, Phase recovery, and closure; an explicit Session owns only its bounded scope and checkpoint. `WORK_TASK_REPORT.md` is the required current schema-v3 projection. `PROJECT_HANDOFF.md` is optional, but when present it is also a checked projection. Runtime JSON is typed non-canonical state and cannot overwrite Markdown authority.
+Long-project state is not one flat file. Project owns the original goal/global acceptance/active Phase index and Project recovery; Phase owns its boundary, Boundary Review, plan, queue, evidence, Phase recovery, and closure; an explicit Session owns only its bounded scope and checkpoint. `WORK_TASK_REPORT.md` is the required current schema-v4 projection. `PROJECT_HANDOFF.md` is optional, but when present it is also a checked projection. Runtime JSON is typed non-canonical state and cannot overwrite Markdown authority.
 
-Fresh workspaces use an exact closed schema v3. Exact schema v1/v2 remain readable compatibility contracts and require explicit migration; validators dispatch by declared version and reject unknown versions. The active Phase full-file SHA-256 and normalized boundary, Boundary Review, and recovery hashes bind the authority to report/handoff/runtime projections. Normalization converts line endings to LF, strips trailing whitespace per line, and preserves exactly one trailing LF before SHA-256.
+Fresh workspaces use an exact closed schema v4. Exact schema v1/v2/v3 remain readable compatibility contracts and require explicit migration; validators dispatch by declared version and reject unknown versions. The active Phase full-file SHA-256 and normalized boundary, Boundary Review, and recovery hashes bind the authority to report/handoff/runtime projections. Normalization converts line endings to LF, strips trailing whitespace per line, and preserves exactly one trailing LF before SHA-256.
 
 Boundary review execution, recorded outcome, decision, and authorization are separate state dimensions. Read-only `phase-boundary-review` never persists or authorizes work. Explicit `record-phase-boundary-review` persists only the structured record; later lifecycle mutations still require their own authorization evidence. Structural, binding, deterministic-consistency, and advisory-semantic findings remain separate so semantic advice cannot hide byte drift.
 
@@ -369,7 +369,7 @@ Sub-agent reports must be recycled before merge. Reports that are off-scope, unv
 
 Failures should be recorded as failures. Partial or failed sub-agent output must remain classified as incomplete work rather than completed progress.
 
-Schema-v3 recovery authority is deterministic: active Session checkpoint, otherwise active Phase recovery, otherwise an explicitly bound terminal Phase, otherwise Project recovery. Registry time/order and the newest historical Session are never authority. Required current report and optional current handoff bindings must agree before recovery-sensitive dispatch or delivery.
+Schema-v4 recovery authority is deterministic: active Session checkpoint, otherwise active Phase recovery, otherwise an explicitly bound terminal Phase, otherwise Project recovery. Registry time/order and the newest historical Session are never authority. Required current report and optional current handoff bindings must agree before recovery-sensitive dispatch or delivery.
 
 ## Verification And Delivery
 

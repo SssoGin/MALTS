@@ -145,11 +145,11 @@ Every current Phase records its milestone, in-scope and out-of-scope work, exit 
 
 ### Cross-control consistency and recovery authority
 
-Fresh long-project workspaces use exact schema v3. Exact schema v1/v2 inputs remain readable compatibility contracts and are never silently rewritten by `validate`, `recover`, maintenance, installation update, or active-generation switching. An active v2 workspace that lacks the required current projection is classified for explicit migration rather than guessed repair.
+Fresh long-project workspaces use exact schema v4. Exact schema v1/v2/v3 inputs remain readable compatibility contracts and are never silently rewritten by `validate`, `recover`, maintenance, installation update, or active-generation switching. An active v2 workspace that lacks the required current projection is classified for explicit migration rather than guessed repair.
 
-The active `PHASE_CONTROL.md` owns Boundary Review and Phase recovery records; an active Session owns its checkpoint. Schema v3 requires a current `WORK_TASK_REPORT.md` binding. `PROJECT_HANDOFF.md` remains optional, but when present it must bind the same exact Phase-control, normalized boundary/review, and normalized recovery hashes. Runtime JSON is a typed non-canonical projection. Validation reports structural, binding, deterministic-consistency, and advisory-semantic findings separately; deterministic drift blocks cold recovery and ordinary lifecycle mutation.
+The active `PHASE_CONTROL.md` owns Boundary Review and Phase recovery records; an active Session owns its checkpoint. Schema v4 requires a current `WORK_TASK_REPORT.md` binding and current Task/Result lineage bindings. `PROJECT_HANDOFF.md` remains optional, but when present it must bind the same exact Phase-control, normalized boundary/review, and normalized recovery hashes. Runtime JSON is a typed non-canonical projection. Validation reports structural, binding, deterministic-consistency, and advisory-semantic findings separately; deterministic drift blocks cold recovery and ordinary lifecycle mutation.
 
-Migration, review recording, and reconciliation use `migrate-consistency-records`, `record-phase-boundary-review`, and `reconcile-consistency-records`. All are dry-run-first and bind explicit authority, operation ID, and exact expected hashes. Workspace-control writes use a separate `runtime/workspace_transaction.lock.json`, `runtime/workspace_transactions/`, and `WS_TRANSACTION_*` domain. An incomplete journal is retained until exact-hash `recover-workspace-transaction` succeeds; failed recovery keeps its evidence. Artifact transaction paths and `ART_TRANSACTION_*` codes are unchanged.
+Cold schema v3-to-v4 and Result Contract v1-to-v2 migration use `migrate-workspace-v3-to-v4` and `migrate-result-contract-v1-to-v2`. Legacy review recording and reconciliation use `migrate-consistency-records`, `record-phase-boundary-review`, and `reconcile-consistency-records`. All are dry-run-first and bind explicit authority, operation ID, and exact expected hashes. Workspace-control writes use a separate `runtime/workspace_transaction.lock.json`, `runtime/workspace_transactions/`, and `WS_TRANSACTION_*` domain. An incomplete journal is retained until exact-hash `recover-workspace-transaction` succeeds; failed recovery keeps its evidence. Artifact transaction paths and `ART_TRANSACTION_*` codes are unchanged.
 
 Canonical recovery selection is active Session checkpoint, otherwise active Phase recovery, otherwise an explicitly bound terminal Phase, otherwise Project recovery. It never chooses the latest historical Session by timestamp or registry order.
 
@@ -167,10 +167,16 @@ Artifact mutation never moves/deletes payloads or invokes VCS. It never creates 
 
 ### Compatibility and non-goals
 
-Schema-v1 and schema-v2 workspaces remain readable. Fresh workspaces use schema v3; migration is explicit, safe duplicate-marker cleanup is limited to empty duplicate sections, and non-empty duplicates or ambiguous legacy review semantics fail closed for manual reconciliation. Workspace consistency does not add automatic update checks, background watchers, project-wide payload hashing, directory organization, Unity defaults, or remote publication. G4 still requires real Codex, Claude Code, and OpenCode invocation; component/projection tests alone are not G4.
+Schema-v1, schema-v2, and schema-v3 workspaces remain readable. Fresh workspaces use schema v4; migration is explicit (`migrate-workspace-v3-to-v4`, `migrate-result-contract-v1-to-v2`), safe duplicate-marker cleanup is limited to empty duplicate sections, and non-empty duplicates or ambiguous legacy review semantics fail closed for manual reconciliation. Workspace consistency does not add automatic update checks, background watchers, project-wide payload hashing, directory organization, Unity defaults, or remote publication. G4 still requires real Codex, Claude Code, and OpenCode invocation; component/projection tests alone are not G4.
 
 ## Ordinary Startup Discovery
 
 Each tool starts from its own adjacent `MALTS_BOOT.md`, whose schema is exactly one absolute `MALTS_ROOT:` line. MALTS v1.1.1+ does not use or create a machine-global `GLOBAL_BOOT.md`. The read-only `discover` command verifies tool boot, stable registry state, the sole active record, the exact `<lifecycle-root>\\registry\\active_generation.json` pointer, active `VERSION`, and version identity. Its PASS result exposes `authority_paths.active_generation_pointer` so callers do not guess a sibling `<lifecycle-root>\\active_generation.json`. It computes no full-tree hash during ordinary startup and writes nothing. Missing, malformed, stale, or conflicting authoritative surfaces fail closed.
 
 See [Install](INSTALL.md), [Update](UPDATE.md), and [Security](SECURITY.md).
+
+### v1.3.0 lifecycle additions
+
+- Cold workspace/Result migrations are explicit dry-run/apply operations and are never triggered by ordinary init/validate/recover/update.
+- Workspace control transactions use `runtime/workspace_transaction.lock.json` and `runtime/workspace_transactions/`; Artifact and global lifecycle transactions remain separate domains.
+- Plan Recheck-only updates preserve the exact recovery summary, next action, and evidence references.
