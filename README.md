@@ -4,9 +4,9 @@
 
 Languages: [English](README.md) | [简体中文](README.zh-CN.md)
 
-MALTS is a file-based operating model for AI-assisted project work that needs continuity, explicit decisions, or controlled delegation. It records the working objective, verified state, ownership, acceptance evidence, and recovery context in ordinary project files so work can continue safely across sessions, phases, and Agents.
+MALTS is a portable, file-based operating framework for long-running project work performed or assisted by AI agents. Its operational substrate is a file-based workflow of canonical rules, templates, checklists, recovery records, and optional tool adapters. It formalizes a recoverable lifecycle for tasks whose duration, uncertainty, or coordination requirements may exceed a single prompt, one context window, one uninterrupted session, or one Agent's short-term memory.
 
-MALTS complements normal project instructions; it does not replace them. A contained task with a clear outcome should remain lightweight. MALTS becomes useful when interruption, scope change, verification, handoff, or coordination would otherwise leave important work state implicit.
+MALTS operates as a minimal-overhead Agent project operating system, connecting task delivery, recoverable execution, controlled delegation, verification evidence, and retrospective learning into one closed loop, with the central purpose of preserving intent, evidence, recovery state, and reusable knowledge across bounded execution rounds. It is single-agent by default; multi-agent execution is a controlled division-of-work mechanism, activated only when it has demonstrable operational value, and requires an explicit launch review before dispatch, with the main controller retaining final responsibility for judgment, merge, verification, and delivery. Long-running tasks persist in project files rather than only in chat memory, so they can continue across windows, sessions, or agents.
 
 ## Getting Started and Documentation
 
@@ -21,25 +21,23 @@ Use the following entry points according to the question you need to answer.
 | Review concurrency, delegation, and safety invariants | [Core Design](docs/CORE_DESIGN.md) |
 | Install or update a supported Agent tool | [Install](docs/INSTALL.md) and [Update](docs/UPDATE.md) |
 
-## What Problem It Solves
+## Scope
 
-Long Agent tasks fail differently from short prompts. Context can be compressed, goals can drift, incomplete work can be mistaken for completion, parallel work can collide, and useful lessons can be either lost or promoted too broadly.
-
-MALTS externalizes the task state that needs to survive these risks. It separates canonical control from derived reports, requires evidence before completion claims, records a recoverable continuation path, and requires a launch review before real delegated work begins.
+MALTS is scoped to project work performed or assisted by AI agents. It applies to long-running, multi-file, or recovery-sensitive work -- migrations, multi-file changes, long investigations, release preparation, protocol or documentation work -- where losing a decision or claiming completion without verification would be costly. For a small task with a clear result, the normal project workflow is sufficient. Agent runtime behavior, source control, package management, editing, CI, secret management, and human approval remain external systems with independent authority.
 
 ## Core MALTS Workflows
 
-MALTS provides seven core workflows. Each guide states its purpose, entry conditions, operating steps, and verification expectations.
+MALTS provides seven core workflows. Choose the entry point that matches what you want to do; each one states when to use it, how it runs, and what you get afterward.
 
-| Applicable scenario | MALTS workflow | Start condition | Primary result |
+| Applicable scenario | MALTS workflow | When to use | Result |
 |---|---|---|---|
-| Establish a standard project control | [MALTS Project Init](skills/malts-project-init/SKILL.md) (`malts-project-init`) | The project needs lightweight durable control. | Establishes the initial Project-level control once. |
-| Clarify a non-trivial task before implementation | [MALTS Grill-Me Preflight](skills/grill-me-preflight/SKILL.md) (`malts-grill-me-preflight`) | Assumptions, boundaries, trade-offs, or acceptance criteria need clarification. | A read-only clarification result; no files are modified and no Agent is dispatched. |
-| Establish, recover, or structurally organize a long workspace | [MALTS Long Project Workspace Init](skills/malts-long-project-workspace-init/SKILL.md) (`malts-long-project-workspace-init`) | A Phase-based long project is initialized, structurally repaired, or deliberately reorganized. | A governed long-workspace structure and recovery path. |
-| Produce a bounded continuation record | [MALTS Session Handoff](skills/session-handoff/SKILL.md) (`malts-session-handoff`) | A later Agent or session needs verified current context. | An on-demand `PROJECT_HANDOFF.md` view, not a competing authority. |
-| Review verified project experience for possible reuse | [MALTS Project Retrospective Growth](skills/project-retrospective-growth/SKILL.md) (`malts-project-retrospective-growth`) | Completed, failed, or reworked work contains evidence worth reviewing. | Evidence-based growth candidates; durable promotion remains separately authorized. |
-| Perform the default post-task growth check | [MALTS Single-Agent Lightweight Growth](skills/single-agent-lightweight-growth/SKILL.md) (`malts-single-agent-lightweight-growth`) | A verified task finished and a no-write check is appropriate. | A low-overhead recommendation or no-op; no durable guidance is created automatically. |
-| Coordinate admitted delegated work | [MALTS Multi-Agent Long-Task Scheduling](skills/multi-agent-long-task-scheduling/SKILL.md) (`malts-multi-agent-long-task-scheduling`) | Work lanes, resources, verification responsibilities, and user authorization can be stated. | A governed launch-review and delegation path with cost-aware model routing. |
+| Give a normal project durable goals and state | [MALTS Project Init](skills/malts-project-init/SKILL.md) (`malts-project-init`) | The result is clear, but the work has several steps or spans multiple rounds. | Creates project control once, preserving the goal, acceptance criteria, and current state. |
+| Confirm goals and boundaries before implementation | [MALTS Grill-Me Preflight](skills/grill-me-preflight/SKILL.md) (`malts-grill-me-preflight`) | The goal, boundary, trade-offs, or acceptance criteria are still unclear. | Returns a read-only clarification; no file changes and no Agent dispatch. |
+| Build a long workspace that can recover across windows | [MALTS Long Project Workspace Init](skills/malts-long-project-workspace-init/SKILL.md) (`malts-long-project-workspace-init`) | The project lasts multiple days or phases and needs interruption-safe continuation. | Creates a Phase-based recoverable structure, phase boundaries, and a recovery entry. |
+| Produce continuation notes for a completed segment | [MALTS Session Handoff](skills/session-handoff/SKILL.md) (`malts-session-handoff`) | Current work has ended and the next step must know exactly where it stopped. | Creates `PROJECT_HANDOFF.md` on demand as an evidence-backed continuation view. |
+| Review experience from a task and decide whether to reuse it | [MALTS Project Retrospective Growth](skills/project-retrospective-growth/SKILL.md) (`malts-project-retrospective-growth`) | A success, failure, or rework contains lessons worth reviewing. | Provides evidence-based improvement candidates; durable promotion remains separately authorized. |
+| Run a lightweight experience check after an ordinary task | [MALTS Single-Agent Lightweight Growth](skills/single-agent-lightweight-growth/SKILL.md) (`malts-single-agent-lightweight-growth`) | The task is done and verified, and you only want to know whether the experience is worth recording. | Returns a recommendation or no-op; it never creates durable guidance automatically. |
+| Have multiple Agents complete complex work by division | [MALTS Multi-Agent Long-Task Scheduling](skills/multi-agent-long-task-scheduling/SKILL.md) (`malts-multi-agent-long-task-scheduling`) | Complex work needs multiple Agents, with clear responsibilities, resources, and verification ownership. | Provides a reviewed multi-Agent delegation plan with cost-aware model routing after user confirmation. |
 
 ## Operating Model
 

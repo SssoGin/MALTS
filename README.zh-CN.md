@@ -4,9 +4,9 @@
 
 语言：[English](README.md) | [简体中文](README.zh-CN.md)
 
-MALTS 是面向 AI 辅助项目工作的文件化操作模型，适合需要持续性、明确决策或受控委派的场景。它把工作目标、已验证状态、职责归属、验收证据和恢复上下文保存在普通项目文件中，使工作能够跨 Session、Phase 与 Agent 安全续接。
+MALTS 是一套可移植、文件化的运行框架，用于由 AI Agent 执行或协助的长期项目工作。它以文件化工作流为运行基础，由规范、模板、检查清单、恢复记录与可选工具适配器构成。对于持续时间、不确定性或协同需求超过单次提示、单个上下文窗口、单次不中断会话或单个 Agent 短期记忆的任务，MALTS 提供形式化的可恢复生命周期。
 
-MALTS 是对项目既有说明的补充，而不是替代。结果明确、范围有限的任务应保持轻量；当中断、范围变化、验证、交接或协同会使关键工作状态变得隐含时，才适合使用 MALTS。
+MALTS 以轻量级 Agent 项目操作系统的形式运行，将任务交付、可恢复执行、受控委派、验证证据与复盘学习整合为一个闭环，核心目标是在有界执行轮次间保留意图、证据、恢复状态与可复用知识。它默认单 Agent 执行；多 Agent 是受控的职责分工机制，仅在具有可证明操作价值时启用，且派发前须经明确启动审阅；主控 Agent 对判断、合并、验证与交付保留最终责任。长期任务持久化在项目文件中，而非仅依赖聊天记忆，因此可跨窗口、会话或 Agent 继续。
 
 ## 开始使用与文档导航
 
@@ -21,25 +21,23 @@ MALTS 是对项目既有说明的补充，而不是替代。结果明确、范�
 | 了解并行、委派与安全不变量 | [核心设计](docs/zh-CN/CORE_DESIGN.md) |
 | 安装或更新支持的 Agent 工具 | [安装](docs/zh-CN/INSTALL.md) 与 [更新](docs/zh-CN/UPDATE.md) |
 
-## 它解决什么问题
+## 适用范围
 
-长期 Agent 任务与短提示的失败方式不同：上下文可能被压缩，目标可能漂移，不完整工作可能被误判为完成，并行工作可能发生冲突，而有用经验又可能被丢失或被过度提升。
-
-MALTS 将需要跨这些风险保存的任务状态外置。它区分规范控制与派生报告，在宣称完成前要求证据，保存可恢复的续接路径，并在真实委派开始前要求启动审阅。
+MALTS 限于由 AI Agent 执行或协助的项目工作。它适用于长期、多文件或恢复敏感的工作——迁移、多文件修改、长期调查、发布准备、协议或文档工作——凡是在这类工作中丢失一次决策或未经验证就宣称完成，代价都过高。对于结果明确的小任务，正常项目流程即可满足。Agent 运行时行为、源码控制、包管理、编辑、CI、机密管理与人工批准仍为具有独立权威的外部系统。
 
 ## MALTS 核心工作流
 
-MALTS 提供 7 个核心工作流。每份指南均说明其用途、适用条件、操作步骤和验证要求。
+MALTS 提供 7 个核心工作流。按你当前要完成的事情选择入口；每项都会说明何时使用、执行过程和完成后的结果。
 
-| 适用场景 | 对应 MALTS 工作流 | 启动条件 | 主要结果 |
+| 适用场景 | 对应 MALTS 工作流 | 何时使用 | 完成后的结果 |
 |---|---|---|---|
-| 建立普通项目控制 | [MALTS Project Init](skills/malts-project-init/SKILL.md)（`malts-project-init`） | 项目需要轻量、可持续的控制。 | 一次性建立初始 Project 级控制。 |
-| 在实现前澄清非简单任务 | [MALTS Grill-Me Preflight](skills/grill-me-preflight/SKILL.md)（`malts-grill-me-preflight`） | 假设、边界、取舍或验收条件需要澄清。 | 只读的澄清结论；不修改文件，也不派发 Agent。 |
-| 初始化、恢复或结构化整理长工作区 | [MALTS Long Project Workspace Init](skills/malts-long-project-workspace-init/SKILL.md)（`malts-long-project-workspace-init`） | 正在建立 Phase 化长期项目、进行结构修复或明确重整。 | 受治理的长工作区结构与恢复路径。 |
-| 输出有界续接记录 | [MALTS Session Handoff](skills/session-handoff/SKILL.md)（`malts-session-handoff`） | 后续 Agent 或 Session 需要经过验证的当前上下文。 | 按需生成 `PROJECT_HANDOFF.md`；它不与规范权威竞争。 |
-| 复盘已验证的项目经验 | [MALTS Project Retrospective Growth](skills/project-retrospective-growth/SKILL.md)（`malts-project-retrospective-growth`） | 已完成、失败或返工的工作包含值得审阅的证据。 | 基于证据的成长候选；写入长期规则仍需单独授权。 |
-| 执行默认的任务后轻量成长检查 | [MALTS Single-Agent Lightweight Growth](skills/single-agent-lightweight-growth/SKILL.md)（`malts-single-agent-lightweight-growth`） | 已验证任务完成，适合执行无写入检查。 | 低成本建议或无操作；不会自行创建长期规则。 |
-| 协调已准入的委派工作 | [MALTS Multi-Agent Long-Task Scheduling](skills/multi-agent-long-task-scheduling/SKILL.md)（`malts-multi-agent-long-task-scheduling`） | 可以明确工作通道、资源、验证职责和用户授权。 | 具有成本感知模型路由的启动审阅与受治理委派路径。 |
+| 让一个普通项目留下可持续的目标和状态记录 | [MALTS Project Init](skills/malts-project-init/SKILL.md)（`malts-project-init`） | 项目结果明确，但步骤较多或需要跨多轮完成。 | 建立一次性的项目控制，保存目标、验收条件和当前状态。 |
+| 在实现前确认目标和边界 | [MALTS Grill-Me Preflight](skills/grill-me-preflight/SKILL.md)（`malts-grill-me-preflight`） | 任务目标、边界、取舍或验收标准还不清楚。 | 得到一份只读澄清结论；不修改文件，也不派发 Agent。 |
+| 建立一个可跨窗口恢复的长期工作区 | [MALTS Long Project Workspace Init](skills/malts-long-project-workspace-init/SKILL.md)（`malts-long-project-workspace-init`） | 项目会持续多天或更多阶段，需要按 Phase 管理并支持中断续作。 | 建立按 Phase 组织的可恢复结构、阶段边界和恢复入口。 |
+| 为一段工作生成可继续的交接说明 | [MALTS Session Handoff](skills/session-handoff/SKILL.md)（`malts-session-handoff`） | 当前工作已经告一段落，下一次需要准确知道做到了哪里。 | 按需生成 `PROJECT_HANDOFF.md`，作为有依据的续接说明。 |
+| 审阅一次任务的经验并判断是否复用 | [MALTS Project Retrospective Growth](skills/project-retrospective-growth/SKILL.md)（`malts-project-retrospective-growth`） | 任务成功、失败或返工后，有值得复盘的经验。 | 给出基于证据的经验建议；写入长期规则仍需单独授权。 |
+| 普通任务完成后做一次轻量经验检查 | [MALTS Single-Agent Lightweight Growth](skills/single-agent-lightweight-growth/SKILL.md)（`malts-single-agent-lightweight-growth`） | 任务已经完成并验证，只想判断是否值得记录经验。 | 返回建议或无操作；不会自动创建长期规则。 |
+| 让多个 Agent 按分工完成一项复杂工作 | [MALTS Multi-Agent Long-Task Scheduling](skills/multi-agent-long-task-scheduling/SKILL.md)（`malts-multi-agent-long-task-scheduling`） | 一项复杂工作需要多个 Agent 分工，需要明确各自职责、资源和验证责任。 | 经过启动审阅、成本感知模型路由和用户确认的多 Agent 委派计划。 |
 
 ## 操作模型
 

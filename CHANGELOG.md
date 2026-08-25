@@ -7,6 +7,7 @@ All notable public changes to MALTS are documented here.
 ### Public documentation and release notes
 
 - Reorganize the README around a concise product introduction, documentation guide, problem statement, and a single catalog of the seven MALTS workflows.
+- Rewrite the README workflow catalog as a reader-oriented scenario path: each workflow now states what it is for, when to use it, and the result it provides, with explicit multi-Agent wording for the delegation path.
 - Add direct links from the README to system overview, getting started, usage, lifecycle, core design, installation, and update guidance in both English and Simplified Chinese.
 - Publish expanded bilingual release notes that describe the 1.5.0 workspace, recovery, delegation, compatibility, and verification changes.
 
