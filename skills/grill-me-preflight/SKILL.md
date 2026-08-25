@@ -61,4 +61,4 @@ Use this wording or an equivalent concise version:
 
 - Distinguish Phase boundaries from per-Attempt envelopes: a failed Attempt terminates only that Attempt, never auto-retries, and never auto-promotes Task/Phase terminal state.
 - Treat external side effects with typed observations and counted units; `UNKNOWN` dispatch/outcome/charge fails closed under finite hard bounds.
-- Confirm the migration choice is cold-only and explicit (`migrate-workspace-v3-to-v4`, `migrate-result-contract-v1-to-v2`); hot migration, downgrade, and silent migration are out of scope.
+- Confirm the migration choice is cold-only and explicit (`reorganize-workspace`, `reorganize-result-contract`); hot migration, downgrade, and silent migration are out of scope.

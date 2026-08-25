@@ -4,6 +4,10 @@
 
 MALTS 使用 handoff 文件，让长任务能在新窗口、中断或 Agent 更换后恢复。
 
+CURRENT workspace contract 中，handoff 是按需派生的 continuation view，不是 lifecycle authority，也不是每次日常启动的必读文件。Project、显式选择的 Phase 和显式 Session control 拥有被摘要的事实。先运行有界 `workspace-entry --task-class CONTEXT_RECOVERY`；只有用户要求或恢复决定认为有用时才读取/刷新 handoff。Staleness 属于 warning，使用精确 state/Phase hash 局部修复；`refresh-maintenance-views --include-existing-handoff` 会从当前 canonical control 重建已有 handoff，不继承旧投影正文、不创建缺失 handoff，已经是当前视图时重复刷新为 no-op。旧 workspace 在显式 CURRENT 重整前保留严格绑定兼容行为。
+
+Resource profile handoff 可以引用 Admission ID、locator/capability domain、lease/fencing 证据与 quarantine/reconcile 状态，但不得复制 coordination ledger，也不得暗示 prose 能授予写权限。外部副作用为 `UNKNOWN` 时，即使摘要乐观也仍保持隔离。
+
 ## 默认文件名
 
 Agent-facing 默认文件：
@@ -20,8 +24,8 @@ PROJECT_HANDOFF.md
 
 ## 规则
 
-- 先生成 Agent-facing handoff。
-- 中文镜像是可选用户-facing 文档。
+- Agent-facing handoff 使用用户或项目的主要叙述语言，同时保留稳定英文字段名和机器代码。
+- 翻译镜像只有在用户明确要求时才创建。
 - handoff 文件中不得写入 secrets、tokens、cookies、passwords、credentials、sensitive memory dumps 或 raw session logs。
 - 公开示例使用占位符。
 - 真实 handoff 文件属于用户项目工作区，不属于 MALTS release repository。
@@ -50,6 +54,6 @@ Active S3/S4 Phase 的交接必须包含 Phase-owned active plan path、revision
 
 ## Cross-Control Binding
 
-workspace schema v4 中，`WORK_TASK_REPORT.md` 是 required current projection。`PROJECT_HANDOFF.md` 仍然可选，但存在时，其 `current-phase-binding` section 必须绑定精确 active Phase control SHA-256、normalized boundary SHA-256、Boundary Review ID/SHA-256/mapping/recommendation 与 normalized Phase recovery SHA-256。写入 handoff 后重新运行 `validate`；recovery-sensitive delivery 还要用全新进程运行 `recover`，并要求它返回预期 typed canonical recovery source。
+workspace legacy workspace layout 中，`WORK_TASK_REPORT.md` 是 required current projection。`PROJECT_HANDOFF.md` 仍然可选，但存在时，其 `current-phase-binding` section 必须绑定精确 active Phase control SHA-256、normalized boundary SHA-256、Boundary Review ID/SHA-256/mapping/recommendation 与 normalized Phase recovery SHA-256。写入 handoff 后重新运行 `validate`；recovery-sensitive delivery 还要用全新进程运行 `recover`，并要求它返回预期 typed canonical recovery source。
 
 Handoff 是 projection，不是权限或 canonical Phase authority。它不得把成功 review command 转换成 semantic acceptance，不得从 prose 推断 authorization，不得选择最新历史 Session，也不得隐藏 incomplete workspace transaction。

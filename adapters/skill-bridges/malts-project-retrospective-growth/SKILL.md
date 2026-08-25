@@ -1,6 +1,6 @@
 ---
 name: malts-project-retrospective-growth
-description: "MALTS Project Retrospective Growth: distill reusable experience after completion, rework, correction, or verification failure."
+description: "MALTS Project Retrospective Growth: recommend or run evidence-based review after completion or rework."
 ---
 
 # MALTS Skill Bridge

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:malts:schema:resource-locator:1",
+  "title": "MALTS Typed Resource Locator",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "locator_id", "kind", "scope", "access", "value", "aliases"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "locator_id": {"$ref": "#/$defs/id"},
+    "kind": {"enum": ["PATH", "ARTIFACT", "RECORD", "SERVICE", "DEVICE", "ENVIRONMENT"]},
+    "scope": {"enum": ["WORKSPACE", "EXTERNAL", "GLOBAL"]},
+    "access": {"enum": ["READ", "WRITE"]},
+    "value": {"type": "string", "minLength": 1, "maxLength": 2048},
+    "aliases": {
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1, "maxLength": 2048}
+    },
+    "backing_paths": {
+      "type": "array",
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/backingPath"}
+    }
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "backingPath": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "value"],
+      "properties": {
+        "scope": {"enum": ["WORKSPACE", "EXTERNAL"]},
+        "value": {"type": "string", "minLength": 1, "maxLength": 2048}
+      }
+    }
+  }
+}

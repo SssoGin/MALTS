@@ -8,6 +8,20 @@ MALTS is not an autonomous background service. It is a set of Skills, templates,
 
 The main Agent remains responsible for the outcome. Sub-agents are optional and cannot be dispatched until the user confirms a complete launch review.
 
+## 1.1 Choose initialization or daily entry
+
+Use `malts-project-init` for explicit lightweight setup/instruction repair, and `malts-long-project-workspace-init` for first long-workspace initialization, structural recovery, explicit migration, or major lifecycle/profile change. Do not rerun either full initializer for every ordinary task.
+
+For an existing long workspace, run:
+
+```powershell
+python -B <MALTS_ROOT>\tools\long_workspace.py workspace-entry --workspace <WORKSPACE> --task-class LOW_RISK
+```
+
+Read only the returned current-set paths. Use `READ_ONLY` for read-only work, `WRITE_EXISTING_SCOPE` or `NEW_WRITE_SCOPE` for writes, `HIGH_RISK` for safety-sensitive work, and `CONTEXT_RECOVERY` after a window/context change. Escalate to boundary review, Plan Recheck, validation, or cold recovery only when the decision requires it. Repeated unchanged entry performs zero writes, loads no history, and creates no Phase, Session, Agent, Artifact, or coordination state.
+
+Fresh long workspaces default to CURRENT `single_phase`. Enable `resource_admission` only through an explicitly reviewed initialization/migration when multiple resource-governed `OPEN` Phases are actually needed; old workspaces remain on their existing schema/profile until explicitly migrated.
+
 ## 2. Choose an Installation Source
 
 Use the repository as the normal source. An Agent reads the repository, verifies `MALTS_RELEASE.json` and `VERSION`, and creates a review-only plan. It does not download a Release asset unless the user explicitly requests the optional offline archive.
@@ -65,9 +79,9 @@ Artifact lifecycle remains `NOT_ENROLLED` until a real need exists. Begin with r
 
 Run `validate` and `recover` after meaningful control changes. For S3/S4 work with an active plan, run the matching read-only Plan Recheck trigger at write-scope, recovery, failure/rollback, verifier, and final-delivery boundaries.
 
-Fresh long-project workspaces use schema v4. Existing schema v1/v2/v3 controls remain readable but are never silently rewritten. If `validate` reports migration or reconciliation required, review the exact reported command without `--apply` — `migrate-workspace-v3-to-v4`, `migrate-result-contract-v1-to-v2`, or the legacy `migrate-consistency-records` / `record-phase-boundary-review` / `reconcile-consistency-records` — bind the exact expected hashes, and apply only inside the current workspace authorization.
+Fresh long-project workspaces use CURRENT with default `single_phase`. Supported legacy workspace and Result layouts remain readable and are never silently rewritten. If `validate` reports that reorganization is required, review one direct `reorganize-workspace` or `reorganize-result-contract` dry run, bind every reported hash/review/authorization precondition, reuse one fixed timestamp, and apply only inside current workspace authorization. No intermediate layout or downgrade chain is exposed.
 
-Current recovery authority is deterministic: active Session checkpoint, otherwise active Phase recovery, otherwise an explicitly bound terminal Phase, otherwise Project recovery. A historical Session is never selected merely because it is newest. An incomplete workspace transaction keeps its lock/journal evidence until an exact-journal-hash `recover-workspace-transaction` review/apply succeeds.
+Current recovery authority is deterministic: active Session checkpoint, otherwise primary active Phase recovery, otherwise an explicitly bound terminal Phase, otherwise Project recovery. A historical Session is never selected merely because it is newest. Incomplete workspace/coordination transactions retain lock/journal evidence until exact-journal-hash `recover-workspace-transaction` succeeds.
 
 ## Next Reading
 

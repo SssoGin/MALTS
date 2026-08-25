@@ -9,7 +9,7 @@
     "opencode": "malts-session-handoff"
   },
   "display_name": "MALTS Session Handoff",
-  "short_description": "Write recoverable handoff context for continuation",
+  "short_description": "Write an on-demand derived continuation handoff",
   "triggers": ["write a handoff", "prepare continuation context", "capture a recovery checkpoint"],
   "applicability": {
     "task_types": ["handoff", "recovery", "context-transfer"],
@@ -18,11 +18,11 @@
     "contraindications": ["The user explicitly requested no handoff document."]
   },
   "inputs": ["current project state", "verified work", "remaining work", "recovery paths"],
-  "outputs": ["PROJECT_HANDOFF.md"],
+  "outputs": ["PROJECT_HANDOFF.md as a bounded derived continuation view in the narrative language with stable English fields and machine codes"],
   "risks": {
     "risk_class": "medium",
     "factors": ["write", "scripts"],
-    "forbidden_effects": ["Do not include secrets or stale version metadata."]
+    "forbidden_effects": ["Do not include secrets or stale version metadata.", "Do not treat a handoff as execution, ownership, lease, fencing, or recovery authority."]
   },
   "required_permissions": ["read-files", "write-project-files"],
   "dependencies": [],

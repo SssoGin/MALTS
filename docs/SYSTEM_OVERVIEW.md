@@ -8,6 +8,10 @@ MALTS is a portable workflow system for long-running coding tasks performed or a
 
 The system addresses a common operating problem: coding Agents can perform useful work, but longer tasks can lose goal context, skip evidence, mix unrelated changes, or become difficult to resume after a window change, interruption, or context compaction. MALTS converts that work from a transient conversation into a file-backed operating loop.
 
+MALTS does not require that operating loop to replay initialization on every task. An unchanged initialized workspace takes a bounded read-only entry path and loads only current authority/evidence; full history, deep validation, cold recovery, report refresh, and schema migration are explicit escalations. Project, Phase, Session, machine index, coordination state, and derived reports have separate ownership so one local maintenance difference does not become a second authority or global stop.
+
+Optional workspace concurrency is resource-based. The default remains a single open Phase with no coordination runtime. An explicitly enabled profile can admit disjoint Phase work against typed path, Artifact, logical record, service, device, and environment locators plus shared/exclusive/queued/isolation-required capabilities. Expiring leases and fencing reject stale executors; one writer and recoverable journals protect root state; uncertain external effects quarantine affected domains until explicit reconcile. This generic model applies to software repositories, documents, databases, CI/CD, build machines, editors, and devices without embedding product-specific rules in Core.
+
 ## 2. Problems Addressed
 
 | Problem class | Observed risk | MALTS response |
@@ -64,17 +68,17 @@ A root-only legacy workspace remains readable for diagnosis but validates as `NE
 
 ### Cross-Control Consistency And Typed Recovery
 
-Fresh long-project workspaces use schema v4. Exact schema v1/v2/v3 remain readable and migrate only through reviewed, explicit, hash-bound operations. The active Phase owns its Boundary Review and recovery records; an active Session owns its checkpoint; the required current report and an optional existing handoff bind exact current hashes. Runtime state remains non-canonical.
+Fresh long-project workspaces use CURRENT and default to `single_phase`; supported legacy layouts remain readable internal compatibility inputs and reach CURRENT only through reviewed, explicit, one-hop, hash-bound reorganization. Project, Phase, and explicit Session controls each own their own semantic facts. The workspace runtime owns machine contract/profile/index and transaction bindings; optional coordination runtime owns Admissions/fencing/quarantine. CURRENT report/handoff files are on-demand views, while legacy inputs retain strict projection bindings until reorganization.
 
-Validation separates structural, binding, deterministic-consistency, and advisory-semantic findings. Deterministic drift blocks cold recovery and ordinary lifecycle mutation. Recovery selects active Session checkpoint, active Phase recovery, explicitly bound terminal Phase, then Project recovery; it never guesses from the newest historical Session. Persisted workspace transactions use a namespace separate from Artifact transactions and retain interrupted evidence until exact-hash recovery succeeds.
+Validation separates structural, binding, deterministic-consistency, maintenance-warning, and advisory-semantic findings. Canonical/authorization/transaction/Admission/fencing/unknown-authority drift blocks affected work; derived-view drift warns and reconciles locally. Recovery selects active Session checkpoint, primary active Phase recovery, explicitly bound terminal Phase, then Project recovery; it never guesses from the newest historical Session. Workspace and coordination authority share one writer/transaction namespace and retain interrupted evidence until exact-hash recovery succeeds; Artifact transactions remain separate.
 
 ### Phase And Final Reporting
 
-`WORK_TASK_REPORT.md` records phase or final delivery information. It should include the result, changed files, verification evidence, known risks, and next steps. It is normally user-facing and can follow the user's project language.
+`WORK_TASK_REPORT.md` can present Phase or final delivery information when a durable report is requested or materially useful. Under CURRENT it is derived/non-authoritative and refreshed on demand; ordinary unchanged work does not rewrite it.
 
 ### Handoff And Continuation
 
-`PROJECT_HANDOFF.md` is the default Agent-facing continuation file. It should contain enough current context for another Agent or future window to resume without relying on hidden chat state.
+`PROJECT_HANDOFF.md` is an on-demand Agent-facing continuation view. A new window begins with bounded `workspace-entry`; the handoff is read/refreshed only when relevant and never replaces canonical controls.
 
 ### Verification Checklists
 
@@ -191,6 +195,10 @@ The v1.3.0 candidate upgrades the workspace schema to v4 and the Result Contract
 
 The v1.3.1 candidate fixes the v3-to-v4 workspace migration for workspaces with historical closed Sessions: closed Session registry rows are archived into the migration plan instead of failing v4 schema validation on missing lease fields, no lease/owner authority is fabricated, historical Session files remain byte-identical, and ACTIVE Session rows still block migration.
 
-## 16. Relationship To Detailed Design
+## 16. v1.5.0 CURRENT Workspace Governance And Efficient Entry
+
+MALTS 1.5.0 separates Phase milestone state from short-lived execution Admission. The default `single_phase` profile remains coordination-free, while the explicit `resource_admission` profile supports multiple resource-governed OPEN Phases through typed locators, capability policies, queues, leases, fencing, stale-executor rejection, and domain-scoped `UNKNOWN` reconciliation. Ordinary work enters through a bounded, read-only `workspace-entry`; full historical validation and cold recovery are reserved for real drift or recovery events. One-hop explicit reorganization maps supported legacy layouts directly to CURRENT without a user-visible migration chain or implicit lifecycle entities. User status rendering and delegated model recommendations are language-aware and cost-aware while preserving stable machine codes and fail-closed safety boundaries.
+
+## 17. Relationship To Detailed Design
 
 This overview explains what MALTS does and how a user should evaluate it. `docs/CORE_DESIGN.md` provides the detailed design baseline, operating commitments, task sizing model, project state model, multi-agent protocol, memory pipeline, and release boundaries.

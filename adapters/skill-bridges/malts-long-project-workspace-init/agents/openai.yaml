@@ -1,3 +1,3 @@
 interface:
   display_name: "MALTS Long Project Workspace Init"
-  short_description: "Manage phase and artifact lifecycle workspaces"
+  short_description: "Initialize, recover, and govern long workspaces"

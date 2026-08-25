@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:malts:schema:user-status-labels:current",
+  "title": "MALTS Current User Status Label Catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_id", "fallback_language", "supported_languages", "labels"],
+  "properties": {
+    "contract_id": {"const": "malts.user-status-labels.current"},
+    "fallback_language": {"const": "en"},
+    "supported_languages": {"const": ["en", "zh-CN"]},
+    "labels": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": {"$ref": "#/$defs/label"}
+    }
+  },
+  "$defs": {
+    "code": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{1,127}$"},
+    "label": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "en", "zh-CN"],
+      "properties": {
+        "code": {"$ref": "#/$defs/code"},
+        "en": {"type": "string", "minLength": 1, "maxLength": 160},
+        "zh-CN": {"type": "string", "minLength": 1, "maxLength": 160}
+      }
+    }
+  }
+}

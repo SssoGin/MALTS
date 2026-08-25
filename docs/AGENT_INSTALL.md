@@ -1,6 +1,6 @@
 # Agent-Assisted Installation
 
-This policy applies when an AI Agent helps a user verify, install, update, repair, recover, or uninstall MALTS.
+This policy applies when an AI Agent helps a user verify, install, update, repair, finalize, recover, or uninstall MALTS.
 
 ## Source Selection
 
@@ -28,11 +28,11 @@ The optional single ZIP is permitted only when the user explicitly chooses an of
 
 ## Authorization Boundary
 
-Reading a repository, validating identity, inspecting a ZIP, or creating a review plan is not authorization to install. Installation, update, repair, recovery, uninstall, deletion, configuration change, Git mutation, and remote publication each require the user to authorize the concrete action in scope.
+Reading a repository, validating identity, inspecting a ZIP, or creating a review plan is not authorization to install. Installation, update, repair, finalize, recovery, uninstall, deletion, configuration change, Git mutation, and remote publication each require the user to authorize the concrete action in scope. A `finalize` plan must enumerate its exact retiring target and same-series cleanup paths; it may not be used to delete other versions.
 
 Do not substitute a newer repository or Release package after the plan is shown. Source drift invalidates the plan and requires a new review.
 
-## Verify The v1.3.1 Capability Projection
+## Verify The v1.5.0 Capability Projection
 
 After install, use a fresh process for each selected tool and verify that `malts-long-project-workspace-init` resolves through the tool-adjacent boot to the canonical Skill. Its capability/bridge description must include Phase and Artifact lifecycle rather than initialization only.
 

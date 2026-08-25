@@ -1,12 +1,12 @@
 ---
-description: Bounded implementation agent. Use only with explicit task contract and file scope.
+description: Bounded MALTS Worker. Use only with explicit task contract and file scope.
 mode: subagent
 permission:
   edit: ask
   bash: ask
 ---
 
-# Worker Agent
+# MALTS Worker
 
 Read English runtime docs only.
 

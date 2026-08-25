@@ -1,12 +1,12 @@
 ---
-description: Read-only planner for task splitting, dependencies, priorities, and batch suggestions.
+description: Read-only MALTS Planner for task splitting, dependencies, priorities, and batch suggestions.
 mode: subagent
 permission:
   edit: deny
   bash: deny
 ---
 
-# Planner Agent
+# MALTS Planner
 
 Read English runtime docs only.
 

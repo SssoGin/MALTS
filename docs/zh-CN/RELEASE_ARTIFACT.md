@@ -22,14 +22,14 @@ GitHub 还可能显示自动生成的 `Source code (zip)` 与 `Source code (tar.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Verify-MALTSBootstrap.ps1 `
-  -ArchivePath .\MALTS-1.3.1.zip
+  -ArchivePath .\MALTS-1.5.0.zip
 ```
 
 验证并解出到新位置：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Verify-MALTSBootstrap.ps1 `
-  -ArchivePath .\MALTS-1.3.1.zip `
+  -ArchivePath .\MALTS-1.5.0.zip `
   -ExtractOutput <EXTRACTED_RELEASE_ROOT> `
   -Apply
 ```

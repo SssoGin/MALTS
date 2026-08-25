@@ -8,6 +8,10 @@
 
 MALTS 是面向由 AI agents 执行或辅助的长期编码任务的可移植 workflow system。它的目的，是让 Agent 工作在有界执行轮次之间保持可恢复、可验证、可交接。
 
+MALTS 不要求每个任务都重放初始化流程。已初始化且状态未变化的工作区走有界只读 entry，只加载当前 authority/evidence；完整历史、deep validation、cold recovery、report refresh 与 schema migration 都是显式升级。Project、Phase、Session、机器索引、coordination state 与派生报告具有不同归属，因此局部维护性差异不会变成第二权威或全局停机。
+
+可选 workspace 并发按资源治理。默认仍是单 open Phase 且没有 coordination runtime。显式启用的 profile 可依据 typed path、Artifact、logical record、service、device、environment locator，以及 shared/exclusive/queued/isolation-required capability 接纳不相交 Phase 工作。可过期 lease 与 fencing 拒绝 stale executor；唯一写者与可恢复 journal 保护根状态；不确定外部副作用隔离受影响 domain，直到显式 reconcile。该通用模型适用于软件仓库、文档、数据库、CI/CD、build machine、editor 与 device，Core 不嵌入产品专项规则。
+
 系统针对的操作问题是：coding Agents 可以完成有价值的工作，但较长任务容易丢失目标上下文、跳过证据、混入无关修改，或在窗口切换、中断、上下文压缩后难以恢复。MALTS 将这类工作从短暂对话转换为 file-backed operating loop。
 
 ## 2. 解决的问题
@@ -66,17 +70,17 @@ delivery loop 保持工作与用户目标一致。scheduling loop 让长期任�
 
 ### Cross-Control Consistency 与 Typed Recovery
 
-全新 long-project workspace 使用 schema v4。精确 schema v1/v2/v3 保持可读，只能通过已审阅、显式、hash-bound operation 迁移。Active Phase 拥有 Boundary Review 与 recovery record；active Session 拥有 checkpoint；required current report 与 optional existing handoff 绑定精确 current hash。Runtime state 保持 non-canonical。
+全新 long-project workspace 使用 CURRENT，默认 `single_phase`；受支持的旧布局作为内部兼容输入保持可读，只能通过已审阅、显式、一步、hash-bound 重整到达 CURRENT。Project、Phase 与显式 Session control 各自拥有本层 semantic fact。Workspace runtime 拥有机器 contract/profile/index 与 transaction binding；可选 coordination runtime 拥有 Admission/fencing/quarantine。CURRENT report/handoff 是按需 view，旧输入在重整前保留严格 projection binding。
 
-Validation 分层报告 structural、binding、deterministic-consistency 与 advisory-semantic finding。Deterministic drift 会阻断 cold recovery 和普通 lifecycle mutation。Recovery 依次选择 active Session checkpoint、active Phase recovery、显式绑定 terminal Phase、Project recovery，绝不从最新历史 Session 猜测。Persisted workspace transaction 使用与 Artifact transaction 分离的 namespace，并保留 interrupted evidence，直到 exact-hash recovery 成功。
+Validation 分层报告 structural、binding、deterministic-consistency、maintenance-warning 与 advisory-semantic finding。Canonical/authorization/transaction/Admission/fencing/unknown-authority drift 阻断受影响工作；derived-view drift 产生 warning 并局部 reconcile。Recovery 依次选择 active Session checkpoint、primary active Phase recovery、显式绑定 terminal Phase、Project recovery，绝不从最新历史 Session 猜测。Workspace/coordination authority 共享唯一 writer/transaction namespace，并保留 interrupted evidence 直到 exact-hash recovery 成功；Artifact transaction 仍独立。
 
 ### 阶段和最终报告
 
-`WORK_TASK_REPORT.md` 记录阶段或最终交付信息。它应包含结果、改动文件、验证证据、已知风险和下一步。它通常面向用户，并可使用用户或项目语言。
+只有用户请求 durable report 或确有材料价值时，`WORK_TASK_REPORT.md` 才呈现阶段/最终交付信息。CURRENT 中它是 derived/non-authoritative 且按需刷新；无变化普通工作不重写它。
 
 ### 交接与继续
 
-`PROJECT_HANDOFF.md` 是默认 Agent-facing continuation file。它应包含足够当前上下文，使另一个 Agent 或未来窗口无需依赖隐藏 chat state 即可继续。
+`PROJECT_HANDOFF.md` 是按需 Agent-facing continuation view。新窗口先运行有界 `workspace-entry`；只有相关时才读取/刷新 handoff，且它绝不替代 canonical control。
 
 ### 验证清单
 
@@ -194,6 +198,10 @@ v1.3.0 candidate 将 workspace schema 升级到 v4、Result Contract 升级到 v
 
 v1.3.1 candidate 修复含历史已关闭 Session 的工作区 v3→v4 迁移：已关闭的 Session registry 行被归档进迁移计划，不再因缺少 lease 字段而 v4 schema 校验失败；不伪造 lease/owner 权威，历史 Session 文件保持字节不变，ACTIVE Session 行仍然阻断迁移。
 
-## 16. 与详细设计的关系
+## 16. v1.5.0 CURRENT 工作区治理与高效进入
+
+MALTS 1.5.0 将 Phase 里程碑状态与短期执行 Admission 分离。默认 `single_phase` 不产生协调负担；显式 `resource_admission` 通过 typed locator、能力策略、队列、lease、fencing、陈旧执行者拒绝和资源域级 `UNKNOWN` reconcile 支持多个受治理 OPEN Phase。普通任务通过有界、只读的 `workspace-entry` 进入；只有真实漂移或恢复事件才运行完整历史校验和冷恢复。一步显式重整把受支持旧布局直接整理到 CURRENT，不暴露连续迁移链，也不隐式创建生命周期实体。用户状态呈现与子 Agent 模型推荐同时考虑语言和成本，并保留稳定机器代码与 fail-closed 安全边界。
+
+## 17. 与详细设计的关系
 
 本文说明 MALTS 做什么，以及用户如何评估它。[核心设计](CORE_DESIGN.md) 提供详细 design baseline、operating commitments、task sizing model、project state model、multi-agent protocol、memory pipeline 和 release boundaries。

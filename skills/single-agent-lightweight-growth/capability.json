@@ -9,22 +9,47 @@
     "opencode": "malts-single-agent-lightweight-growth"
   },
   "display_name": "MALTS Single-Agent Lightweight Growth",
-  "short_description": "Record lightweight lessons during single-agent work",
-  "triggers": ["record a lightweight growth signal", "capture a reusable single-agent lesson", "maintain project growth evidence"],
+  "short_description": "Default no-write Growth check after task verification",
+  "triggers": ["finalize a normal single-agent task", "user corrected the agent", "verification reversed a conclusion", "a failure, rework, recovery, or reusable method was observed", "record an authorized project-local growth candidate"],
   "applicability": {
-    "task_types": ["growth-signal", "single-agent-learning", "project-memory"],
+    "task_types": ["growth-routing-l1", "growth-signal", "single-agent-learning", "project-memory"],
     "modes": ["single-agent", "review-only"],
     "conditions": ["A concrete useful check, failure, correction, or reusable practice was observed."],
     "contraindications": ["The observation contains secrets or lacks concrete evidence."]
   },
   "inputs": ["observed event", "fact evidence", "authorized project-local destination"],
-  "outputs": ["L1 analysis", "authorized L2 project-local growth record", "separate L3 proposal"],
+  "outputs": ["L1 in-memory analysis", "authorized L2 project-local growth record only for a real signal", "separate L3 proposal"],
   "risks": {
-    "risk_class": "medium",
-    "factors": ["write"],
-    "forbidden_effects": ["Do not persist L1 analysis.", "Do not write L2 without exact authorization.", "Do not perform L3 writes without separate confirmation."]
+    "risk_class": "low",
+    "factors": [],
+    "forbidden_effects": ["Do not persist L1 analysis.", "Do not write L2 without exact authorization.", "Do not update reports or controls when no meaningful signal or state change occurred.", "Do not perform L3 writes without separate confirmation."]
   },
-  "required_permissions": ["read-files", "write-project-files"],
+  "required_permissions": ["read-files"],
+  "permission_routes": {
+    "baseline": {
+      "route_id": "L1",
+      "required_permissions": ["read-files"],
+      "durable_write": false,
+      "requires_confirmation": false,
+      "description": "In-context final-delivery classification only; no durable write."
+    },
+    "conditional": [
+      {
+        "route_id": "L2",
+        "required_permissions": ["read-files", "write-project-files"],
+        "durable_write": true,
+        "requires_confirmation": true,
+        "description": "Project-local candidate maintenance requires exact project authorization."
+      },
+      {
+        "route_id": "L3",
+        "required_permissions": ["read-files", "write-global-state"],
+        "durable_write": true,
+        "requires_confirmation": true,
+        "description": "System promotion requires a separate explicit confirmation."
+      }
+    ]
+  },
   "dependencies": [],
   "supported_tools": ["codex", "claude-code", "opencode"],
   "package_variants": ["local", "public"],

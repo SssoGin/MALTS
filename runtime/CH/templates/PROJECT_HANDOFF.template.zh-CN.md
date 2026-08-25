@@ -1,7 +1,17 @@
 ﻿# 项目交接
 
-> 用途：canonical continuation and recovery handoff。
-> 语言策略：顶部保留简短 English Agent Brief，便于 Agent 扫描；其余内容使用用户或项目主要语言。除非用户明确要求，不生成完整翻译镜像。
+> 用途：按需生成的 continuation/recovery 视图。它不是授权或 lifecycle authority。CURRENT contract 中它是 derived/non-authoritative；canonical Project/Phase/Session control 仍是事实拥有者。
+> 语言策略：Agent Brief 与叙述使用用户或项目主要语言，同时保留稳定的英文字段名和机器状态代码。除非用户明确要求，不生成完整翻译镜像。
+
+<!-- MALTS:section=maintenance-view-metadata -->
+## Maintenance View Metadata
+
+- Authority class: `DERIVED_NON_AUTHORITATIVE`
+- Refresh policy: `ON_DEMAND_EXISTING_ONLY`
+- Drift policy: `WARNING_ONLY` in CURRENT contract / strict compatibility binding in legacy workspace layout
+- History load policy: `CURRENT_SET_ONLY`
+- Bound workspace state SHA-256: `N/A`
+- Bound Phase control SHA-256: `N/A`
 
 ## Agent Brief
 

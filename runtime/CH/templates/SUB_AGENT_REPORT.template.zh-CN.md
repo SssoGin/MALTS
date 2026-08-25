@@ -32,6 +32,17 @@
 - 范围外发现：
 - 是否发生禁止修改：Yes / No
 
+## Resource Admission Evidence
+
+- Governance profile：`single_phase` / `resource_admission` / N/A
+- Admission ID / Phase-control SHA-256 / actor ID：
+- 实际使用的 typed locator/capability domain：
+- 已核验 lease expiry 与 fencing epoch：
+- Admission verification 结果与证据：
+- Release/queue/reconcile 结果：
+- 外部副作用：`KNOWN_APPLIED` / `KNOWN_NOT_APPLIED` / `UNKNOWN` / N/A
+- Quarantine ID 与 affected scope（如有）：
+
 ## 修改内容
 
 | 文件 / 资源 | 修改类型 | 摘要 | 原因 |
@@ -47,6 +58,7 @@
 - 验证失败：
 - 未验证：
 - 未验证原因：
+- stale executor/fencing 与 `UNKNOWN` reconcile 检查（如适用）：
 - 运行时 / provider 行为测试状态：behavior_verified / integration_verified / discovery_verified / provider_unconfigured / runtime_unsupported / not_run
 - G4 runtime/provider gate：PASS / FAIL / NOT RUN
 

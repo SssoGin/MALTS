@@ -32,6 +32,17 @@
 - Out-of-scope findings:
 - Any prohibited modification: Yes / No
 
+## Resource Admission Evidence
+
+- Governance profile: `single_phase` / `resource_admission` / N/A
+- Admission ID / Phase-control SHA-256 / actor ID:
+- Typed locator/capability domains actually used:
+- Verified lease expiry and fencing epochs:
+- Admission verification result and evidence:
+- Release/queue/reconcile result:
+- External side effect: `KNOWN_APPLIED` / `KNOWN_NOT_APPLIED` / `UNKNOWN` / N/A
+- Quarantine ID and affected scope, if any:
+
 ## Changes
 
 | File / Resource | Change Type | Summary | Reason |
@@ -47,6 +58,7 @@
 - Failed verification:
 - Not verified:
 - Why not verified:
+- Stale executor/fencing and `UNKNOWN` reconcile checks, if applicable:
 - Runtime/provider behavior test state: behavior_verified / integration_verified / discovery_verified / provider_unconfigured / runtime_unsupported / not_run
 - G4 runtime/provider gate: PASS / FAIL / NOT RUN
 

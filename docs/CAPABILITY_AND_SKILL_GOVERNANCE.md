@@ -43,7 +43,7 @@ The v1.0 target separates five concerns:
 2. Registry metadata: identity, provenance, compatibility, risk, exposure, and lifecycle.
 3. Tool projection: native discovery entries or overlays required by a target tool.
 4. Advisory Router: an explainable recommendation over registered capabilities.
-5. Transactional manager: the separately gated journaled install/update/repair/uninstall layer for verified MALTS release content.
+5. Transactional manager: the separately gated journaled install/update/repair/finalize/uninstall layer for verified MALTS release content. `finalize` is an explicit same-release-series reissue transaction, not a third-party Skill cleanup mechanism.
 
 The layers were delivered in that order. W3 implemented the Registry/Resolver source components and an isolated native-projection precondition; W6/G3 later activated the verified transactional lifecycle for MALTS-owned content. The Router remains advisory, and neither layer authorizes third-party Skill lifecycle management.
 

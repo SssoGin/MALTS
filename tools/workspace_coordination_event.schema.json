@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:malts:schema:workspace-coordination-event:1",
+  "title": "MALTS Workspace Coordination Event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_version", "sequence", "event_id", "operation_id", "workspace_id", "event_kind", "recorded_at",
+    "actor", "phase_id", "admission_id", "previous_event", "coordination_preimage_sha256",
+    "revision_before", "revision_after", "request_sha256", "plan_sha256", "outcome", "details", "evidence_refs"
+  ],
+  "properties": {
+    "event_version": {"const": 1}, "sequence": {"type": "integer", "minimum": 1},
+    "event_id": {"$ref": "#/$defs/id"}, "operation_id": {"$ref": "#/$defs/id"}, "workspace_id": {"$ref": "#/$defs/id"},
+    "event_kind": {"enum": ["ADMISSION_GRANTED", "ADMISSION_QUEUED", "ADMISSION_RENEWED", "ADMISSION_RELEASED", "LEASES_EXPIRED", "EXTERNAL_SIDE_EFFECT_UNKNOWN", "QUARANTINE_RECONCILED"]},
+    "recorded_at": {"type": "string", "format": "date-time"}, "actor": {"$ref": "#/$defs/actor"},
+    "phase_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "admission_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "previous_event": {
+      "type": ["object", "null"], "additionalProperties": false, "required": ["sequence", "event_id", "path", "sha256"],
+      "properties": {
+        "sequence": {"type": "integer", "minimum": 1}, "event_id": {"$ref": "#/$defs/id"},
+        "path": {"type": "string", "pattern": "^runtime[/\\\\]workspace_coordination_events[/\\\\][A-Za-z0-9][A-Za-z0-9._-]{0,127}\\.json$"},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "coordination_preimage_sha256": {"$ref": "#/$defs/sha256"},
+    "revision_before": {"type": "integer", "minimum": 0}, "revision_after": {"type": "integer", "minimum": 1},
+    "request_sha256": {"$ref": "#/$defs/sha256"}, "plan_sha256": {"$ref": "#/$defs/sha256"}, "outcome": {"type": "string", "minLength": 1},
+    "details": {"$ref": "#/$defs/eventDetails"},
+    "evidence_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "sha256": {"type": "string", "pattern": "^[A-F0-9]{64}$"},
+    "actor": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "id"],
+      "properties": {"kind": {"enum": ["MAIN_CONTROLLER", "DELEGATED_AGENT", "TOOL_ADAPTER", "SYSTEM_RECOVERY"]}, "id": {"$ref": "#/$defs/id"}}
+    },
+    "fencingToken": {
+      "type": "object", "additionalProperties": false, "required": ["domain_id", "epoch"],
+      "properties": {"domain_id": {"$ref": "#/$defs/id"}, "epoch": {"type": "integer", "minimum": 1}}
+    },
+    "conflict": {
+      "type": "object", "additionalProperties": false,
+      "required": ["conflict_class", "held_admission_id", "requested_id", "held_id", "relationship"],
+      "properties": {
+        "conflict_class": {"enum": ["LOCATOR", "CAPABILITY", "QUARANTINE", "WORKSPACE_QUARANTINE", "QUEUE_ORDER"]},
+        "held_admission_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+        "requested_id": {"type": "string", "minLength": 1}, "held_id": {"type": "string", "minLength": 1},
+        "relationship": {"type": "string", "minLength": 1}
+      }
+    },
+    "eventDetails": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "admission_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+        "conflicts": {"type": "array", "items": {"$ref": "#/$defs/conflict"}},
+        "fencing_tokens": {"type": "array", "items": {"$ref": "#/$defs/fencingToken"}},
+        "previous_expires_at": {"type": "string", "format": "date-time"},
+        "expires_at": {"type": "string", "format": "date-time"},
+        "released_tokens": {"type": "array", "items": {"$ref": "#/$defs/fencingToken"}},
+        "expired_admission_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "quarantine_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "affected_scope": {"enum": ["RESOURCE_DOMAINS", "WORKSPACE_AUTHORITY"]},
+        "quarantine_id": {"$ref": "#/$defs/id"},
+        "resolution": {"enum": ["CONFIRMED_APPLIED", "CONFIRMED_NOT_APPLIED", "ISOLATED_TERMINATED"]},
+        "authorization_ref": {"type": "string", "minLength": 1}
+      }
+    },
+    "eventBinding": {
+      "type": "object", "additionalProperties": false, "required": ["sequence", "event_id", "path", "sha256"],
+      "properties": {
+        "sequence": {"type": "integer", "minimum": 1}, "event_id": {"$ref": "#/$defs/id"},
+        "path": {"type": "string", "pattern": "^runtime[/\\\\]workspace_coordination_events[/\\\\][A-Za-z0-9][A-Za-z0-9._-]{0,127}\\.json$"},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}

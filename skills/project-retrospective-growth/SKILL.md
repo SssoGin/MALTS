@@ -51,6 +51,10 @@ Use after:
 - Delivery failure.
 - Explicit user request for retrospective or skill growth.
 
+## Routing Boundary
+
+The lightweight Growth Routing Gate may proactively recommend this Skill after repeated/high-impact evidence, Phase delivery, or long-task completion. A recommendation is not execution and creates no durable record. When the user explicitly requests a read-only retrospective, perform the analysis without asking again whether to use this Skill. Project-local writes still require exact L2 authorization; global/canonical promotion still requires separate L3 confirmation.
+
 Output:
 
 - Fact reconstruction.
@@ -227,4 +231,3 @@ Minimum criteria:
 - [ ] High-risk candidates have independent or negative/counterexample evidence.
 - [ ] Harmful evidence is challenged and severe evidence is suspended.
 - [ ] L1/L2/L3 authorization is recorded and no lower level is treated as higher-level authority.
-

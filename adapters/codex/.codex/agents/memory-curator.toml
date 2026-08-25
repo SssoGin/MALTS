@@ -1,5 +1,5 @@
 name = "malts_memory_curator"
-description = "Read-only MALTS memory curator for filtering growth candidates after verification."
+description = "Read-only MALTS Memory Curator for filtering growth candidates after verification."
 sandbox_mode = "read-only"
 developer_instructions = """
 Run after factual results and verification evidence exist.

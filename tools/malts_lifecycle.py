@@ -2,7 +2,7 @@
 """Transactional MALTS v1 lifecycle engine.
 
 The engine consumes a verified closed release root, produces a hash-bound plan,
-and applies install/update/repair/uninstall through a journaled state machine.
+and applies install/update/repair/finalize/uninstall through a journaled state machine.
 All mutation commands require an explicit apply flag at the CLI boundary.
 """
 
@@ -2553,6 +2553,7 @@ def _current_generation_records(root: Path, registry: dict[str, Any] | None, ope
         if generation["generation_id"] == target_generation_id:
             continue
         path = Path(generation["root"])
+        retained_for_rollback = operation != "uninstall"
         records.append(
             {
                 "schema_version": 1,
@@ -2562,11 +2563,11 @@ def _current_generation_records(root: Path, registry: dict[str, Any] | None, ope
                 "locator": str(path),
                 "source_generation": generation["version"],
                 "retire_version": "1.0.0",
-                "action": "delete",
+                "action": "preserve" if retained_for_rollback else "delete",
                 "ownership_evidence_refs": [f"registry:{generation['generation_id']}", f"sha256:{_path_digest(path)}"],
                 "user_decision_ref": None,
-                "preserve_reason": None,
-                "evidence_refs": ["lifecycle:planned-cleanup"],
+                "preserve_reason": "retained-generation-for-explicit-rollback" if retained_for_rollback else None,
+                "evidence_refs": ["lifecycle:rollback-retention" if retained_for_rollback else "lifecycle:planned-cleanup"],
             }
         )
     return records
@@ -2628,6 +2629,8 @@ def _same_generation_disposition(
     ]
 
     if active is None or active["generation_id"] != target_id:
+        if operation == "finalize" and target.exists() and registered and all(item["state"] == "retiring" for item in registered):
+            return "EXECUTE"
         if target.exists() or registered:
             raise LifecycleError(
                 "TX_GENERATION_COLLISION",
@@ -2692,7 +2695,7 @@ def _operation_actions(context_hash: str, context: dict[str, Any], operation: st
         {"action_id": "ACT-STAGE", "kind": "copy" if operation != "uninstall" else "verify", "target": context["staging_root"], "dependencies": ["ACT-CONTEXT"], "destructive": False},
         {"action_id": "ACT-SNAPSHOT", "kind": "copy", "target": context["snapshot_root"], "dependencies": ["ACT-STAGE"], "destructive": False},
         {"action_id": "ACT-PREVALIDATE", "kind": "verify", "target": context["lifecycle_root"], "dependencies": ["ACT-SNAPSHOT"], "destructive": False},
-        {"action_id": "ACT-ACTIVATE", "kind": "activate", "target": context.get("generation_root") or context["lifecycle_root"], "dependencies": ["ACT-PREVALIDATE"], "destructive": operation in {"update", "repair", "uninstall"}},
+        {"action_id": "ACT-ACTIVATE", "kind": "activate", "target": context.get("generation_root") or context["lifecycle_root"], "dependencies": ["ACT-PREVALIDATE"], "destructive": operation in {"update", "repair", "finalize", "uninstall"}},
     ]
     previous = "ACT-ACTIVATE"
     if context["global_boot"]["mode"] == "refresh":
@@ -2832,7 +2835,7 @@ def _make_plan_resolved(
     allow_preview: bool = False,
     preview_contract: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    if operation not in {"install", "update", "repair", "uninstall"}:
+    if operation not in {"install", "update", "repair", "finalize", "uninstall"}:
         raise LifecycleError("TX_OPERATION", "Unsupported lifecycle operation.")
     now = _now(created_at)
     operation_id = operation_id or f"OP-{uuid.uuid4().hex[:12].upper()}"
@@ -2933,10 +2936,12 @@ def _make_plan_resolved(
         detected_generation = "none"
     if operation == "install" and detected_generation == "v1":
         raise LifecycleError("TX_ALREADY_INSTALLED", "Use update or repair for an existing v1 installation.")
-    if operation in {"update", "repair", "uninstall"} and detected_generation == "none":
+    if operation in {"update", "repair", "finalize", "uninstall"} and detected_generation == "none":
         raise LifecycleError("TX_NOT_INSTALLED", f"Cannot {operation} an uninstalled target.")
     if operation == "repair" and detected_generation != "v1":
         raise LifecycleError("TX_REPAIR_GENERATION", "Repair requires an active v1 generation; use update for a legacy installation.")
+    if operation == "finalize" and detected_generation != "v1":
+        raise LifecycleError("TX_FINALIZE_GENERATION", "Finalize requires an installed v1 generation.")
     global_boot = _global_boot_context(root)
     plan_disposition = "EXECUTE"
     if artifact is not None:
@@ -3043,6 +3048,17 @@ def _make_plan_resolved(
     for record in residue_records:
         _validate_contract("residue-tombstone", record)
     expected_cleanup = sorted({record["locator"] for record in residue_records if record["action"] == "delete"}, key=str.casefold)
+    if operation == "finalize":
+        assert target_version is not None and registry is not None
+        series = ".".join(target_version.split(".")[:2])
+        retiring = [
+            str(Path(item["root"]))
+            for item in registry["generations"]
+            if item["generation_id"] != target_generation_id
+            and item["version"].startswith(series + ".")
+            and item["state"] in {"active", "retiring"}
+        ]
+        expected_cleanup = sorted({*expected_cleanup, *retiring}, key=str.casefold)
     if plan_disposition == "NO_OP" and expected_cleanup:
         raise LifecycleError(
             "TX_GENERATION_REPAIR_REQUIRED",
@@ -3808,7 +3824,7 @@ def _activate(root: Path, artifact: dict[str, Any] | None, context: dict[str, An
     generations_root = root / "generations"
     generations_root.mkdir(parents=True, exist_ok=True)
     if target.exists():
-        if operation != "repair":
+        if operation not in {"repair", "finalize"}:
             raise LifecycleError(
                 "TX_GENERATION_COLLISION",
                 "Refusing to overwrite an existing generation outside an explicit repair transaction.",
@@ -3833,7 +3849,9 @@ def _activate(root: Path, artifact: dict[str, Any] | None, context: dict[str, An
         "projection_manifests": [f"projection:{tool}:{context['target_generation_id']}" for tool in context["selected_tools"]],
         "created_at": _now(),
     }
-    registry["generations"] = [new_record] if context.get("identity_contract_version") == 1 else [*old_records, new_record]
+    # Stable updates retain prior immutable generations as retiring records so
+    # rollback remains an explicit, verifiable operation rather than a claim.
+    registry["generations"] = [*old_records, new_record]
     registry["active_generation_id"] = context["target_generation_id"]
     registry["lifecycle_state"] = "transaction-active"
     registry["release_binding_profile"] = "release-package-v1"
@@ -3904,7 +3922,15 @@ def _obsolete_generation_references(root: Path, context: dict[str, Any]) -> list
 def _assert_obsolete_generations_unreferenced(root: Path, context: dict[str, Any]) -> None:
     if context.get("identity_contract_version") != 1:
         return
-    references = _obsolete_generation_references(root, context)
+    cleanup_targets = {os.path.normcase(str(_absolute(item))) for item in context.get("expected_cleanup", [])}
+    bindings = [
+        item for item in context.get("obsolete_generation_bindings", [])
+        if os.path.normcase(str(_absolute(item["root"]))) in cleanup_targets
+    ]
+    if not bindings:
+        return
+    scoped_context = {**context, "obsolete_generation_bindings": bindings}
+    references = _obsolete_generation_references(root, scoped_context)
     if references:
         first = references[0]
         raise LifecycleError(
@@ -3945,7 +3971,11 @@ def _cleanup_records(context: dict[str, Any]) -> dict[str, Any]:
 
 
 def _clean(root: Path, context: dict[str, Any], operation: str, transaction_root: Path) -> dict[str, Any]:
-    _assert_obsolete_generations_unreferenced(root, context)
+    # Finalization intentionally removes retiring records from the registry in
+    # this function.  Scanning before that removal would find those records
+    # themselves and falsely block an otherwise safe cleanup.
+    if operation != "finalize":
+        _assert_obsolete_generations_unreferenced(root, context)
     registry = _load_registry(root) or _initial_registry(root, _now(), context["selected_tools"])
     active_id = registry["active_generation_id"]
     if operation == "uninstall":
@@ -3955,14 +3985,24 @@ def _clean(root: Path, context: dict[str, Any], operation: str, transaction_root
                 _remove_managed(root / "generations", path)
         registry["generations"] = []
         registry["lifecycle_state"] = "uninstalled"
-    else:
-        for item in list(registry["generations"]):
-            if item["generation_id"] == active_id:
-                continue
-            path = Path(item["root"])
-            if path.exists():
+    elif operation == "finalize":
+        retiring = {os.path.normcase(str(_absolute(path))) for path in context["expected_cleanup"]}
+        registry["generations"] = [
+            item for item in registry["generations"]
+            if os.path.normcase(str(_absolute(item["root"]))) not in retiring
+        ]
+        write_json(_registry_path(root), registry)
+        _assert_obsolete_generations_unreferenced(root, context)
+        for raw_path in context["expected_cleanup"]:
+            path = Path(raw_path)
+            if path.parent == root / "generations" and path.exists():
                 _remove_managed(root / "generations", path)
-        registry["generations"] = [item for item in registry["generations"] if item["generation_id"] == active_id]
+    else:
+        # Keep retiring immutable generations registered and on disk.  A later
+        # explicit update selects one as its target to perform a rollback.
+        # Retention cleanup belongs only to an explicit uninstall policy.
+        if not any(item["generation_id"] == active_id for item in registry["generations"]):
+            raise LifecycleError("TX_ACTIVE_GENERATION_MISSING", "The active generation is absent from the installation registry.")
     registry["updated_at"] = _now()
     write_json(_registry_path(root), registry)
     result = _cleanup_records(context)
@@ -4855,7 +4895,7 @@ def _record_audit_outcome(
     operation_id = plan.get("operation_id")
     if not isinstance(operation_id, str) or not ID_PATTERN.fullmatch(operation_id):
         raise LifecycleError("TX_AUDIT_OPERATION", "Audit outcome requires a valid operation_id.")
-    if plan.get("operation") not in {"install", "update", "repair", "uninstall"} or not HASH_PATTERN.fullmatch(str(plan.get("plan_hash", ""))):
+    if plan.get("operation") not in {"install", "update", "repair", "finalize", "uninstall"} or not HASH_PATTERN.fullmatch(str(plan.get("plan_hash", ""))):
         raise LifecycleError("TX_AUDIT_OPERATION", "Audit outcome requires a valid operation and plan hash.")
     root = _absolute(root_value)
     audit = root / AUDIT_RELATIVE
@@ -4897,7 +4937,7 @@ def _record_audit_outcome(
         if current_path.exists():
             current = _load_audit_record(current_path, "current-binding")
             _remove_exact_audit_file(audit, current_path, file_sha256(current_path))
-    elif outcome in {"SUCCESS", "RECOVERED"} and active is not None:
+    elif outcome == "SUCCESS" and active is not None:
         assert active_binding_sha256 is not None
         current_operation = plan["operation"] if plan["operation"] != "uninstall" else "repair"
         current = _make_audit_record(
@@ -4914,6 +4954,29 @@ def _record_audit_outcome(
             ),
         )
         _replace_current_audit_record(current_path, current)
+    elif outcome == "RECOVERED" and active is not None:
+        if current_path.is_file():
+            current = _load_audit_record(current_path, "current-binding")
+            if (
+                current["details"]["generation_id"] != active["generation_id"]
+                or current["details"]["binding_sha256"] != active_binding_sha256
+            ):
+                raise LifecycleError("TX_AUDIT_RECOVERY_CURRENT_BINDING", "Rollback current binding receipt does not match the restored active generation.", str(current_path))
+        else:
+            repaired = _make_audit_record(
+                record_type="current-binding",
+                record_id=f"AUDIT-CURRENT-RECOVERY-{operation_id}",
+                created_at=timestamp,
+                operation_id=operation_id,
+                operation="repair",
+                outcome="ACTIVE",
+                details=_audit_details(
+                    plan_hash=plan["plan_hash"],
+                    generation_id=active["generation_id"],
+                    binding_sha256=active_binding_sha256,
+                ),
+            )
+            _replace_current_audit_record(current_path, repaired)
     if fault_at == "AUDIT_PRUNE":
         raise InjectedCrash("AUDIT_PRUNE")
 
@@ -5137,7 +5200,7 @@ def scan_residue(
     else:
         active = [item for item in registry["generations"] if item["state"] == "active"]
         expected_active = 0 if registry["lifecycle_state"] == "uninstalled" else 1
-        if len(active) != expected_active or any(item["state"] != "active" for item in registry["generations"]):
+        if len(active) != expected_active or any(item["state"] not in {"active", "retiring"} for item in registry["generations"]):
             issues.append({"code": "RS_GENERATION_STATE", "path": str(root / "generations")})
         if registry["selected_tools"] != selected_tools:
             issues.append({"code": "RS_TOOL_SELECTION", "expected": registry["selected_tools"], "observed": selected_tools})
@@ -5476,6 +5539,19 @@ def recover_transaction(root_value: str | Path, *, operation_id: str | None = No
         )
         if failed_after_commit:
             return _rollback(root, context, journal, envelope, transaction_root, fault_at=fault_at)
+        rollback_completed = any(
+            item.get("action") == "restore pre-transaction registry, generation, and managed projections"
+            and item.get("status") == "completed"
+            for item in journal.get("recovery_actions", [])
+        )
+        if rollback_completed:
+            _archive_failure(root, context, journal, envelope, transaction_root)
+            return {
+                "status": "RECOVERED_ROLLBACK",
+                "operation_id": plan["operation_id"],
+                "active_state_restored": True,
+                "recovery_mode": "archive-completion",
+            }
         return {"status": "FAILED", "operation_id": plan["operation_id"], "requires_manual_recovery": True}
     return _rollback(root, context, journal, envelope, transaction_root, fault_at=fault_at)
 
@@ -6096,7 +6172,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     plan = subparsers.add_parser("plan")
-    plan.add_argument("--operation", required=True, choices=("install", "update", "repair", "uninstall"))
+    plan.add_argument("--operation", required=True, choices=("install", "update", "repair", "finalize", "uninstall"))
     plan.add_argument("--lifecycle-root", required=True)
     _add_tool_root_argument(plan)
     plan.add_argument("--release-root")

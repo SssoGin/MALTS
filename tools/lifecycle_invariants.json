@@ -1,18 +1,29 @@
 {
-  "schema_version": 1,
-  "invariant_set_id": "malts-v1.3.0-lifecycle-invariants",
-  "target_release": "1.3.0",
-  "status": "DESIGN_FROZEN",
+  "schema_version": 2,
+  "invariant_set_id": "malts-lifecycle-v2",
+  "target_release": null,
+  "status": "IMPLEMENTED_UNRELEASED",
   "contract_versions": {
-    "workspace_control": 4,
-    "result_contract": 2,
-    "result_event": 1,
-    "result_lineage_projection": 1,
+    "workspace_control": 5,
+    "result_contract": 3,
+    "result_event": 2,
+    "result_lineage_projection": 2,
     "phase_boundary_revision": 1,
     "workspace_transaction_journal": 1,
     "workspace_migration_plan": 1,
-    "result_migration_plan": 1
+    "result_migration_plan": 1,
+    "resource_locator": 1,
+    "workspace_coordination": 1,
+    "workspace_coordination_event": 1,
+    "workspace_entry_report": 1
   },
+  "compatible_invariant_bindings": [
+    {
+      "invariant_set_id": "malts-v1.3.0-lifecycle-invariants",
+      "invariant_source_sha256": "979F28A63EDC96BB91A0626A7DA6407B571C0A695B4BA3C7CB01FD20F765F320",
+      "result_contract_versions": ["2"]
+    }
+  ],
   "terminology": [
     {
       "name": "Phase",
@@ -58,6 +69,36 @@
       "name": "Session Lease",
       "definition": "The unique active canonical-write ownership grant for one bounded Session, intersected with Phase, Result Contract, and user authorization.",
       "authority": "SESSION_CONTROL structured lease and workspace v4 binding"
+    },
+    {
+      "name": "Resource Locator",
+      "definition": "A typed normalized identity for a PATH, ARTIFACT, RECORD, SERVICE, DEVICE, or ENVIRONMENT resource, including declared aliases and access intent.",
+      "authority": "Phase resource declaration validated by resource_locator.schema.json"
+    },
+    {
+      "name": "Admission",
+      "definition": "An explicit expiring runtime grant that authorizes one actor to mutate only the declared conflict domains for one Phase.",
+      "authority": "runtime/workspace_coordination.json plus its append-only coordination event chain"
+    },
+    {
+      "name": "Fencing Epoch",
+      "definition": "A monotonically increasing token for one conflict domain; a mutation holding an older epoch is stale and must be rejected.",
+      "authority": "Workspace coordination domain state and Admission fencing tokens"
+    },
+    {
+      "name": "Capability",
+      "definition": "A declared shared tool, service, editor, compiler, device, or environment governed as SHARED, EXCLUSIVE, QUEUED, or ISOLATE_REQUIRED.",
+      "authority": "Phase resource declaration and Workspace coordination state"
+    },
+    {
+      "name": "Coordination Quarantine",
+      "definition": "A fail-closed domain-local hold created when an external side effect is UNKNOWN until an explicit reconcile record resolves it.",
+      "authority": "Workspace coordination quarantine state and exact reconcile event"
+    },
+    {
+      "name": "Workspace Entry",
+      "definition": "A bounded read-only daily readiness decision that loads current authority and selected active controls without initialization, migration, history loading, or implicit entity creation.",
+      "authority": "workspace_entry.py report validated by workspace_entry_report.schema.json"
     }
   ],
   "task_state_machine": {
@@ -167,7 +208,7 @@
     {
       "id": "INV-TASK-001",
       "level": "MUST",
-      "statement": "Each governed persistent Task has exactly one Result Contract v2 lineage; Phase, Session, report, handoff, runtime, and lineage index surfaces store only bindings or rebuildable projections.",
+      "statement": "Each governed persistent Task has exactly one supported Result Contract lineage; Phase, Session, report, handoff, runtime, and lineage index surfaces store only bindings or rebuildable projections.",
       "verification_refs": ["one-task-one-lineage", "projection-no-second-ledger"]
     },
     {
@@ -245,7 +286,7 @@
     {
       "id": "INV-MIG-001",
       "level": "MUST",
-      "statement": "Workspace v3 to v4 and Result Contract v1 to v2 are independent dry-run-first, exact-plan/input-hash-bound cold migrations; ordinary read, validate, recover, init, or lifecycle mutation never migrates silently.",
+      "statement": "Workspace v3 to v4, Workspace v4 to v5, guarded Workspace v5 to v4, Result Contract v1 to v2, and Result Contract v2 to v3 are independent dry-run-first, exact-plan/input-hash-bound migrations; ordinary read, validate, recover, init, or lifecycle mutation never migrates silently.",
       "verification_refs": ["independent-migration-operations", "ordinary-command-zero-migration"]
     },
     {
@@ -263,8 +304,68 @@
     {
       "id": "INV-FAST-001",
       "level": "MUST_NOT",
-      "statement": "Fast Path may reduce record overhead only; it must not bypass authorization, Phase boundary, active plan, Session lease, Artifact ownership, external-side-effect, or structural and binding consistency gates.",
+      "statement": "Fast Path may reduce record overhead only; it must not bypass authorization, Phase boundary, active plan, Session lease, Admission and fencing, Artifact ownership, external-side-effect, or structural and binding consistency gates.",
       "verification_refs": ["scoped-readiness-fast-path", "durable-delta-unknown-escalation"]
+    },
+    {
+      "id": "INV-AUTHORITY-001",
+      "level": "MUST",
+      "statement": "Each current fact has one canonical owner; WORK_TASK_REPORT, PROJECT_HANDOFF, runtime indexes, and summaries are rebuildable or on-demand projections and never become a second mutation authority.",
+      "verification_refs": ["maintenance-view-on-demand", "projection-no-second-ledger"]
+    },
+    {
+      "id": "INV-RESOURCE-001",
+      "level": "MUST",
+      "statement": "Admission conflict decisions use typed normalized locators, exact and parent-child PATH overlap, and declared aliases; ARTIFACT and RECORD identities do not conflict by incidental string similarity.",
+      "verification_refs": ["typed-locator-conflicts", "parent-child-and-alias-conflicts"]
+    },
+    {
+      "id": "INV-ADMISSION-001",
+      "level": "MUST",
+      "statement": "Every coordinated mutation binds one live Admission, exact actor and Phase-control hash, and the current fencing epoch for every affected conflict domain.",
+      "verification_refs": ["stale-lease-and-fencing-rejection", "phase-binding-rejection"]
+    },
+    {
+      "id": "INV-CAPABILITY-001",
+      "level": "MUST",
+      "statement": "Capabilities are governed explicitly as SHARED, EXCLUSIVE, QUEUED, or ISOLATE_REQUIRED; a non-fenceable or isolate-required capability never runs concurrently in one merge domain.",
+      "verification_refs": ["capability-mode-matrix", "queue-and-isolation-negative"]
+    },
+    {
+      "id": "INV-QUARANTINE-001",
+      "level": "MUST",
+      "statement": "An UNKNOWN external side effect quarantines the affected locator or capability domains until exact reconcile; only unknown root authority, transaction head, or recovery source escalates to a Workspace-wide stop.",
+      "verification_refs": ["unknown-domain-quarantine", "root-unknown-global-stop"]
+    },
+    {
+      "id": "INV-ENTRY-001",
+      "level": "MUST",
+      "statement": "Unchanged read-only or existing-scope daily entry is bounded, reads no history, writes no control file, requests no extra confirmation, and creates no Workspace, Phase, Session, Artifact, or Agent.",
+      "verification_refs": ["workspace-entry-bounded-read", "workspace-entry-repeat-byte-equality"]
+    },
+    {
+      "id": "INV-MAINTENANCE-001",
+      "level": "MUST",
+      "statement": "Authorization, ownership, fencing, transaction, boundary, plan, lineage, and unknown-side-effect drift blocks only its affected authority domain; stale derived reports or maintenance views are warnings or explicit reconcile work.",
+      "verification_refs": ["safety-vs-maintenance-drift", "noncritical-phase-body-warning"]
+    },
+    {
+      "id": "INV-CONCURRENCY-001",
+      "level": "MUST",
+      "statement": "The default single_phase_v1 profile retains one OPEN Phase and no coordination-state cost; resource_admission_v1 permits multiple OPEN Phases only through disjoint or safely scheduled domains.",
+      "verification_refs": ["single-phase-zero-coordination", "parallel-disjoint-admission"]
+    },
+    {
+      "id": "INV-TX-003",
+      "level": "MUST",
+      "statement": "A writer rechecks every exact preimage after acquiring the shared Workspace lock and before replacement; a stale writer fails without deleting another writer's lock or committed output.",
+      "verification_refs": ["post-lock-compare-and-swap", "multiprocess-stale-writer"]
+    },
+    {
+      "id": "INV-COMPAT-001",
+      "level": "MUST",
+      "statement": "A legacy Result Contract binding is accepted only when its exact invariant set ID, source hash, and contract version appear in compatible_invariant_bindings; compatibility never silently rewrites the legacy revision.",
+      "verification_refs": ["legacy-result-v2-binding", "undeclared-legacy-binding-negative"]
     }
   ]
 }

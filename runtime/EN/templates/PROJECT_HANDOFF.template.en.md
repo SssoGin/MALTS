@@ -1,7 +1,17 @@
 # PROJECT_HANDOFF
 
-> Purpose: canonical continuation and recovery handoff.
-> Language policy: include a short English Agent Brief for machine/agent scanning, then write the rest in the user's or project's primary language. Do not create a full translated mirror unless the user explicitly asks for one.
+> Purpose: on-demand continuation and recovery view. It is not authorization or lifecycle authority. In CURRENT contract it is derived/non-authoritative; canonical Project/Phase/Session controls remain the fact owners.
+> Language policy: write the Agent Brief and narrative in the user's or project's primary language while preserving stable English field names and machine status codes. Do not create a full translated mirror unless the user explicitly asks for one.
+
+<!-- MALTS:section=maintenance-view-metadata -->
+## Maintenance View Metadata
+
+- Authority class: `DERIVED_NON_AUTHORITATIVE`
+- Refresh policy: `ON_DEMAND_EXISTING_ONLY`
+- Drift policy: `WARNING_ONLY` in CURRENT contract / strict compatibility binding in legacy workspace layout
+- History load policy: `CURRENT_SET_ONLY`
+- Bound workspace state SHA-256: `N/A`
+- Bound Phase control SHA-256: `N/A`
 
 ## Agent Brief
 

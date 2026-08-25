@@ -9,8 +9,8 @@
     "opencode": "malts-project-retrospective-growth"
   },
   "display_name": "MALTS Project Retrospective Growth",
-  "short_description": "Distill reusable lessons after completion or rework",
-  "triggers": ["run a project retrospective", "extract reusable lessons", "review repeated rework or failures"],
+  "short_description": "Recommend or run evidence-based project retrospectives",
+  "triggers": ["review phase delivery or long-task completion", "review repeated rework or failures", "user explicitly requested a retrospective"],
   "applicability": {
     "task_types": ["retrospective", "growth-review", "rework-analysis"],
     "modes": ["single-agent", "review-only"],
@@ -20,11 +20,36 @@
   "inputs": ["task evidence", "verification results", "rework history", "existing growth ledger"],
   "outputs": ["growth signals", "project-local candidates", "promotion proposals requiring separate authorization"],
   "risks": {
-    "risk_class": "medium",
-    "factors": ["write"],
+    "risk_class": "low",
+    "factors": [],
     "forbidden_effects": ["Do not write global memory without separate L3 authorization.", "Do not promote unvalidated advice."]
   },
-  "required_permissions": ["read-files", "write-project-files"],
+  "required_permissions": ["read-files"],
+  "permission_routes": {
+    "baseline": {
+      "route_id": "L1",
+      "required_permissions": ["read-files"],
+      "durable_write": false,
+      "requires_confirmation": false,
+      "description": "Read-only retrospective analysis or recommendation."
+    },
+    "conditional": [
+      {
+        "route_id": "L2",
+        "required_permissions": ["read-files", "write-project-files"],
+        "durable_write": true,
+        "requires_confirmation": true,
+        "description": "Project-local retrospective record requires exact project authorization."
+      },
+      {
+        "route_id": "L3",
+        "required_permissions": ["read-files", "write-global-state"],
+        "durable_write": true,
+        "requires_confirmation": true,
+        "description": "System-level promotion requires a separate explicit confirmation."
+      }
+    ]
+  },
   "dependencies": [],
   "supported_tools": ["codex", "claude-code", "opencode"],
   "package_variants": ["local", "public"],

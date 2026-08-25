@@ -1,6 +1,6 @@
 ﻿# WORK_TASK_REPORT
 
-> 用途：每次 MALTS 任务或阶段完成后的 canonical 工作任务报告。
+> 用途：按需生成的 Task/Phase 执行与验证视图。它不是授权或 lifecycle authority。CURRENT contract 中它是 derived/non-authoritative；legacy workspace layout 保留必需的精确绑定兼容合同。
 > 语言策略：叙述正文使用用户或项目主要语言；标题、状态值、证据等级、命令、路径和 ID 保持稳定。除非用户明确要求，不生成完整翻译镜像。
 
 ## 结果
@@ -39,6 +39,16 @@
 - Trigger / recorded result / observed gate result：
 - Launch review invalidated：Yes / No / N/A
 - 对账或 blocker：
+
+<!-- MALTS:section=maintenance-view-metadata -->
+## Maintenance View Metadata
+
+- Authority class: `DERIVED_NON_AUTHORITATIVE`
+- Refresh policy: `ON_DEMAND`
+- Drift policy: `WARNING_ONLY` in CURRENT contract / strict compatibility binding in legacy workspace layout
+- History load policy: `CURRENT_SET_ONLY`
+- Bound workspace state SHA-256: `N/A`
+- Bound Phase control SHA-256: `N/A`
 
 <!-- MALTS:section=current-phase-binding -->
 ## Current Phase Binding

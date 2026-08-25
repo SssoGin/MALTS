@@ -2,6 +2,10 @@
 
 MALTS 默认从经过独立审阅的当前仓库 checkout 更新。更新器不会执行 Git 拉取、后台发现更新或下载 Release 归档。在任何安装状态变更前，它先创建只供审阅的计划。
 
+安装更新不会重整项目 workspace 或 Result Contract。激活后，旧 workspace 仍保持既有兼容行为，直到单独审阅并显式 apply 一次 `reorganize-workspace` 或 `reorganize-result-contract` dry run。重整会绑定精确 source hash、review/authorization reference、同一固定 timestamp 与可恢复 journal；绝不在普通 `workspace-entry`、`validate`、`recover` 或 generation 切换中运行。
+
+不要为了获得 CURRENT workspace contract 而原位修改 active generation。应修改并验证 maintenance source，再分别经过 candidate、activation、Git、tag 与公开 Release 门。默认 single-profile workspace 不需要 concurrency profile，也不产生 coordination state。
+
 ## 更新前
 
 1. 完成或恢复所有未完成 lifecycle transaction。
@@ -79,19 +83,17 @@ core 状态本地一致时，`DoctorRepairPlan` 可从活动版本限定派生 r
 
 ## 更新 Workspace Control
 
-更新 MALTS 会安装新 runtime behavior，但不会重写项目 controls。精确 schema-v1/v2/v3 long-project workspace 保持可读，全新 workspace 使用 schema v4，Artifact lifecycle 仍为 `NOT_ENROLLED`。
+更新 MALTS 会安装新 runtime behavior，但不会重写项目 controls。受支持的旧 long-project 布局保持可读；全新 workspace 使用 CURRENT，默认 `single_phase`；Artifact lifecycle 仍为 `NOT_ENROLLED`。Resource profile 与每项重整都保持显式 workspace operation。
 
-如果 active legacy Phase 缺少 v1.2.0 boundary sections，先运行不带 `--apply` 的 `migrate-phase-control`，审阅精确且绑定 preimage 的 plan；只有当前 workspace 授权覆盖时才 apply。迁移会保留 Phase goal、queue、evidence、recovery point 与 active ownership。
+先运行 `validate` 并保留精确 state hash/classification。若它报告受支持的旧布局，审阅一次 `reorganize-workspace` dry run，明确分类每个保留、移动、归档或派生 section，并直接以 CURRENT 为目标。只有当前 workspace authorization 覆盖时，才 apply 同一个 hash-bound plan。旧 parser 与 consistency repair 细节只在内部兼容层保留；validation/recovery 不会自动重整。
 
 考虑 enrollment 前先运行 `artifact audit`。Legacy `shared/` 类目录只是 candidate observation，绝不会被静默接管。如果确实需要 enrollment，运行 `artifact enrollment-preview`，审阅精确 index path 与 finding，然后使用唯一 operation ID 和显式 `--apply` 运行 `artifact enrollment-apply`。
 
-对 v1/v2 workspace，先运行 `validate` 并保留其精确 state hash/classification。若需要 consistency migration，先在不带 `--apply` 的情况下审阅 `migrate-consistency-records --authority workspace-state --expected-state-sha256 <sha256> --operation-id <id>`，然后只在当前 workspace authorization 内 apply 同一 expected state。Validation/recovery 不会自动执行该迁移。
+若重整后的 Boundary Review 仍 unresolved，只能通过携带精确 Phase SHA-256 的 `record-phase-boundary-review` 持久化 structured result；记录并不是后续 mutation authorization。Ambiguous non-empty duplicate marker 或 legacy prose semantics 必须 fail closed，不做推断。
 
-若 migrated Boundary Review 仍 unresolved，只能通过携带精确 Phase SHA-256 的 `record-phase-boundary-review` 持久化 structured result；记录并不是后续 mutation authorization。Canonical control 与 projection 不一致时，用精确 state/source/Phase hash 运行 dry-run `reconcile-consistency-records --authority canonical-controls`。Ambiguous non-empty duplicate marker 或 legacy prose semantics 必须 fail closed，不做推断。
+Interrupted workspace/coordination authority write 使用共享 `runtime/workspace_transaction.lock.json` 与 `runtime/workspace_transactions/`，并与 Artifact transaction 分离。添加 `--apply` 前，用精确 journal SHA-256 审阅 `recover-workspace-transaction`；失败 recovery 保留 evidence。
 
-Interrupted workspace-control write 使用 `runtime/workspace_transaction.lock.json` 与 `runtime/workspace_transactions/`，和 Artifact transaction 分离。添加 `--apply` 前，用精确 journal SHA-256 审阅 `recover-workspace-transaction`；失败 recovery 会保留 evidence。
-
-任何 update path 都不会移动/删除 payload、调用 VCS、创建 Session、把最新历史 Session 选作 recovery authority，或启动自动/后台 workspace scan。已安装 MALTS generation 的回滚应通过 lifecycle plan 完成；不得把旧 template 复制覆盖 canonical workspace control 来“降级”。
+任何 update path 都不会移动/删除 payload、调用 VCS、创建 Session、把最新历史 Session 选作 recovery authority，或启动自动/后台 workspace scan。已安装 MALTS generation 的回滚应通过 lifecycle plan 完成；绝不能把旧 template 复制覆盖 canonical workspace control。Workspace 重整中断时恢复原始字节，或使用显式 reconcile 证据。
 
 ## 恢复
 

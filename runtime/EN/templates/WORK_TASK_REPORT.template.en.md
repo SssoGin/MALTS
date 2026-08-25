@@ -1,6 +1,6 @@
 # WORK_TASK_REPORT
 
-> Purpose: canonical task or phase report after each completed MALTS task or phase.
+> Purpose: on-demand task or Phase execution/verification view. It is not authorization or lifecycle authority. In CURRENT contract it is derived and non-authoritative; legacy workspace layout retains its required exact-binding compatibility contract.
 > Language policy: use the user's or project's primary language for narrative content, while keeping headings, status values, evidence levels, commands, paths, and IDs stable. Do not create a full translated mirror unless the user explicitly asks for one.
 
 ## Result
@@ -39,6 +39,16 @@
 - Trigger / recorded result / observed gate result:
 - Launch review invalidated: Yes / No / N/A
 - Reconciliation or blocker:
+
+<!-- MALTS:section=maintenance-view-metadata -->
+## Maintenance View Metadata
+
+- Authority class: `DERIVED_NON_AUTHORITATIVE`
+- Refresh policy: `ON_DEMAND`
+- Drift policy: `WARNING_ONLY` in CURRENT contract / strict compatibility binding in legacy workspace layout
+- History load policy: `CURRENT_SET_ONLY`
+- Bound workspace state SHA-256: `N/A`
+- Bound Phase control SHA-256: `N/A`
 
 <!-- MALTS:section=current-phase-binding -->
 ## Current Phase Binding

@@ -5,7 +5,7 @@
 ## 任务身份
 
 - 任务 ID：
-- 职责通道：Planner / Explorer / Worker / Verifier / Memory Curator / Other
+- 职责通道：MALTS Planner / MALTS Explorer / MALTS Worker / MALTS Verifier / MALTS Memory Curator / Other
 - 优先级：P0 / P1 / P2 / P3
 - 状态：READY
 - 分派者：Main Controller
@@ -19,13 +19,13 @@
 - 当前项目 same-directory 路由与已验证工作区（peer-task 时）：
 - Peer-task lifecycle 状态：PLANNED / CREATED / RUNNING / RETURNED / ACCEPTED / REWORK / BLOCKED / ARCHIVED / N/A
 - Rework 复用与归档规则（peer-task 时）：
-- 模型策略：继承当前 Main Controller 会话 / 显式指定模型 / 运行时默认
-- 运行时 effort 策略：继承 / 显式 runtime effort ID / 运行时默认
+- 模型策略：成本感知推荐 route / 成本等级匹配时精确继承 / 用户显式模型 / 运行时默认
+- 运行时 effort 策略：成本感知推荐 effort / 成本等级匹配时精确继承 / 显式 runtime effort ID / 运行时默认
 - 归一化推理等级：none / light / standard / deep / maximum / unknown
 - 展示标签（如运行时提供）：
 - 查漏补缺三工具同步预期：Codex + Claude Code + OpenCode，除非用户另行限定 / N/A
 - 用户可见模型名称或策略：
-- 用户模型指定来源：用户指定 / 用户选择继承 / 审阅后默认继承
+- 用户模型指定来源：用户指定 / 用户选择精确继承 / 成本感知推荐 / capability 核查后的运行时默认
 - 显式模型，如有：
 - 显式指定模型的原因，如有：
 - 显式指定 effort 的原因，如有：
@@ -63,7 +63,13 @@
 - 允许读取：
 - 允许修改：
 - 禁止修改：
-- 资源锁：
+- Governance profile：`single_phase` / `resource_admission` / N/A
+- Admission ID / 精确 Phase-control SHA-256 / actor ID：`N/A`
+- Typed locator request（`PATH` / `ARTIFACT` / `RECORD` / `SERVICE` / `DEVICE` / `ENVIRONMENT`）：
+- Capability request（`SHARED` / `EXCLUSIVE` / `QUEUED` / `ISOLATE_REQUIRED`）：
+- Lease expiry 与必需 fencing epoch：`N/A`
+- Isolation key（如需要）：`N/A`
+- Quarantine/reconcile 前提：`CLEAR` / 证据引用 / N/A
 
 ## Definition Of Ready
 
@@ -73,6 +79,7 @@
 - [ ] 禁止修改的范围清楚。
 - [ ] 依赖已满足。
 - [ ] 没有文件或资源所有权冲突。
+- [ ] resource-profile writer 已获得 Admission、绑定当前 Phase hash、lease 未过期、fencing token 精确且 quarantine 已清除；否则为 N/A。
 - [ ] 预期输出格式清楚。
 - [ ] 验证方法清楚。
 - [ ] 运行时、模型、effort、证据四元组、约束强度和 binding 策略清楚。
@@ -103,6 +110,7 @@
 - 做了什么。
 - 修改了哪些文件，如有。
 - 执行了什么验证。
+- resource governance 适用时的 Admission verification、fencing token、release/reconcile 结果及任何 `UNKNOWN` 外部副作用证据。
 - 哪些内容未验证。
 - 风险或阻塞。
 - 需要 Main Controller 决策的事项。

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:malts:schema:lifecycle-invariants:1",
+  "$id": "urn:malts:schema:lifecycle-invariants:2",
   "title": "MALTS Lifecycle Invariants",
   "type": "object",
   "additionalProperties": false,
@@ -10,6 +10,7 @@
     "target_release",
     "status",
     "contract_versions",
+    "compatible_invariant_bindings",
     "terminology",
     "task_state_machine",
     "attempt_state_machine",
@@ -20,10 +21,10 @@
     "invariants"
   ],
   "properties": {
-    "schema_version": {"const": 1},
+    "schema_version": {"const": 2},
     "invariant_set_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"},
-    "target_release": {"const": "1.3.0"},
-    "status": {"const": "DESIGN_FROZEN"},
+    "target_release": {"type": ["string", "null"], "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?$"},
+    "status": {"enum": ["IMPLEMENTED_UNRELEASED", "RELEASED_FROZEN"]},
     "contract_versions": {
       "type": "object",
       "additionalProperties": false,
@@ -35,22 +36,35 @@
         "phase_boundary_revision",
         "workspace_transaction_journal",
         "workspace_migration_plan",
-        "result_migration_plan"
+        "result_migration_plan",
+        "resource_locator",
+        "workspace_coordination",
+        "workspace_coordination_event",
+        "workspace_entry_report"
       ],
       "properties": {
-        "workspace_control": {"const": 4},
-        "result_contract": {"const": 2},
-        "result_event": {"const": 1},
-        "result_lineage_projection": {"const": 1},
+        "workspace_control": {"const": 5},
+        "result_contract": {"const": 3},
+        "result_event": {"const": 2},
+        "result_lineage_projection": {"const": 2},
         "phase_boundary_revision": {"const": 1},
         "workspace_transaction_journal": {"const": 1},
         "workspace_migration_plan": {"const": 1},
-        "result_migration_plan": {"const": 1}
+        "result_migration_plan": {"const": 1},
+        "resource_locator": {"const": 1},
+        "workspace_coordination": {"const": 1},
+        "workspace_coordination_event": {"const": 1},
+        "workspace_entry_report": {"const": 1}
       }
+    },
+    "compatible_invariant_bindings": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/compatibleInvariantBinding"}
     },
     "terminology": {
       "type": "array",
-      "minItems": 8,
+      "minItems": 14,
       "items": {"$ref": "#/$defs/term"}
     },
     "task_state_machine": {"$ref": "#/$defs/stateMachine"},
@@ -76,12 +90,13 @@
     "authorization_counted_units": {"$ref": "#/$defs/nonEmptyUniqueEnum"},
     "invariants": {
       "type": "array",
-      "minItems": 12,
+      "minItems": 20,
       "items": {"$ref": "#/$defs/invariant"}
     }
   },
   "$defs": {
     "id": {"type": "string", "pattern": "^[A-Z][A-Z0-9._-]{2,95}$"},
+    "sha256": {"type": "string", "pattern": "^[A-F0-9]{64}$"},
     "enumValue": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{1,63}$"},
     "nonEmptyUniqueEnum": {
       "type": "array",
@@ -97,6 +112,21 @@
         "name": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9 ]{1,63}$"},
         "definition": {"type": "string", "minLength": 1},
         "authority": {"type": "string", "minLength": 1}
+      }
+    },
+    "compatibleInvariantBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["invariant_set_id", "invariant_source_sha256", "result_contract_versions"],
+      "properties": {
+        "invariant_set_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"},
+        "invariant_source_sha256": {"$ref": "#/$defs/sha256"},
+        "result_contract_versions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"enum": ["2"]}
+        }
       }
     },
     "transition": {

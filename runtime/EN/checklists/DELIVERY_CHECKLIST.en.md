@@ -40,7 +40,7 @@
 
 ## Workspace Consistency Delivery
 
-- [ ] Workspace schema class and any explicit v1/v2-to-v3 migration/reconciliation action are reported; no compatibility input is described as silently upgraded.
+- [ ] Workspace contract class and any explicit one-hop CURRENT reorganization are reported; no compatibility input is described as silently upgraded or routed through a user-visible version chain.
 - [ ] The required report and any existing handoff declare the exact current Phase full-control, boundary/review, and recovery binding hashes.
 - [ ] The delivered `validate` result has no structural, binding, or deterministic-consistency failures, and fresh-process `recover` names the expected typed canonical recovery source.
 - [ ] Boundary Review execution status, recorded outcome, decision, and authorization are described separately.
@@ -83,11 +83,12 @@
 
 ## Work Task Report
 
-- [ ] A plain user-facing work task report is provided after task or phase completion.
-- [ ] The report language policy is satisfied: `WORK_TASK_REPORT.md` is the canonical report, with stable fields and optional translated mirrors only on explicit request.
+- [ ] A plain user-facing result is provided after completion; a durable report view is refreshed only when requested or materially useful.
+- [ ] The report language policy is satisfied: CURRENT `WORK_TASK_REPORT.md` is derived/non-authoritative and on demand; legacy workspace layout strict binding remains compatible; translated mirrors require explicit request.
 - [ ] The report records that `DELIVERY_CHECKLIST.en.md` was reviewed before delivery, or explains why it was N/A.
 - [ ] The report states result, changes, verification, risks, recovery point, and next step.
 - [ ] The report states the growth review result and memory-write decision when the task is non-trivial, includes user correction, or completes a recovery round.
+- [ ] The final user response, not only a file, exposes the applicable Growth Routing result; full retrospective execution was only requested or already authorized.
 - [ ] If long-term memory could not be written because the external service or target was unavailable, the report names the local fallback record.
 - [ ] The report states how a new window or another project folder should resume from recorded files.
 - [ ] The user does not need to open every underlying document to understand what happened.
@@ -99,7 +100,11 @@
 - Known risks:
 - Recommended user confirmation:
 
-## MALTS v1.3.0 delivery
+## CURRENT Workspace delivery
 
-- [ ] New commands documented: `record-result-events`, migrations, amendments, lease transfer, `scoped-readiness`, `refresh-project-instructions`.
+- [ ] Current commands documented: `workspace-entry`, `refresh-maintenance-views`, one-hop `reorganize-workspace` / `reorganize-result-contract`, resource Admission/renew/release/reap/verify/UNKNOWN/reconcile/recover, plus existing lifecycle commands.
+- [ ] Existing stale report/handoff projections are rebuilt from canonical current controls; old authority or active-Phase prose is absent, and repeated refresh is a byte-preserving no-op.
+- [ ] Entry cost evidence records files/bytes/history/writes and fresh-process P50/P95/max; initialization, daily entry, deep validation, and cold recovery are measured separately.
+- [ ] Parallel acceptance covers disjoint/overlap/parent-child locators, all capability modes, stale lease/fencing, interruption, unique writer, local quarantine, and explicit reconcile without tool-specific Core rules.
+- [ ] Protected legacy workspaces were not silently reorganized; interruption restored original bytes or entered explicit evidence-backed reconcile, and no downgrade chain was used.
 - [ ] Active/public/Git/GitHub writes follow their exact reviewed packet; this checklist alone is not authorization.

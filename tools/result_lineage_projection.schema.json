@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:malts:schema:result-lineage-projection:1",
+  "$id": "urn:malts:schema:result-lineage-projection:2",
   "title": "MALTS Result Lineage Projection",
   "type": "object",
   "additionalProperties": false,
-  "required": ["projection_schema", "canonical", "lineage_id", "task_id", "phase_id", "latest_contract_revision", "latest_event", "task_status", "terminal_status", "current_round_id", "current_attempt_id", "current_invocation_id", "hard_budget_usage", "envelope_usage", "active_authorization_envelope_ids", "unresolved_side_effects", "recovery_required", "rebuild_inputs", "invariant_set_id", "invariant_source_sha256", "projected_at"],
+  "required": ["projection_schema", "canonical", "lineage_id", "task_id", "phase_id", "latest_contract_revision", "latest_event", "task_status", "terminal_status", "current_round_id", "current_attempt_id", "current_invocation_id", "hard_budget_usage", "envelope_usage", "active_authorization_envelope_ids", "unresolved_side_effects", "recovery_required", "rebuild_inputs", "invariant_set_id", "invariant_source_sha256", "projected_at", "execution_authority", "coordination_quarantine_ids"],
   "properties": {
-    "projection_schema": {"const": 1}, "canonical": {"const": false},
+    "projection_schema": {"const": 2}, "canonical": {"const": false},
     "lineage_id": {"$ref": "#/$defs/id"}, "task_id": {"$ref": "#/$defs/id"}, "phase_id": {"$ref": "#/$defs/id"},
     "latest_contract_revision": {"$ref": "#/$defs/revisionBinding"}, "latest_event": {"$ref": "#/$defs/nullableEventBinding"},
     "task_status": {"$ref": "#/$defs/taskStatus"}, "terminal_status": {"type": ["string", "null"], "enum": ["DONE", "PARTIAL", "BLOCKED", "FAILED", null]},
@@ -15,8 +15,10 @@
     "active_authorization_envelope_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
     "unresolved_side_effects": {"type": "boolean"}, "recovery_required": {"type": "boolean"},
     "rebuild_inputs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/rebuildInput"}},
-    "invariant_set_id": {"const": "malts-v1.3.0-lifecycle-invariants"}, "invariant_source_sha256": {"$ref": "#/$defs/sha256"},
-    "projected_at": {"type": "string", "format": "date-time"}
+    "invariant_set_id": {"$ref": "#/$defs/id"}, "invariant_source_sha256": {"$ref": "#/$defs/sha256"},
+    "projected_at": {"type": "string", "format": "date-time"},
+    "execution_authority": {"$ref": "#/$defs/executionAuthority"},
+    "coordination_quarantine_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}
   },
   "$defs": {
     "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"}, "nullableId": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
@@ -24,6 +26,8 @@
     "taskStatus": {"enum": ["DRAFT", "PREFLIGHT", "AWAITING_INITIAL_AUTHORIZATION", "AUTHORIZED", "PLANNING", "EXECUTING", "VERIFYING", "REPLANNING", "AWAITING_ATTEMPT_AUTHORIZATION", "FINALIZING", "DONE", "PARTIAL", "BLOCKED", "FAILED"]},
     "revisionBinding": {"type": "object", "additionalProperties": false, "required": ["revision_id", "path", "sha256"], "properties": {"revision_id": {"$ref": "#/$defs/id"}, "path": {"$ref": "#/$defs/relativeJsonPath"}, "sha256": {"$ref": "#/$defs/sha256"}}},
     "nullableEventBinding": {"type": ["object", "null"], "additionalProperties": false, "required": ["sequence", "event_id", "path", "sha256"], "properties": {"sequence": {"type": "integer", "minimum": 1}, "event_id": {"$ref": "#/$defs/id"}, "path": {"$ref": "#/$defs/relativeJsonPath"}, "sha256": {"$ref": "#/$defs/sha256"}}},
+    "fencingToken": {"type": "object", "additionalProperties": false, "required": ["domain_id", "epoch"], "properties": {"domain_id": {"$ref": "#/$defs/id"}, "epoch": {"type": "integer", "minimum": 1}}},
+    "executionAuthority": {"type": "object", "additionalProperties": false, "required": ["profile", "admission_id", "actor_id", "phase_control_sha256", "fencing_tokens"], "properties": {"profile": {"enum": ["NONE", "RESOURCE_ADMISSION"]}, "admission_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"}, "actor_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"}, "phase_control_sha256": {"type": ["string", "null"], "pattern": "^[A-F0-9]{64}$"}, "fencing_tokens": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/fencingToken"}}}},
     "usage": {"type": "object", "additionalProperties": false, "required": ["rounds", "attempts", "invocations", "request_intents", "physical_requests", "tokens", "cost_units", "elapsed_seconds", "concurrency"], "properties": {"rounds": {"type": "integer", "minimum": 0}, "attempts": {"type": "integer", "minimum": 0}, "invocations": {"type": "integer", "minimum": 0}, "request_intents": {"type": "integer", "minimum": 0}, "physical_requests": {"type": "integer", "minimum": 0}, "tokens": {"type": "integer", "minimum": 0}, "cost_units": {"type": "number", "minimum": 0}, "elapsed_seconds": {"type": "number", "minimum": 0}, "concurrency": {"type": "integer", "minimum": 0}}},
     "envelopeUsage": {"type": "object", "additionalProperties": false, "required": ["envelope_id", "usage"], "properties": {"envelope_id": {"$ref": "#/$defs/id"}, "usage": {"$ref": "#/$defs/usage"}}},
     "rebuildInput": {"type": "object", "additionalProperties": false, "required": ["role", "path", "sha256"], "properties": {"role": {"enum": ["CONTRACT_REVISION", "RESULT_EVENT"]}, "path": {"$ref": "#/$defs/relativeJsonPath"}, "sha256": {"$ref": "#/$defs/sha256"}}}

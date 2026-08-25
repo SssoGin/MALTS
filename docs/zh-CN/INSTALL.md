@@ -64,7 +64,7 @@ Release 页面可提供一个名为 `MALTS-<version>.zip` 的可选归档。普�
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Verify-MALTSBootstrap.ps1 `
-    -ArchivePath .\MALTS-1.3.1.zip `
+    -ArchivePath .\MALTS-1.5.0.zip `
   -ExtractOutput <EXTRACTED_RELEASE_ROOT> `
   -Apply
 ```
@@ -97,9 +97,9 @@ bootstrap verifier 会验证确定性 ZIP 结构、安全路径和解出的不�
 
 lifecycle 操作还会保留有界审计记录（一份当前绑定以及最近的成功、失败/恢复和月度摘要）。详见[生命周期](LIFECYCLE.md)。
 
-## 验证 v1.3.1 Workspace Lifecycle
+## 验证 v1.5.0 Workspace Lifecycle
 
-安装只修改选定的 MALTS lifecycle/tool root；绝不会迁移或 enrollment 现有项目 workspace。完成 discovery 验证后，确认已安装 source 报告 `1.3.1`，且同时暴露两组命令：
+安装只修改选定的 MALTS lifecycle/tool root；绝不会自动重整、迁移或 enrollment 现有项目 workspace。完成 discovery 验证后，确认已安装 source 报告 `1.5.0`，且暴露 workspace entry、CURRENT reorganization、Phase、coordination 与 Artifact 命令族：
 
 ```powershell
 Get-Content -LiteralPath <MALTS_ROOT>\VERSION

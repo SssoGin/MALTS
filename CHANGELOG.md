@@ -2,6 +2,45 @@
 
 All notable public changes to MALTS are documented here.
 
+## 1.5.0
+
+- Add a no-write Growth Routing Gate after verification and before final delivery. It keeps trivial no-signal work silent, makes applicable Growth results user-visible, recommends rather than auto-runs deeper retrospectives, and preserves separate L2/L3 authorization.
+- Make Growth capability metadata permission-correct: L1 requires only read access, while project maintenance and system promotion remain conditional write routes.
+- Add explicit GRT-01 through GRT-16 behavior coverage for silent/no-signal work, final-reply visibility, L2/L3 authorization, declined retrospective handling, plan-gate precedence, uninitialized workspaces, candidate-only evidence, and three-tool routing equivalence.
+- Retain previous immutable generations during ordinary updates so explicit rollback remains possible; only an explicit uninstall may delete retained generations.
+- Add explicit `finalize` for the reviewed reissue of an unpublished stable version: it can replace only its retiring target and removes only reviewed same-major/minor retiring generations, with exact snapshots, fencing by plan hash, failure-bundle recovery, and no cross-series cleanup.
+- Fail release construction when `user_payload.lock.json` no longer binds the current repository identity; the required refresh order is repository identity first, then payload lock.
+
+### CURRENT contracts, workspace concurrency, and fast entry
+
+- Adopt one user-facing CURRENT workspace/Result contract with a zero-coordination `single_phase` default and an explicit `resource_admission` profile for multiple resource-governed `OPEN` Phases while keeping scalar `active_phase_id` as the primary Phase index. Supported legacy layouts remain internal compatibility inputs instead of a user-visible version chain.
+- Add typed resource locators, parent/child and alias conflict detection, capability sharing/serialization/queue/isolation policies, leases, fencing, stale-executor rejection, domain quarantine, and explicit `UNKNOWN` reconcile.
+- Serialize workspace and coordination authority through one lock with post-lock exact-preimage comparison and recoverable journals.
+- Add bounded read-only `workspace-entry`, true no-op maintenance, event-specific Plan Recheck, and on-demand non-authoritative report/handoff rebuilds that discard stale projection prose and become byte-preserving no-ops when current.
+- Add one-hop, dry-run-first `reorganize-workspace` and `reorganize-result-contract` paths with exact preimages, recoverable journals, no downgrade chain, no silent reorganization, and no implicit lifecycle entities.
+- Add localized user-status rendering and metadata-selected Core-generated lifecycle recovery prose without translating explicit user text, cost-aware Agent model/effort routing, generic concurrency/crash/compatibility/entry-efficiency tests, and one generated lifecycle source for EN/CH plus Codex/Claude Code/OpenCode synchronization.
+- Keep compatibility-only lifecycle entrypoints callable for exact recovery evidence while excluding them from help and unknown-command error surfaces.
+
+### Compatibility and safety
+
+- Existing supported workspace and Result layouts remain readable. Reorganization is explicit, one-hop, dry-run-first, exact-hash-bound, journaled, and never creates a Session, Agent, Artifact, or unrelated Workspace.
+- The default `single_phase` profile keeps the ordinary single-Agent path coordination-free. Multiple OPEN Phases and Admission state exist only under the explicit `resource_admission` profile.
+- Root-control capacity is 1,500 lines as a maintenance warning threshold, while fresh controls remain compact and ordinary entry reads only the bounded current set instead of historical controls.
+- Reports and handoffs are on-demand derived views rather than competing mutation authorities. Safety-critical drift still fails closed; stale derived views and unrelated history do not freeze independent work.
+
+### 中文摘要
+
+MALTS 1.5.0 将工作区日常进入、并行资源治理、恢复安全和多 Agent 成本控制整合为同一套 CURRENT 规范，同时避免把每次产品迭代变成用户可见的版本迁移链。
+
+- 默认 `single_phase` 保持零协调负担；显式 `resource_admission` 支持多个资源受治理的 OPEN Phase。
+- 新增通用资源定位、父子路径与物理别名冲突、共享能力排队、lease、fencing、陈旧执行者拒绝，以及外部副作用 `UNKNOWN` 的局部隔离与显式 reconcile。
+- Workspace 与 coordination authority 统一经过锁后精确 preimage 校验和可恢复 journal，避免多窗口陈旧计划覆盖。
+- `workspace-entry` 为普通任务提供有界、只读、零写入 Fast Path；干净维护、重复进入和重复 Plan Recheck 不再产生时间戳或 hash 抖动。
+- 旧布局通过一次显式 `reorganize-workspace` / `reorganize-result-contract` 直接整理到 CURRENT；不会静默改写，也不会自动创建 Session、Agent、Artifact 或额外 Workspace。
+- 根控制长期软容量为 1,500 行，但新建控制保持紧凑；Phase、Session、Result、Admission 和历史分别归各自唯一权威，report/handoff 仅按需生成。
+- 中文用户状态回复采用“中文含义（STABLE_CODE）”，英文用户获得英文状态；多 Agent 路由按任务复杂度、风险和额度推荐模型，关键独立审计可使用旗舰模型，机械执行不再无脑继承主控模型。
+- 新增显式 `finalize`，用于重发未公开稳定版本：仅可替换其 retiring target，并清理经审阅的同 major/minor retiring generation；完整 snapshot、plan hash 围栏与 failure bundle recovery 均为必需，禁止跨系列清理。
+
 ## 1.3.1
 
 MALTS 1.3.1 fixes the v3-to-v4 workspace migration for workspaces with historical closed Sessions.

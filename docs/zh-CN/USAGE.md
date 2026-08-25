@@ -2,9 +2,23 @@
 
 生命周期安装后，从工具的 MALTS boot pointer 开始工作。它会解析当前不可变 generation；不要手工把 runtime 文件复制到项目中。
 
+## 进入已有工作区
+
+普通任务不要重新运行 initializer。先分类任务并运行一次只读 entry：
+
+```powershell
+python -B <MALTS_ROOT>\tools\long_workspace.py workspace-entry --workspace <WORKSPACE> --task-class LOW_RISK
+```
+
+可用类别为 `READ_ONLY`、`LOW_RISK`、`WRITE_EXISTING_SCOPE`、`NEW_WRITE_SCOPE`、`HIGH_RISK`、`CONTEXT_RECOVERY`。只读取返回的 current-set 路径。新 scope/Phase 变化触发 boundary review 与 Plan Recheck；真实 canonical/transaction/Admission drift 触发 reconcile 或 recovery。普通 entry 不加载 report/handoff/history，也不写 maintenance view。
+
+如果从未登记过 Phase，entry 返回 `INITIALIZATION_REQUIRED`；如果工作区已初始化但只剩 terminal Phase，则返回 `PHASE_REQUIRED`，要求显式打开新 Phase。两条路径都不会创建 Phase、Session、Agent 或 Artifact。
+
+全新长工作区默认使用 CURRENT contract `single_phase`。要显式启用按资源治理的并行 Phase，应审阅带 `resource_admission` 的初始化或显式 `reorganize-workspace`，再创建绑定 typed locator/capability、精确 Phase bytes、actor、expiry、authorization 与 fencing token 的 Admission request。所有 mutation 默认 dry run，必须显式 `--apply`；没有 daemon 自动续租。
+
 ## 启动项目
 
-对于非平凡任务，在 `PROJECT_CONTROL.md` 中定义目标、验收标准、任务队列和恢复点；在 `WORK_TASK_REPORT.md` 中记录执行证据；当另一个 Agent 需要继续工作时创建 `PROJECT_HANDOFF.md`。
+对于新的非平凡项目，在 `PROJECT_CONTROL.md` 中定义 Project 目标与全局验收；长工作区的 Phase queue/evidence/recovery 放在所属 `PHASE_CONTROL.md`，显式 Session checkpoint 放在 `SESSION_CONTROL.md`。只有需要 durable report/handoff 时才按需刷新 `WORK_TASK_REPORT.md` 或创建 `PROJECT_HANDOFF.md`；CURRENT contract 中二者都是 derived/non-authoritative view。
 
 使用 `runtime/EN/` 或 `runtime/CH/` 中对应模板作为起草参考。除非用户明确要求翻译镜像，否则只保留一份规范的控制、报告和交接文件。
 
@@ -14,6 +28,7 @@
 - 项目会跨 Phase、跨窗口、经历中断或需要恢复边界时，使用 `malts-long-project-workspace-init`。选择该入口就代表选择长期项目工作区：初始化会同时创建根控制文件和首个 active Phase，不会静默停在最小骨架。
 - 当目标、假设、取舍或验收标准需要澄清时，使用 Grill-Me Preflight。
 - 简单工作保持单 Agent。
+- 验证后，普通单 Agent 工作会自动进行一次无写入 Growth Routing Gate。琐碎且无 signal 的工作保持静默；非琐碎工作或纠正/失败/恢复会得到简短、可见的成长结果。重复或高影响证据只建议 Standard/Major retrospective，不会自动执行；L2/L3 写入仍需独立授权。
 - 对用户已批准的长任务或多 Agent 任务，派发前展示 launch review。
 - 当交接上下文必须跨会话保存时，使用 handoff Skill。
 
@@ -54,28 +69,33 @@ hash 授权流程。
 
 ### 审阅和改变 Phase
 
-候选 goal 或 touch set 可能离开 active boundary 时，先运行 `phase-boundary-review`。它只读，不授予实施权限。`status`/`operation_status` 只表示 command execution；必须分别检查 `review_outcome`、mapping、recommendation 与 `persisted`。用 `record-phase-boundary-review` 持久化 structured result；该记录仍不授予实施权限。需要保留 ownership 但停止工作时用 `pause-phase`；只有具备当前 boundary/plan/authorization 证据时才用 `resume-phase`。跨 Phase 交接分两步：先生成 hash-bound `plan-phase-transition`，再用显式 carry-over 与 disposition file 执行 `apply-phase-transition`。
+候选 goal 或 touch set 可能离开 active boundary 时，先运行 `phase-boundary-review`。它只读，不授予实施权限。`status`/`operation_status` 只表示 command execution；必须分别检查 `review_outcome`、mapping、recommendation 与 `persisted`。用 `record-phase-boundary-review` 持久化 structured result；该记录仍不授予实施权限。需要保留 ownership 但停止工作时用 `pause-phase`。Pause/resume 必须传稳定的 Review ID（例如 `review:phase-030:001`），不得把文件路径当 ID；证据路径保存在独立字段。恢复前可对显式选中的 PAUSED Phase 运行只读 `plan-recheck`，但 PASS 只证明绑定有效，不授予执行权限。只有具备当前 boundary/plan/authorization 证据时才用 `resume-phase`。跨 Phase 交接分两步：先生成 hash-bound `plan-phase-transition`，再用显式 carry-over 与 disposition file 执行 `apply-phase-transition`。
 
 ```powershell
 python -B <MALTS_ROOT>\tools\long_workspace.py phase-boundary-review --workspace <workspace> --candidate-goal <goal> --candidate-touch-set <paths> --candidate-mapping UNCLEAR --recommendation USER_DECISION_REQUIRED
-python -B <MALTS_ROOT>\tools\long_workspace.py pause-phase --workspace <workspace> --reason <reason> --boundary-review-ref <ref> --authorization-ref <ref>
-python -B <MALTS_ROOT>\tools\long_workspace.py resume-phase --workspace <workspace> --phase-id <id> --boundary-review-ref <ref> --plan-review-ref <ref> --expected-plan-sha256 <sha256> --authorization-ref <ref>
+python -B <MALTS_ROOT>\tools\long_workspace.py pause-phase --workspace <workspace> --reason <reason> --boundary-review-ref <review-id> --authorization-ref <ref>
+python -B <MALTS_ROOT>\tools\long_workspace.py plan-recheck --workspace <workspace> --phase-id <paused-phase-id> --trigger CONTEXT_RECOVERY --require-active-plan
+python -B <MALTS_ROOT>\tools\long_workspace.py resume-phase --workspace <workspace> --phase-id <id> --boundary-review-ref <review-id> --plan-review-ref <ref> --expected-plan-sha256 <sha256> --authorization-ref <ref>
 ```
 
-先审阅 dry-run output，再添加 `--apply`。`SUPERSEDED` 是终态，最多只能有一个 `ACTIVE` Phase。
+先审阅 dry-run output，再添加 `--apply`。`SUPERSEDED` 是终态；`active_phase_id` 保持单值 primary Phase。只有 `resource_admission` 可同时登记额外 `OPEN` Phase，且其写入必须取得 Admission。
 
-### Migration、record 与 reconcile consistency
+### 重整与一致性恢复
 
-全新 workspace 使用 schema v4。schema v1/v2/v3 保持可读且不会被静默升级。先运行 `validate`；如果返回 migration 或 reconciliation classification，使用其报告的精确 hash，并在不带 `--apply` 的情况下审阅匹配命令（v1.3.x 冷迁移为 `migrate-workspace-v3-to-v4` 与 `migrate-result-contract-v1-to-v2`；legacy `migrate-consistency-records`、`record-phase-boundary-review`、`reconcile-consistency-records` 仍为 dry-run-first）。
+全新 workspace 使用 CURRENT，默认 `single_phase`。受支持的旧 workspace 与 Result 布局保持可读且不会静默升级。先运行 `validate`；若它将输入分类为需要重整，使用报告的精确 hash，并先在不带 `--apply` 的情况下审阅一个匹配命令。公开流程始终直接生成 CURRENT，不要求用户经过中间版本或降级链。
 
 ```powershell
-python -B <MALTS_ROOT>\tools\long_workspace.py migrate-consistency-records --workspace <workspace> --authority workspace-state --expected-state-sha256 <sha256> --operation-id <id>
 python -B <MALTS_ROOT>\tools\long_workspace.py record-phase-boundary-review --workspace <workspace> --phase-id <id> --review-id <id> --candidate-mapping SAME_PHASE --recommendation KEEP --evidence-ref <ref> --expected-phase-sha256 <sha256> --operation-id <id>
-python -B <MALTS_ROOT>\tools\long_workspace.py reconcile-consistency-records --workspace <workspace> --authority canonical-controls --expected-state-sha256 <sha256> --expected-source-sha256 <sha256> --expected-phase-sha256 <sha256> --operation-id <id>
 python -B <MALTS_ROOT>\tools\long_workspace.py recover-workspace-transaction --workspace <workspace> --operation-id <id> --expected-journal-sha256 <sha256>
+python -B <MALTS_ROOT>\tools\long_workspace.py reorganize-workspace --workspace <workspace> --operation-id <id> --expected-state-sha256 <sha256> --expected-project-control-sha256 <sha256> [--project-control-candidate <workspace-relative-path> --expected-candidate-sha256 <sha256>] --profile <single_phase-or-resource_admission> --review-ref <ref> --authorization-ref <ref> [--expected-plan-sha256 <sha256>]
+python -B <MALTS_ROOT>\tools\long_workspace.py reorganize-result-contract --workspace <workspace> --contract <legacy-or-current-contract> --expected-contract-sha256 <sha256> --expected-phase-control-sha256 <sha256> --expected-phase-boundary-sha256 <sha256> --operation-id <id> --revision-reason <reason> --review-ref <ref> --authorization-ref <ref> [--task-id <tid> --lineage-id <lid> --phase-id <pid> --event-id <eid> --expected-plan-sha256 <sha256>]
 ```
 
-Applied consistency write 使用独立 workspace transaction lock/journal 与 `WS_TRANSACTION_*` error。禁止删除 incomplete journal；先运行 exact-journal-hash recovery dry run，再添加 `--apply`。Current recovery authority 固定为 active Session checkpoint、active Phase recovery、显式绑定 terminal Phase、Project recovery——绝不选择最新历史 Session。
+Applied workspace/coordination authority 写入共享 unique-writer lock/journal，并在获锁后复核精确 preimage。禁止删除 incomplete journal；先运行匹配的 exact-journal-hash recovery dry run，再添加 `--apply`。Current recovery authority 固定为 active Session checkpoint、primary active Phase recovery、显式绑定 terminal Phase、Project recovery——绝不选择最新历史 Session。
+
+### 协调 resource-profile 写入
+
+`workspace_coordination.py` 负责 typed locator/capability Admission、lease renew/release、fencing verify、expired grant reap，以及 `UNKNOWN` record/reconcile。所有 mutation 默认 dry run，直到显式 `--apply`；续租是显式操作，不创建 daemon。Request JSON 遵循 `workspace_coordination.schema.json`。Non-fenceable exclusive capability 必须串行，`ISOLATE_REQUIRED` 必须使用不同 isolation key。
 
 ### Audit、enroll 与 mutate Artifact
 
@@ -100,10 +120,12 @@ Active S3/S4 长项目 Phase 在 `PHASE_CONTROL.md` 中绑定 active plan path�
 
 当原生子 Agent 无法满足已批准的 hard model / effort 契约，而官方 Codex task/thread 接口能够满足时，可使用受治理的 peer task。它使用当前项目工作区，记录为 `codex-peer-task` / `peer-task`，禁止静默 fallback，返工复用同一个 task，并只在 Main Controller 接受或终止闭合后归档。它属于现有 multi-agent Skill，不是新 Skill，也不是隐藏 child Agent。
 
-## MALTS v1.3.0 命令
+## 当前 Workspace 命令
 
-- `record-result-events` / `rebuild-result-lineage`：typed Result v2 事件追加与投影重建（默认 dry-run）。
-- `migrate-workspace-v3-to-v4` / `migrate-result-contract-v1-to-v2`：显式哈希绑定冷迁移；要求静止状态。
+- `workspace-entry` / `refresh-maintenance-views`：有界只读日常进入，以及从当前 canonical control 按需重建 non-authoritative view；不保留旧投影正文。
+- `record-result-events` / `rebuild-result-lineage`：typed Result event append 与投影重建（默认 dry-run）；resource execution 使用 CURRENT Result authority。
+- `reorganize-workspace` / `reorganize-result-contract`：把任意受支持旧输入一步显式、hash-bound 地重整为 CURRENT，并要求满足对应静止与恢复条件。
+- `workspace_coordination.py`：Admission、queue、lease、fencing、quarantine 与 reconcile；不创建 heartbeat daemon。
 - `plan-phase-boundary-amendment` / `apply-phase-boundary-amendment`：不可变 Phase boundary revision。
 - `transfer-session-lease`：哈希绑定的 Session lease owner 转移。
 - `scoped-readiness`：只读 S0/S1/S2/ESCALATE 路由建议；绝不授权或写入。

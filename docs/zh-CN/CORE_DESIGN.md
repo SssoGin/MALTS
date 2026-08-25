@@ -8,6 +8,20 @@ MALTS 默认 single-agent first。Multi-agent execution 是一种受控分工机
 
 从设计角度看，MALTS 是一个低开销的 Agent Project Operating System。它把任务交付、可恢复执行、受控委派、验证证据和复盘成长连接成一个闭环。核心目的不是制造更多流程，而是在 bounded execution rounds 之间保存意图、证据、恢复状态和可复用知识。
 
+## 工作区权威、进入与并发
+
+CURRENT workspace contract 将语义归属与机器强制执行分开：
+
+- `PROJECT_CONTROL.md` 拥有 Project 事实；每个 `PHASE_CONTROL.md` 拥有该 Phase 的目标、边界、队列、计划、证据和恢复；只有显式打开的 `SESSION_CONTROL.md` 才拥有一次有界 checkpoint。
+- `runtime/workspace_control.json` 拥有机器强制执行的 schema/profile/index 与精确 transaction binding；`runtime/workspace_coordination.json` 拥有可选 Admission、capability queue、fencing epoch 与 quarantine。两者都不得编造或覆盖 Markdown 的目标、计划或恢复事实。
+- CURRENT contract 中，work report 与已存在 handoff 是按需派生视图。它们的漂移属于 warning 和局部 reconcile，不是另一权威或全局停止条件。legacy workspace layout 在显式迁移前保留严格投影绑定行为。
+
+初始化与普通进入是不同操作。完整初始化只用于首次建立、结构修复、显式重整或重大生命周期变化。状态未变化的 CURRENT 工作区通过一次有界、只读 `workspace-entry` 进入。没有 active Session 时，默认 `single_phase` 最多读取 4 个 current-set 文件 / 24 KiB，显式启用的 `resource_admission` 最多读取 5 个 / 28 KiB；不读历史、零写入、不创建实体。适用指令由 host 预先加载，Project control 只在显式 Project-level/review/recovery gate 中读取。Deep validation 与 cold recovery 保持为显式升级路径。
+
+并发是显式启用的安全 profile，不是新的 Phase 层级。`single_phase` 保持一个 open Phase 且不创建 coordination state。`resource_admission` 保留单值 primary `active_phase_id`，同时允许额外 `OPEN` Phase。写入 grant 精确绑定 Phase bytes、actor、expiry、typed locator/capability、authorization 与单调递增 fencing epoch。Typed locator 包括 `PATH`、`ARTIFACT`、`RECORD`、`SERVICE`、`DEVICE`、`ENVIRONMENT`；path conflict 包括相同、父子与声明 alias 重叠。Capability mode 为 `SHARED`、`EXCLUSIVE`、`QUEUED`、`ISOLATE_REQUIRED`。
+
+Lease 续期必须显式执行且不创建 daemon。Stale actor 与旧 fencing token 必须 fail closed。Workspace/coordination authority 写入使用同一个 unique-writer lock，并在获锁后复核精确 preimage。外部副作用为 `UNKNOWN` 时只隔离受影响 domain；只有 workspace authority/recovery 本身不确定时才扩大阻塞。无关 domain 可继续，被隔离 domain 必须显式、基于证据 reconcile。具体工具 adapter 声明资源与 enforcement capability；Core 不含 Unity、Unreal、VCS、数据库、CI 或设备业务规则。
+
 ## 设计基线
 
 本文定义 MALTS 的核心设计原则、操作模型和系统边界。MALTS 面向 AI agents 参与或执行的长时间 coding tasks，重点处理 goal drift、状态丢失、验证证据不足、跨窗口恢复和可复用学习。它说明 single-agent execution、受控 multi-agent 分工、恢复、交付验证和成长之间的关系。
@@ -175,14 +189,14 @@ MALTS 有三种实际模式：
 | 模式 | 使用时机 | 需要文件 | 行为 |
 |---|---|---|---|
 | Normal single-agent work | 小、明确、低风险任务 | 默认无 | 直接完成，验证相关 completion criteria，必要时做低开销 growth judgment |
-| MALTS single-agent mode | Work 需要可恢复状态或阶段报告 | `PROJECT_CONTROL.md`；通常根据需要使用 `WORK_TASK_REPORT.md` 和 `PROJECT_HANDOFF.md` | Main controller 默认仍然执行，但状态和验证持久化 |
+| MALTS single-agent mode | Work 需要可恢复状态 | Project authority 加当前 owning Phase/Session control；report/handoff 仅按需 | Main controller 默认仍执行；材料状态与验证可恢复，且不产生每任务文档抖动 |
 | MALTS multi-agent mode | Delegation 明确降低风险或成本 | MALTS files、task contracts 和 sub-agent reports | Dispatch 前需要 launch review 和明确确认 |
 
 Single-agent first 表示启用 MALTS 后 main controller 仍是默认执行者。这个原则有两个边界：它既不要求每个任务都启用 MALTS，也不会在 MALTS 已启用后删除状态文件。
 
 ### 长期项目初始化完成条件
 
-`malts-project-init` 负责轻量 root project control。用户改为选择专用的 `malts-long-project-workspace-init`，就是明确要求 Phase-oriented、可恢复的长期项目工作区。该 workflow 只创建 `AGENTS.md`、`PROJECT_CONTROL.md`、`WORK_TASK_REPORT.md`、薄 `CLAUDE.md` 和 non-canonical `runtime/` 时还没有完成；同一次已审阅初始化还必须登记并创建首个 active `PHASE_CONTROL.md`。
+`malts-project-init` 负责显式轻量 root setup。用户选择专用 `malts-long-project-workspace-init`，就是明确要求 Phase-oriented、可恢复的长期工作区。该 workflow 只创建 root files 与 machine state 时还未完成；同一次已审阅初始化还必须登记并创建首个 active `PHASE_CONTROL.md`。两个 initializer 都不是普通任务的日常进入路径。
 
 缺少首个 Phase 输入时应零写入失败，而不是静默进入 minimal mode。后续 Phase 继续显式创建；Session 是独立的 bounded operation，初始化、普通 conversation turn、普通写入、validate、maintain 或 compact 都不能隐式创建 Session。旧 root-only 工作区必须诊断为 `NEEDS_INITIAL_PHASE`，并在不覆盖现有用户控制文件的前提下迁移。
 
@@ -204,7 +218,7 @@ Agent 应在推荐 multi-agent work 前说明预期操作价值。如果价值�
 
 ## 项目状态模型
 
-启用 MALTS 时，`PROJECT_CONTROL.md` 是主要状态文件。它让下一个窗口、下一个 Agent 或同一 Agent 在 context compaction 后，可以从外部证据继续。
+启用 MALTS 时，`PROJECT_CONTROL.md` 是 Project-level 事实的 authority。Phase/Session 事实保留在各自 owner，runtime schema/profile/index 与 coordination 事实保留在 machine contract。它们组成有界 current set，使新窗口无需依赖一个超大的重复状态文件即可继续。
 
 `PROJECT_CONTROL.md` 中的当前 MALTS 版本元数据不是历史叙述。Agent 必须解析 active boot file，读取 `<MALTS_ROOT>/VERSION`，再把该值写入当前元数据。旧 control files、work reports、handoffs、templates、release notes 或 chat history 里的版本号，在重新对照 active root 验证前都只能视为历史信息。
 
@@ -249,26 +263,26 @@ Recovery Notes
 
 ### Long-Workspace Cross-Control Consistency
 
-Long-project state 不是一个扁平文件。Project 拥有 original goal/global acceptance/active Phase index 与 Project recovery；Phase 拥有 boundary、Boundary Review、plan、queue、evidence、Phase recovery 与 closure；显式 Session 只拥有 bounded scope 与 checkpoint。`WORK_TASK_REPORT.md` 是 required current schema-v4 projection。`PROJECT_HANDOFF.md` 可选，但存在时同样是 checked projection。Runtime JSON 是 typed non-canonical state，不能覆盖 Markdown authority。
+Long-project state 不是一个扁平文件。Project 拥有 original goal/global acceptance/primary Phase index 与 Project recovery；Phase 拥有 boundary、Boundary Review、plan、queue、evidence、Phase recovery 与 closure；显式 Session 只拥有 bounded scope 与 checkpoint。Machine workspace state 拥有 schema/profile/index 与 transaction binding；coordination state 拥有 Admission/queue/fencing/quarantine。CURRENT contract report/handoff 是按需 derived view；legacy workspace layout 保留 required report 与 checked optional handoff 兼容投影。
 
-全新工作区使用精确 closed schema v4。精确 schema v1/v2/v3 作为可读 compatibility contract 保留且必须显式迁移；validator 按 declared version dispatch，拒绝 unknown version。Active Phase full-file SHA-256 与 normalized boundary、Boundary Review、recovery hash 把 authority 绑定到 report/handoff/runtime projection。Normalization 将 line ending 转为 LF、移除每行 trailing whitespace，并在 SHA-256 前保留恰好一个 trailing LF。
+全新工作区使用精确 closed CURRENT contract，默认 `single_phase`。受支持的旧布局作为内部可读兼容输入保留，且必须显式一步重整；内部 validator 按声明的旧格式 dispatch，拒绝未知格式。Selected Phase full-file SHA-256 与 normalized boundary、Boundary Review、recovery hash 绑定 machine enforcement 与任何已刷新 view。Normalization 将 line ending 转为 LF、移除每行 trailing whitespace，并在 SHA-256 前保留恰好一个 trailing LF。
 
 Boundary review execution、recorded outcome、decision 与 authorization 是分离的状态维度。只读 `phase-boundary-review` 永不持久化或授权工作。显式 `record-phase-boundary-review` 只持久化 structured record；后续 lifecycle mutation 仍需自己的 authorization evidence。Structural、binding、deterministic-consistency 与 advisory-semantic finding 分开，避免 semantic advice 掩盖 byte drift。
 
-Applied consistency migration/record/reconciliation 使用独立 persisted workspace transaction domain，带精确 precondition 与 original-byte rollback。其 `runtime/workspace_transaction.lock.json`、`runtime/workspace_transactions/` 与 `WS_TRANSACTION_*` code 不会和 Artifact transaction state 冲突。Interrupted journal 会保留给 exact-hash recovery，而不是自动删除。
+Applied workspace/coordination migration、record、reconciliation 使用一个 persisted unique-writer transaction domain，带精确 precondition、锁后 preimage 复核与 original-byte rollback。其 `runtime/workspace_transaction.lock.json`、`runtime/workspace_transactions/` 和 `WS_TRANSACTION_*` code 与 Artifact transaction state 分离。Interrupted journal 会保留给 exact-hash recovery，而不是自动删除。
 
 ## 产物矩阵
 
 | Artifact | 默认位置 | 受众 | 目的 |
 |---|---|---|---|
 | `PROJECT_CONTROL.md` | Project root | Agent-facing | 当前目标、队列、决策、ownership、verification、risks、recovery state |
-| `WORK_TASK_REPORT.md` | Project root | Agent-facing structure and report source | 阶段或最终交付报告结构与证据记录 |
-| `PROJECT_HANDOFF.md` | Project root | Agent-facing | 面向未来窗口、工具或 Agents 的 continuation source |
+| `WORK_TASK_REPORT.md` | Project root | User/Agent-facing derived view | 按需 Phase/最终交付摘要；CURRENT contract 中 non-authoritative |
+| `PROJECT_HANDOFF.md` | Project root | Agent-facing derived view | 按需 continuation 摘要；CURRENT contract 中 non-authoritative |
 | `TASK_CONTRACT.template.en.md` | `runtime/EN/templates/` | Agent-facing | 真实 sub-agent task 的 contract |
 | `SUB_AGENT_REPORT.template.en.md` | `runtime/EN/templates/` | Agent-facing | sub-agent 返回的结构化结果 |
 | `PROJECT_HANDOFF.template.en.md` | `runtime/EN/templates/` | Agent-facing | 固定 recovery handoff 模板 |
 | `WORK_TASK_REPORT.template.en.md` | `runtime/EN/templates/` | Agent-facing structure, user-facing output | 可用用户语言撰写的 report 结构 |
-| `WORK_TASK_REPORT.template.zh-CN.md` | `runtime/CH/templates/` | 本地化参考 | 用于 canonical report 的中文措辞参考，或明确要求时的翻译镜像 |
+| `WORK_TASK_REPORT.template.zh-CN.md` | `runtime/CH/templates/` | 本地化参考 | 用于按需 report view 的中文措辞参考，或明确要求时的翻译 view |
 | `DELIVERY_CHECKLIST.en.md` | `runtime/EN/checklists/` | Agent-facing | Final 或 phase delivery self-check |
 | `MEMORY_WRITE_CHECKLIST.en.md` | `runtime/EN/checklists/` | Agent-facing | durable memory 或 rule writes 前的过滤 |
 | `QUALITY_GATE.en.md` | `runtime/EN/checklists/` | Agent-facing | 通用 completion gate |
@@ -286,8 +300,8 @@ Release templates 是起点。真实 project artifacts 属于用户项目 worksp
 5. 对非琐碎或不清楚的开始提供 MALTS-native Grill-Me Preflight，除非明显 N/A。
 6. 执行下一轮 bounded round。
 7. 标记任务完成前先验证。
-8. 每个 MALTS phase 或最终交付后写入或追加 `WORK_TASK_REPORT.md`，叙述正文使用用户或项目主要语言；完整翻译镜像只在明确要求时生成。
-9. 进入 handoff、context-risk handling 或 cross-window continuation 时，更新 `PROJECT_HANDOFF.md`。
+8. 提供 user-facing result；只有用户要求 durable report 或确有材料价值时才刷新 `WORK_TASK_REPORT.md`。完整翻译镜像只在明确要求时生成。
+9. Context risk 时持久化材料 owner-local recovery state；只有真实 handoff 请求或恢复需要时才创建/更新 `PROJECT_HANDOFF.md`。
 10. 将 reusable lessons 送入 MALTS Memory Pipeline。
 
 Long work 被建模为带明确 stop、report 和 continuation points 的 bounded rounds 序列。这个设计让连续性不依赖任何单一 uninterrupted chat window。
@@ -305,12 +319,7 @@ MALTS 不是会自动观察 context windows 或自动写 handoff files 的 backg
 - 未解决的 sub-agent work
 - 多个 active branches of work
 
-继续前，future Agent 应按以下顺序读取：
-
-1. `PROJECT_HANDOFF.md`
-2. `PROJECT_CONTROL.md`
-3. `WORK_TASK_REPORT.md`
-4. 当前 next task 所需的 project files
+继续前，future Agent 运行 `workspace-entry --task-class CONTEXT_RECOVERY`，只读取返回的有界 current-set 路径。只有 task/recovery decision 引用 report/handoff 时才加载；默认绝不选择完整历史。
 
 如果 chat memory 与 file state 冲突，在验证前以当前 file state 为准。
 
@@ -325,11 +334,11 @@ Main Controller 是每个 multi-agent round 必需的责任所有者。下表中
 | Role | 参与方式 | 默认权限 | 责任 |
 |---|---|---|---|
 | Main Controller | 必需 | Coordination, merge, final judgment | 负责用户沟通、状态、launch review、merge、verification、delivery |
-| Planner | 可选 | Read-only advice | 分解 tasks、dependencies、priorities 和 batches |
-| Explorer | 可选 | Read-only | 调查 project structure、logs、modules 或 root cause |
-| Worker | 可选 | Scoped write access | 在声明的 file 或 task boundary 内实现 |
-| Verifier | 可选 | Read-only by default; may run checks | 测试、构建、扫描并验证 delivery claims |
-| Memory Curator | 可选 | Candidate writes only | 提取 reusable lessons 并准备 filtered growth candidates |
+| MALTS Planner | 可选 | Read-only advice | 分解 tasks、dependencies、priorities 和 batches |
+| MALTS Explorer | 可选 | Read-only | 调查 project structure、logs、modules 或 root cause |
+| MALTS Worker | 可选 | Scoped write access | 在声明的 file 或 task boundary 内实现 |
+| MALTS Verifier | 可选 | Read-only by default; may run checks | 测试、构建、扫描并验证 delivery claims |
+| MALTS Memory Curator | 可选 | Candidate writes only | 提取 reusable lessons 并准备 filtered growth candidates |
 
 不得机械建立 `Planner → Explorer → Worker → Verifier → Memory Curator` 的仪式化链路。一个有边界的任务可以完全不使用 sub-agent、只使用一个定向 lane，或仅在确实提升交付且授权与验证合同允许时使用多个独立 lane。
 
@@ -371,7 +380,7 @@ Sub-agent reports 必须在 merge 前回收并审阅。偏离 scope、不可验�
 
 Failures 应被记录为 failures。Partial 或 failed sub-agent output 必须保持 incomplete work 分类，而不是完成进度。
 
-schema-v4 recovery authority 固定为：active Session checkpoint；否则 active Phase recovery；否则显式绑定的 terminal Phase；否则 Project recovery。Registry time/order 与最新历史 Session 永远不是 authority。Recovery-sensitive dispatch 或 delivery 前，required current report 与 optional current handoff binding 必须一致。
+legacy/CURRENT workspace layouts recovery authority 固定为：active Session checkpoint；否则 primary active Phase recovery；否则显式绑定的 terminal Phase；否则 Project recovery。Registry time/order 与最新历史 Session 永远不是 authority。legacy workspace layout projection 保留精确检查；CURRENT contract derived-view drift 是 warning/local reconcile，不能授权 dispatch。
 
 ## 验证与交付
 
@@ -421,6 +430,12 @@ Growth tiers：
 
 这个 tiering 让普通工作保持低操作成本，同时在经验预期复用价值足够时保存 lessons。
 
+### Growth Routing Gate
+
+验证完成、最终交付前，每个普通任务都评估一次无写入 L1 Growth Routing Gate。没有 signal 的琐碎工作保持静默（`NO_OUTPUT`）。非琐碎工作，或出现用户纠正、验证反转、恢复、失败、可复用方法时，输出简短且可见的 `LIGHT_REPORT`。重复/高影响证据、Phase 交付、长任务完成和交付失败返回 `RETROSPECTIVE_RECOMMENDED`；它只建议 Standard/Major review，不会自动执行。用户明确请求或已授权的 review 返回 `RETROSPECTIVE_AUTHORIZED`。
+
+L1 只在当前上下文判断，不能创建 ledger、Phase、Session、Artifact、后台服务或 durable control 更新。L2 项目维护和 L3 系统晋升仍各自独立授权。仅写入报告不能替代面向用户的交付结果。适用的 Plan/Boundary/transaction/unknown-effect gate 必须先执行并可返回 `BLOCKED`；Growth 不能绕过它们。
+
 ## MALTS Memory Pipeline
 
 MALTS Memory Pipeline 是 reusable lessons 的 durable growth path，独立于任何单一 external memory tool。
@@ -428,7 +443,7 @@ MALTS Memory Pipeline 是 reusable lessons 的 durable growth path，独立于�
 Pipeline：
 
 1. 从 delivery、failure、user correction、verification 或 process friction 中观察 reusable lesson。
-2. 先在 `PROJECT_CONTROL.md`、`WORK_TASK_REPORT.md` 或 local retrospective 中本地记录。
+2. L1 分析保持临时；只有具备对应 L2 项目授权后才在本地记录。
 3. 使用 `MEMORY_WRITE_CHECKLIST.en.md` 过滤。
 4. 与已有 rules、skills 和 instruction files 去重。
 5. 选择最窄 durable destination：project skill、global skill、`GLOBAL_MEMORY.md`、`AGENTS.md`、`CLAUDE.md` 或等价 tool instruction entry。

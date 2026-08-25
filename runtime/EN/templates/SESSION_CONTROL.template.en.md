@@ -24,6 +24,19 @@
 
 <SESSION_GOAL>
 
+<!-- MALTS:section=session-resource-admission-binding -->
+## Resource Admission Binding
+
+Reference runtime authority; do not copy its ledger.
+
+- Governance profile: `single_phase` / `resource_admission`
+- Admission ID: `N/A`
+- Actor ID: `N/A`
+- Typed locator/capability scope reference: `N/A`
+- Required fencing token references: `N/A`
+- Lease expiry / latest verification evidence: `N/A`
+- Quarantine/reconcile state: `N/A`
+
 <!-- MALTS:section=session-commands -->
 ## Commands And Touch Set
 

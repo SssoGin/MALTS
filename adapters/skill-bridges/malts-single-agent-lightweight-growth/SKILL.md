@@ -1,6 +1,6 @@
 ---
 name: malts-single-agent-lightweight-growth
-description: "MALTS Single-Agent Lightweight Growth: record lightweight reusable lessons during single-agent work."
+description: "MALTS Single-Agent Lightweight Growth: default no-write check after verification; silent without a signal."
 ---
 
 # MALTS Skill Bridge

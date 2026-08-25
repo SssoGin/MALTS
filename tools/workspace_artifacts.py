@@ -846,8 +846,14 @@ def audit_workspace(
                 row_count = _parse_owner_registry(root, path, marker, owner_ref, owner_kind, findings, artifacts)
             else:
                 _, text = _read_markdown(path)
-                if _section(text, marker) is not None:
-                    _finding(findings, "WARNING", "ART_OWNER_REGISTRY_NOT_ENROLLED", relative, "Owner registry exists without explicit Artifact Lifecycle enrollment and is not adopted.", owner_ref=owner_ref)
+                section = _section(text, marker)
+                if section is not None:
+                    try:
+                        observed_rows = _table(section, OWNER_HEADERS)
+                    except ValueError:
+                        observed_rows = [{}]
+                    if observed_rows:
+                        _finding(findings, "WARNING", "ART_OWNER_REGISTRY_NOT_ENROLLED", relative, "Non-empty owner registry exists without explicit Artifact Lifecycle enrollment and is not adopted.", owner_ref=owner_ref)
             owner_records.append({"owner_ref": owner_ref, "owner_kind": owner_kind, "registry_path": relative, "row_count": row_count})
         elif enrollment["status"] == "ENROLLED":
             _finding(

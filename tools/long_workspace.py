@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase-ready long-project workspace lifecycle for MALTS v1.
+"""Phase-ready long-project workspace lifecycle for the MALTS CURRENT contract.
 
 Read-only commands never write. State-changing commands are dry-run by default
 and require an explicit --apply flag.
@@ -8,6 +8,7 @@ and require an explicit --apply flag.
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import os
@@ -23,7 +24,11 @@ sys.dont_write_bytecode = True
 from malts_user_contracts import validate_instance
 from malts_user_contracts import canonical_json, load_json
 import migrate_result_contract as result_migration
+import workspace_coordination as coordination_runtime
+import workspace_entry as workspace_entry_runtime
+import workspace_reorganization as reorganization_runtime
 from result_controller import apply_event_batch_v2, rebuild_lineage_projection_v2
+from user_status_renderer import render_statuses
 from workspace_artifacts import (
     ArtifactMutationError,
     artifact_close_gate,
@@ -54,8 +59,9 @@ except ImportError:  # Wave-B transaction implementation is integrated independe
 
 MALTS_ROOT = Path(__file__).resolve().parents[1]
 STATE_RELATIVE = Path("runtime") / "workspace_control.json"
-FIXED_FILES = ("AGENTS.md", "PROJECT_CONTROL.md", "WORK_TASK_REPORT.md", "CLAUDE.md")
+FIXED_FILES = ("AGENTS.md", "PROJECT_CONTROL.md", "CLAUDE.md")
 ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+RECORD_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,191}$")
 HISTORY_TOKEN = re.compile(
     r"<!-- MALTS:history:(?:start id=(?P<id>[A-Za-z0-9][A-Za-z0-9._-]{0,127})|(?P<end>end)) -->"
 )
@@ -75,7 +81,7 @@ STATIC_GENERATION_REFERENCE = re.compile(
     r"(?i)[A-Z]:[\\/][^\r\n`\"']*?[\\/]lifecycle[\\/]generations[\\/]malts-[A-Za-z0-9._-]+"
 )
 DEFAULT_BUDGET = {
-    "max_root_lines": 1200,
+    "max_root_lines": 1500,
     "max_root_bytes": 262144,
     "max_active_tasks": 50,
     "max_open_decisions": 50,
@@ -130,6 +136,31 @@ V4_ONLY_OPERATIONS = frozenset(
     }
 )
 V4_TERMINAL_PHASE_STATES = frozenset({"DONE", "SUPERSEDED", "BLOCKED", "FAILED"})
+CURRENT_BOUND_WORKSPACE_SCHEMAS = frozenset({4, 5})
+CURRENT_WORKSPACE_CONTRACT = "malts.workspace.current"
+CURRENT_INTERNAL_LAYOUT = 5
+CURRENT_PROFILE_TO_INTERNAL = {
+    "single_phase": "single_phase_v1",
+    "resource_admission": "resource_admission_v1",
+}
+INTERNAL_PROFILE_TO_CURRENT = {value: key for key, value in CURRENT_PROFILE_TO_INTERNAL.items()}
+CURRENT_RESULT_CONTRACT = "malts.result.current"
+LEGACY_PUBLIC_COMMAND_REPLACEMENTS = {
+    "migrate-workspace-v3-to-v4": "reorganize-workspace",
+    "migrate-workspace-v4-to-v5": "reorganize-workspace",
+    "migrate-workspace-v5-to-v4": "reorganize-workspace",
+    "migrate-result-contract-v1-to-v2": "reorganize-result-contract",
+    "migrate-result-contract-v2-to-v3": "reorganize-result-contract",
+    "reconcile-result-contract-v3-to-v2": "reorganize-result-contract",
+}
+HIDDEN_COMPATIBILITY_COMMANDS = frozenset(
+    {
+        "migrate-phase-control",
+        "migrate-consistency-records",
+        "reconcile-consistency-records",
+        "rebind-v4-consistency",
+    }
+)
 BOUNDARY_INDEX_MARKER = "phase-boundary-revision-index"
 TASK_INDEX_MARKER = "phase-task-lineage-index"
 
@@ -226,8 +257,37 @@ def _encode_markdown(text: str, has_bom: bool) -> bytes:
     return (b"\xef\xbb\xbf" + payload) if has_bom else payload
 
 
+def _persisted_workspace_state(state: dict[str, Any]) -> dict[str, Any]:
+    """Remove private compatibility fields before serializing the CURRENT contract."""
+
+    persisted = copy.deepcopy(state)
+    if persisted.get("contract_id") != CURRENT_WORKSPACE_CONTRACT:
+        return persisted
+    persisted.pop("schema_version", None)
+    governance = persisted.get("phase_governance")
+    if isinstance(governance, dict):
+        profile = governance.get("profile")
+        governance["profile"] = INTERNAL_PROFILE_TO_CURRENT.get(profile, profile)
+    return persisted
+
+
+def _inflate_workspace_state(state: dict[str, Any]) -> dict[str, Any]:
+    """Expose the CURRENT contract through the proven legacy-layout implementation API."""
+
+    inflated = copy.deepcopy(state)
+    if inflated.get("contract_id") != CURRENT_WORKSPACE_CONTRACT:
+        return inflated
+    inflated["schema_version"] = CURRENT_INTERNAL_LAYOUT
+    governance = inflated.get("phase_governance")
+    if isinstance(governance, dict):
+        profile = governance.get("profile")
+        governance["profile"] = CURRENT_PROFILE_TO_INTERNAL.get(profile, profile)
+    return inflated
+
+
 def _json_bytes(value: Any) -> bytes:
-    return (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    serializable = _persisted_workspace_state(value) if isinstance(value, dict) else value
+    return (json.dumps(serializable, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
 
 def _canonical_json_file_bytes(value: Any) -> bytes:
@@ -249,10 +309,10 @@ def _canonical_string_array(values: Iterable[str]) -> bytes:
 
 
 def _require_schema_v4(state: dict[str, Any], operation: str) -> None:
-    if state.get("schema_version") != 4:
+    if state.get("schema_version") not in CURRENT_BOUND_WORKSPACE_SCHEMAS:
         raise WorkspaceError(
             "WS_SCHEMA_V4_MIGRATION_REQUIRED",
-            f"{operation} requires workspace-control schema v4; legacy schemas remain read-only compatible.",
+            f"{operation} requires workspace-control schema v4 or v5; legacy schemas remain read-only compatible.",
             STATE_RELATIVE.as_posix(),
         )
 
@@ -345,12 +405,18 @@ def _validate_id(value: str, kind: str) -> str:
     return value
 
 
+def _validate_record_id(value: str, kind: str) -> str:
+    if not RECORD_ID_PATTERN.fullmatch(value):
+        raise WorkspaceError("WS_ID_INVALID", f"{kind} must match {RECORD_ID_PATTERN.pattern}.")
+    return value
+
+
 def _state_path(root: Path) -> Path:
     return _target(root, STATE_RELATIVE)
 
 
 def _validate_state(root: Path, state: dict[str, Any]) -> None:
-    issues = validate_instance(MALTS_ROOT, "workspace-control", state)
+    issues = validate_instance(MALTS_ROOT, "workspace-control", _persisted_workspace_state(state))
     if issues:
         message = "; ".join(issue.render() for issue in issues)
         raise WorkspaceError("WS_STATE_INVALID", message, STATE_RELATIVE.as_posix())
@@ -368,7 +434,7 @@ def _parse_state_bytes(root: Path, payload: bytes) -> dict[str, Any]:
     if not isinstance(state, dict):
         raise WorkspaceError("WS_STATE_PARSE", "Workspace state root must be an object.", STATE_RELATIVE.as_posix())
     _validate_state(root, state)
-    return state
+    return _inflate_workspace_state(state)
 
 
 def _load_state(root: Path) -> dict[str, Any]:
@@ -383,9 +449,11 @@ def _load_state_capture(root: Path) -> tuple[dict[str, Any], bytes]:
     return _parse_state_bytes(root, payload), payload
 
 
-def _default_state(project_id: str, now: str) -> dict[str, Any]:
-    return {
-        "schema_version": 4,
+def _default_state(project_id: str, now: str, profile: str = "single_phase") -> dict[str, Any]:
+    if profile not in CURRENT_PROFILE_TO_INTERNAL:
+        raise WorkspaceError("WS_COORDINATION_PROFILE_INVALID", "Unknown Phase governance profile.", profile)
+    return _inflate_workspace_state({
+        "contract_id": CURRENT_WORKSPACE_CONTRACT,
         "project_id": project_id,
         "active_phase_id": None,
         "active_session_id": None,
@@ -408,7 +476,13 @@ def _default_state(project_id: str, now: str) -> dict[str, Any]:
         "current_session_binding": None,
         "current_task_bindings": [],
         "recovery_binding": None,
-    }
+        "phase_governance": {
+            "profile": profile,
+            "coordination_path": "runtime/workspace_coordination.json" if profile == "resource_admission" else None,
+            "report_projection_policy": "ON_DEMAND",
+            "history_load_policy": "CURRENT_SET_ONLY",
+        },
+    })
 
 
 def _template_bytes(relative: str) -> tuple[str, bool]:
@@ -425,8 +499,39 @@ def _language(args: argparse.Namespace, root: Path) -> str:
     control = root / "PROJECT_CONTROL.md"
     if control.is_file():
         text, _ = _decode_markdown(control.read_bytes())
-        if any("\u4e00" <= character <= "\u9fff" for character in text):
-            return "zh-CN"
+        metadata = _marked_section(text, "metadata")
+        if metadata is None:
+            return "en"
+        declarations: list[str] = []
+        for line in metadata.splitlines():
+            stripped = line.strip()
+            declaration: tuple[str, str] | None = None
+            if stripped.startswith("- Narrative language:"):
+                declaration = (stripped.removeprefix("- Narrative language:").strip(), "en")
+            elif stripped.startswith("- 叙述语言："):
+                declaration = (stripped.removeprefix("- 叙述语言：").strip(), "zh-CN")
+            if declaration is None:
+                continue
+            value, field_language = declaration
+            normalized = value.strip("` ").casefold()
+            if normalized in {"english", "en"}:
+                declarations.append("en")
+            elif normalized in {"simplified chinese", "zh-cn", "简体中文"}:
+                declarations.append("zh-CN")
+            else:
+                # Legacy templates used a multi-choice placeholder. The stable
+                # metadata field language is deterministic and cannot be
+                # influenced by user-owned goal or recovery prose.
+                declarations.append(field_language)
+        unique = set(declarations)
+        if len(unique) > 1:
+            raise WorkspaceError(
+                "WS_LANGUAGE_METADATA_AMBIGUOUS",
+                "PROJECT_CONTROL declares conflicting narrative languages.",
+                "PROJECT_CONTROL.md",
+            )
+        if unique:
+            return declarations[0]
     return "en"
 
 
@@ -439,6 +544,7 @@ def _replace_metadata(text: str, language: str, project_id: str, now: str) -> st
             "- Current round:": "- Current round: INIT-001",
             "- Last updated:": f"- Last updated: {now}",
             "- Current mode: Single-Agent / Multi-Agent Long-Task": "- Current mode: Single-Agent",
+            "- Narrative language: English / Simplified Chinese / project language": "- Narrative language: English",
         },
         "zh-CN": {
             "- 项目：": f"- 项目：{project_id}",
@@ -446,6 +552,7 @@ def _replace_metadata(text: str, language: str, project_id: str, now: str) -> st
             "- 当前轮次：": "- 当前轮次：INIT-001",
             "- 最后更新：": f"- 最后更新：{now}",
             "- 当前模式：Single-Agent / Multi-Agent Long-Task": "- 当前模式：Single-Agent",
+            "- 叙述语言：English / Simplified Chinese / project language": "- 叙述语言：Simplified Chinese",
         },
     }[language]
     for source, target in replacements.items():
@@ -453,7 +560,7 @@ def _replace_metadata(text: str, language: str, project_id: str, now: str) -> st
     return text
 
 
-def _insert_locked_goal(text: str, goal: str) -> str:
+def _insert_locked_goal(text: str, goal: str, language: str) -> str:
     marker = "<!-- MALTS:section=user-original-goal -->"
     start = text.find(marker)
     if start < 0:
@@ -464,12 +571,139 @@ def _insert_locked_goal(text: str, goal: str) -> str:
     newline = "\r\n" if "\r\n" in text else "\n"
     segment = text[start:next_marker].rstrip("\r\n")
     safe_goal = " ".join(goal.splitlines()).strip()
-    segment += f"{newline}{newline}> Original goal (locked): {safe_goal}{newline}{newline}"
+    placeholder = "> Original goal (locked):" if language == "en" else "> 用户原始目标（锁定）："
+    if placeholder in segment:
+        segment = segment.replace(placeholder, f"{placeholder} {safe_goal}", 1)
+    else:
+        segment += f"{newline}{newline}{placeholder} {safe_goal}"
+    segment += f"{newline}{newline}"
     return text[:start] + segment + text[next_marker:]
 
 
 def _single_line(value: str) -> str:
     return " ".join(value.splitlines()).strip()
+
+
+def _localized_status_code(language: str, code: str) -> str:
+    if language == "en":
+        return code
+    report = render_statuses(MALTS_ROOT, [code], explicit_language=language)
+    return str(report["items"][0]["rendered"])
+
+
+def _localize_system_recovery(
+    language: str,
+    summary: str,
+    next_action: str,
+    *,
+    summary_is_system: bool = True,
+    next_action_is_system: bool = True,
+) -> tuple[str, str]:
+    """Localize only recovery prose whose MALTS ownership is known by the caller."""
+
+    normalized_summary = _single_line(summary)
+    normalized_next_action = _single_line(next_action)
+    if language != "zh-CN":
+        return normalized_summary, normalized_next_action
+
+    entity_id = r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}"
+    summary_patterns: tuple[tuple[str, Any], ...] = (
+        (
+            rf"Initial Phase (?P<phase>{entity_id}) is active; no Session is active\.",
+            lambda match: f"初始 Phase {match['phase']} 进行中（ACTIVE）；当前没有 active Session。",
+        ),
+        (
+            rf"Phase (?P<phase>{entity_id}) is active; no Session is active\.",
+            lambda match: f"Phase {match['phase']} 进行中（ACTIVE）；当前没有 active Session。",
+        ),
+        (
+            rf"Phase (?P<phase>{entity_id}) closed with (?P<status>[A-Z_]+)\.",
+            lambda match: f"Phase {match['phase']} 已关闭：{_localized_status_code(language, match['status'])}。",
+        ),
+        (
+            rf"Phase (?P<phase>{entity_id}) is PAUSED and provides no execution authorization\.",
+            lambda match: f"Phase {match['phase']} 已暂停（PAUSED），不授予执行权限。",
+        ),
+        (
+            rf"Phase (?P<phase>{entity_id}) resumed after explicit boundary, plan, and authorization review\.",
+            lambda match: f"Phase {match['phase']} 已恢复为进行中（ACTIVE）；边界、计划和授权均已完成复核。",
+        ),
+        (
+            rf"Session (?P<session>{entity_id}) is active in Phase (?P<phase>{entity_id})\.",
+            lambda match: f"Session {match['session']} 在 Phase {match['phase']} 中进行中（ACTIVE）。",
+        ),
+        (
+            rf"Session (?P<session>{entity_id}) closed with (?P<status>[A-Z_]+); Phase (?P<phase>{entity_id}) remains active\.",
+            lambda match: (
+                f"Session {match['session']} 已关闭：{_localized_status_code(language, match['status'])}；"
+                f"Phase {match['phase']} 仍在进行中（ACTIVE）。"
+            ),
+        ),
+        (
+            rf"Session (?P<session>{entity_id}) closed with (?P<status>[A-Z_]+) in Phase (?P<phase>{entity_id})\.",
+            lambda match: (
+                f"Session {match['session']} 在 Phase {match['phase']} 中已关闭："
+                f"{_localized_status_code(language, match['status'])}。"
+            ),
+        ),
+        (
+            rf"Phase (?P<source>{entity_id}) was SUPERSEDED by (?P<target>{entity_id}) through reviewed plan (?P<plan>[A-F0-9]{{64}})\.",
+            lambda match: (
+                f"Phase {match['source']} 已被 Phase {match['target']} 取代（SUPERSEDED）；"
+                f"已审阅计划为 {match['plan']}。"
+            ),
+        ),
+        (
+            rf"Phase (?P<target>{entity_id}) is active after superseding Phase (?P<source>{entity_id}) through reviewed plan (?P<plan>[A-F0-9]{{64}})\.",
+            lambda match: (
+                f"Phase {match['target']} 进行中（ACTIVE）；它已通过审阅计划 {match['plan']} "
+                f"取代 Phase {match['source']}。"
+            ),
+        ),
+        (
+            r"Compacted (?P<count>[0-9]+) explicitly marked historical block\(s\)\.",
+            lambda match: f"已压缩 {match['count']} 个明确标记的历史块。",
+        ),
+    )
+    localized_summary = normalized_summary
+    if summary_is_system:
+        for pattern, renderer in summary_patterns:
+            match = re.fullmatch(pattern, normalized_summary)
+            if match is not None:
+                localized_summary = renderer(match)
+                break
+
+    next_action_labels = {
+        "Create the initial Phase before reporting initialization complete.": "创建初始 Phase 后，才能报告初始化完成。",
+        "Open a Session only for an explicit bounded work-session boundary.": "仅在存在显式有界工作会话边界时创建 Session。",
+        "Open the next Phase when authorized.": "获得授权后显式打开下一个 Phase。",
+        "Open another Phase or explicitly resume this Phase after boundary, plan, and authorization review.": "打开另一个 Phase，或在完成边界、计划和授权复核后显式恢复本 Phase。",
+        "Continue only within the resumed Phase Boundary Contract and reviewed authorization.": "仅在已恢复 Phase 的边界合同和已审阅授权范围内继续。",
+        "Open a new outcome-oriented Phase or explicitly resume one reviewed Phase.": "打开新的结果导向 Phase，或显式恢复一个已审阅的 Phase。",
+        "Continue only from the exact Result lineage head and current Phase boundary revision.": "仅从精确的 Result lineage head 和当前 Phase 边界修订继续。",
+    }
+    localized_next_action = (
+        next_action_labels.get(normalized_next_action, normalized_next_action)
+        if next_action_is_system
+        else normalized_next_action
+    )
+    next_action_patterns: tuple[tuple[str, Any], ...] = (
+        (
+            rf"Continue only in successor Phase (?P<phase>{entity_id}); this source Phase is immutable provenance\.",
+            lambda match: f"仅在后继 Phase {match['phase']} 中继续；源 Phase 是不可变来源记录。",
+        ),
+        (
+            rf"Continue only in active Phase (?P<phase>{entity_id}); source carry-over rows are immutable provenance\.",
+            lambda match: f"仅在进行中的 Phase {match['phase']} 中继续；源 carry-over 行是不可变来源记录。",
+        ),
+    )
+    if next_action_is_system and localized_next_action == normalized_next_action:
+        for pattern, renderer in next_action_patterns:
+            match = re.fullmatch(pattern, normalized_next_action)
+            if match is not None:
+                localized_next_action = renderer(match)
+                break
+    return localized_summary, localized_next_action
 
 
 def _markdown_cell(value: str) -> str:
@@ -617,7 +851,6 @@ def _render_phase_control(
 def _populate_initial_phase(text: str, language: str, goal: str, phase_id: str, phase_goal: str) -> str:
     safe_goal = _single_line(goal)
     safe_phase_goal = _single_line(phase_goal)
-    phase_cell = _markdown_cell(phase_goal)
     replacements = {
         "en": {
             "- Current understanding:": f"- Current understanding: {safe_goal}",
@@ -625,8 +858,6 @@ def _populate_initial_phase(text: str, language: str, goal: str, phase_id: str, 
             "- Active Phase:": f"- Active Phase: {phase_id}",
             "- Stage goal:": f"- Stage goal: {safe_phase_goal}",
             "- Exit condition:": "- Exit condition: The initial Phase goal is accepted and its evidence is recorded.",
-            "|  |  | TODO / PASS / FAIL / N/A |  |": "| Initial Phase goal is completed | Review the active Phase control and recorded evidence | TODO |  |",
-            "| T001 | P0 | TODO | Main Controller |  | None |  |  |": f"| T001 | P0 | TODO | Main Controller | {phase_cell} | None | Project workspace | Active Phase evidence |",
         },
         "zh-CN": {
             "- 当前理解：": f"- 当前理解：{safe_goal}",
@@ -634,8 +865,6 @@ def _populate_initial_phase(text: str, language: str, goal: str, phase_id: str, 
             "- Active Phase：": f"- Active Phase：{phase_id}",
             "- 阶段目标：": f"- 阶段目标：{safe_phase_goal}",
             "- 退出条件：": "- 退出条件：首个 Phase 目标通过验收并记录证据。",
-            "|  |  | TODO / PASS / FAIL / N/A |  |": "| 首个 Phase 目标完成 | 审阅 active Phase control 与已记录证据 | TODO |  |",
-            "| T001 | P0 | TODO | Main Controller |  | 无 |  |  |": f"| T001 | P0 | TODO | Main Controller | {phase_cell} | 无 | 项目工作区 | Active Phase evidence |",
         },
     }[language]
     for source, target in replacements.items():
@@ -656,7 +885,7 @@ def _render_project_control(
     suffix = "en.md" if language == "en" else "zh-CN.md"
     text, bom = _template_bytes(f"runtime/{'EN' if language == 'en' else 'CH'}/templates/PROJECT_CONTROL.template.{suffix}")
     text = _replace_metadata(text, language, project_id, now)
-    text = _insert_locked_goal(text, goal)
+    text = _insert_locked_goal(text, goal, language)
     text = _populate_initial_phase(text, language, goal, phase_id, phase_goal)
     return _encode_markdown(text, bom)
 
@@ -688,8 +917,8 @@ def _render_work_report(
         text = text.replace("- User original goal addressed:", f"- User original goal addressed: {goal}", 1)
     else:
         text = text.replace("- 状态：DONE / PARTIAL / BLOCKED / FAILED", "- 状态：PARTIAL", 1)
-        text = text.replace("- 直白结论：", f"- 直白结论：长项目工作区已初始化，active Phase 为 {phase_id}；当前没有 active Session。", 1)
-        text = text.replace("- 已处理的用户原始目标：", f"- 已处理的用户原始目标：{goal}", 1)
+        text = text.replace("- 白话结论：", f"- 白话结论：长项目工作区已初始化，active Phase 为 {phase_id}；当前没有 active Session。", 1)
+        text = text.replace("- 是否回应用户原始目标：", f"- 是否回应用户原始目标：{goal}", 1)
     text = text.replace("- Result ID:", f"- Result ID: {project_id}-INIT-001", 1)
     for placeholder, value in {
         "<CURRENT_PHASE_ID>": phase_id,
@@ -717,13 +946,14 @@ def _render_named_template(relative: str, values: dict[str, str]) -> bytes:
 
 
 def _plan(operation: str, root: Path, changes: Iterable[Path], apply: bool, **extra: Any) -> dict[str, Any]:
+    planned_changes = [_relative(root, path) for path in changes]
     value: dict[str, Any] = {
         "status": "PASS",
         "operation": operation,
         "mode": "APPLY" if apply else "DRY_RUN",
         "workspace": str(root),
-        "planned_changes": [_relative(root, path) for path in changes],
-        "writes_performed": bool(apply),
+        "planned_changes": planned_changes,
+        "writes_performed": bool(apply and planned_changes),
     }
     value.update(extra)
     return value
@@ -865,7 +1095,11 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
         )
     if not (root / "CLAUDE.md").exists():
         rendered["CLAUDE.md"] = b"@AGENTS.md\n"
-    updated_state = json.loads(json.dumps(existing_state)) if existing_state is not None else _default_state(project_id, now)
+    requested_profile = args.phase_governance_profile
+    profile = CURRENT_PROFILE_TO_INTERNAL[requested_profile] if existing_state is None else (
+        existing_state.get("phase_governance", {}).get("profile", "legacy_single_phase")
+    )
+    updated_state = json.loads(json.dumps(existing_state)) if existing_state is not None else _default_state(project_id, now, requested_profile)
     initial_phase_relative = f"phases/{initial_phase_id}/PHASE_CONTROL.md"
     initial_phase_path = _target(root, initial_phase_relative)
     if not has_registered_phase:
@@ -912,7 +1146,7 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
                 "WS_TEMPLATE_INVALID",
             )
             rendered[initial_phase_relative] = _encode_markdown(phase_text, phase_bom)
-        updated_state["schema_version"] = 4 if existing_state is None else 2
+        updated_state["schema_version"] = 5 if existing_state is None else 2
         updated_state["phase_controls"].append(
             {"phase_id": initial_phase_id, "path": initial_phase_relative, "status": "ACTIVE"}
         )
@@ -920,13 +1154,19 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
         updated_state["maintenance_state"].update(
             {"state": "clean", "last_action": "init-with-phase", "last_checked_at": now}
         )
+        recovery_summary, recovery_next_action = _localize_system_recovery(
+            language,
+            f"Initial Phase {initial_phase_id} is active; no Session is active.",
+            "Open a Session only for an explicit bounded work-session boundary.",
+        )
         updated_state["recovery_point"] = {
-            "summary": f"Initial Phase {initial_phase_id} is active; no Session is active.",
-            "next_action": "Open a Session only for an explicit bounded work-session boundary.",
+            "summary": recovery_summary,
+            "next_action": recovery_next_action,
             "evidence_refs": ["workspace:init", f"phase:{initial_phase_id}"],
         }
 
-    if not (root / "WORK_TASK_REPORT.md").exists():
+    report_required = existing_state is not None and existing_state["schema_version"] != 5
+    if report_required and not (root / "WORK_TASK_REPORT.md").exists():
         phase_payload = rendered.get(initial_phase_relative)
         if phase_payload is None and initial_phase_path.is_file():
             phase_payload = initial_phase_path.read_bytes()
@@ -970,14 +1210,31 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
             raise WorkspaceError("WS_PATH_TYPE", "Expected a file path.", name)
 
     changes = {_target(root, relative): payload for relative, payload in rendered.items()}
+    if existing_state is None and profile == "resource_admission_v1":
+        changes[_target(root, coordination_runtime.COORDINATION_RELATIVE)] = _json_bytes(
+            coordination_runtime.new_coordination_state(project_id, now)
+        )
     if not has_registered_phase:
-        if updated_state["schema_version"] in {3, 4}:
+        if updated_state["schema_version"] in {3, 4, 5}:
             _finalize_v3_consistency(root, updated_state, changes, now)
+            if updated_state["schema_version"] == 5 and "WORK_TASK_REPORT.md" in rendered:
+                _refresh_current_phase_bindings(root, updated_state, changes, now)
         else:
             changes[_state_path(root)] = _json_bytes(updated_state)
         _validate_state(root, updated_state)
     elif "WORK_TASK_REPORT.md" in rendered:
         _refresh_current_phase_bindings(root, updated_state, changes, now)
+    report_change_path = _target(root, "WORK_TASK_REPORT.md")
+    if updated_state["schema_version"] == 5 and report_change_path in changes:
+        binding = updated_state.get("current_phase_binding")
+        state_projection = changes.get(_state_path(root), _json_bytes(updated_state))
+        changes[report_change_path] = _maintenance_view_metadata(
+            changes[report_change_path],
+            workspace_state_sha256=_sha256_payload(state_projection),
+            active_phase_id=binding["active_phase_id"] if binding is not None else None,
+            phase_control_sha256=binding["phase_control_sha256"] if binding is not None else None,
+            relative="WORK_TASK_REPORT.md",
+        )
     preserved_existing = [name for name in (*FIXED_FILES, STATE_RELATIVE.as_posix()) if (root / name).exists()]
     if has_registered_phase and initial_phase_path.is_file():
         preserved_existing.append(initial_phase_relative)
@@ -996,6 +1253,7 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
         implicit_session_created=False,
         session_status="NOT_CREATED_BY_DESIGN" if updated_state["active_session_id"] is None else "ACTIVE",
         next_action=updated_state["recovery_point"]["next_action"],
+        phase_governance_profile=profile,
     )
     if args.apply:
         root.mkdir(parents=True, exist_ok=True)
@@ -1004,6 +1262,7 @@ def command_init(args: argparse.Namespace) -> dict[str, Any]:
             path: "IMMUTABLE_RECORD" if "boundary-revisions" in _relative(root, path) else
             "PHASE_CONTROL" if _relative(root, path).endswith("PHASE_CONTROL.md") else
             "REPORT" if _relative(root, path) == "WORK_TASK_REPORT.md" else
+            "COORDINATION_STATE" if path == _target(root, coordination_runtime.COORDINATION_RELATIVE) else
             "PROJECT_CONTROL" if _relative(root, path) == "PROJECT_CONTROL.md" else
             "RUNTIME_STATE" if path == _state_path(root) else "PROJECT_CONTROL"
             for path in changes
@@ -1042,11 +1301,33 @@ def _marked_section(text: str, name: str, *, required: bool = False) -> str | No
     return text[start:end]
 
 
+def _marked_heading_section(text: str, name: str, *, required: bool = False) -> str | None:
+    """Return one marked level-two heading block without consuming later unmarked headings."""
+
+    marker_pattern = re.compile(SECTION_LINE.pattern, re.IGNORECASE | re.MULTILINE)
+    matches = [marker for marker in marker_pattern.finditer(text) if marker.group("name").lower() == name.lower()]
+    if not matches:
+        if required:
+            raise WorkspaceError("WS_PLAN_SECTION_MISSING", f"Required MALTS section is missing: {name}")
+        return None
+    if len(matches) != 1:
+        raise WorkspaceError("WS_PLAN_SECTION_DUPLICATE", f"MALTS section must appear exactly once: {name}")
+    marker = matches[0]
+    headings = list(re.finditer(r"(?m)^##(?:[ \t]+[^\r\n]*|[ \t]*)\r?$", text[marker.end() :]))
+    if not headings:
+        raise WorkspaceError("WS_MAINTENANCE_VIEW_INVALID", f"Marked section lacks a level-two heading: {name}")
+    end = marker.end() + headings[1].start() if len(headings) > 1 else len(text)
+    next_marker = marker_pattern.search(text, marker.end())
+    if next_marker is not None:
+        end = min(end, next_marker.start())
+    return text[marker.start() : end]
+
+
 def _control_value(section: str, label: str, code: str = "WS_PLAN_FIELD_INVALID") -> str:
-    pattern = re.compile(rf"(?m)^- {re.escape(label)}:[ \t]*(?P<value>[^\r\n]*?)[ \t]*\r?$")
+    pattern = re.compile(rf"(?m)^- {re.escape(label)}(?::|：)[ \t]*(?P<value>[^\r\n]*?)[ \t]*\r?$")
     matches = list(pattern.finditer(section))
     if len(matches) != 1:
-        raise WorkspaceError(code, f"Expected exactly one '- {label}:' field.")
+        raise WorkspaceError(code, f"Expected exactly one '- {label}:' or '- {label}：' field.")
     value = matches[0].group("value").strip()
     if len(value) >= 2 and value.startswith("`") and value.endswith("`"):
         value = value[1:-1].strip()
@@ -1273,7 +1554,11 @@ def command_open_phase(args: argparse.Namespace) -> dict[str, Any]:
     state = _load_state(root)
     _require_consistent_mutation(root, state)
     phase_id = _validate_id(args.phase_id, "Phase ID")
-    if state["active_phase_id"] is not None:
+    concurrent_open = state["active_phase_id"] is not None
+    governance = state.get("phase_governance") if state.get("schema_version") == 5 else None
+    if concurrent_open and (
+        not isinstance(governance, dict) or governance.get("profile") != "resource_admission_v1"
+    ):
         raise WorkspaceError("WS_PHASE_ACTIVE", "Close the active Phase before opening another one.")
     if any(item["phase_id"] == phase_id for item in state["phase_controls"]):
         raise WorkspaceError("WS_PHASE_EXISTS", "Phase ID already exists.", phase_id)
@@ -1287,22 +1572,39 @@ def command_open_phase(args: argparse.Namespace) -> dict[str, Any]:
     if phase_path.exists():
         raise WorkspaceError("WS_FILE_EXISTS", "Refusing to adopt or overwrite an unregistered Phase control.", relative)
     control = _render_phase_control(language, phase_id, args.goal.strip(), now, boundary_values)
+    phase_status = "OPEN" if concurrent_open else "ACTIVE"
+    if concurrent_open:
+        control_text, control_bom = _decode_markdown(control)
+        control = _encode_markdown(
+            _replace_line(control_text, "- Status:", "- Status: OPEN", "WS_PHASE_CONTROL_INVALID"),
+            control_bom,
+        )
     project_path = _target(root, "PROJECT_CONTROL.md")
-    project_text, project_bom = _decode_markdown(_read_bytes(root, "PROJECT_CONTROL.md"))
-    project_text = _replace_project_active_phase(project_text, phase_id)
+    project_text: str | None = None
+    project_bom = False
+    if not concurrent_open:
+        project_text, project_bom = _decode_markdown(_read_bytes(root, "PROJECT_CONTROL.md"))
+        project_text = _replace_project_active_phase(project_text, phase_id)
     updated = json.loads(json.dumps(state))
     if updated["schema_version"] == 1:
         updated["schema_version"] = 2
-    updated["phase_controls"].append({"phase_id": phase_id, "path": relative, "status": "ACTIVE"})
-    updated["active_phase_id"] = phase_id
+    updated["phase_controls"].append({"phase_id": phase_id, "path": relative, "status": phase_status})
+    if not concurrent_open:
+        updated["active_phase_id"] = phase_id
     updated["maintenance_state"].update({"state": "clean", "last_action": "open-phase", "last_checked_at": now})
-    updated["recovery_point"] = {
-        "summary": f"Phase {phase_id} is active; no Session is active.",
-        "next_action": "Open a Session only for an explicit bounded work-session boundary.",
-        "evidence_refs": [f"phase:{phase_id}"],
-    }
+    if not concurrent_open:
+        recovery_summary, recovery_next_action = _localize_system_recovery(
+            language,
+            f"Phase {phase_id} is active; no Session is active.",
+            "Open a Session only for an explicit bounded work-session boundary.",
+        )
+        updated["recovery_point"] = {
+            "summary": recovery_summary,
+            "next_action": recovery_next_action,
+            "evidence_refs": [f"phase:{phase_id}"],
+        }
     boundary_path: Path | None = None
-    if updated["schema_version"] == 4:
+    if updated["schema_version"] in CURRENT_BOUND_WORKSPACE_SCHEMAS:
         revision_id = f"{phase_id}-boundary-r001"
         revision_relative = f"phases/{phase_id}/boundary-revisions/{revision_id}.json"
         boundary_path = _target(root, revision_relative)
@@ -1329,16 +1631,17 @@ def command_open_phase(args: argparse.Namespace) -> dict[str, Any]:
         )
         control_text = _insert_before_marker(control_text, "phase-queue", _task_index_block([], now), "WS_TEMPLATE_INVALID")
         control = _encode_markdown(control_text, control_bom)
-    changes = {
-        phase_path: control,
-        project_path: _encode_markdown(project_text, project_bom),
-        _state_path(root): _json_bytes(updated),
-    }
+    changes = {phase_path: control, _state_path(root): _json_bytes(updated)}
+    if project_text is not None:
+        changes[project_path] = _encode_markdown(project_text, project_bom)
     if boundary_path is not None:
         changes[boundary_path] = revision_payload
-    _finalize_v3_consistency(root, updated, changes, now)
+    if not concurrent_open:
+        _finalize_v3_consistency(root, updated, changes, now)
+    else:
+        changes[_state_path(root)] = _json_bytes(updated)
     _validate_state(root, updated)
-    result = _plan("open-phase", root, changes, args.apply, phase_id=phase_id, implicit_session_created=False)
+    result = _plan("open-phase", root, changes, args.apply, phase_id=phase_id, phase_status=phase_status, concurrent_open=concurrent_open, implicit_session_created=False)
     if args.apply:
         must_be_new = (phase_path,) if boundary_path is None else (phase_path, boundary_path)
         roles = {
@@ -1356,6 +1659,23 @@ def _replace_line(text: str, source: str, target: str, code: str) -> str:
     if pattern.search(text) is None:
         raise WorkspaceError(code, f"Expected control token is missing: {source}")
     return pattern.sub(lambda match: target + match.group("ending"), text, count=1)
+
+
+def _replace_plan_field(text: str, label: str, value: str, code: str) -> str:
+    pattern = re.compile(
+        rf"(?m)^- {re.escape(label)}(?P<separator>:|：)(?P<spacing>[ \t]*)[^\r\n]*(?P<ending>\r?)$"
+    )
+    matches = list(pattern.finditer(text))
+    if len(matches) != 1:
+        raise WorkspaceError(
+            code,
+            f"Expected exactly one control token for '- {label}:' or '- {label}：'."
+        )
+    return pattern.sub(
+        lambda match: f"- {label}{match.group('separator')}{match.group('spacing')}{value}{match.group('ending')}",
+        text,
+        count=1,
+    )
 
 
 def _final_payload(root: Path, changes: dict[Path, bytes], relative: str) -> bytes | None:
@@ -1397,10 +1717,10 @@ def _refresh_current_phase_bindings(
 
     if state["schema_version"] == 1:
         return
-    if state["schema_version"] in {3, 4}:
+    if state["schema_version"] in {3, 4, 5}:
         binding = state.get("current_phase_binding")
         values = {
-            "Binding schema": "3" if state["schema_version"] == 4 else "2",
+            "Binding schema": "3" if state["schema_version"] in {4, 5} else "2",
             "Active Phase ID": binding["active_phase_id"] if binding is not None else "N/A",
             "Active Phase control": binding["phase_control_path"] if binding is not None else "N/A",
             "Phase control SHA-256": binding["phase_control_sha256"] if binding is not None else "N/A",
@@ -1430,13 +1750,281 @@ def _refresh_current_phase_bindings(
             "Phase control SHA-256": hashlib.sha256(phase_payload).hexdigest().upper(),
             "Recorded at": now,
         }
-    for relative, required in (("WORK_TASK_REPORT.md", True), ("PROJECT_HANDOFF.md", False)):
+    for relative, required in (("WORK_TASK_REPORT.md", state["schema_version"] != 5), ("PROJECT_HANDOFF.md", False)):
         payload = _final_payload(root, changes, relative)
         if payload is None:
             if required:
                 raise WorkspaceError("WS_FILE_MISSING", "Required current report is missing.", relative)
             continue
-        changes[_target(root, relative)] = _replace_current_phase_binding(payload, values, relative)
+        updated_payload = _replace_current_phase_binding(payload, values, relative)
+        if updated_payload != payload:
+            changes[_target(root, relative)] = updated_payload
+
+
+def _maintenance_view_metadata(
+    payload: bytes,
+    *,
+    workspace_state_sha256: str,
+    active_phase_id: str | None,
+    phase_control_sha256: str | None,
+    relative: str,
+) -> bytes:
+    """Insert or replace the bounded non-authoritative view metadata block."""
+
+    text, bom = _decode_markdown(payload)
+    newline = "\r\n" if "\r\n" in text else "\n"
+    marker = "<!-- MALTS:section=maintenance-view-metadata -->"
+    block = newline.join(
+        (
+            marker,
+            "## Maintenance View Metadata",
+            "",
+            "- View schema: `1`",
+            "- Authority: `DERIVED_NON_AUTHORITATIVE`",
+            "- Source workspace-control: `runtime/workspace_control.json`",
+            f"- Source workspace-control SHA-256: `{workspace_state_sha256}`",
+            f"- Source active Phase: `{active_phase_id or 'N/A'}`",
+            f"- Source Phase control SHA-256: `{phase_control_sha256 or 'N/A'}`",
+            "- History coverage: `CURRENT_SET_ONLY`",
+            "- Staleness policy: `WARNING_ONLY`",
+            "",
+        )
+    )
+    block += newline
+    existing = _marked_heading_section(text, "maintenance-view-metadata")
+    if existing is not None:
+        text = text.replace(existing, block, 1)
+    else:
+        binding_marker = "<!-- MALTS:section=current-phase-binding -->"
+        position = text.find(binding_marker)
+        if position < 0:
+            raise WorkspaceError("WS_MAINTENANCE_VIEW_INVALID", "Maintenance view lacks the current-phase-binding marker.", relative)
+        text = text[:position] + block + text[position:]
+    return _encode_markdown(text, bom)
+
+
+def _maintenance_plan_snapshot(
+    root: Path,
+    state: dict[str, Any],
+    phase_id: str | None,
+) -> tuple[str, str, str]:
+    plan_summary = "N/A"
+    plan_recheck = "N/A / N/A / N/A"
+    launch_invalidated = "N/A"
+    phase = _phase_entry(state, phase_id) if phase_id is not None else None
+    if phase is None:
+        return plan_summary, plan_recheck, launch_invalidated
+    plan_binding = _phase_plan_binding(root, phase)
+    if plan_binding is None or plan_binding["Active plan"] == "N/A":
+        return plan_summary, plan_recheck, launch_invalidated
+    plan_summary = " / ".join(
+        (
+            plan_binding["Active plan"],
+            plan_binding["Plan revision"],
+            plan_binding["Plan content SHA-256"],
+        )
+    )
+    plan_recheck = " / ".join(
+        (
+            plan_binding["Last recheck trigger"],
+            plan_binding["Last recheck result"],
+            plan_binding["Last recheck result"],
+        )
+    )
+    launch_invalidated = plan_binding["Launch review invalidated"]
+    return plan_summary, plan_recheck, launch_invalidated
+
+
+def _maintenance_status(language: str, code: str) -> str:
+    if code == "None":
+        return "None" if language == "en" else "无（None）"
+    return _localized_status_code(language, code)
+
+
+def _render_on_demand_work_report(root: Path, state: dict[str, Any], language: str) -> bytes:
+    binding = state.get("current_phase_binding")
+    active_phase_id = binding["active_phase_id"] if binding is not None else None
+    phase_id = active_phase_id or "N/A"
+    phase_relative = binding["phase_control_path"] if binding is not None else "N/A"
+    phase_sha256 = binding["phase_control_sha256"] if binding is not None else "N/A"
+    phase_boundary_sha256 = binding["phase_boundary_sha256"] if binding is not None else "N/A"
+    boundary_review_id = binding["boundary_review_id"] if binding is not None and binding["boundary_review_id"] is not None else "N/A"
+    boundary_review_sha256 = binding["boundary_review_sha256"] if binding is not None else "N/A"
+    candidate_mapping = binding["candidate_mapping"] if binding is not None and binding["candidate_mapping"] is not None else "N/A"
+    recommendation = binding["recommendation"] if binding is not None and binding["recommendation"] is not None else "N/A"
+    phase_recovery_sha256 = binding["phase_recovery_sha256"] if binding is not None else "N/A"
+    recorded_at = binding["recorded_at"] if binding is not None else state["maintenance_state"]["last_checked_at"]
+    recovery = state["recovery_point"]
+    recovery_summary, next_action = _localize_system_recovery(
+        language,
+        recovery["summary"],
+        recovery["next_action"],
+        summary_is_system=False,
+        next_action_is_system=False,
+    )
+    plan_summary, plan_recheck, launch_invalidated = _maintenance_plan_snapshot(root, state, active_phase_id)
+    result_code = "PARTIAL" if active_phase_id is not None else "DONE"
+    execution_code = "EXECUTING" if active_phase_id is not None else "DONE"
+    terminal_code = "None" if active_phase_id is not None else "DONE"
+    payload = _render_work_report(
+        language,
+        state["project_id"],
+        "See canonical PROJECT_CONTROL.md." if language == "en" else "见 canonical PROJECT_CONTROL.md。",
+        phase_id,
+        phase_relative,
+        phase_sha256,
+        phase_boundary_sha256,
+        boundary_review_id,
+        boundary_review_sha256,
+        candidate_mapping,
+        recommendation,
+        phase_recovery_sha256,
+        recorded_at,
+    )
+    text, bom = _decode_markdown(payload)
+    if language == "en":
+        replacements = {
+            "- Status:": f"- Status: {_maintenance_status(language, result_code)}",
+            "- Plain-language conclusion:": "- Plain-language conclusion: On-demand maintenance view refreshed from exact current controls; this file grants no execution authority.",
+            "- User original goal addressed:": "- User original goal addressed: See canonical PROJECT_CONTROL.md.",
+            "- Report language:": "- Report language: English (en).",
+            "- Result ID:": f"- Result ID: {state['project_id']}-MAINTENANCE-VIEW",
+            "- Execution status:": f"- Execution status: {_maintenance_status(language, execution_code)}",
+            "- Terminal status:": f"- Terminal status: {_maintenance_status(language, terminal_code)}",
+            "- Authorization envelope reference:": "- Authorization envelope reference: N/A; this derived view grants no execution authority.",
+            "- Hard acceptance criteria reconciliation:": "- Hard acceptance criteria reconciliation: See canonical Project and Phase controls.",
+            "- Last status event / direct evidence:": f"- Last status event / direct evidence: current binding recorded at {recorded_at}.",
+            "- Remaining work:": f"- Remaining work: {next_action}",
+            "- Active plan / revision / SHA-256:": f"- Active plan / revision / SHA-256: {plan_summary}",
+            "- Trigger / recorded result / observed gate result:": f"- Trigger / recorded result / observed gate result: {plan_recheck}",
+            "- Launch review invalidated:": f"- Launch review invalidated: {launch_invalidated}",
+            "- Reconciliation or blocker:": "- Reconciliation or blocker: N/A; canonical controls remain authoritative.",
+            "- Recovery point:": f"- Recovery point: {recovery_summary}",
+            "- New-window or other-project resume path:": "- New-window or other-project resume path: Run workspace-entry --task-class CONTEXT_RECOVERY, then read only its returned current-set paths.",
+            "- If context was compacted or interrupted, how work can continue:": f"- If context was compacted or interrupted, how work can continue: {next_action}",
+            "- Known risks:": "- Known risks: This projection may become stale and never substitutes for canonical controls.",
+            "- Recommended next action:": f"- Recommended next action: {next_action}",
+        }
+    else:
+        replacements = {
+            "- 状态：": f"- 状态：{_maintenance_status(language, result_code)}",
+            "- 白话结论：": "- 白话结论：已从当前精确控制状态刷新按需维护视图；本文件不授予执行权限。",
+            "- 是否回应用户原始目标：": "- 是否回应用户原始目标：见权威 PROJECT_CONTROL.md。",
+            "- 报告语言：": "- 报告语言：简体中文（zh-CN）。",
+            "- Result ID：": f"- Result ID：{state['project_id']}-MAINTENANCE-VIEW",
+            "- 执行状态：": f"- 执行状态：{_maintenance_status(language, execution_code)}",
+            "- 终态：": f"- 终态：{_maintenance_status(language, terminal_code)}",
+            "- Authorization Envelope 引用：": "- Authorization Envelope 引用：N/A；本派生视图不授予执行权限。",
+            "- hard acceptance criteria 对账：": "- hard acceptance criteria 对账：见权威 Project 与 Phase controls。",
+            "- 最后状态事件 / 直接证据：": f"- 最后状态事件 / 直接证据：current binding 记录于 {recorded_at}。",
+            "- 剩余工作：": f"- 剩余工作：{next_action}",
+            "- Active plan / revision / SHA-256：": f"- Active plan / revision / SHA-256：{plan_summary}",
+            "- Trigger / recorded result / observed gate result：": f"- Trigger / recorded result / observed gate result：{plan_recheck}",
+            "- Launch review invalidated：": f"- Launch review invalidated：{launch_invalidated}",
+            "- 对账或 blocker：": "- 对账或 blocker：N/A；canonical controls 保持权威。",
+            "- 恢复点：": f"- 恢复点：{recovery_summary}",
+            "- 新窗口或其他项目中的恢复路径：": "- 新窗口或其他项目中的恢复路径：运行 workspace-entry --task-class CONTEXT_RECOVERY，然后只读取其返回的 current-set 路径。",
+            "- 如果上下文压缩或中断，后续如何继续：": f"- 如果上下文压缩或中断，后续如何继续：{next_action}",
+            "- 已知风险：": "- 已知风险：本投影可能陈旧，且绝不替代 canonical controls。",
+            "- 建议下一步：": f"- 建议下一步：{next_action}",
+        }
+    for source, target in replacements.items():
+        text = _replace_line(text, source, target, "WS_MAINTENANCE_VIEW_INVALID")
+    return _encode_markdown(text, bom)
+
+
+def _render_on_demand_project_handoff(root: Path, state: dict[str, Any], language: str) -> bytes:
+    """Render one bounded CURRENT handoff from canonical controls, never from an older projection."""
+
+    suffix = "en.md" if language == "en" else "zh-CN.md"
+    text, bom = _template_bytes(f"runtime/{'EN' if language == 'en' else 'CH'}/templates/PROJECT_HANDOFF.template.{suffix}")
+    binding = state.get("current_phase_binding")
+    phase_id = binding["active_phase_id"] if binding is not None else None
+    session_id = state.get("active_session_id")
+    recovery = state["recovery_point"]
+    recovery_summary, recovery_next_action = _localize_system_recovery(
+        language,
+        recovery["summary"],
+        recovery["next_action"],
+        summary_is_system=False,
+        next_action_is_system=False,
+    )
+    generated_at = state["maintenance_state"]["last_checked_at"]
+    plan_summary, plan_recheck, launch_invalidated = _maintenance_plan_snapshot(root, state, phase_id)
+
+    if language == "en":
+        active_status = (
+            f"Active Phase {phase_id}; active Session {session_id or 'None'}."
+            if phase_id is not None
+            else "No active Phase or Session (WS_NO_ACTIVE_PHASE); the workspace is closed and fail-closed for new writes."
+        )
+        next_step = recovery_next_action
+        replacements = {
+            "- Goal:": "- Goal: See canonical PROJECT_CONTROL.md.",
+            "- Current status:": f"- Current status: {active_status}",
+            "- Allowed scope:": "- Allowed scope: This derived view grants no execution authority; use the active Phase boundary when one exists.",
+            "- Last verification:": "- Last verification: Generated from exact current Workspace controls by refresh-maintenance-views.",
+            "- Next step:": f"- Next step: {next_step}",
+            "- Generated time:": f"- Generated time: {generated_at}",
+            "- Project root:": f"- Project root: {root}",
+            "- Handoff file:": "- Handoff file: PROJECT_HANDOFF.md",
+            "- Project control file:": "- Project control file: PROJECT_CONTROL.md",
+            "- Git root / branch / remote:": "- Git root / branch / remote: N/A; this projection does not inspect or authorize VCS.",
+            "- Files read:": "- Files read: PROJECT_CONTROL.md, runtime/workspace_control.json, and the active Phase control when present.",
+            "- Commands run:": "- Commands run: refresh-maintenance-views.",
+            "- External references:": "- External references: N/A.",
+            "- Completed:": "- Completed: See canonical Project/Phase controls and immutable evidence.",
+            "- In progress:": f"- In progress: {phase_id or 'None'}.",
+            "- Pending:": f"- Pending: {next_step}",
+            "- Result ID:": f"- Result ID: {state['project_id']}-MAINTENANCE-VIEW",
+            "- Execution status:": f"- Execution status: {'EXECUTING' if phase_id is not None else 'DONE'}",
+            "- Terminal status:": f"- Terminal status: {'None' if phase_id is not None else 'DONE'}",
+            "- Recovery summary / next action:": f"- Recovery summary / next action: {recovery_summary} / {next_step}",
+            "- Active plan / revision / SHA-256:": f"- Active plan / revision / SHA-256: {plan_summary}",
+            "- Last trigger / recorded result / observed gate result:": f"- Last trigger / recorded result / observed gate result: {plan_recheck}",
+            "- Launch review invalidated:": f"- Launch review invalidated: {launch_invalidated}",
+            "- Owning Phase / inherited Session:": f"- Owning Phase / inherited Session: {phase_id or 'N/A'} / {session_id or 'N/A'}",
+        }
+        next_line = "1. Follow the exact recovery next action above; open a new Phase explicitly before new writes when none is active."
+    else:
+        active_status = (
+            f"当前 active Phase 为 {phase_id}；active Session 为 {session_id or 'None'}。"
+            if phase_id is not None
+            else "当前没有 active Phase 或 Session（WS_NO_ACTIVE_PHASE）；工作区已闭合，新写入按预期 fail-closed。"
+        )
+        next_step = recovery_next_action
+        replacements = {
+            "- Goal:": "- Goal: 见权威 PROJECT_CONTROL.md。",
+            "- Current status:": f"- Current status: {active_status}",
+            "- Allowed scope:": "- Allowed scope: 本派生视图不授予执行权限；存在 active Phase 时以其边界合同为准。",
+            "- Last verification:": "- Last verification: 已由 refresh-maintenance-views 从当前精确 Workspace 控制生成。",
+            "- Next step:": f"- Next step: {next_step}",
+            "- 生成时间：": f"- 生成时间：{generated_at}",
+            "- 项目根目录：": f"- 项目根目录：{root}",
+            "- 交接文件：": "- 交接文件：PROJECT_HANDOFF.md",
+            "- 项目控制文件：": "- 项目控制文件：PROJECT_CONTROL.md",
+            "- Git 根目录 / 分支 / 远端：": "- Git 根目录 / 分支 / 远端：N/A；本投影不检查或授权 VCS。",
+            "- 已读取文件：": "- 已读取文件：PROJECT_CONTROL.md、runtime/workspace_control.json，以及存在时的 active Phase control。",
+            "- 已运行命令：": "- 已运行命令：refresh-maintenance-views。",
+            "- 外部参考：": "- 外部参考：N/A。",
+            "- 已完成：": "- 已完成：见权威 Project/Phase controls 与不可变 evidence。",
+            "- 进行中：": f"- 进行中：{phase_id or 'None'}。",
+            "- 待处理：": f"- 待处理：{next_step}",
+            "- Result ID：": f"- Result ID：{state['project_id']}-MAINTENANCE-VIEW",
+            "- 执行状态：": f"- 执行状态：{_maintenance_status(language, 'EXECUTING' if phase_id is not None else 'DONE')}",
+            "- 终态：": f"- 终态：{_maintenance_status(language, 'None' if phase_id is not None else 'DONE')}",
+            "- 恢复摘要 / 下一步：": f"- 恢复摘要 / 下一步：{recovery_summary} / {next_step}",
+            "- Active plan / revision / SHA-256：": f"- Active plan / revision / SHA-256：{plan_summary}",
+            "- Last trigger / recorded result / observed gate result：": f"- Last trigger / recorded result / observed gate result：{plan_recheck}",
+            "- Launch review invalidated：": f"- Launch review invalidated：{launch_invalidated}",
+            "- Owning Phase / inherited Session：": f"- Owning Phase / inherited Session：{phase_id or 'N/A'} / {session_id or 'N/A'}",
+        }
+        next_line = "1. 按上方精确恢复动作继续；没有 active Phase 时，任何新写入前必须显式打开新 Phase。"
+
+    for source, target in replacements.items():
+        text = _replace_line(text, source, target, "WS_MAINTENANCE_VIEW_INVALID")
+    text = text.replace("1. TODO", next_line, 1)
+    return _encode_markdown(text, bom)
 
 
 def _normalized_section_sha256(payload: bytes, section_name: str, code: str, relative: str) -> str:
@@ -1524,8 +2112,9 @@ def _phase_task_control_payload(
     state: dict[str, Any],
     changes: dict[Path, bytes],
     now: str,
+    phase: dict[str, Any] | None = None,
 ) -> tuple[Path, bytes]:
-    phase = _active_phase(state)
+    phase = phase or _active_phase(state)
     phase_path = _target(root, phase["path"])
     phase_payload = _final_payload(root, changes, phase["path"])
     if phase_payload is None:
@@ -1609,6 +2198,104 @@ def _expected_hash(value: str | None, observed: str, code: str, path: str) -> No
         raise WorkspaceError(code, "Expected SHA-256 no longer matches the reviewed input.", path)
 
 
+def _result_execution_authority_gate(
+    root: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+    contract: dict[str, Any],
+    events: list[dict[str, Any]],
+    *,
+    actor_id: str,
+    observed_at: str,
+) -> tuple[Path | None, str | None]:
+    profile = state.get("phase_governance", {}).get("profile") if state.get("schema_version") == 5 else "single_phase_v1"
+    if contract.get("contract_version") == "2":
+        if profile == "resource_admission_v1":
+            raise WorkspaceError("RC_REORGANIZATION_REQUIRED", "A resource Admission workspace requires the CURRENT Result Contract before governed execution.")
+        return None, None
+    authority = contract.get("execution_authority")
+    if not isinstance(authority, dict):
+        raise WorkspaceError("RC_EXECUTION_AUTHORITY_REQUIRED", "The CURRENT Result Contract requires an execution-authority binding.")
+    if profile != "resource_admission_v1":
+        if authority.get("profile") != "NONE":
+            raise WorkspaceError("RC_EXECUTION_AUTHORITY_PROFILE", "A non-coordinated workspace requires CURRENT Result authority profile NONE.")
+        return None, None
+    if authority.get("profile") != "RESOURCE_ADMISSION":
+        raise WorkspaceError("RC_EXECUTION_AUTHORITY_REQUIRED", "The resource Admission workspace profile requires a CURRENT Result Admission binding.")
+    if authority.get("actor_id") != actor_id:
+        raise WorkspaceError("RC_EXECUTION_ACTOR_MISMATCH", "Result actor does not own the bound Admission.", str(actor_id))
+    phase_control = _target(root, phase["path"])
+    observed_phase_hash = _sha256_path(phase_control)
+    if authority.get("phase_control_sha256") != observed_phase_hash:
+        raise WorkspaceError("RC_EXECUTION_AUTHORITY_STALE", "The CURRENT Result binds stale Phase control bytes.", phase["path"])
+    for index, event in enumerate(events):
+        if event.get("execution_authority") != authority:
+            raise WorkspaceError("RC_EXECUTION_AUTHORITY_STALE", "Result event authority differs from the contract revision.", f"events[{index}]")
+    coordination_path = _target(root, coordination_runtime.COORDINATION_RELATIVE.as_posix())
+    coordination_payload = _path_read_bytes(coordination_path)
+    coordination_hash = _sha256_payload(coordination_payload)
+    try:
+        coordination = json.loads(coordination_payload.decode("utf-8-sig"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise WorkspaceError("WS_COORDINATION_STATE_INVALID", "Coordination state is not valid UTF-8 JSON.", coordination_runtime.COORDINATION_RELATIVE.as_posix()) from exc
+    unknown_rows = [
+        event
+        for event in events
+        if event.get("event_kind") == "EXTERNAL_REQUEST_OBSERVED"
+        and event.get("payload", {}).get("outcome_state") == "UNKNOWN"
+    ]
+    reconcile_rows = [
+        event
+        for event in events
+        if event.get("payload", {}).get("reconciled_quarantine_ids")
+    ]
+    if unknown_rows:
+        quarantine_rows = list(coordination.get("quarantines", []))
+        if coordination.get("workspace_quarantine") is not None:
+            quarantine_rows.append(coordination["workspace_quarantine"])
+        for event in unknown_rows:
+            quarantine_id = event.get("payload", {}).get("coordination_quarantine_id")
+            matching = [
+                row for row in quarantine_rows
+                if row.get("quarantine_id") == quarantine_id
+                and row.get("admission_id") == authority.get("admission_id")
+                and row.get("phase_id") == phase["phase_id"]
+            ]
+            if len(matching) != 1:
+                raise WorkspaceError("RC_UNKNOWN_QUARANTINE_REQUIRED", "UNKNOWN external result does not bind one exact live coordination quarantine.", str(quarantine_id))
+    elif reconcile_rows:
+        evidence_rows = [
+            row
+            for event in reconcile_rows
+            for row in event.get("payload", {}).get("coordination_reconcile_refs", [])
+        ]
+        try:
+            verified_reconcile = coordination_runtime.verify_quarantine_reconciliation_evidence(
+                root,
+                phase_id=phase["phase_id"],
+                admission_id=str(authority.get("admission_id")),
+                evidence_rows=evidence_rows,
+            )
+        except coordination_runtime.CoordinationError as exc:
+            raise WorkspaceError(exc.code, exc.message, json.dumps(exc.detail, ensure_ascii=False)) from exc
+        if verified_reconcile["status"] != "PASS":
+            first = (verified_reconcile.get("issues") or [{"code": "RC_RECONCILE_EVIDENCE_REQUIRED"}])[0]
+            raise WorkspaceError(str(first.get("code")), "Result quarantine reconciliation evidence is stale or incomplete.", json.dumps(first, ensure_ascii=False))
+    else:
+        verified = coordination_runtime.verify_admission(
+            root,
+            admission_id=str(authority.get("admission_id")),
+            phase_id=phase["phase_id"],
+            actor_id=actor_id,
+            fencing_tokens=authority.get("fencing_tokens", []),
+            observed_at=observed_at,
+        )
+        if verified["status"] != "PASS":
+            first = (verified.get("issues") or [{"code": "RC_EXECUTION_AUTHORITY_STALE"}])[0]
+            raise WorkspaceError(str(first.get("code")), "CURRENT Result Admission or fencing verification failed.", json.dumps(first, ensure_ascii=False))
+    return coordination_path, coordination_hash
+
+
 def _build_result_orchestration(
     args: argparse.Namespace,
     *,
@@ -1628,14 +2315,15 @@ def _build_result_orchestration(
         _require_consistent_mutation(root, state, allowed_paths={rebuild_projection})
     else:
         _require_consistent_mutation(root, state)
-    phase = _active_phase(state)
     contract_path, contract_payload, contract = _load_json_object(root, contract_relative, "RC_LINEAGE_STALE")
     contract_hash = _sha256_payload(contract_payload)
     _expected_hash(getattr(args, "expected_contract_sha256", None), contract_hash, "RC_LINEAGE_STALE", contract_relative)
-    if contract.get("contract_version") != "2":
-        raise WorkspaceError("RC_V2_MIGRATION_REQUIRED", "Result event orchestration requires Result Contract v2.", contract_relative)
-    if contract.get("phase_id") != phase["phase_id"]:
-        raise WorkspaceError("RC_LINEAGE_STALE", "Result Contract belongs to a different Phase.", contract_relative)
+    if contract.get("contract_id") != CURRENT_RESULT_CONTRACT and contract.get("contract_version") not in {"2", "3"}:
+        raise WorkspaceError("RC_REORGANIZATION_REQUIRED", "Result event orchestration requires the CURRENT Result Contract or a supported legacy event-capable contract.", contract_relative)
+    phase = _phase_entry(state, str(contract.get("phase_id")))
+    if phase.get("status") not in {"ACTIVE", "OPEN"}:
+        raise WorkspaceError("RC_PHASE_NOT_EXECUTABLE", "Result Contract Phase must be ACTIVE or OPEN.", phase["path"])
+    is_primary_phase = phase["phase_id"] == state["active_phase_id"]
     expected_contract_path = f"task-state/{contract['task_id']}/contracts/{contract['revision_id']}.json"
     if contract_relative.replace("\\", "/") != expected_contract_path:
         raise WorkspaceError("RC_LINEAGE_STALE", "Result Contract locator is not its declared canonical owner path.", contract_relative)
@@ -1658,6 +2346,7 @@ def _build_result_orchestration(
     if rebuild:
         updated_projection, decision = rebuild_lineage_projection_v2(contract, committed, MALTS_ROOT, contract_hash)
         operation_id = _validate_id(args.operation_id, "Operation ID")
+        events = []
     else:
         events_value = load_json(Path(args.events))
         if not isinstance(events_value, list):
@@ -1669,6 +2358,15 @@ def _build_result_orchestration(
         issue = (decision.get("issues") or [{"code": "RC_LINEAGE_STALE", "message": "Result controller denied the operation."}])[0]
         raise WorkspaceError(str(issue.get("code")), str(issue.get("message")), str(issue.get("path", contract_relative)))
     now = _timestamp(args.timestamp or updated_projection["projected_at"])
+    coordination_path, coordination_hash = _result_execution_authority_gate(
+        root,
+        state,
+        phase,
+        contract,
+        events,
+        actor_id=str(getattr(args, "actor_id", "MAIN_CONTROLLER")),
+        observed_at=now,
+    )
     projection_bytes = _canonical_json_file_bytes(updated_projection)
     projection_hash = _sha256_payload(projection_bytes)
     updated = json.loads(json.dumps(state))
@@ -1686,16 +2384,36 @@ def _build_result_orchestration(
                 continue
             changes[path] = payload
             roles[path] = "IMMUTABLE_RECORD"
-    phase_path, phase_payload = _phase_task_control_payload(root, updated, changes, now)
-    changes[phase_path] = phase_payload
-    roles[phase_path] = "PHASE_CONTROL"
+    recovery_summary = f"Task {contract['task_id']} lineage head is bound at {updated_projection['latest_event']['event_id'] if updated_projection['latest_event'] else 'NO_EVENTS'}."
+    recovery_next_action = "Continue only from the exact Result lineage head and current Phase boundary revision."
+    recovery_evidence = [f"lineage:{contract['lineage_id']}", f"projection:{projection_relative}"]
     updated["maintenance_state"].update({"state": "clean", "last_action": "rebuild-result-lineage" if rebuild else "record-result-events", "last_checked_at": now})
-    updated["recovery_point"] = {
-        "summary": f"Task {contract['task_id']} lineage head is bound at {updated_projection['latest_event']['event_id'] if updated_projection['latest_event'] else 'NO_EVENTS'}.",
-        "next_action": "Continue only from the exact Result lineage head and current Phase boundary revision.",
-        "evidence_refs": [f"lineage:{contract['lineage_id']}", f"projection:{projection_relative}"],
-    }
-    _finalize_v4_consistency(root, updated, changes, now)
+    if is_primary_phase:
+        updated["recovery_point"] = {
+            "summary": recovery_summary,
+            "next_action": recovery_next_action,
+            "evidence_refs": recovery_evidence,
+        }
+    if updated["schema_version"] == 5:
+        changes[_state_path(root)] = _json_bytes(updated)
+        _validate_state(root, updated)
+    elif is_primary_phase:
+        phase_path, phase_payload = _phase_task_control_payload(root, updated, changes, now, phase)
+        phase_payload = _replace_recovery_record(
+            phase_payload,
+            "phase-recovery",
+            phase["path"],
+            record_id=f"phase:{phase['phase_id']}:recovery",
+            summary=recovery_summary,
+            next_action=recovery_next_action,
+            evidence_refs=recovery_evidence,
+            recorded_at=now,
+        )
+        changes[phase_path] = phase_payload
+        roles[phase_path] = "PHASE_CONTROL"
+        _finalize_v4_consistency(root, updated, changes, now)
+    else:
+        raise WorkspaceError("RC_PHASE_NOT_EXECUTABLE", "Legacy workspace schemas cannot mutate a non-primary Phase.", phase["path"])
     for relative, role in (("WORK_TASK_REPORT.md", "REPORT"), ("PROJECT_HANDOFF.md", "HANDOFF"), ("PROJECT_CONTROL.md", "PROJECT_CONTROL")):
         path = _target(root, relative)
         if path in changes:
@@ -1704,15 +2422,16 @@ def _build_result_orchestration(
     target_relatives = [_relative(root, path) for path in changes]
     actor_kind = str(getattr(args, "actor_kind", "MAIN_CONTROLLER"))
     actor_id = str(getattr(args, "actor_id", "MAIN_CONTROLLER"))
-    _v4_lease_gate(
-        updated,
-        operation="rebuild-result-lineage" if rebuild else "record-result-events",
-        actor_kind=actor_kind,
-        actor_id=actor_id,
-        target_relatives=target_relatives,
-        lineage_id=str(contract["lineage_id"]),
-        at=now,
-    )
+    if is_primary_phase:
+        _v4_lease_gate(
+            updated,
+            operation="rebuild-result-lineage" if rebuild else "record-result-events",
+            actor_kind=actor_kind,
+            actor_id=actor_id,
+            target_relatives=target_relatives,
+            lineage_id=str(contract["lineage_id"]),
+            at=now,
+        )
     preconditions = {
         path: _sha256_path(path) if _path_is_file(path) else None
         for path in changes
@@ -1721,6 +2440,8 @@ def _build_result_orchestration(
     for path, event_hash in event_hashes.items():
         preconditions[path] = event_hash
     preconditions[_state_path(root)] = _sha256_payload(state_payload)
+    if coordination_path is not None:
+        preconditions[coordination_path] = coordination_hash
     return root, updated, changes, preconditions, roles, decision, operation_id
 
 
@@ -1991,6 +2712,18 @@ def _migration_plan_document(values: dict[str, Any]) -> dict[str, Any]:
     return document
 
 
+def _migration_implementation_binding() -> dict[str, str]:
+    tool_path = MALTS_ROOT / "tools" / "long_workspace.py"
+    invariant_path = MALTS_ROOT / "tools" / "lifecycle_invariants.json"
+    return {
+        "tool_path": "tools/long_workspace.py",
+        "tool_sha256": _sha256_path(tool_path),
+        "invariant_path": "tools/lifecycle_invariants.json",
+        "invariant_sha256": _sha256_path(invariant_path),
+        "malts_version": (MALTS_ROOT / "VERSION").read_text(encoding="utf-8-sig").strip(),
+    }
+
+
 def command_migrate_workspace_v3_to_v4(args: argparse.Namespace) -> dict[str, Any]:
     root = _workspace(args.workspace)
     state, state_payload = _load_state_capture(root)
@@ -2126,6 +2859,7 @@ def command_migrate_workspace_v3_to_v4(args: argparse.Namespace) -> dict[str, An
     input_rows.extend(declared_lineages)
     invariant_source_path = MALTS_ROOT / "tools" / "lifecycle_invariants.json"
     input_rows.append({"path": "tools/lifecycle_invariants.json", "role": "INVARIANT_SOURCE", "sha256": _sha256_path(invariant_source_path)})
+    input_rows.append({"path": "tools/long_workspace.py", "role": "TOOL_SOURCE", "sha256": _sha256_path(MALTS_ROOT / "tools" / "long_workspace.py")})
     if paused_phase is not None:
         input_rows.append({"path": paused_phase["path"], "role": "PHASE_CONTROL", "sha256": args.expected_phase_sha256.upper()})
     report_path = _target(root, "WORK_TASK_REPORT.md")
@@ -2159,6 +2893,7 @@ def command_migrate_workspace_v3_to_v4(args: argparse.Namespace) -> dict[str, An
         "workspace_identity": {"project_id": state["project_id"]},
         "source_schema_version": 3,
         "target_schema_version": 4,
+        "target_profile": None,
         "inputs": input_rows,
         "outputs": output_rows,
         "paused_phase": None if paused_phase is None else {
@@ -2181,12 +2916,18 @@ def command_migrate_workspace_v3_to_v4(args: argparse.Namespace) -> dict[str, An
             "legacy_read_preserved": True,
         },
         "rollback": {"preimages": preimage_rows, "created_outputs": created_outputs},
+        "review": {"review_ref": review_ref, "authorization_ref": authorization_ref},
+        "implementation_binding": _migration_implementation_binding(),
         "declarations": {
             "implicit_session_created": False,
+            "implicit_agent_created": False,
+            "implicit_artifact_created": False,
+            "implicit_phase_created": False,
             "recursive_discovery_performed": False,
             "git_or_network_performed": False,
             "active_runtime_or_public_touched": False,
         },
+        "dormant_coordination_retained": False,
     }
     migration_plan = _migration_plan_document(plan_values)
     plan_issues = validate_instance(MALTS_ROOT, "workspace-migration-plan", migration_plan)
@@ -2236,13 +2977,878 @@ def command_migrate_workspace_v3_to_v4(args: argparse.Namespace) -> dict[str, An
     }
 
 
+def _require_workspace_version_migration_quiescence(root: Path, state: dict[str, Any]) -> None:
+    _require_no_incomplete_workspace_transaction(root)
+    if _artifact_transaction_incomplete(root):
+        raise WorkspaceError("WS_MIGRATION_NOT_QUIESCENT", "An incomplete Artifact transaction blocks workspace migration.")
+    if state["active_session_id"] is not None or any(item.get("status") == "ACTIVE" for item in state["session_controls"]):
+        raise WorkspaceError("WS_MIGRATION_NOT_QUIESCENT", "Close the active Session before workspace migration.")
+
+
+def _drained_coordination_payload(
+    root: Path,
+    state: dict[str, Any],
+    expected_sha256: str | None,
+) -> tuple[Path, bytes, dict[str, Any]]:
+    coordination_path = _target(root, coordination_runtime.COORDINATION_RELATIVE.as_posix())
+    if not _path_is_file(coordination_path):
+        raise WorkspaceError("WS_COORDINATION_STATE_MISSING", "The resource Admission profile requires its exact coordination state.", coordination_runtime.COORDINATION_RELATIVE.as_posix())
+    payload = _path_read_bytes(coordination_path)
+    observed = _sha256_payload(payload)
+    expected = _require_expected_sha256(expected_sha256, "WS_TRANSACTION_PLAN_STALE", "Expected coordination state SHA-256")
+    if observed != expected:
+        raise WorkspaceError("WS_TRANSACTION_PLAN_STALE", "Coordination state changed after review.", coordination_runtime.COORDINATION_RELATIVE.as_posix())
+    try:
+        value = json.loads(payload.decode("utf-8-sig"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise WorkspaceError("WS_COORDINATION_STATE_INVALID", "Coordination state is not valid UTF-8 JSON.", coordination_runtime.COORDINATION_RELATIVE.as_posix()) from exc
+    issues = validate_instance(MALTS_ROOT, "workspace-coordination", value)
+    if issues:
+        first = issues[0]
+        raise WorkspaceError("WS_COORDINATION_STATE_INVALID", f"{first.code}: {first.message}", first.path)
+    if value.get("workspace_id") != state["project_id"]:
+        raise WorkspaceError("WS_COORDINATION_WORKSPACE_MISMATCH", "Coordination state belongs to another workspace.", coordination_runtime.COORDINATION_RELATIVE.as_posix())
+    transaction = inspect_transaction_state(root, coordination_runtime.COORDINATION_TRANSACTION_PROFILE)
+    if transaction["status"] != "PASS":
+        raise WorkspaceError("WS_MIGRATION_NOT_QUIESCENT", "Recover or reconcile the incomplete coordination transaction before migration.", coordination_runtime.COORDINATION_RELATIVE.as_posix())
+    if value["active_admissions"] or value["queue"] or value["quarantines"] or value["workspace_quarantine"] is not None:
+        raise WorkspaceError(
+            "WS_MIGRATION_NOT_QUIESCENT",
+            "Drain active Admissions and queues, then reconcile every quarantine before migration.",
+            coordination_runtime.COORDINATION_RELATIVE.as_posix(),
+        )
+    return coordination_path, payload, value
+
+
+def _version_migration_rows(
+    root: Path,
+    changes: dict[Path, bytes],
+) -> tuple[list[dict[str, Any]], list[dict[str, str | None]], list[str]]:
+    outputs: list[dict[str, Any]] = []
+    preimages: list[dict[str, str | None]] = []
+    created: list[str] = []
+    for path in sorted(changes, key=lambda item: _relative(root, item)):
+        relative = _relative(root, path)
+        if relative == STATE_RELATIVE.as_posix():
+            role = "WORKSPACE_STATE"
+        elif relative == coordination_runtime.COORDINATION_RELATIVE.as_posix():
+            role = "COORDINATION_STATE"
+        elif relative.endswith("PHASE_CONTROL.md"):
+            role = "PHASE_CONTROL"
+        elif "/boundary-revisions/" in relative and relative.endswith(".json"):
+            role = "IMMUTABLE_RECORD"
+        elif relative == "WORK_TASK_REPORT.md":
+            role = "REPORT"
+        elif relative == "PROJECT_HANDOFF.md":
+            role = "HANDOFF"
+        elif relative == "PROJECT_CONTROL.md":
+            role = "PROJECT_CONTROL"
+        elif relative == "history/PROJECT_CONTROL_HISTORY.md":
+            role = "HISTORY_ARCHIVE"
+        else:
+            raise WorkspaceError("WS_MIGRATION_OUTPUT_ROLE", "Migration produced an undeclared output role.", relative)
+        payload = changes[path]
+        outputs.append({"path": relative, "role": role, "bytes": len(payload), "sha256": _sha256_payload(payload)})
+        preimage = _sha256_path(path) if _path_is_file(path) else None
+        preimages.append({"path": relative, "sha256": preimage})
+        if preimage is None:
+            created.append(relative)
+    return outputs, preimages, created
+
+
+def _workspace_version_migration_plan(
+    *,
+    root: Path,
+    state: dict[str, Any],
+    state_payload: bytes,
+    operation: str,
+    source_version: int,
+    target_version: int,
+    target_profile: str | None,
+    changes: dict[Path, bytes],
+    extra_inputs: list[dict[str, str]],
+    review_ref: str,
+    authorization_ref: str,
+    dormant_coordination_retained: bool,
+) -> dict[str, Any]:
+    implementation = _migration_implementation_binding()
+    inputs = [
+        {"path": STATE_RELATIVE.as_posix(), "role": "WORKSPACE_STATE", "sha256": _sha256_payload(state_payload)},
+        {"path": implementation["invariant_path"], "role": "INVARIANT_SOURCE", "sha256": implementation["invariant_sha256"]},
+        {"path": implementation["tool_path"], "role": "TOOL_SOURCE", "sha256": implementation["tool_sha256"]},
+        *extra_inputs,
+    ]
+    outputs, preimages, created = _version_migration_rows(root, changes)
+    values = {
+        "schema_version": 1,
+        "operation_id": operation.split(":", 1)[-1],
+        "operation": operation.split(":", 1)[0],
+        "plan_id": operation.split(":", 1)[-1],
+        "workspace_identity": {"project_id": state["project_id"]},
+        "source_schema_version": source_version,
+        "target_schema_version": target_version,
+        "target_profile": target_profile,
+        "inputs": inputs,
+        "outputs": outputs,
+        "paused_phase": None,
+        "legacy_session_rows": [],
+        "compatibility": {
+            "result": "COMPATIBLE",
+            "added_fields": ["phase_governance"] if target_version == 5 else ["v4 current-view binding enforcement"],
+            "changed_fields": ["schema_version", "maintenance_state"],
+            "legacy_read_preserved": True,
+        },
+        "rollback": {"preimages": preimages, "created_outputs": created},
+        "review": {"review_ref": review_ref, "authorization_ref": authorization_ref},
+        "implementation_binding": implementation,
+        "declarations": {
+            "implicit_session_created": False,
+            "implicit_agent_created": False,
+            "implicit_artifact_created": False,
+            "implicit_phase_created": False,
+            "recursive_discovery_performed": False,
+            "git_or_network_performed": False,
+            "active_runtime_or_public_touched": False,
+        },
+        "dormant_coordination_retained": dormant_coordination_retained,
+    }
+    plan = _migration_plan_document(values)
+    issues = validate_instance(MALTS_ROOT, "workspace-migration-plan", plan)
+    if issues:
+        first = issues[0]
+        raise WorkspaceError("WS_MIGRATION_PLAN_INVALID", f"{first.code}: {first.message}", first.path)
+    return plan
+
+
+def command_migrate_workspace_v4_to_v5(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state, state_payload = _load_state_capture(root)
+    if state["schema_version"] != 4:
+        raise WorkspaceError("WS_MIGRATION_SOURCE_SCHEMA", "migrate-workspace-v4-to-v5 requires workspace-control schema exactly 4.", STATE_RELATIVE.as_posix())
+    expected_state = _require_expected_sha256(args.expected_state_sha256, "WS_TRANSACTION_PLAN_STALE", "Expected workspace state SHA-256")
+    if expected_state != _sha256_payload(state_payload):
+        raise WorkspaceError("WS_TRANSACTION_PLAN_STALE", "Workspace state changed after review.", STATE_RELATIVE.as_posix())
+    _require_workspace_version_migration_quiescence(root, state)
+    _require_consistent_mutation(root, state)
+    profile = args.profile
+    review_ref = _require_reference(args.review_ref, "WS_MIGRATION_REVIEW_REQUIRED", "Migration review reference")
+    authorization_ref = _require_reference(args.authorization_ref, "WS_MIGRATION_AUTHORIZATION_REQUIRED", "Migration authorization reference")
+    now = _timestamp(args.timestamp)
+    phase_preconditions: dict[Path, str] = {}
+    extra_inputs: list[dict[str, str]] = []
+    if state["active_phase_id"] is not None:
+        phase = _active_phase(state)
+        phase_control = _target(root, phase["path"])
+        observed_phase = _sha256_path(phase_control)
+        expected_phase = _require_expected_sha256(args.expected_phase_sha256, "WS_TRANSACTION_PLAN_STALE", "Expected active Phase control SHA-256")
+        if observed_phase != expected_phase:
+            raise WorkspaceError("WS_TRANSACTION_PLAN_STALE", "Active Phase control changed after review.", phase["path"])
+        phase_preconditions[phase_control] = observed_phase
+        extra_inputs.append({"path": phase["path"], "role": "PHASE_CONTROL", "sha256": observed_phase})
+    updated = copy.deepcopy(state)
+    updated["schema_version"] = 5
+    updated["phase_governance"] = {
+        "profile": profile,
+        "coordination_path": coordination_runtime.COORDINATION_RELATIVE.as_posix() if profile == "resource_admission_v1" else None,
+        "report_projection_policy": "ON_DEMAND",
+        "history_load_policy": "CURRENT_SET_ONLY",
+    }
+    updated["maintenance_state"].update({"state": "clean", "last_action": "migrate-workspace-v4-to-v5", "last_checked_at": now})
+    changes: dict[Path, bytes] = {_state_path(root): _json_bytes(updated)}
+    coordination_preconditions: dict[Path, str | None] = {}
+    dormant_reused = False
+    if profile == "resource_admission_v1":
+        coordination_path = _target(root, coordination_runtime.COORDINATION_RELATIVE.as_posix())
+        if _path_is_file(coordination_path):
+            coordination_path, coordination_payload, _ = _drained_coordination_payload(root, updated, args.expected_coordination_sha256)
+            coordination_preconditions[coordination_path] = _sha256_payload(coordination_payload)
+            extra_inputs.append({"path": coordination_runtime.COORDINATION_RELATIVE.as_posix(), "role": "COORDINATION_STATE", "sha256": _sha256_payload(coordination_payload)})
+            dormant_reused = True
+        else:
+            changes[coordination_path] = _json_bytes(coordination_runtime.new_coordination_state(state["project_id"], now))
+            coordination_preconditions[coordination_path] = None
+    _validate_state(root, updated)
+    operation = "migrate-workspace-v4-to-v5"
+    operation_id = _validate_id(args.operation_id, "Operation ID")
+    migration_plan = _workspace_version_migration_plan(
+        root=root,
+        state=state,
+        state_payload=state_payload,
+        operation=f"{operation}:{operation_id}",
+        source_version=4,
+        target_version=5,
+        target_profile=profile,
+        changes=changes,
+        extra_inputs=extra_inputs,
+        review_ref=review_ref,
+        authorization_ref=authorization_ref,
+        dormant_coordination_retained=dormant_reused,
+    )
+    preconditions: dict[Path, str | None] = {_state_path(root): expected_state, **phase_preconditions, **coordination_preconditions}
+    roles = {path: "COORDINATION_STATE" if path == _target(root, coordination_runtime.COORDINATION_RELATIVE.as_posix()) else "RUNTIME_STATE" for path in changes}
+    transaction = _transaction_preview(root, operation_id=operation_id, operation=operation, changes=changes, preconditions=preconditions, target_roles=roles)
+    receipt = None
+    if args.apply:
+        expected_plan = _require_expected_sha256(args.expected_plan_sha256, "WS_TRANSACTION_PLAN_STALE", "Expected migration plan SHA-256")
+        if expected_plan != migration_plan["plan_sha256"]:
+            raise WorkspaceError("WS_TRANSACTION_PLAN_STALE", "Migration plan SHA-256 differs from the reviewed plan.")
+        receipt = _apply_transaction_plan(
+            root,
+            operation_id=operation_id,
+            operation=operation,
+            changes=changes,
+            preconditions=preconditions,
+            target_roles=roles,
+            expected_plan_sha256=transaction["plan_sha256"],
+            fault_point=os.environ.get("MALTS_TEST_WORKSPACE_FAULT_POINT"),
+        )
+    return {
+        "status": "PASS",
+        "operation": operation,
+        "mode": "APPLY" if args.apply else "DRY_RUN",
+        "workspace": str(root),
+        "writes_performed": bool(receipt and receipt.get("writes_performed")),
+        "source_schema_version": 4,
+        "target_schema_version": 5,
+        "target_profile": profile,
+        "migration_plan": migration_plan,
+        "transaction": transaction,
+        "receipt": receipt,
+        "implicit_session_created": False,
+        "implicit_agent_created": False,
+        "implicit_artifact_created": False,
+        "implicit_phase_created": False,
+    }
+
+
+def command_migrate_workspace_v5_to_v4(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state, state_payload = _load_state_capture(root)
+    if state["schema_version"] != 5:
+        raise WorkspaceError("WS_MIGRATION_SOURCE_SCHEMA", "migrate-workspace-v5-to-v4 requires workspace-control schema exactly 5.", STATE_RELATIVE.as_posix())
+    expected_state = _require_expected_sha256(args.expected_state_sha256, "WS_TRANSACTION_PLAN_STALE", "Expected workspace state SHA-256")
+    if expected_state != _sha256_payload(state_payload):
+        raise WorkspaceError("WS_TRANSACTION_PLAN_STALE", "Workspace state changed after review.", STATE_RELATIVE.as_posix())
+    _require_workspace_version_migration_quiescence(root, state)
+    _require_consistent_mutation(root, state)
+    open_secondary = [item["phase_id"] for item in state["phase_controls"] if item["status"] == "OPEN"]
+    if open_secondary:
+        raise WorkspaceError("WS_MIGRATION_NOT_QUIESCENT", "Close or pause every secondary OPEN Phase before v5-to-v4 downgrade.", ",".join(open_secondary))
+    if not _path_is_file(_target(root, "WORK_TASK_REPORT.md")):
+        raise WorkspaceError("WS_MIGRATION_REPORT_REQUIRED", "Schema v4 requires WORK_TASK_REPORT.md; refresh the on-demand view before downgrade.", "WORK_TASK_REPORT.md")
+    profile = state["phase_governance"]["profile"]
+    review_ref = _require_reference(args.review_ref, "WS_MIGRATION_REVIEW_REQUIRED", "Downgrade review reference")
+    authorization_ref = _require_reference(args.authorization_ref, "WS_MIGRATION_AUTHORIZATION_REQUIRED", "Downgrade authorization reference")
+    now = _timestamp(args.timestamp)
+    extra_inputs: list[dict[str, str]] = []
+    extra_preconditions: dict[Path, str] = {}
+    dormant_coordination_retained = False
+    if profile == "resource_admission_v1":
+        coordination_path, coordination_payload, _ = _drained_coordination_payload(root, state, args.expected_coordination_sha256)
+        coordination_hash = _sha256_payload(coordination_payload)
+        extra_inputs.append({"path": coordination_runtime.COORDINATION_RELATIVE.as_posix(), "role": "COORDINATION_STATE", "sha256": coordination_hash})
+        extra_preconditions[coordination_path] = coordination_hash
+        dormant_coordination_retained = True
+    updated = copy.deepcopy(state)
+    updated["schema_version"] = 4
+    updated.pop("phase_governance", None)
+    updated["maintenance_state"].update({"state": "clean", "last_action": "migrate-workspace-v5-to-v4", "last_checked_at": now})
+    changes: dict[Path, bytes] = {}
+    _finalize_v4_consistency(root, updated, changes, now)
+    operation = "migrate-workspace-v5-to-v4"
+    operation_id = _validate_id(args.operation_id, "Operation ID")
+    migration_plan = _workspace_version_migration_plan(
+        root=root,
+        state=state,
+        state_payload=state_payload,
+        operation=f"{operation}:{operation_id}",
+        source_version=5,
+        target_version=4,
+        target_profile=None,
+        changes=changes,
+        extra_inputs=extra_inputs,
+        review_ref=review_ref,
+        authorization_ref=authorization_ref,
+        dormant_coordination_retained=dormant_coordination_retained,
+    )
+    preconditions: dict[Path, str | None] = {
+        path: _sha256_path(path) if _path_is_file(path) else None
+        for path in changes
+    }
+    preconditions[_state_path(root)] = expected_state
+    preconditions.update(extra_preconditions)
+    roles: dict[Path, str] = {}
+    for path in changes:
+        relative = _relative(root, path)
+        roles[path] = (
+            "PHASE_CONTROL" if relative.endswith("PHASE_CONTROL.md") else
+            "REPORT" if relative == "WORK_TASK_REPORT.md" else
+            "HANDOFF" if relative == "PROJECT_HANDOFF.md" else
+            "PROJECT_CONTROL" if relative == "PROJECT_CONTROL.md" else
+            "RUNTIME_STATE"
+        )
+    transaction = _transaction_preview(root, operation_id=operation_id, operation=operation, changes=changes, preconditions=preconditions, target_roles=roles)
+    receipt = None
+    if args.apply:
+        expected_plan = _require_expected_sha256(args.expected_plan_sha256, "WS_TRANSACTION_PLAN_STALE", "Expected migration plan SHA-256")
+        if expected_plan != migration_plan["plan_sha256"]:
+            raise WorkspaceError("WS_TRANSACTION_PLAN_STALE", "Migration plan SHA-256 differs from the reviewed plan.")
+        receipt = _apply_transaction_plan(
+            root,
+            operation_id=operation_id,
+            operation=operation,
+            changes=changes,
+            preconditions=preconditions,
+            target_roles=roles,
+            expected_plan_sha256=transaction["plan_sha256"],
+            fault_point=os.environ.get("MALTS_TEST_WORKSPACE_FAULT_POINT"),
+        )
+    return {
+        "status": "PASS",
+        "operation": operation,
+        "mode": "APPLY" if args.apply else "DRY_RUN",
+        "workspace": str(root),
+        "writes_performed": bool(receipt and receipt.get("writes_performed")),
+        "source_schema_version": 5,
+        "target_schema_version": 4,
+        "source_profile": profile,
+        "dormant_coordination_retained": dormant_coordination_retained,
+        "migration_plan": migration_plan,
+        "transaction": transaction,
+        "receipt": receipt,
+        "implicit_session_created": False,
+        "implicit_agent_created": False,
+        "implicit_artifact_created": False,
+        "implicit_phase_created": False,
+    }
+
+
+def _current_profile_name(state: dict[str, Any]) -> str:
+    governance = state.get("phase_governance")
+    if not isinstance(governance, dict):
+        return "single_phase"
+    profile = governance.get("profile")
+    if profile in CURRENT_PROFILE_TO_INTERNAL:
+        return str(profile)
+    if profile in INTERNAL_PROFILE_TO_CURRENT:
+        return INTERNAL_PROFILE_TO_CURRENT[str(profile)]
+    raise WorkspaceError("WS_COORDINATION_PROFILE_INVALID", "Workspace has an unknown Phase governance profile.", str(profile))
+
+
+def _reorganization_plan(
+    *,
+    root: Path,
+    state: dict[str, Any],
+    state_payload: bytes,
+    source_is_current: bool,
+    source_version: int | None,
+    target_profile: str,
+    root_control: dict[str, Any],
+    changes: dict[Path, bytes],
+    operation_id: str,
+    review_ref: str,
+    authorization_ref: str,
+    planned_at: str,
+    extra_inputs: list[dict[str, str]],
+) -> dict[str, Any]:
+    implementation = _migration_implementation_binding()
+    outputs, preimages, created = _version_migration_rows(root, changes)
+    inputs = [
+        {"path": STATE_RELATIVE.as_posix(), "role": "WORKSPACE_STATE", "sha256": _sha256_payload(state_payload)},
+        {"path": implementation["invariant_path"], "role": "INVARIANT_SOURCE", "sha256": implementation["invariant_sha256"]},
+        {"path": implementation["tool_path"], "role": "TOOL_SOURCE", "sha256": implementation["tool_sha256"]},
+    ]
+    known_inputs = {item["path"] for item in inputs}
+    for row in extra_inputs:
+        if row["path"] not in known_inputs:
+            inputs.append(copy.deepcopy(row))
+            known_inputs.add(row["path"])
+    for row in preimages:
+        if row["sha256"] is not None and row["path"] not in known_inputs:
+            inputs.append({"path": row["path"], "role": "CONTROL_PREIMAGE", "sha256": row["sha256"]})
+    values = {
+        "contract_id": "malts.workspace.reorganization-plan",
+        "operation_id": operation_id,
+        "operation": "reorganize-workspace",
+        "plan_id": operation_id,
+        "workspace_identity": {"project_id": state["project_id"]},
+        "source_layout": {
+            "kind": "CURRENT" if source_is_current else "LEGACY",
+            "legacy_schema_version": None if source_is_current else source_version,
+            "state_sha256": _sha256_payload(state_payload),
+        },
+        "target_contract": CURRENT_WORKSPACE_CONTRACT,
+        "target_profile": target_profile,
+        "root_control": root_control,
+        "inputs": inputs,
+        "outputs": outputs,
+        "compatibility": {
+            "result": "ALREADY_CURRENT" if source_is_current and not changes else "REORGANIZATION_REQUIRED" if changes else "COMPATIBLE",
+            "legacy_read_preserved": True,
+            "intermediate_layouts_written": False,
+            "entities_created": {"phase": 0, "session": 0, "agent": 0, "artifact": 0, "workspace": 0},
+        },
+        "rollback": {
+            "preimages": preimages,
+            "created_outputs": created,
+            "strategy": "TRANSACTION_JOURNAL_EXACT_PREIMAGE",
+        },
+        "review": {"review_ref": review_ref, "authorization_ref": authorization_ref, "planned_at": planned_at},
+        "implementation_binding": implementation,
+        "declarations": {
+            "implicit_session_created": False,
+            "implicit_agent_created": False,
+            "implicit_artifact_created": False,
+            "implicit_phase_created": False,
+            "recursive_discovery_performed": False,
+            "git_or_network_performed": False,
+            "active_runtime_or_public_touched": False,
+        },
+    }
+    plan = _migration_plan_document(values)
+    issues = validate_instance(MALTS_ROOT, "workspace-reorganization-plan", plan)
+    if issues:
+        first = issues[0]
+        raise WorkspaceError("WS_REORGANIZATION_PLAN_INVALID", f"{first.code}: {first.message}", first.path)
+    return plan
+
+
+def _prepare_legacy_current_controls(
+    root: Path,
+    source_state: dict[str, Any],
+    updated: dict[str, Any],
+    changes: dict[Path, bytes],
+    *,
+    now: str,
+    review_ref: str,
+    authorization_ref: str,
+) -> str | None:
+    if source_state.get("active_phase_id") is not None:
+        raise WorkspaceError(
+            "WS_REORGANIZATION_NOT_QUIESCENT",
+            "Pause the active legacy Phase before workspace reorganization.",
+            STATE_RELATIVE.as_posix(),
+        )
+    paused = [item for item in source_state.get("phase_controls", []) if item.get("status") == "PAUSED"]
+    if len(paused) > 1:
+        raise WorkspaceError(
+            "WS_REORGANIZATION_NOT_QUIESCENT",
+            "Legacy reorganization accepts at most one explicitly PAUSED recovery Phase.",
+            STATE_RELATIVE.as_posix(),
+        )
+    if not paused:
+        updated["recovery_point"] = {
+            "summary": "Legacy workspace reorganized directly into the CURRENT contract with no active recovery Phase.",
+            "next_action": "Open a new outcome-oriented Phase or explicitly resume one reviewed Phase.",
+            "evidence_refs": [review_ref, authorization_ref, "reorganization:legacy-to-current"],
+        }
+        updated["recovery_binding"] = None
+        return None
+
+    paused_phase = paused[0]
+    phase_path, phase_payload, phase_text, phase_bom = _phase_control_info(root, paused_phase)
+    if _markdown_phase_status(phase_text) != "PAUSED":
+        raise WorkspaceError("WS_PHASE_CONTROL_DRIFT", "Runtime and Markdown Phase status disagree.", paused_phase["path"])
+    boundary = _phase_boundary_contract(phase_text)
+    if boundary["status"] != "COMPLETE":
+        raise WorkspaceError(
+            "WS_REORGANIZATION_SEMANTIC_REVIEW_REQUIRED",
+            "The PAUSED legacy Phase needs a complete boundary contract before one-hop reorganization.",
+            paused_phase["path"],
+        )
+    existing_boundary = _marked_section(phase_text, BOUNDARY_INDEX_MARKER, required=False)
+    if existing_boundary is None:
+        revision_id = f"{paused_phase['phase_id']}-boundary-r001"
+        revision_relative = f"phases/{paused_phase['phase_id']}/boundary-revisions/{revision_id}.json"
+        revision_path = _target(root, revision_relative)
+        if revision_path.exists():
+            raise WorkspaceError("WS_FILE_EXISTS", "Refusing to overwrite an existing Phase boundary revision.", revision_relative)
+        boundary_values = {placeholder: boundary["fields"][label] for _, label, placeholder in PHASE_BOUNDARY_FIELDS}
+        revision_document = _boundary_revision_document(
+            phase_id=paused_phase["phase_id"],
+            revision_id=revision_id,
+            revision_number=1,
+            previous_revision=None,
+            boundary_values=boundary_values,
+            review_id=review_ref,
+            review_evidence_refs=[review_ref, "reorganization:legacy-to-current"],
+            authorization_ref=authorization_ref,
+            accepted_at=now,
+        )
+        revision_payload = _canonical_json_file_bytes(revision_document)
+        changes[revision_path] = revision_payload
+        phase_text = _replace_or_insert_section(
+            phase_text,
+            BOUNDARY_INDEX_MARKER,
+            _boundary_index_block(revision_document, revision_relative, _sha256_payload(revision_payload)),
+            "phase-plan-recheck",
+            "WS_TEMPLATE_INVALID",
+        )
+    if _marked_section(phase_text, TASK_INDEX_MARKER, required=False) is None:
+        phase_text = _replace_or_insert_section(
+            phase_text,
+            TASK_INDEX_MARKER,
+            _task_index_block([], now),
+            "phase-queue",
+            "WS_TEMPLATE_INVALID",
+        )
+    changes[phase_path] = _encode_markdown(phase_text, phase_bom)
+    updated["recovery_point"] = {
+        "summary": f"Phase {paused_phase['phase_id']} remains PAUSED across direct reorganization into the CURRENT contract.",
+        "next_action": "Validate and cold-recover the CURRENT workspace, then explicitly resume with reviewed boundary, plan, and authorization.",
+        "evidence_refs": [review_ref, authorization_ref, "reorganization:legacy-to-current"],
+    }
+    return str(paused_phase["phase_id"])
+
+
+def command_reorganize_workspace(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state, state_payload = _load_state_capture(root)
+    source_is_current = state.get("contract_id") == CURRENT_WORKSPACE_CONTRACT
+    source_version = None if source_is_current else state.get("schema_version")
+    if not source_is_current and source_version not in {1, 2, 3, 4, 5}:
+        raise WorkspaceError("WS_REORGANIZATION_SOURCE_UNSUPPORTED", "Workspace layout is not a supported legacy layout.", STATE_RELATIVE.as_posix())
+    expected_state = _require_expected_sha256(args.expected_state_sha256, "WS_TRANSACTION_PLAN_STALE", "Expected workspace state SHA-256")
+    observed_state = _sha256_payload(state_payload)
+    if expected_state != observed_state:
+        raise WorkspaceError("WS_TRANSACTION_PLAN_STALE", "Workspace state changed after reorganization review.", STATE_RELATIVE.as_posix())
+
+    project_control_path = _target(root, "PROJECT_CONTROL.md")
+    if not _path_is_file(project_control_path):
+        raise WorkspaceError("WS_FILE_MISSING", "Workspace Project control is missing.", "PROJECT_CONTROL.md")
+    project_control_payload = _path_read_bytes(project_control_path)
+    expected_project_control = _require_expected_sha256(
+        args.expected_project_control_sha256,
+        "WS_TRANSACTION_PLAN_STALE",
+        "Expected Project control SHA-256",
+    )
+    observed_project_control = _sha256_payload(project_control_payload)
+    if expected_project_control != observed_project_control:
+        raise WorkspaceError(
+            "WS_TRANSACTION_PLAN_STALE",
+            "Project control changed after reorganization review.",
+            "PROJECT_CONTROL.md",
+        )
+    _require_workspace_version_migration_quiescence(root, state)
+    declared_lineages = _declared_lineage_rows(root, getattr(args, "declared_lineage", None))
+    if source_version in {1, 2, 3} and any(item.get("status") == "ACTIVE" for item in state.get("session_controls", [])):
+        raise WorkspaceError("WS_REORGANIZATION_NOT_QUIESCENT", "Legacy ACTIVE Session rows must be closed before reorganization.", STATE_RELATIVE.as_posix())
+
+    target_profile = args.profile or _current_profile_name(state)
+    if target_profile not in CURRENT_PROFILE_TO_INTERNAL:
+        raise WorkspaceError("WS_COORDINATION_PROFILE_INVALID", "Unknown target Phase governance profile.", target_profile)
+    internal_profile = CURRENT_PROFILE_TO_INTERNAL[target_profile]
+    now = _timestamp(args.timestamp)
+    review_ref = _require_reference(args.review_ref, "WS_REORGANIZATION_REVIEW_REQUIRED", "Reorganization review reference")
+    authorization_ref = _require_reference(args.authorization_ref, "WS_REORGANIZATION_AUTHORIZATION_REQUIRED", "Reorganization authorization reference")
+    operation_id = _validate_id(args.operation_id, "Operation ID")
+
+    updated = copy.deepcopy(state)
+    updated["contract_id"] = CURRENT_WORKSPACE_CONTRACT
+    updated["schema_version"] = CURRENT_INTERNAL_LAYOUT
+    updated.setdefault("current_phase_binding", None)
+    updated.setdefault("current_session_binding", None)
+    updated.setdefault("current_task_bindings", [])
+    updated.setdefault("recovery_binding", None)
+    terminal_phase_id: str | None = None
+    if source_version in {1, 2, 3}:
+        if updated.get("active_session_id") is not None:
+            raise WorkspaceError("WS_REORGANIZATION_NOT_QUIESCENT", "Close the active Session before reorganization.", STATE_RELATIVE.as_posix())
+        updated["session_controls"] = []
+        updated["current_session_binding"] = None
+        updated["current_task_bindings"] = []
+    updated["phase_governance"] = {
+        "profile": internal_profile,
+        "coordination_path": coordination_runtime.COORDINATION_RELATIVE.as_posix() if target_profile == "resource_admission" else None,
+        "report_projection_policy": "ON_DEMAND",
+        "history_load_policy": "CURRENT_SET_ONLY",
+    }
+    updated["capacity_budget"]["max_root_lines"] = 1500
+
+    changes: dict[Path, bytes] = {}
+    if source_version in {1, 2, 3}:
+        terminal_phase_id = _prepare_legacy_current_controls(
+            root,
+            state,
+            updated,
+            changes,
+            now=now,
+            review_ref=review_ref,
+            authorization_ref=authorization_ref,
+        )
+
+    try:
+        source_root_metrics = reorganization_runtime.root_metrics(project_control_payload)
+    except reorganization_runtime.ProjectControlCandidateError as exc:
+        raise WorkspaceError(
+            "WS_REORGANIZATION_ROOT_INVALID",
+            str(exc),
+            "PROJECT_CONTROL.md",
+        ) from exc
+    source_root = {
+        "path": "PROJECT_CONTROL.md",
+        "sha256": observed_project_control,
+        **source_root_metrics,
+    }
+    candidate_path: Path | None = None
+    candidate_payload: bytes | None = None
+    candidate_row: dict[str, Any] | None = None
+    candidate_relative = getattr(args, "project_control_candidate", None)
+    expected_candidate_argument = getattr(args, "expected_candidate_sha256", None)
+    if candidate_relative is not None:
+        portable_candidate = candidate_relative.replace("\\", "/")
+        candidate_relative_path = Path(portable_candidate)
+        if candidate_relative_path.is_absolute() or ".." in candidate_relative_path.parts:
+            raise WorkspaceError(
+                "WS_REORGANIZATION_ROOT_CANDIDATE_INVALID",
+                "Project-control candidate must be a workspace-relative regular file.",
+                portable_candidate,
+            )
+        candidate_path = root / candidate_relative_path
+        _inside(root, candidate_path)
+        if not _path_is_file(candidate_path):
+            raise WorkspaceError(
+                "WS_REORGANIZATION_ROOT_CANDIDATE_INVALID",
+                "Project-control candidate is missing or is not a regular file.",
+                portable_candidate,
+            )
+        history_path = _target(root, "history/PROJECT_CONTROL_HISTORY.md")
+        try:
+            aliases_reserved_control = candidate_path.samefile(project_control_path) or (
+                _path_is_file(history_path) and candidate_path.samefile(history_path)
+            )
+        except OSError as exc:
+            raise WorkspaceError(
+                "WS_REORGANIZATION_ROOT_CANDIDATE_INVALID",
+                "Project-control candidate identity could not be verified.",
+                portable_candidate,
+            ) from exc
+        if aliases_reserved_control:
+            raise WorkspaceError(
+                "WS_REORGANIZATION_ROOT_CANDIDATE_INVALID",
+                "Project-control candidate must be distinct from the live root and its history archive.",
+                portable_candidate,
+            )
+        candidate_payload = _path_read_bytes(candidate_path)
+        expected_candidate = _require_expected_sha256(
+            expected_candidate_argument,
+            "WS_TRANSACTION_PLAN_STALE",
+            "Expected Project-control candidate SHA-256",
+        )
+        if _sha256_payload(candidate_payload) != expected_candidate:
+            raise WorkspaceError(
+                "WS_TRANSACTION_PLAN_STALE",
+                "Project-control candidate changed after review.",
+                portable_candidate,
+            )
+        try:
+            candidate_row = reorganization_runtime.validate_project_control_candidate(
+                candidate_payload,
+                expected_sha256=expected_candidate,
+                project_id=updated["project_id"],
+                active_phase_id=updated["active_phase_id"],
+            )
+        except reorganization_runtime.ProjectControlCandidateError as exc:
+            raise WorkspaceError(
+                "WS_REORGANIZATION_ROOT_CANDIDATE_INVALID",
+                str(exc),
+                portable_candidate,
+            ) from exc
+        candidate_row["path"] = _relative(root, candidate_path)
+    elif expected_candidate_argument is not None:
+        raise WorkspaceError(
+            "WS_REORGANIZATION_ROOT_CANDIDATE_INVALID",
+            "--expected-candidate-sha256 requires --project-control-candidate.",
+        )
+
+    try:
+        reorganization_runtime.validate_project_control_candidate(
+            project_control_payload,
+            expected_sha256=observed_project_control,
+            project_id=updated["project_id"],
+            active_phase_id=updated["active_phase_id"],
+        )
+        source_root_is_current = True
+        source_root_issue = None
+    except reorganization_runtime.ProjectControlCandidateError as exc:
+        source_root_is_current = False
+        source_root_issue = str(exc)
+    if candidate_payload is None and not source_root_is_current:
+        raise WorkspaceError(
+            "WS_REORGANIZATION_ROOT_CANDIDATE_REQUIRED",
+            "The existing Project control is not a compact CURRENT root; provide an exact reviewed candidate.",
+            source_root_issue,
+        )
+    if candidate_payload is not None and candidate_payload != project_control_payload:
+        changes[project_control_path] = candidate_payload
+    source_profile = _current_profile_name(state)
+    coordination_path = _target(root, coordination_runtime.COORDINATION_RELATIVE.as_posix())
+    coordination_preconditions: dict[Path, str | None] = {}
+    if target_profile == "resource_admission":
+        if _path_is_file(coordination_path):
+            coordination_path, coordination_payload, _ = _drained_coordination_payload(root, updated, args.expected_coordination_sha256)
+            coordination_preconditions[coordination_path] = _sha256_payload(coordination_payload)
+        else:
+            changes[coordination_path] = _json_bytes(coordination_runtime.new_coordination_state(state["project_id"], now))
+            coordination_preconditions[coordination_path] = None
+    elif source_profile == "resource_admission" and _path_is_file(coordination_path):
+        coordination_path, coordination_payload, _ = _drained_coordination_payload(root, state, args.expected_coordination_sha256)
+        coordination_preconditions[coordination_path] = _sha256_payload(coordination_payload)
+
+    persisted_before = json.loads(state_payload.decode("utf-8-sig"))
+    persisted_after = _persisted_workspace_state(updated)
+    semantic_change = persisted_after != persisted_before
+    root_candidate_change = project_control_path in changes
+    if semantic_change or root_candidate_change:
+        updated["maintenance_state"].update({"state": "clean", "last_action": "reorganize-workspace", "last_checked_at": now})
+        if source_version in {1, 2, 3} or root_candidate_change:
+            _finalize_v4_consistency(root, updated, changes, now, terminal_phase_id=terminal_phase_id)
+        else:
+            changes[_state_path(root)] = _json_bytes(updated)
+            _validate_state(root, updated)
+
+    final_project_control = changes.get(project_control_path, project_control_payload)
+    archive_row: dict[str, Any] | None = None
+    history_path = _target(root, "history/PROJECT_CONTROL_HISTORY.md")
+    if final_project_control != project_control_payload:
+        if history_path.exists() and not _path_is_file(history_path):
+            raise WorkspaceError(
+                "WS_PATH_TYPE",
+                "Project-control history archive path is not a regular file.",
+                "history/PROJECT_CONTROL_HISTORY.md",
+            )
+        history_preimage = _path_read_bytes(history_path) if _path_is_file(history_path) else None
+        try:
+            history_payload, archive_row = reorganization_runtime.append_project_control_archive(
+                history_preimage,
+                project_control_payload,
+                operation_id=operation_id,
+            )
+        except reorganization_runtime.ProjectControlCandidateError as exc:
+            raise WorkspaceError(
+                "WS_REORGANIZATION_ROOT_ARCHIVE_INVALID",
+                str(exc),
+                "history/PROJECT_CONTROL_HISTORY.md",
+            ) from exc
+        changes[history_path] = history_payload
+
+    target_root_metrics = reorganization_runtime.root_metrics(final_project_control)
+    root_control_plan = {
+        "action": "REPLACED_AND_ARCHIVED" if final_project_control != project_control_payload else "UNCHANGED",
+        "source": source_root,
+        "candidate": candidate_row,
+        "target": {
+            "path": "PROJECT_CONTROL.md",
+            "sha256": _sha256_payload(final_project_control),
+            **target_root_metrics,
+        },
+        "archive": archive_row,
+        "section_dispositions": reorganization_runtime.section_dispositions(),
+        "limits": {
+            "fresh_target_lines": 150,
+            "fresh_target_bytes": 12288,
+            "reorganized_target_lines": reorganization_runtime.MAX_REORGANIZED_ROOT_LINES,
+            "reorganized_target_bytes": reorganization_runtime.MAX_REORGANIZED_ROOT_BYTES,
+            "soft_max_lines": reorganization_runtime.SOFT_ROOT_LINES,
+            "soft_max_bytes": reorganization_runtime.SOFT_ROOT_BYTES,
+        },
+    }
+
+    preconditions: dict[Path, str | None] = {
+        path: _sha256_path(path) if _path_is_file(path) else None
+        for path in changes
+    }
+    preconditions[_state_path(root)] = expected_state
+    preconditions[project_control_path] = expected_project_control
+    if candidate_path is not None and candidate_row is not None:
+        preconditions[candidate_path] = candidate_row["sha256"]
+    preconditions.update(coordination_preconditions)
+    for row in declared_lineages:
+        preconditions[_target(root, row["path"])] = row["sha256"]
+    roles: dict[Path, str] = {}
+    for path in changes:
+        relative = _relative(root, path)
+        roles[path] = (
+            "COORDINATION_STATE" if relative == coordination_runtime.COORDINATION_RELATIVE.as_posix() else
+            "IMMUTABLE_RECORD" if "/boundary-revisions/" in relative and relative.endswith(".json") else
+            "IMMUTABLE_RECORD" if relative == "history/PROJECT_CONTROL_HISTORY.md" else
+            "PHASE_CONTROL" if relative.endswith("PHASE_CONTROL.md") else
+            "PROJECT_CONTROL" if relative == "PROJECT_CONTROL.md" else
+            "REPORT" if relative == "WORK_TASK_REPORT.md" else
+            "HANDOFF" if relative == "PROJECT_HANDOFF.md" else
+            "RUNTIME_STATE"
+        )
+    plan_inputs = [*declared_lineages, {"path": "PROJECT_CONTROL.md", "role": "PROJECT_CONTROL", "sha256": expected_project_control}]
+    if candidate_path is not None and candidate_row is not None:
+        plan_inputs.append({"path": candidate_row["path"], "role": "PROJECT_CONTROL_CANDIDATE", "sha256": candidate_row["sha256"]})
+    if archive_row is not None and _path_is_file(history_path):
+        plan_inputs.append({"path": "history/PROJECT_CONTROL_HISTORY.md", "role": "HISTORY_ARCHIVE", "sha256": _sha256_path(history_path)})
+    plan = _reorganization_plan(
+        root=root,
+        state=state,
+        state_payload=state_payload,
+        source_is_current=source_is_current,
+        source_version=source_version,
+        target_profile=target_profile,
+        root_control=root_control_plan,
+        changes=changes,
+        operation_id=operation_id,
+        review_ref=review_ref,
+        authorization_ref=authorization_ref,
+        planned_at=now,
+        extra_inputs=plan_inputs,
+    )
+    transaction = _transaction_preview(
+        root,
+        operation_id=operation_id,
+        operation="reorganize-workspace",
+        changes=changes,
+        preconditions=preconditions,
+        target_roles=roles,
+    )
+    receipt = None
+    if args.apply:
+        expected_plan = _require_expected_sha256(args.expected_plan_sha256, "WS_TRANSACTION_PLAN_STALE", "Expected reorganization plan SHA-256")
+        if expected_plan != plan["plan_sha256"]:
+            raise WorkspaceError("WS_TRANSACTION_PLAN_STALE", "Reorganization plan differs from the exact reviewed plan.")
+        if changes:
+            receipt = _apply_transaction_plan(
+                root,
+                operation_id=operation_id,
+                operation="reorganize-workspace",
+                changes=changes,
+                preconditions=preconditions,
+                target_roles=roles,
+                expected_plan_sha256=transaction["plan_sha256"],
+                fault_point=os.environ.get("MALTS_TEST_WORKSPACE_FAULT_POINT"),
+            )
+    return {
+        "status": "PASS",
+        "operation": "reorganize-workspace",
+        "mode": "APPLY" if args.apply else "DRY_RUN",
+        "workspace": str(root),
+        "writes_performed": bool(receipt and receipt.get("writes_performed")),
+        "source_layout": plan["source_layout"],
+        "target_contract": CURRENT_WORKSPACE_CONTRACT,
+        "target_profile": target_profile,
+        "root_control": root_control_plan,
+        "reorganization_plan": plan,
+        "transaction": transaction,
+        "receipt": receipt,
+        "implicit_session_created": False,
+        "implicit_agent_created": False,
+        "implicit_artifact_created": False,
+        "implicit_phase_created": False,
+    }
+
+
 def command_migrate_result_contract_v1_to_v2(args: argparse.Namespace) -> dict[str, Any]:
     root = _workspace(args.workspace)
     state, state_payload = _load_state_capture(root)
-    if state["schema_version"] not in {3, 4}:
+    if state["schema_version"] not in {3, 4, 5}:
         raise WorkspaceError(
             "WS_SCHEMA_V4_MIGRATION_REQUIRED",
-            "Result Contract migration requires workspace-control schema v3 or v4.",
+            "Result Contract migration requires workspace-control schema v3, v4, or v5.",
             STATE_RELATIVE.as_posix(),
         )
     _require_consistent_mutation(root, state)
@@ -2256,14 +3862,14 @@ def command_migrate_result_contract_v1_to_v2(args: argparse.Namespace) -> dict[s
     lineage_id = _validate_id(args.lineage_id, "Lineage ID")
     phase_id = _validate_id(args.phase_id, "Phase ID")
     phase_entry = _phase_entry(state, phase_id)
-    if state["schema_version"] == 4:
+    if state["schema_version"] in CURRENT_BOUND_WORKSPACE_SCHEMAS:
         binding = state["current_phase_binding"]
         if binding is None or binding["active_phase_id"] != phase_id:
-            raise WorkspaceError("RC_V2_MIGRATION_REQUIRED", "A v4 workspace requires the active Phase to own the migrated Task.", phase_entry["path"])
+            raise WorkspaceError("RC_V2_MIGRATION_REQUIRED", "A v4/v5 workspace requires the primary active Phase to own the migrated Task.", phase_entry["path"])
         boundary_revision_id = binding["boundary_revision_id"]
         boundary_revision_sha256 = binding["boundary_revision_sha256"]
         _expected_hash(args.expected_phase_boundary_sha256, boundary_revision_sha256, "RC_V2_MIGRATION_REQUIRED", binding["boundary_revision_path"])
-        binding_mode = "V4_BOUND"
+        binding_mode = "V4_BOUND" if state["schema_version"] == 4 else "V5_NONE"
     else:
         phase_path, phase_payload, phase_text, _ = _phase_control_info(root, phase_entry)
         boundary = _phase_boundary_contract(phase_text)
@@ -2300,6 +3906,9 @@ def command_migrate_result_contract_v1_to_v2(args: argparse.Namespace) -> dict[s
         )
     except ValueError as exc:
         raise WorkspaceError("RC_V2_MIGRATION_REQUIRED", str(exc), contract_relative) from exc
+    for relative in (planned["contract_relative"], planned["event_relative"], planned["projection_relative"]):
+        if _target(root, relative).exists():
+            raise WorkspaceError("WS_FILE_EXISTS", "Refusing to overwrite an existing Result migration output.", relative)
     changes: dict[Path, bytes] = {
         _target(root, planned["contract_relative"]): planned["contract_payload"],
         _target(root, planned["event_relative"]): planned["event_payload"],
@@ -2311,26 +3920,31 @@ def command_migrate_result_contract_v1_to_v2(args: argparse.Namespace) -> dict[s
         _target(root, planned["projection_relative"]): "RESULT_PROJECTION",
     }
     updated = json.loads(json.dumps(state))
-    if binding_mode == "V4_BOUND":
+    if binding_mode in {"V4_BOUND", "V5_NONE"}:
         _replace_task_binding(
             updated,
             planned["projection"],
             _sha256_payload(_canonical_json_file_bytes(planned["projection"])),
         )
-        phase_path, phase_payload = _phase_task_control_payload(root, updated, changes, now)
-        changes[phase_path] = phase_payload
-        roles[phase_path] = "PHASE_CONTROL"
         updated["maintenance_state"].update({"state": "clean", "last_action": "migrate-result-contract-v1-to-v2", "last_checked_at": now})
         updated["recovery_point"] = {
             "summary": f"Result Contract {revision_id} migrated from v1 with one legacy import event.",
             "next_action": "Continue only from the exact Result lineage head and current Phase boundary revision.",
             "evidence_refs": [review_ref, authorization_ref, f"lineage:{lineage_id}"],
         }
-        _finalize_v4_consistency(root, updated, changes, now)
-        for relative, role in (("WORK_TASK_REPORT.md", "REPORT"), ("PROJECT_HANDOFF.md", "HANDOFF")):
-            path = _target(root, relative)
-            if path in changes:
-                roles[path] = role
+        if state["schema_version"] == 5:
+            changes[_state_path(root)] = _json_bytes(updated)
+            roles[_state_path(root)] = "RUNTIME_STATE"
+            _validate_state(root, updated)
+        else:
+            phase_path, phase_payload = _phase_task_control_payload(root, updated, changes, now)
+            changes[phase_path] = phase_payload
+            roles[phase_path] = "PHASE_CONTROL"
+            _finalize_v4_consistency(root, updated, changes, now)
+            for relative, role in (("WORK_TASK_REPORT.md", "REPORT"), ("PROJECT_HANDOFF.md", "HANDOFF")):
+                path = _target(root, relative)
+                if path in changes:
+                    roles[path] = role
     else:
         receipt_document = {
             "receipt_schema": 1,
@@ -2367,17 +3981,31 @@ def command_migrate_result_contract_v1_to_v2(args: argparse.Namespace) -> dict[s
             "phase_id": phase_id,
             "phase_boundary_revision_id": boundary_revision_id,
             "phase_boundary_revision_sha256": boundary_revision_sha256,
+            "source_revision_id": None,
+            "target_revision_id": revision_id,
+            "execution_authority": None,
         },
         "created": {
             "v2_contract_path": planned["contract_relative"],
+            "v3_contract_path": None,
             "import_event_path": planned["event_relative"],
             "projection_path": planned["projection_relative"],
         },
         "binding_mode": binding_mode,
+        "preconditions": {
+            "workspace_state_sha256": _sha256_payload(state_payload),
+            "phase_control_sha256": _sha256_path(_target(root, phase_entry["path"])),
+            "coordination_sha256": None,
+        },
+        "review": {"review_ref": review_ref, "authorization_ref": authorization_ref},
+        "implementation_binding": _migration_implementation_binding(),
         "declarations": {
             "source_bytes_unchanged": True,
             "fabricated_history": False,
             "implicit_session_created": False,
+            "implicit_agent_created": False,
+            "implicit_artifact_created": False,
+            "implicit_phase_created": False,
             "recursive_discovery_performed": False,
             "git_or_network_performed": False,
         },
@@ -2403,8 +4031,8 @@ def command_migrate_result_contract_v1_to_v2(args: argparse.Namespace) -> dict[s
         for path in changes
     }
     preconditions[contract_path] = v1_sha256
-    if binding_mode == "V4_BOUND":
-        preconditions[_state_path(root)] = _sha256_payload(state_payload)
+    preconditions[_state_path(root)] = _sha256_payload(state_payload)
+    preconditions[_target(root, phase_entry["path"])] = _sha256_path(_target(root, phase_entry["path"]))
     preview = _transaction_preview(root, operation_id=args.operation_id, operation="migrate-result-contract-v1-to-v2", changes=changes, preconditions=preconditions, target_roles=roles)
     receipt = None
     if args.apply:
@@ -2425,6 +4053,814 @@ def command_migrate_result_contract_v1_to_v2(args: argparse.Namespace) -> dict[s
         "transaction": preview,
         "receipt": receipt,
         "implicit_session_created": False,
+    }
+
+
+def _parse_result_fencing_tokens(values: Iterable[str]) -> list[dict[str, Any]]:
+    tokens: list[dict[str, Any]] = []
+    for value in values:
+        if "=" not in value:
+            raise WorkspaceError("RC_FENCING_TOKEN_INVALID", "Fencing tokens use DOMAIN_ID=EPOCH.", value)
+        domain_id, raw_epoch = value.rsplit("=", 1)
+        domain_id = _validate_id(domain_id, "Fencing domain ID")
+        try:
+            epoch = int(raw_epoch)
+        except ValueError as exc:
+            raise WorkspaceError("RC_FENCING_TOKEN_INVALID", "Fencing token epoch must be an integer.", value) from exc
+        if epoch < 1:
+            raise WorkspaceError("RC_FENCING_TOKEN_INVALID", "Fencing token epoch must be positive.", value)
+        tokens.append({"domain_id": domain_id, "epoch": epoch})
+    domain_ids = [item["domain_id"] for item in tokens]
+    if len(domain_ids) != len(set(domain_ids)):
+        raise WorkspaceError("RC_FENCING_TOKEN_INVALID", "Fencing token domain IDs must be unique.")
+    return sorted(tokens, key=lambda item: item["domain_id"])
+
+
+def _require_result_revision_quiescent(
+    root: Path,
+    state: dict[str, Any],
+    contract: dict[str, Any],
+    *,
+    contract_relative: str,
+    allow_committed_lineage: bool = False,
+) -> None:
+    task_id = str(contract["task_id"])
+    lineage_id = str(contract["lineage_id"])
+    events_dir = _target(root, f"task-state/{task_id}/events")
+    if events_dir.exists() and not allow_committed_lineage:
+        if not events_dir.is_dir() or events_dir.is_symlink():
+            raise WorkspaceError("RC_REORGANIZATION_NOT_QUIESCENT", "The declared Result event location is not a regular directory.", _relative(root, events_dir))
+        if any(path.is_file() for path in events_dir.iterdir()):
+            raise WorkspaceError("RC_REORGANIZATION_NOT_QUIESCENT", "Result reorganization requires an event-free lineage unless the source is an explicit legacy snapshot.", _relative(root, events_dir))
+    projection_path = _target(root, f"task-state/{task_id}/RESULT_LINEAGE.json")
+    if projection_path.exists() and not allow_committed_lineage:
+        raise WorkspaceError("RC_REORGANIZATION_NOT_QUIESCENT", "Result reorganization requires no existing lineage projection unless it is an idempotent CURRENT no-op.", _relative(root, projection_path))
+    if not allow_committed_lineage and any(
+        row.get("task_id") == task_id or row.get("lineage_id") == lineage_id
+        for row in state.get("current_task_bindings", [])
+    ):
+        raise WorkspaceError("RC_REORGANIZATION_NOT_QUIESCENT", "Result reorganization requires no current Task/lineage binding unless it is an idempotent CURRENT no-op.", STATE_RELATIVE.as_posix())
+    contracts_dir = _target(root, f"task-state/{task_id}/contracts")
+    for candidate in sorted(contracts_dir.glob("*.json")):
+        candidate_relative = _relative(root, candidate)
+        if candidate_relative == contract_relative:
+            continue
+        _, candidate_payload, candidate_value = _load_json_object(root, candidate_relative, "RC_REORGANIZATION_NOT_QUIESCENT")
+        is_supported_revision = (
+            candidate_value.get("contract_id") == CURRENT_RESULT_CONTRACT
+            or candidate_value.get("contract_version") in {"2", "3"}
+        )
+        if not is_supported_revision or candidate_value.get("lineage_id") != lineage_id:
+            continue
+        if canonical_json(candidate_value) != candidate_payload:
+            raise WorkspaceError("RC_REORGANIZATION_NOT_QUIESCENT", "A sibling Result revision is not canonical JSON.", candidate_relative)
+        if int(candidate_value.get("revision_number", 0)) >= int(contract["revision_number"]):
+            raise WorkspaceError("RC_REORGANIZATION_NOT_QUIESCENT", "The selected Result revision is not the unique lineage head.", candidate_relative)
+
+
+def _command_reorganize_result_contract_v2_v3(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state, state_payload = _load_state_capture(root)
+    _require_schema_v4(state, "reorganize-result-contract")
+    _require_no_incomplete_workspace_transaction(root)
+    _require_consistent_mutation(root, state)
+    if state["active_session_id"] is not None:
+        raise WorkspaceError("RC_REORGANIZATION_NOT_QUIESCENT", "Close the active Session before Result reorganization.")
+
+    contract_relative = args.contract.replace("\\", "/")
+    contract_path, contract_payload, source = _load_json_object(root, contract_relative, "RC_REORGANIZATION_REQUIRED")
+    source_sha256 = _sha256_payload(contract_payload)
+    _expected_hash(args.expected_contract_sha256, source_sha256, "RC_REORGANIZATION_REQUIRED", contract_relative)
+    source_version = source.get("contract_version")
+    if source_version not in {"2", "3"}:
+        raise WorkspaceError("RC_REORGANIZATION_REQUIRED", "This entry accepts one immutable legacy Result Contract 2 or 3 revision.", contract_relative)
+    expected_source_path = f"task-state/{source.get('task_id')}/contracts/{source.get('revision_id')}.json"
+    if contract_relative != expected_source_path or canonical_json(source) != contract_payload:
+        raise WorkspaceError("RC_REORGANIZATION_REQUIRED", "Legacy Result source must use canonical bytes at its declared owner path.", contract_relative)
+    source_issues = validate_instance(MALTS_ROOT, "result-contract", source)
+    if source_issues:
+        first = source_issues[0]
+        raise WorkspaceError("RC_REORGANIZATION_REQUIRED", f"{first.code}: {first.message}", first.path)
+    _require_result_revision_quiescent(root, state, source, contract_relative=contract_relative)
+
+    phase = _phase_entry(state, str(source["phase_id"]))
+    if phase["status"] not in {"ACTIVE", "OPEN"}:
+        raise WorkspaceError("RC_PHASE_NOT_EXECUTABLE", "Result reorganization requires an ACTIVE or OPEN owning Phase.", phase["path"])
+    phase_path = _target(root, phase["path"])
+    phase_payload = _path_read_bytes(phase_path)
+    phase_sha256 = _sha256_payload(phase_payload)
+    _expected_hash(args.expected_phase_control_sha256, phase_sha256, "RC_REORGANIZATION_REQUIRED", phase["path"])
+    boundary = _boundary_revision_binding(root, phase_payload, phase)
+    _expected_hash(args.expected_phase_boundary_sha256, boundary["sha256"], "RC_REORGANIZATION_REQUIRED", boundary["path"])
+
+    now = _timestamp(args.timestamp)
+    review_ref = _require_reference(args.review_ref, "RC_REORGANIZATION_REQUIRED", "Reorganization review reference")
+    authorization_ref = _require_reference(args.authorization_ref, "RC_REORGANIZATION_REQUIRED", "Reorganization authorization reference")
+    target_revision_id = _validate_id(args.revision_id or f"{source['task_id']}-CURRENT-{int(source['revision_number']) + 1:03d}", "Result Contract revision ID")
+    target_relative = f"task-state/{source['task_id']}/contracts/{target_revision_id}.json"
+    target_path = _target(root, target_relative)
+    if target_path.exists():
+        raise WorkspaceError("WS_FILE_EXISTS", "Refusing to overwrite an existing Result Contract revision.", target_relative)
+
+    profile = state.get("phase_governance", {}).get("profile") if state["schema_version"] == 5 else "single_phase_v1"
+    coordination_path: Path | None = None
+    coordination_sha256: str | None = None
+    if profile == "resource_admission_v1":
+        admission_id = _validate_id(_require_reference(args.admission_id, "RC_EXECUTION_AUTHORITY_REQUIRED", "Admission ID"), "Admission ID")
+        actor_id = _validate_id(_require_reference(args.actor_id, "RC_EXECUTION_AUTHORITY_REQUIRED", "Actor ID"), "Actor ID")
+        tokens = _parse_result_fencing_tokens(args.token)
+        if not tokens:
+            raise WorkspaceError("RC_FENCING_TOKEN_INVALID", "Admission-bound Result reorganization requires at least one fencing token.")
+        coordination_path = _target(root, coordination_runtime.COORDINATION_RELATIVE.as_posix())
+        coordination_payload = _path_read_bytes(coordination_path)
+        coordination_sha256 = _sha256_payload(coordination_payload)
+        _expected_hash(args.expected_coordination_sha256, coordination_sha256, "RC_REORGANIZATION_REQUIRED", coordination_runtime.COORDINATION_RELATIVE.as_posix())
+        coordination_inspection = coordination_runtime.inspect(root, observed_at=now)
+        if coordination_inspection["transaction_recovery"]["status"] != "PASS":
+            raise WorkspaceError("RC_REORGANIZATION_NOT_QUIESCENT", "An incomplete coordination transaction blocks Result reorganization.", coordination_runtime.COORDINATION_RELATIVE.as_posix())
+        verified = coordination_runtime.verify_admission(
+            root,
+            admission_id=admission_id,
+            phase_id=phase["phase_id"],
+            actor_id=actor_id,
+            fencing_tokens=tokens,
+            observed_at=now,
+        )
+        if verified["status"] != "PASS":
+            first = (verified.get("issues") or [{"code": "RC_EXECUTION_AUTHORITY_STALE"}])[0]
+            raise WorkspaceError(str(first.get("code")), "CURRENT Result Admission or fencing verification failed.", json.dumps(first, ensure_ascii=False))
+        authority = {
+            "profile": "RESOURCE_ADMISSION",
+            "admission_id": admission_id,
+            "actor_id": actor_id,
+            "phase_control_sha256": phase_sha256,
+            "fencing_tokens": tokens,
+        }
+        binding_mode = "RESOURCE_ADMISSION_BOUND"
+    else:
+        if args.admission_id is not None or args.actor_id is not None or args.token or args.expected_coordination_sha256 is not None:
+            raise WorkspaceError("RC_EXECUTION_AUTHORITY_PROFILE", "A non-coordinated workspace cannot declare Admission or fencing arguments.")
+        authority = {
+            "profile": "NONE",
+            "admission_id": None,
+            "actor_id": None,
+            "phase_control_sha256": None,
+            "fencing_tokens": [],
+        }
+        binding_mode = "SINGLE_PHASE"
+
+    invariant_set_id, invariant_source_sha256 = result_migration.lifecycle_invariant_binding(MALTS_ROOT)
+    target = copy.deepcopy(source)
+    target.pop("contract_version", None)
+    target.update(
+        {
+            "contract_id": CURRENT_RESULT_CONTRACT,
+            "revision_id": target_revision_id,
+            "revision_number": int(source["revision_number"]) + 1,
+            "previous_revision": {"revision_id": source["revision_id"], "path": contract_relative, "sha256": source_sha256},
+            "accepted_phase_boundary": {"revision_id": boundary["revision_id"], "sha256": boundary["sha256"]},
+            "invariant_set_id": invariant_set_id,
+            "invariant_source_sha256": invariant_source_sha256,
+            "revision_reason": _require_reference(args.revision_reason, "RC_REORGANIZATION_REQUIRED", "Revision reason"),
+            "review_ref": review_ref,
+            "authorization_ref": authorization_ref,
+            "accepted_at": now,
+            "execution_authority": authority,
+        }
+    )
+    target_payload = _canonical_json_file_bytes(target)
+    target_issues = validate_instance(MALTS_ROOT, "result-contract", target)
+    if target_issues:
+        first = target_issues[0]
+        raise WorkspaceError("RC_REORGANIZATION_REQUIRED", f"{first.code}: {first.message}", first.path)
+
+    operation_id = _validate_id(args.operation_id, "Operation ID")
+    target_sha256 = _sha256_payload(target_payload)
+    plan_values: dict[str, Any] = {
+        "contract_id": "malts.result.reorganization-plan",
+        "operation_id": operation_id,
+        "operation": "reorganize-result-contract",
+        "source": {
+            "path": contract_relative,
+            "sha256": source_sha256,
+            "layout": f"LEGACY_{source_version}",
+        },
+        "target": {
+            "contract_id": CURRENT_RESULT_CONTRACT,
+            "path": target_relative,
+            "sha256": target_sha256,
+            "revision_id": target_revision_id,
+            "execution_authority": authority,
+        },
+        "inputs": [
+            {"path": contract_relative, "role": "SOURCE_CONTRACT", "sha256": source_sha256},
+            {"path": STATE_RELATIVE.as_posix(), "role": "WORKSPACE_STATE", "sha256": _sha256_payload(state_payload)},
+            {"path": phase["path"], "role": "PHASE_CONTROL", "sha256": phase_sha256},
+            {"path": boundary["path"], "role": "PHASE_BOUNDARY_REVISION", "sha256": boundary["sha256"]},
+        ],
+        "outputs": [{"path": target_relative, "role": "IMMUTABLE_RECORD", "bytes": len(target_payload), "sha256": target_sha256}],
+        "rollback": {"preimages": [{"path": target_relative, "sha256": None}], "created_outputs": [target_relative], "strategy": "TRANSACTION_JOURNAL_EXACT_PREIMAGE"},
+        "review": {"review_ref": review_ref, "authorization_ref": authorization_ref, "planned_at": now},
+        "implementation_binding": _migration_implementation_binding(),
+        "declarations": {
+            "source_bytes_unchanged": True,
+            "intermediate_contract_written": False,
+            "implicit_session_created": False,
+            "implicit_agent_created": False,
+            "implicit_artifact_created": False,
+            "implicit_phase_created": False,
+            "recursive_discovery_performed": False,
+            "git_or_network_performed": False,
+        },
+    }
+    if coordination_path is not None and coordination_sha256 is not None:
+        plan_values["inputs"].append({"path": coordination_runtime.COORDINATION_RELATIVE.as_posix(), "role": "COORDINATION_STATE", "sha256": coordination_sha256})
+    migration_plan = _migration_plan_document(plan_values)
+    plan_issues = validate_instance(MALTS_ROOT, "result-reorganization-plan", migration_plan)
+    if plan_issues:
+        first = plan_issues[0]
+        raise WorkspaceError("WS_MIGRATION_PLAN_INVALID", f"{first.code}: {first.message}", first.path)
+    changes = {target_path: target_payload}
+    preconditions: dict[Path, str | None] = {
+        target_path: None,
+        contract_path: source_sha256,
+        _state_path(root): _sha256_payload(state_payload),
+        phase_path: phase_sha256,
+        _target(root, boundary["path"]): boundary["sha256"],
+    }
+    if coordination_path is not None:
+        preconditions[coordination_path] = coordination_sha256
+    operation = "reorganize-result-contract"
+    preview = _transaction_preview(root, operation_id=operation_id, operation=operation, changes=changes, preconditions=preconditions, target_roles={target_path: "IMMUTABLE_RECORD"})
+    receipt = None
+    if args.apply:
+        expected_plan = _require_expected_sha256(args.expected_plan_sha256, "WS_TRANSACTION_PLAN_STALE", "Expected Result reorganization plan SHA-256")
+        if expected_plan != migration_plan["plan_sha256"]:
+            raise WorkspaceError("WS_TRANSACTION_PLAN_STALE", "Result reorganization plan SHA-256 differs from the reviewed plan.")
+        receipt = _apply_transaction_plan(
+            root,
+            operation_id=operation_id,
+            operation=operation,
+            changes=changes,
+            preconditions=preconditions,
+            target_roles={target_path: "IMMUTABLE_RECORD"},
+            expected_plan_sha256=preview["plan_sha256"],
+            fault_point=os.environ.get("MALTS_TEST_WORKSPACE_FAULT_POINT"),
+        )
+    return {
+        "status": "PASS",
+        "operation": operation,
+        "mode": "APPLY" if args.apply else "DRY_RUN",
+        "workspace": str(root),
+        "writes_performed": bool(receipt and receipt.get("writes_performed")),
+        "binding_mode": binding_mode,
+        "reorganization_plan": migration_plan,
+        "transaction": preview,
+        "receipt": receipt,
+        "implicit_session_created": False,
+        "implicit_agent_created": False,
+        "implicit_artifact_created": False,
+        "implicit_phase_created": False,
+    }
+
+
+def _result_reorganization_authority(
+    root: Path,
+    state: dict[str, Any],
+    phase: dict[str, Any],
+    phase_sha256: str,
+    args: argparse.Namespace,
+    now: str,
+) -> tuple[dict[str, Any], str, Path | None, str | None]:
+    profile = state.get("phase_governance", {}).get("profile") if state["schema_version"] == 5 else "single_phase_v1"
+    if profile != "resource_admission_v1":
+        if args.admission_id is not None or args.actor_id is not None or args.token or args.expected_coordination_sha256 is not None:
+            raise WorkspaceError("RC_EXECUTION_AUTHORITY_PROFILE", "A single-Phase workspace cannot declare Admission or fencing arguments.")
+        return (
+            {
+                "profile": "NONE",
+                "admission_id": None,
+                "actor_id": None,
+                "phase_control_sha256": None,
+                "fencing_tokens": [],
+            },
+            "SINGLE_PHASE",
+            None,
+            None,
+        )
+
+    admission_id = _validate_id(
+        _require_reference(args.admission_id, "RC_EXECUTION_AUTHORITY_REQUIRED", "Admission ID"),
+        "Admission ID",
+    )
+    actor_id = _validate_id(
+        _require_reference(args.actor_id, "RC_EXECUTION_AUTHORITY_REQUIRED", "Actor ID"),
+        "Actor ID",
+    )
+    tokens = _parse_result_fencing_tokens(args.token)
+    if not tokens:
+        raise WorkspaceError("RC_FENCING_TOKEN_INVALID", "Admission-bound Result reorganization requires at least one fencing token.")
+    coordination_path = _target(root, coordination_runtime.COORDINATION_RELATIVE.as_posix())
+    coordination_payload = _path_read_bytes(coordination_path)
+    coordination_sha256 = _sha256_payload(coordination_payload)
+    _expected_hash(
+        args.expected_coordination_sha256,
+        coordination_sha256,
+        "RC_REORGANIZATION_REQUIRED",
+        coordination_runtime.COORDINATION_RELATIVE.as_posix(),
+    )
+    coordination_inspection = coordination_runtime.inspect(root, observed_at=now)
+    if coordination_inspection["transaction_recovery"]["status"] != "PASS":
+        raise WorkspaceError(
+            "RC_REORGANIZATION_NOT_QUIESCENT",
+            "An incomplete coordination transaction blocks Result reorganization.",
+            coordination_runtime.COORDINATION_RELATIVE.as_posix(),
+        )
+    verified = coordination_runtime.verify_admission(
+        root,
+        admission_id=admission_id,
+        phase_id=phase["phase_id"],
+        actor_id=actor_id,
+        fencing_tokens=tokens,
+        observed_at=now,
+    )
+    if verified["status"] != "PASS":
+        first = (verified.get("issues") or [{"code": "RC_EXECUTION_AUTHORITY_STALE"}])[0]
+        raise WorkspaceError(
+            str(first.get("code")),
+            "CURRENT Result Admission or fencing verification failed.",
+            json.dumps(first, ensure_ascii=False),
+        )
+    return (
+        {
+            "profile": "RESOURCE_ADMISSION",
+            "admission_id": admission_id,
+            "actor_id": actor_id,
+            "phase_control_sha256": phase_sha256,
+            "fencing_tokens": tokens,
+        },
+        "RESOURCE_ADMISSION_BOUND",
+        coordination_path,
+        coordination_sha256,
+    )
+
+
+def _command_reorganize_result_contract_current(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state, state_payload = _load_state_capture(root)
+    _require_schema_v4(state, "reorganize-result-contract")
+    _require_no_incomplete_workspace_transaction(root)
+    _require_consistent_mutation(root, state)
+    contract_relative = args.contract.replace("\\", "/")
+    contract_path, contract_payload, source = _load_json_object(root, contract_relative, "RC_REORGANIZATION_REQUIRED")
+    source_sha256 = _sha256_payload(contract_payload)
+    _expected_hash(args.expected_contract_sha256, source_sha256, "RC_REORGANIZATION_REQUIRED", contract_relative)
+    if source.get("contract_id") != CURRENT_RESULT_CONTRACT:
+        raise WorkspaceError("RC_REORGANIZATION_REQUIRED", "The selected Result revision is not the CURRENT contract.", contract_relative)
+    expected_source_path = f"task-state/{source.get('task_id')}/contracts/{source.get('revision_id')}.json"
+    if contract_relative != expected_source_path or canonical_json(source) != contract_payload:
+        raise WorkspaceError("RC_REORGANIZATION_REQUIRED", "CURRENT Result source must use canonical bytes at its declared owner path.", contract_relative)
+    source_issues = validate_instance(MALTS_ROOT, "result-contract", source)
+    if source_issues:
+        first = source_issues[0]
+        raise WorkspaceError("RC_REORGANIZATION_REQUIRED", f"{first.code}: {first.message}", first.path)
+    _require_result_revision_quiescent(
+        root,
+        state,
+        source,
+        contract_relative=contract_relative,
+        allow_committed_lineage=True,
+    )
+    if args.revision_id is not None and args.revision_id != source["revision_id"]:
+        raise WorkspaceError("RC_REORGANIZATION_ARGUMENT_INVALID", "A CURRENT no-op cannot create or rename a Result revision.", args.revision_id)
+
+    phase = _phase_entry(state, str(source["phase_id"]))
+    phase_path = _target(root, phase["path"])
+    phase_payload = _path_read_bytes(phase_path)
+    phase_sha256 = _sha256_payload(phase_payload)
+    _expected_hash(args.expected_phase_control_sha256, phase_sha256, "RC_REORGANIZATION_REQUIRED", phase["path"])
+    boundary = _boundary_revision_binding(root, phase_payload, phase)
+    _expected_hash(args.expected_phase_boundary_sha256, boundary["sha256"], "RC_REORGANIZATION_REQUIRED", boundary["path"])
+    if source.get("accepted_phase_boundary") != {"revision_id": boundary["revision_id"], "sha256": boundary["sha256"]}:
+        raise WorkspaceError("RC_PHASE_BOUNDARY_STALE", "CURRENT Result revision does not bind the owning Phase boundary revision.", contract_relative)
+
+    now = _timestamp(args.timestamp)
+    review_ref = _require_reference(args.review_ref, "RC_REORGANIZATION_REQUIRED", "Reorganization review reference")
+    authorization_ref = _require_reference(args.authorization_ref, "RC_REORGANIZATION_REQUIRED", "Reorganization authorization reference")
+    operation_id = _validate_id(args.operation_id, "Operation ID")
+    authority = copy.deepcopy(source["execution_authority"])
+    plan_values = {
+        "contract_id": "malts.result.reorganization-plan",
+        "operation_id": operation_id,
+        "operation": "reorganize-result-contract",
+        "source": {"path": contract_relative, "sha256": source_sha256, "layout": "CURRENT"},
+        "target": {
+            "contract_id": CURRENT_RESULT_CONTRACT,
+            "path": contract_relative,
+            "sha256": source_sha256,
+            "revision_id": source["revision_id"],
+            "execution_authority": authority,
+        },
+        "inputs": [
+            {"path": contract_relative, "role": "SOURCE_CONTRACT", "sha256": source_sha256},
+            {"path": STATE_RELATIVE.as_posix(), "role": "WORKSPACE_STATE", "sha256": _sha256_payload(state_payload)},
+            {"path": phase["path"], "role": "PHASE_CONTROL", "sha256": phase_sha256},
+            {"path": boundary["path"], "role": "PHASE_BOUNDARY_REVISION", "sha256": boundary["sha256"]},
+        ],
+        "outputs": [],
+        "rollback": {"preimages": [], "created_outputs": [], "strategy": "TRANSACTION_JOURNAL_EXACT_PREIMAGE"},
+        "review": {"review_ref": review_ref, "authorization_ref": authorization_ref, "planned_at": now},
+        "implementation_binding": _migration_implementation_binding(),
+        "declarations": {
+            "source_bytes_unchanged": True,
+            "intermediate_contract_written": False,
+            "implicit_session_created": False,
+            "implicit_agent_created": False,
+            "implicit_artifact_created": False,
+            "implicit_phase_created": False,
+            "recursive_discovery_performed": False,
+            "git_or_network_performed": False,
+        },
+    }
+    plan = _migration_plan_document(plan_values)
+    plan_issues = validate_instance(MALTS_ROOT, "result-reorganization-plan", plan)
+    if plan_issues:
+        first = plan_issues[0]
+        raise WorkspaceError("RC_REORGANIZATION_PLAN_INVALID", f"{first.code}: {first.message}", first.path)
+    preconditions = {
+        contract_path: source_sha256,
+        _state_path(root): _sha256_payload(state_payload),
+        phase_path: phase_sha256,
+        _target(root, boundary["path"]): boundary["sha256"],
+    }
+    transaction = _transaction_preview(
+        root,
+        operation_id=operation_id,
+        operation="reorganize-result-contract",
+        changes={},
+        preconditions=preconditions,
+        target_roles={},
+    )
+    if args.apply:
+        expected_plan = _require_expected_sha256(args.expected_plan_sha256, "WS_TRANSACTION_PLAN_STALE", "Expected Result reorganization plan SHA-256")
+        if expected_plan != plan["plan_sha256"]:
+            raise WorkspaceError("WS_TRANSACTION_PLAN_STALE", "Result reorganization plan SHA-256 differs from the reviewed plan.")
+    return {
+        "status": "PASS",
+        "operation": "reorganize-result-contract",
+        "mode": "APPLY" if args.apply else "DRY_RUN",
+        "workspace": str(root),
+        "writes_performed": False,
+        "binding_mode": "CURRENT_NO_OP",
+        "reorganization_plan": plan,
+        "transaction": transaction,
+        "receipt": None,
+        "implicit_session_created": False,
+        "implicit_agent_created": False,
+        "implicit_artifact_created": False,
+        "implicit_phase_created": False,
+    }
+
+
+def _command_reorganize_result_contract_v1(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state, state_payload = _load_state_capture(root)
+    _require_schema_v4(state, "reorganize-result-contract")
+    _require_no_incomplete_workspace_transaction(root)
+    _require_consistent_mutation(root, state)
+    if state["active_session_id"] is not None:
+        raise WorkspaceError("RC_REORGANIZATION_NOT_QUIESCENT", "Close the active Session before Result reorganization.")
+
+    contract_relative = args.contract.replace("\\", "/")
+    contract_path, contract_payload, source = _load_json_object(root, contract_relative, "RC_REORGANIZATION_REQUIRED")
+    source_sha256 = _sha256_payload(contract_payload)
+    _expected_hash(args.expected_contract_sha256, source_sha256, "RC_REORGANIZATION_REQUIRED", contract_relative)
+    if source.get("contract_version") != "1":
+        raise WorkspaceError("RC_REORGANIZATION_REQUIRED", "The selected Result revision is not a supported legacy snapshot.", contract_relative)
+    if source.get("execution_status") in {"EXECUTING", "VERIFYING"}:
+        raise WorkspaceError("RC_REORGANIZATION_NOT_QUIESCENT", "An executing or verifying legacy snapshot cannot be reorganized.", contract_relative)
+    source_issues = validate_instance(MALTS_ROOT, "result-contract", source)
+    if source_issues:
+        first = source_issues[0]
+        raise WorkspaceError("RC_REORGANIZATION_REQUIRED", f"{first.code}: {first.message}", first.path)
+    task_id = _validate_id(args.task_id or str(source.get("task_id", "")), "Task ID")
+    lineage_id = _validate_id(
+        _require_reference(args.lineage_id, "RC_REORGANIZATION_ARGUMENT_INVALID", "Lineage ID"),
+        "Lineage ID",
+    )
+    phase_id = _validate_id(
+        _require_reference(args.phase_id, "RC_REORGANIZATION_ARGUMENT_INVALID", "Phase ID"),
+        "Phase ID",
+    )
+    phase = _phase_entry(state, phase_id)
+    if phase["status"] not in {"ACTIVE", "OPEN"}:
+        raise WorkspaceError("RC_PHASE_NOT_EXECUTABLE", "Legacy Result reorganization requires an ACTIVE or OPEN owning Phase.", phase["path"])
+    phase_path = _target(root, phase["path"])
+    phase_payload = _path_read_bytes(phase_path)
+    phase_sha256 = _sha256_payload(phase_payload)
+    _expected_hash(args.expected_phase_control_sha256, phase_sha256, "RC_REORGANIZATION_REQUIRED", phase["path"])
+    boundary = _boundary_revision_binding(root, phase_payload, phase)
+    _expected_hash(args.expected_phase_boundary_sha256, boundary["sha256"], "RC_REORGANIZATION_REQUIRED", boundary["path"])
+    _require_result_revision_quiescent(
+        root,
+        state,
+        {"task_id": task_id, "lineage_id": lineage_id, "revision_number": 0},
+        contract_relative=contract_relative,
+    )
+
+    now = _timestamp(args.timestamp)
+    review_ref = _require_reference(args.review_ref, "RC_REORGANIZATION_REQUIRED", "Reorganization review reference")
+    authorization_ref = _require_reference(args.authorization_ref, "RC_REORGANIZATION_REQUIRED", "Reorganization authorization reference")
+    operation_id = _validate_id(args.operation_id, "Operation ID")
+    revision_id = _validate_id(args.revision_id or f"{task_id}-CURRENT-001", "Result Contract revision ID")
+    event_id = _validate_id(args.event_id or f"{task_id}-LEGACY-IMPORT-001", "Import event ID")
+    authority, binding_mode, coordination_path, coordination_sha256 = _result_reorganization_authority(
+        root,
+        state,
+        phase,
+        phase_sha256,
+        args,
+        now,
+    )
+
+    invariant_set_id, invariant_source_sha256 = result_migration.lifecycle_invariant_binding(MALTS_ROOT)
+    target = result_migration.build_v2_revision_one(
+        source,
+        lineage_id=lineage_id,
+        task_id=task_id,
+        phase_id=phase_id,
+        phase_boundary_revision_id=boundary["revision_id"],
+        phase_boundary_revision_sha256=boundary["sha256"],
+        revision_id=revision_id,
+        invariant_set_id=invariant_set_id,
+        invariant_sha256=invariant_source_sha256,
+        review_ref=review_ref,
+        authorization_ref=authorization_ref,
+        accepted_at=now,
+    )
+    target.pop("contract_version", None)
+    target["contract_id"] = CURRENT_RESULT_CONTRACT
+    target["revision_reason"] = _require_reference(args.revision_reason, "RC_REORGANIZATION_REQUIRED", "Revision reason")
+    target["execution_authority"] = authority
+    target_relative = f"task-state/{task_id}/contracts/{revision_id}.json"
+    target_path = _target(root, target_relative)
+    event_relative = f"task-state/{task_id}/events/1-{event_id}.json"
+    event_path = _target(root, event_relative)
+    projection_relative = f"task-state/{task_id}/RESULT_LINEAGE.json"
+    projection_path = _target(root, projection_relative)
+    for output_path, output_relative in (
+        (target_path, target_relative),
+        (event_path, event_relative),
+        (projection_path, projection_relative),
+    ):
+        if output_path.exists():
+            raise WorkspaceError("WS_FILE_EXISTS", "Refusing to overwrite an existing Result reorganization output.", output_relative)
+    target_payload = _canonical_json_file_bytes(target)
+    target_sha256 = _sha256_payload(target_payload)
+    target_issues = validate_instance(MALTS_ROOT, "result-contract", target)
+    if target_issues:
+        first = target_issues[0]
+        raise WorkspaceError("RC_REORGANIZATION_REQUIRED", f"{first.code}: {first.message}", first.path)
+
+    event = result_migration.build_legacy_import_event(
+        target,
+        contract_relative=target_relative,
+        contract_sha256=target_sha256,
+        v1_contract=source,
+        source_relative=contract_relative,
+        source_sha256=source_sha256,
+        event_id=event_id,
+        operation_id=operation_id,
+        recorded_at=now,
+        evidence_refs=[review_ref, authorization_ref],
+    )
+    event["event_version"] = 2
+    event["execution_authority"] = copy.deepcopy(authority)
+    event["payload"]["reason"] = "Explicit one-hop legacy snapshot reorganization into the CURRENT Result contract."
+    event_payload = _canonical_json_file_bytes(event)
+    event_issues = validate_instance(MALTS_ROOT, "result-event", event)
+    if event_issues:
+        first = event_issues[0]
+        raise WorkspaceError("RC_REORGANIZATION_REQUIRED", f"{first.code}: {first.message}", first.path)
+    projection, decision = apply_event_batch_v2(target, [event], None, [], MALTS_ROOT, target_sha256)
+    if projection is None:
+        first = (decision.get("issues") or [{"code": "RC_LINEAGE_STALE", "message": "Legacy import event was denied."}])[0]
+        raise WorkspaceError(str(first.get("code")), str(first.get("message")), str(first.get("path", contract_relative)))
+    projection_payload = _canonical_json_file_bytes(projection)
+    projection_sha256 = _sha256_payload(projection_payload)
+
+    changes: dict[Path, bytes] = {
+        target_path: target_payload,
+        event_path: event_payload,
+        projection_path: projection_payload,
+    }
+    roles: dict[Path, str] = {
+        target_path: "IMMUTABLE_RECORD",
+        event_path: "IMMUTABLE_RECORD",
+        projection_path: "RESULT_PROJECTION",
+    }
+    updated = copy.deepcopy(state)
+    _replace_task_binding(updated, projection, projection_sha256)
+    updated["maintenance_state"].update({"state": "clean", "last_action": "reorganize-result-contract", "last_checked_at": now})
+    updated["recovery_point"] = {
+        "summary": f"Legacy Result snapshot reorganized directly into CURRENT revision {revision_id}.",
+        "next_action": "Continue only from the exact Result lineage head and current Phase boundary revision.",
+        "evidence_refs": [review_ref, authorization_ref, f"lineage:{lineage_id}"],
+    }
+    if state["schema_version"] == 5:
+        changes[_state_path(root)] = _json_bytes(updated)
+        roles[_state_path(root)] = "RUNTIME_STATE"
+        _validate_state(root, updated)
+    else:
+        updated_phase_path, updated_phase_payload = _phase_task_control_payload(root, updated, changes, now, phase=phase)
+        changes[updated_phase_path] = updated_phase_payload
+        roles[updated_phase_path] = "PHASE_CONTROL"
+        _finalize_v4_consistency(root, updated, changes, now)
+
+    for path in changes:
+        if path in roles:
+            continue
+        relative = _relative(root, path)
+        roles[path] = (
+            "PROJECT_CONTROL" if relative == "PROJECT_CONTROL.md" else
+            "REPORT" if relative == "WORK_TASK_REPORT.md" else
+            "HANDOFF" if relative == "PROJECT_HANDOFF.md" else
+            "PHASE_CONTROL" if relative.endswith("PHASE_CONTROL.md") else
+            "RUNTIME_STATE"
+        )
+    preconditions: dict[Path, str | None] = {
+        path: _sha256_path(path) if _path_is_file(path) else None
+        for path in changes
+    }
+    preconditions[contract_path] = source_sha256
+    preconditions[_state_path(root)] = _sha256_payload(state_payload)
+    preconditions[phase_path] = phase_sha256
+    preconditions[_target(root, boundary["path"])] = boundary["sha256"]
+    if coordination_path is not None:
+        preconditions[coordination_path] = coordination_sha256
+
+    def input_role(path: Path) -> str:
+        relative = _relative(root, path)
+        if path == contract_path:
+            return "SOURCE_CONTRACT"
+        if relative == STATE_RELATIVE.as_posix():
+            return "WORKSPACE_STATE"
+        if relative == phase["path"]:
+            return "PHASE_CONTROL"
+        if relative == boundary["path"]:
+            return "PHASE_BOUNDARY_REVISION"
+        if relative == coordination_runtime.COORDINATION_RELATIVE.as_posix():
+            return "COORDINATION_STATE"
+        return f"PREIMAGE_{roles.get(path, 'CONTROL')}"
+
+    plan_values = {
+        "contract_id": "malts.result.reorganization-plan",
+        "operation_id": operation_id,
+        "operation": "reorganize-result-contract",
+        "source": {"path": contract_relative, "sha256": source_sha256, "layout": "LEGACY_1"},
+        "target": {
+            "contract_id": CURRENT_RESULT_CONTRACT,
+            "path": target_relative,
+            "sha256": target_sha256,
+            "revision_id": revision_id,
+            "execution_authority": authority,
+        },
+        "inputs": [
+            {"path": _relative(root, path), "role": input_role(path), "sha256": sha256}
+            for path, sha256 in sorted(preconditions.items(), key=lambda item: _relative(root, item[0]))
+            if sha256 is not None
+        ],
+        "outputs": [
+            {
+                "path": _relative(root, path),
+                "role": roles[path],
+                "bytes": len(payload),
+                "sha256": _sha256_payload(payload),
+            }
+            for path, payload in sorted(changes.items(), key=lambda item: _relative(root, item[0]))
+        ],
+        "rollback": {
+            "preimages": [
+                {"path": _relative(root, path), "sha256": preconditions[path]}
+                for path in sorted(changes, key=lambda item: _relative(root, item))
+            ],
+            "created_outputs": [
+                _relative(root, path)
+                for path in sorted(changes, key=lambda item: _relative(root, item))
+                if preconditions[path] is None
+            ],
+            "strategy": "TRANSACTION_JOURNAL_EXACT_PREIMAGE",
+        },
+        "review": {"review_ref": review_ref, "authorization_ref": authorization_ref, "planned_at": now},
+        "implementation_binding": _migration_implementation_binding(),
+        "declarations": {
+            "source_bytes_unchanged": True,
+            "intermediate_contract_written": False,
+            "implicit_session_created": False,
+            "implicit_agent_created": False,
+            "implicit_artifact_created": False,
+            "implicit_phase_created": False,
+            "recursive_discovery_performed": False,
+            "git_or_network_performed": False,
+        },
+    }
+    plan = _migration_plan_document(plan_values)
+    plan_issues = validate_instance(MALTS_ROOT, "result-reorganization-plan", plan)
+    if plan_issues:
+        first = plan_issues[0]
+        raise WorkspaceError("RC_REORGANIZATION_PLAN_INVALID", f"{first.code}: {first.message}", first.path)
+    transaction = _transaction_preview(
+        root,
+        operation_id=operation_id,
+        operation="reorganize-result-contract",
+        changes=changes,
+        preconditions=preconditions,
+        target_roles=roles,
+    )
+    receipt = None
+    if args.apply:
+        expected_plan = _require_expected_sha256(args.expected_plan_sha256, "WS_TRANSACTION_PLAN_STALE", "Expected Result reorganization plan SHA-256")
+        if expected_plan != plan["plan_sha256"]:
+            raise WorkspaceError("WS_TRANSACTION_PLAN_STALE", "Result reorganization plan SHA-256 differs from the reviewed plan.")
+        receipt = _apply_transaction_plan(
+            root,
+            operation_id=operation_id,
+            operation="reorganize-result-contract",
+            changes=changes,
+            preconditions=preconditions,
+            target_roles=roles,
+            expected_plan_sha256=transaction["plan_sha256"],
+            fault_point=os.environ.get("MALTS_TEST_WORKSPACE_FAULT_POINT"),
+        )
+    return {
+        "status": "PASS",
+        "operation": "reorganize-result-contract",
+        "mode": "APPLY" if args.apply else "DRY_RUN",
+        "workspace": str(root),
+        "writes_performed": bool(receipt and receipt.get("writes_performed")),
+        "binding_mode": binding_mode,
+        "reorganization_plan": plan,
+        "transaction": transaction,
+        "receipt": receipt,
+        "implicit_session_created": False,
+        "implicit_agent_created": False,
+        "implicit_artifact_created": False,
+        "implicit_phase_created": False,
+    }
+
+
+def command_reorganize_result_contract(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    contract_relative = args.contract.replace("\\", "/")
+    _, _, source = _load_json_object(root, contract_relative, "RC_REORGANIZATION_REQUIRED")
+    if source.get("contract_id") == CURRENT_RESULT_CONTRACT:
+        return _command_reorganize_result_contract_current(args)
+    if source.get("contract_version") == "1":
+        return _command_reorganize_result_contract_v1(args)
+    if source.get("contract_version") in {"2", "3"}:
+        return _command_reorganize_result_contract_v2_v3(args)
+    raise WorkspaceError(
+        "RC_REORGANIZATION_REQUIRED",
+        "Result reorganization accepts the CURRENT contract or one supported legacy Result layout (1, 2, or 3).",
+        contract_relative,
+    )
+
+
+def command_reconcile_result_contract_v3_to_v2(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state = _load_state(root)
+    _require_schema_v4(state, "reconcile-result-contract-v3-to-v2")
+    contract_relative = args.contract.replace("\\", "/")
+    _, contract_payload, contract = _load_json_object(root, contract_relative, "RC_V3_RECONCILE_REQUIRED")
+    contract_sha256 = _sha256_payload(contract_payload)
+    _expected_hash(args.expected_contract_sha256, contract_sha256, "RC_V3_RECONCILE_REQUIRED", contract_relative)
+    if contract.get("contract_version") != "3" or canonical_json(contract) != contract_payload:
+        raise WorkspaceError("RC_V3_RECONCILE_REQUIRED", "Reconcile requires one canonical Result Contract v3 revision.", contract_relative)
+    issues = validate_instance(MALTS_ROOT, "result-contract", contract)
+    if issues:
+        first = issues[0]
+        raise WorkspaceError("RC_V3_RECONCILE_REQUIRED", f"{first.code}: {first.message}", first.path)
+    _require_result_revision_quiescent(root, state, contract, contract_relative=contract_relative)
+    predecessor = contract.get("previous_revision")
+    if not isinstance(predecessor, dict):
+        raise WorkspaceError("RC_V3_RECONCILE_REQUIRED", "Result v3 migration reconcile requires an exact v2 predecessor binding.", contract_relative)
+    predecessor_path, predecessor_payload, predecessor_contract = _load_json_object(root, predecessor["path"], "RC_V3_RECONCILE_REQUIRED")
+    predecessor_sha256 = _sha256_payload(predecessor_payload)
+    if predecessor_sha256 != predecessor["sha256"] or predecessor_contract.get("contract_version") != "2" or predecessor_contract.get("revision_id") != predecessor["revision_id"]:
+        raise WorkspaceError("RC_V3_RECONCILE_REQUIRED", "The bound Result v2 predecessor is missing or has drifted.", predecessor["path"])
+    _expected_hash(args.expected_source_sha256, predecessor_sha256, "RC_V3_RECONCILE_REQUIRED", predecessor["path"])
+    if predecessor_path == _target(root, contract_relative):
+        raise WorkspaceError("RC_V3_RECONCILE_REQUIRED", "Result migration predecessor cannot be the v3 revision itself.", contract_relative)
+    return {
+        "status": "PASS",
+        "operation": "reconcile-result-contract-v3-to-v2",
+        "mode": "READ_ONLY",
+        "workspace": str(root),
+        "writes_performed": False,
+        "v3_revision": {"path": contract_relative, "sha256": contract_sha256},
+        "reconciled_predecessor": {"path": predecessor["path"], "sha256": predecessor_sha256, "revision_id": predecessor["revision_id"]},
+        "disposition": "USE_BOUND_V2_PREDECESSOR; retain the immutable v3 revision as unreferenced migration evidence.",
+        "deletions_performed": False,
     }
 
 
@@ -2542,65 +4978,116 @@ def _refresh_instruction_target(
 def command_scoped_readiness(args: argparse.Namespace) -> dict[str, Any]:
     root = _workspace(args.workspace)
     state = _load_state(root)
+    subject = (args.subject or "").strip()
     reasons: list[str] = []
-    checks: dict[str, Any] = {}
-    consistency_ok = True
-    drift_code = None
+    subject_phase_id: str | None = None
+    subject_task: dict[str, Any] | None = None
+    phase_rows = [row for row in state.get("phase_controls", []) if isinstance(row, dict)]
+    task_rows = [row for row in state.get("current_task_bindings", []) if isinstance(row, dict)]
+    normalized_subject = subject.split(":", 1)[1] if subject.casefold().startswith(("phase:", "task:", "lineage:")) and ":" in subject else subject
+    phase_matches = [row for row in phase_rows if str(row.get("phase_id", "")).casefold() == normalized_subject.casefold()]
+    task_matches = [
+        row for row in task_rows
+        if normalized_subject and normalized_subject.casefold() in {
+            str(row.get("task_id", "")).casefold(),
+            str(row.get("lineage_id", "")).casefold(),
+        }
+    ]
+    if len(phase_matches) == 1:
+        subject_phase_id = str(phase_matches[0]["phase_id"])
+        subject_scope = "PHASE"
+    elif len(task_matches) == 1:
+        subject_task = task_matches[0]
+        subject_phase_id = str(subject_task.get("phase_id")) if subject_task.get("phase_id") is not None else None
+        subject_scope = "TASK"
+    elif subject:
+        subject_scope = "NARRATIVE_UNSCOPED"
+    else:
+        subject_scope = "CURRENT_PRIMARY"
+
+    task_class = "READ_ONLY" if args.durable_delta in {"NONE", "UNKNOWN"} else "WRITE_EXISTING_SCOPE"
     try:
-        _require_consistent_mutation(root, state)
-    except WorkspaceError as exc:
-        consistency_ok = False
-        drift_code = exc.code
-        reasons.append(f"consistency-drift:{drift_code}")
-    checks["consistency"] = "PASS" if consistency_ok else f"DRIFT:{drift_code}"
-    checks["active_session"] = state["active_session_id"] is not None
-    if state["active_session_id"] is not None:
-        reasons.append("active-session-lease")
-    artifact_status = "UNKNOWN"
-    try:
-        snapshot = _artifact_snapshot(root, state, captured_at=_timestamp(None))
-        artifact_status = str(snapshot.get("enrollment", {}).get("status", "UNKNOWN"))
-    except Exception:
-        artifact_status = "UNKNOWN"
-    checks["artifact_enrollment"] = artifact_status
-    if artifact_status == "UNKNOWN":
-        reasons.append("artifact-status-unknown")
-    if artifact_status not in {"NOT_ENROLLED", "LEGACY_UNDECLARED", "UNKNOWN"}:
+        assessment = workspace_entry_runtime.assess(
+            root,
+            task_class=task_class,
+            phase_id=subject_phase_id,
+        )
+    except workspace_entry_runtime.EntryError as exc:
+        raise WorkspaceError(exc.code, exc.message, exc.path) from exc
+
+    blocked_findings = [row for row in assessment["findings"] if row["severity"] == "BLOCKED"]
+    for row in blocked_findings:
+        reasons.append(f"entry-blocked:{row['code']}")
+
+    artifact_snapshot = _artifact_snapshot(root, state, captured_at=_timestamp(None))
+    artifact_enrollment = artifact_snapshot["enrollment"]["status"]
+    if artifact_enrollment == "ENROLLED":
         reasons.append("artifact-enrolled")
-    unresolved = False
-    for row in state.get("current_task_bindings", []):
-        projection_path = _target(root, row["projection_path"])
+    for row in artifact_snapshot["findings"]:
+        if row["severity"] == "ISSUE":
+            reasons.append(f"artifact-issue:{row['code']}")
+
+    subject_projection: dict[str, Any] | None = None
+    if subject_task is not None:
+        projection_relative = str(subject_task.get("projection_path", ""))
+        projection_path = _target(root, projection_relative)
         if not _path_is_file(projection_path):
-            continue
-        try:
-            projection = json.loads(_path_read_bytes(projection_path).decode("utf-8-sig"))
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            unresolved = True
-            break
-        if projection.get("unresolved_side_effects") or projection.get("recovery_required"):
-            unresolved = True
-            break
-    checks["unresolved_side_effects"] = unresolved
-    if unresolved:
-        reasons.append("unresolved-side-effects")
+            reasons.append("subject-projection-missing")
+        else:
+            projection_payload = _path_read_bytes(projection_path)
+            observed_projection_sha256 = _sha256_payload(projection_payload)
+            subject_projection = {
+                "path": projection_relative,
+                "bytes": len(projection_payload),
+                "sha256": observed_projection_sha256,
+                "binding_sha256": subject_task.get("projection_sha256"),
+            }
+            if observed_projection_sha256 != subject_task.get("projection_sha256"):
+                reasons.append("subject-projection-drift")
+            try:
+                projection = json.loads(projection_payload.decode("utf-8-sig"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                reasons.append("subject-projection-invalid")
+                projection = None
+            if isinstance(projection, dict) and (projection.get("unresolved_side_effects") or projection.get("recovery_required")):
+                reasons.append("unresolved-side-effects")
+
     durable_delta = args.durable_delta
-    checks["durable_delta"] = durable_delta
     if durable_delta == "UNKNOWN":
         reasons.append("durable-delta-unknown")
     if reasons:
         route = "ESCALATE"
     elif durable_delta == "DURABLE":
         route = "S2_GOVERNED"
-    elif state["active_phase_id"] is not None:
+    elif assessment["selected_phase_id"] is not None:
         route = "S1_SAME_SCOPE_NO_DELTA"
     else:
         route = "S0_UNRELATED"
+
+    checks: dict[str, Any] = {
+        "bounded_entry_status": assessment["status"],
+        "bounded_entry_decision": assessment["decision"],
+        "bounded_entry_path": assessment["entry_path"],
+        "subject_scope": subject_scope,
+        "subject_phase_id": subject_phase_id,
+        "subject_task_id": None if subject_task is None else subject_task.get("task_id"),
+        "subject_lineage_id": None if subject_task is None else subject_task.get("lineage_id"),
+        "subject_projection": subject_projection,
+        "active_session": state["active_session_id"] is not None,
+        "artifact_enrollment": artifact_enrollment,
+        "durable_delta": durable_delta,
+        "workspace_files_read": assessment["metrics"]["workspace_files_read"],
+        "workspace_bytes_read": assessment["metrics"]["workspace_bytes_read"],
+        "history_files_read": assessment["metrics"]["history_files_read"],
+        "warnings": [row["code"] for row in assessment["findings"] if row["severity"] == "WARNING"],
+    }
     return {
         "status": "PASS",
         "operation": "scoped-readiness",
         "mode": "READ_ONLY",
         "workspace": str(root),
         "subject": args.subject,
+        "subject_interpretation": subject_scope,
         "route": route,
         "reasons": reasons,
         "checks": checks,
@@ -2706,7 +5193,7 @@ def _recovery_record(payload: bytes, section_name: str, relative: str) -> dict[s
     if values["Recovery schema"] != "1" or any(values[label] == "N/A" for label in ("Record ID", "Summary", "Next action", "Evidence references", "Recorded at")):
         raise WorkspaceError("WS_RECOVERY_RECORD_DRIFT", "Structured recovery record is incomplete.", relative)
     _timestamp(values["Recorded at"])
-    evidence_refs = [item.strip() for item in values["Evidence references"].split(";") if item.strip()]
+    evidence_refs = [item.strip("` ").strip() for item in values["Evidence references"].split(";") if item.strip()]
     if not evidence_refs:
         raise WorkspaceError("WS_RECOVERY_RECORD_DRIFT", "Structured recovery record requires evidence references.", relative)
     return {
@@ -2763,7 +5250,7 @@ def _select_recovery_source(state: dict[str, Any], terminal_phase_id: str | None
         return "ACTIVE_PHASE_RECOVERY", phase["phase_id"], None, phase["path"], "phase-recovery"
     if terminal_phase_id is not None:
         phase = _phase_entry(state, terminal_phase_id)
-        if state.get("schema_version") == 4 and phase.get("status") == "PAUSED":
+        if state.get("schema_version") in CURRENT_BOUND_WORKSPACE_SCHEMAS and phase.get("status") == "PAUSED":
             return "PAUSED_PHASE_RECOVERY", phase["phase_id"], None, phase["path"], "phase-recovery"
         return "TERMINAL_PHASE_RECOVERY", phase["phase_id"], None, phase["path"], "phase-recovery"
     prior = state.get("recovery_binding")
@@ -2783,7 +5270,7 @@ def _finalize_v3_consistency(
     *,
     terminal_phase_id: str | None = None,
 ) -> None:
-    if state["schema_version"] == 4:
+    if state["schema_version"] in CURRENT_BOUND_WORKSPACE_SCHEMAS:
         _finalize_v4_consistency(root, state, changes, now, terminal_phase_id=terminal_phase_id)
         return
     if state["schema_version"] != 3:
@@ -2849,7 +5336,8 @@ def _finalize_v3_consistency(
             "recorded_at": now,
         }
     changes[_state_path(root)] = _json_bytes(state)
-    _refresh_current_phase_bindings(root, state, changes, now)
+    if state["schema_version"] != 5:
+        _refresh_current_phase_bindings(root, state, changes, now)
     _validate_state(root, state)
 
 
@@ -3000,7 +5488,8 @@ def _finalize_v4_consistency(
         if final_session_payload is not None:
             state["current_session_binding"]["session_control_sha256"] = _sha256_payload(final_session_payload)
     changes[_state_path(root)] = _json_bytes(state)
-    _refresh_current_phase_bindings(root, state, changes, now)
+    if state["schema_version"] != 5:
+        _refresh_current_phase_bindings(root, state, changes, now)
     _validate_state(root, state)
 
 
@@ -3041,7 +5530,7 @@ def _replace_active_status(text: str, target_status: str, code: str) -> str:
     if len(matches) != 1:
         raise WorkspaceError(code, "Expected exactly one '- Status:' control token.")
     current_status = matches[0].group(1)
-    if current_status not in {"ACTIVE", target_status}:
+    if current_status not in {"ACTIVE", "OPEN", target_status}:
         raise WorkspaceError(
             code,
             f"Phase control status {current_status} conflicts with requested terminal status {target_status}.",
@@ -3163,12 +5652,28 @@ def _artifact_aware_close(
 
 def command_close_phase(args: argparse.Namespace) -> dict[str, Any]:
     root = _workspace(args.workspace)
+    language = _language(args, root)
     state_data = _read_bytes(root, STATE_RELATIVE)
     state = _parse_state_bytes(root, state_data)
     _require_consistent_mutation(root, state)
-    if state["active_session_id"] is not None:
+    phase = _phase_entry(state, args.phase_id) if args.phase_id else _active_phase(state)
+    is_primary_phase = phase["phase_id"] == state["active_phase_id"]
+    if phase.get("status") not in {"ACTIVE", "OPEN"}:
+        raise WorkspaceError("WS_PHASE_NOT_OPEN", "Only an ACTIVE or OPEN Phase can be closed.", phase["path"])
+    if is_primary_phase and state["active_session_id"] is not None:
         raise WorkspaceError("WS_SESSION_ACTIVE", "Close the active Session before closing its Phase.")
-    phase = _active_phase(state)
+    governance = state.get("phase_governance") if state.get("schema_version") == 5 else None
+    if isinstance(governance, dict) and governance.get("profile") == "resource_admission_v1":
+        try:
+            coordination_gate = coordination_runtime.phase_close_gate(root, phase["phase_id"])
+        except coordination_runtime.CoordinationError as exc:
+            raise WorkspaceError(exc.code, exc.message, str(exc.detail) if exc.detail is not None else None) from exc
+        if coordination_gate["status"] != "PASS":
+            raise WorkspaceError(
+                "WS_PHASE_COORDINATION_ACTIVE",
+                "Release, drain, or reconcile every Phase Admission before closure.",
+                json.dumps(coordination_gate["blockers"], ensure_ascii=False),
+            )
     now = _timestamp(args.timestamp)
     artifact_gate = artifact_close_gate(root, state, f"phase:{phase['phase_id']}", captured_at=now)
     if artifact_gate["status"] == "BLOCKED":
@@ -3224,23 +5729,31 @@ def command_close_phase(args: argparse.Namespace) -> dict[str, Any]:
         text = _replace_line(text, "- Closed at:", f"- Closed at: {now}", "WS_PHASE_CONTROL_INVALID")
     updated = json.loads(json.dumps(state))
     next(item for item in updated["phase_controls"] if item["phase_id"] == phase["phase_id"])["status"] = args.status
-    updated["active_phase_id"] = None
     updated["maintenance_state"].update({"last_action": "close-phase", "last_checked_at": now})
-    updated["recovery_point"] = {
-        "summary": f"Phase {phase['phase_id']} closed with {args.status}.",
-        "next_action": args.next_action,
-        "evidence_refs": [f"phase:{phase['phase_id']}:{args.status.lower()}"],
-    }
-    project_path = _target(root, "PROJECT_CONTROL.md")
-    project_data = _read_bytes(root, "PROJECT_CONTROL.md")
-    project_text, project_bom = _decode_markdown(project_data)
-    project_text = _replace_project_active_phase(project_text, None)
-    changes = {
-        path: _encode_markdown(text, bom),
-        project_path: _encode_markdown(project_text, project_bom),
-        _state_path(root): _json_bytes(updated),
-    }
-    _finalize_v3_consistency(root, updated, changes, now, terminal_phase_id=phase["phase_id"])
+    changes = {path: _encode_markdown(text, bom), _state_path(root): _json_bytes(updated)}
+    render_inputs = {path: data, _state_path(root): state_data}
+    if is_primary_phase:
+        updated["active_phase_id"] = None
+        recovery_summary, recovery_next_action = _localize_system_recovery(
+            language,
+            f"Phase {phase['phase_id']} closed with {args.status}.",
+            args.next_action or "Open the next Phase when authorized.",
+            next_action_is_system=not bool(args.next_action),
+        )
+        updated["recovery_point"] = {
+            "summary": recovery_summary,
+            "next_action": recovery_next_action,
+            "evidence_refs": [f"phase:{phase['phase_id']}:{args.status.lower()}"],
+        }
+        project_path = _target(root, "PROJECT_CONTROL.md")
+        project_data = _read_bytes(root, "PROJECT_CONTROL.md")
+        project_text, project_bom = _decode_markdown(project_data)
+        project_text = _replace_project_active_phase(project_text, None)
+        changes[project_path] = _encode_markdown(project_text, project_bom)
+        render_inputs[project_path] = project_data
+        _finalize_v3_consistency(root, updated, changes, now, terminal_phase_id=phase["phase_id"])
+    else:
+        changes[_state_path(root)] = _json_bytes(updated)
     _validate_state(root, updated)
     return _artifact_aware_close(
         "close-phase",
@@ -3248,10 +5761,11 @@ def command_close_phase(args: argparse.Namespace) -> dict[str, Any]:
         updated,
         artifact_gate,
         changes,
-        {path: data, project_path: project_data, _state_path(root): state_data},
+        render_inputs,
         args.apply,
         phase_id=phase["phase_id"],
         terminal_status=args.status,
+        primary_phase=is_primary_phase,
     )
 
 
@@ -3421,8 +5935,8 @@ def command_migrate_phase_control(args: argparse.Namespace) -> dict[str, Any]:
         text = _replace_line(text, "- Last rechecked at:", f"- Last rechecked at: `{reviewed_at}`", "WS_PHASE_PLAN_REPAIR_INVALID")
         root_plan = _marked_section(project_text, "plan-recheck-index")
         if root_plan is not None:
-            project_text = _replace_line(project_text, "- Latest recheck trigger:", f"- Latest recheck trigger: `{args.plan_trigger}`", "WS_PHASE_PLAN_REPAIR_INVALID")
-            project_text = _replace_line(project_text, "- Latest recheck result:", f"- Latest recheck result: `{args.plan_result}`", "WS_PHASE_PLAN_REPAIR_INVALID")
+            project_text = _replace_plan_field(project_text, "Latest recheck trigger", f"`{args.plan_trigger}`", "WS_PHASE_PLAN_REPAIR_INVALID")
+            project_text = _replace_plan_field(project_text, "Latest recheck result", f"`{args.plan_result}`", "WS_PHASE_PLAN_REPAIR_INVALID")
             project_changed = True
         changes_made = True
 
@@ -3730,8 +6244,8 @@ def _ensure_session_v3_fields(
     )
 
 
-def _require_expected_sha256(value: str, code: str, label: str) -> str:
-    normalized = value.upper()
+def _require_expected_sha256(value: str | None, code: str, label: str) -> str:
+    normalized = "" if value is None else value.upper()
     if re.fullmatch(r"[A-F0-9]{64}", normalized) is None:
         raise WorkspaceError(code, f"{label} must be an exact 64-character SHA-256.")
     return normalized
@@ -3808,8 +6322,8 @@ def command_record_phase_boundary_review(args: argparse.Namespace) -> dict[str, 
     root = _workspace(args.workspace)
     state = _load_state(root)
     _require_consistent_mutation(root, state, allowed_codes={"WS_REVIEW_OUTCOME_UNRESOLVED"})
-    if state["schema_version"] not in {3, 4}:
-        raise WorkspaceError("WS_CONSISTENCY_MIGRATION_REQUIRED", "Boundary Review records require explicit workspace schema v3 or v4.")
+    if state["schema_version"] not in {3, 4, 5}:
+        raise WorkspaceError("WS_CONSISTENCY_MIGRATION_REQUIRED", "Boundary Review records require explicit workspace schema v3, v4, or v5.")
     phase = _phase_entry(state, args.phase_id) if args.phase_id else _active_phase(state)
     path = _target(root, phase["path"])
     payload = _read_bytes(root, phase["path"])
@@ -3820,7 +6334,10 @@ def command_record_phase_boundary_review(args: argparse.Namespace) -> dict[str, 
     text, bom = _decode_markdown(payload)
     replacements = {
         "Review schema": "1",
-        "Review ID": _require_reference(args.review_id, "WS_PHASE_REVIEW_ID_REQUIRED", "Review ID"),
+        "Review ID": _validate_record_id(
+            _require_reference(args.review_id, "WS_PHASE_REVIEW_ID_REQUIRED", "Review ID"),
+            "Boundary Review ID",
+        ),
         "Review status": "RECORDED",
         "Candidate mapping": args.candidate_mapping,
         "Recommended review": args.recommendation,
@@ -3837,7 +6354,12 @@ def command_record_phase_boundary_review(args: argparse.Namespace) -> dict[str, 
     updated = json.loads(json.dumps(state))
     updated["maintenance_state"].update({"state": "clean", "last_action": "record-phase-boundary-review", "last_checked_at": now})
     terminal_phase_id = phase["phase_id"] if state["active_phase_id"] is None and phase["status"] != "ACTIVE" else None
-    _finalize_v3_consistency(root, updated, changes, now, terminal_phase_id=terminal_phase_id)
+    secondary_v5_phase = state.get("schema_version") == 5 and state.get("active_phase_id") not in {None, phase["phase_id"]}
+    if secondary_v5_phase:
+        changes[_state_path(root)] = _json_bytes(updated)
+        _validate_state(root, updated)
+    else:
+        _finalize_v3_consistency(root, updated, changes, now, terminal_phase_id=terminal_phase_id)
     result = _plan(
         "record-phase-boundary-review",
         root,
@@ -3858,8 +6380,8 @@ def command_record_phase_boundary_review(args: argparse.Namespace) -> dict[str, 
 def command_reconcile_consistency_records(args: argparse.Namespace) -> dict[str, Any]:
     root = _workspace(args.workspace)
     state, state_payload = _load_state_capture(root)
-    if state["schema_version"] not in {3, 4}:
-        raise WorkspaceError("WS_CONSISTENCY_MIGRATION_REQUIRED", "Reconciliation requires workspace schema v3 or v4.")
+    if state["schema_version"] not in {3, 4, 5}:
+        raise WorkspaceError("WS_CONSISTENCY_MIGRATION_REQUIRED", "Reconciliation requires workspace schema v3, v4, or v5.")
     expected_state = _require_expected_sha256(args.expected_state_sha256, "WS_CONSISTENCY_STATE_HASH", "Expected state hash")
     if hashlib.sha256(state_payload).hexdigest().upper() != expected_state:
         raise WorkspaceError("WS_CONSISTENCY_STATE_HASH", "workspace_control.json changed after reconciliation review.", STATE_RELATIVE.as_posix())
@@ -3971,20 +6493,35 @@ def _markdown_phase_status(text: str) -> str:
 
 def command_pause_phase(args: argparse.Namespace) -> dict[str, Any]:
     root = _workspace(args.workspace)
+    language = _language(args, root)
     state = _load_state(root)
     _require_consistent_mutation(root, state)
-    if state["schema_version"] not in {2, 3, 4}:
+    if state["schema_version"] not in {2, 3, 4, 5}:
         raise WorkspaceError("WS_PHASE_MIGRATION_REQUIRED", "Pause requires explicit workspace/Phase migration to schema v2.")
-    if state["active_session_id"] is not None:
+    phase = _phase_entry(state, args.phase_id) if args.phase_id else _active_phase(state)
+    is_primary_phase = phase["phase_id"] == state["active_phase_id"]
+    if phase.get("status") not in {"ACTIVE", "OPEN"}:
+        raise WorkspaceError("WS_PHASE_NOT_OPEN", "Only an ACTIVE or OPEN Phase can be paused.", phase["path"])
+    if is_primary_phase and state["active_session_id"] is not None:
         raise WorkspaceError("WS_SESSION_ACTIVE", "Close the active Session before pausing its Phase.")
-    phase = _active_phase(state)
+    governance = state.get("phase_governance") if state.get("schema_version") == 5 else None
+    if isinstance(governance, dict) and governance.get("profile") == "resource_admission_v1":
+        try:
+            coordination_gate = coordination_runtime.phase_close_gate(root, phase["phase_id"])
+        except coordination_runtime.CoordinationError as exc:
+            raise WorkspaceError(exc.code, exc.message, str(exc.detail) if exc.detail is not None else None) from exc
+        if coordination_gate["status"] != "PASS":
+            raise WorkspaceError("WS_PHASE_COORDINATION_ACTIVE", "Release, drain, or reconcile every Phase Admission before pause.", json.dumps(coordination_gate["blockers"], ensure_ascii=False))
     path, _, text, bom = _phase_control_info(root, phase)
     if _phase_boundary_contract(text)["status"] != "COMPLETE":
         raise WorkspaceError("WS_PHASE_MIGRATION_REQUIRED", "Pause requires a complete Phase Boundary Contract.", phase["path"])
-    if _markdown_phase_status(text) != "ACTIVE":
-        raise WorkspaceError("WS_PHASE_CONTROL_DRIFT", "Only an ACTIVE Phase can be paused.", phase["path"])
+    if _markdown_phase_status(text) != phase["status"]:
+        raise WorkspaceError("WS_PHASE_CONTROL_DRIFT", "Runtime and Markdown Phase status disagree.", phase["path"])
     reason = _require_reference(args.reason, "WS_PHASE_PAUSE_REASON_REQUIRED", "Pause reason")
-    review_ref = _require_reference(args.boundary_review_ref, "WS_PHASE_REVIEW_REQUIRED", "Boundary review reference")
+    review_ref = _validate_record_id(
+        _require_reference(args.boundary_review_ref, "WS_PHASE_REVIEW_REQUIRED", "Boundary review reference"),
+        "Boundary Review ID",
+    )
     authorization = _require_reference(args.authorization_ref, "WS_AUTHORIZATION_REQUIRED", "Authorization reference")
     now = _timestamp(args.timestamp)
     text = _replace_line(text, "- Status:", "- Status: PAUSED", "WS_PHASE_CONTROL_INVALID")
@@ -4000,24 +6537,29 @@ def command_pause_phase(args: argparse.Namespace) -> dict[str, Any]:
     text = _replace_line(text, "- Authorization reference:", f"- Authorization reference: `{authorization}`", "WS_PHASE_CONTROL_INVALID")
     updated = json.loads(json.dumps(state))
     _phase_entry(updated, phase["phase_id"])["status"] = "PAUSED"
-    updated["active_phase_id"] = None
     updated["maintenance_state"].update({"state": "clean", "last_action": "pause-phase", "last_checked_at": now})
-    updated["recovery_point"] = {
-        "summary": f"Phase {phase['phase_id']} is PAUSED and provides no execution authorization.",
-        "next_action": "Open another Phase or explicitly resume this Phase after boundary, plan, and authorization review.",
-        "evidence_refs": [review_ref, authorization],
-    }
-    project_path = _target(root, "PROJECT_CONTROL.md")
-    project_text, project_bom = _decode_markdown(_read_bytes(root, "PROJECT_CONTROL.md"))
-    project_text = _replace_project_active_phase(project_text, None)
-    changes = {
-        path: _encode_markdown(text, bom),
-        project_path: _encode_markdown(project_text, project_bom),
-        _state_path(root): _json_bytes(updated),
-    }
-    _finalize_v3_consistency(root, updated, changes, now, terminal_phase_id=phase["phase_id"])
+    changes = {path: _encode_markdown(text, bom), _state_path(root): _json_bytes(updated)}
+    if is_primary_phase:
+        updated["active_phase_id"] = None
+        recovery_summary, recovery_next_action = _localize_system_recovery(
+            language,
+            f"Phase {phase['phase_id']} is PAUSED and provides no execution authorization.",
+            "Open another Phase or explicitly resume this Phase after boundary, plan, and authorization review.",
+        )
+        updated["recovery_point"] = {
+            "summary": recovery_summary,
+            "next_action": recovery_next_action,
+            "evidence_refs": [review_ref, authorization],
+        }
+        project_path = _target(root, "PROJECT_CONTROL.md")
+        project_text, project_bom = _decode_markdown(_read_bytes(root, "PROJECT_CONTROL.md"))
+        project_text = _replace_project_active_phase(project_text, None)
+        changes[project_path] = _encode_markdown(project_text, project_bom)
+        _finalize_v3_consistency(root, updated, changes, now, terminal_phase_id=phase["phase_id"])
+    else:
+        changes[_state_path(root)] = _json_bytes(updated)
     _validate_state(root, updated)
-    result = _plan("pause-phase", root, changes, args.apply, phase_id=phase["phase_id"], phase_status="PAUSED", implicit_session_created=False)
+    result = _plan("pause-phase", root, changes, args.apply, phase_id=phase["phase_id"], phase_status="PAUSED", primary_phase=is_primary_phase, implicit_session_created=False)
     if args.apply:
         _transaction_write(root, changes, operation="pause-phase")
     return result
@@ -4025,18 +6567,28 @@ def command_pause_phase(args: argparse.Namespace) -> dict[str, Any]:
 
 def command_resume_phase(args: argparse.Namespace) -> dict[str, Any]:
     root = _workspace(args.workspace)
+    language = _language(args, root)
     state = _load_state(root)
     _require_consistent_mutation(root, state)
-    if state["schema_version"] not in {2, 3, 4}:
+    if state["schema_version"] not in {2, 3, 4, 5}:
         raise WorkspaceError("WS_PHASE_MIGRATION_REQUIRED", "Resume requires explicit workspace/Phase migration to schema v2.")
+    phase = _phase_entry(state, args.phase_id)
+    target_status = "ACTIVE"
     if state["active_phase_id"] is not None:
-        raise WorkspaceError("WS_PHASE_ACTIVE", "Close or pause the active Phase before resuming another one.")
-    if state["active_session_id"] is not None:
+        governance = state.get("phase_governance") if state.get("schema_version") == 5 else None
+        if not isinstance(governance, dict) or governance.get("profile") != "resource_admission_v1":
+            raise WorkspaceError("WS_PHASE_ACTIVE", "Close or pause the active Phase before resuming another one.")
+        if state["active_phase_id"] == phase["phase_id"]:
+            raise WorkspaceError("WS_PHASE_ACTIVE", "The requested Phase is already the primary ACTIVE Phase.")
+        target_status = "OPEN"
+    if target_status == "ACTIVE" and state["active_session_id"] is not None:
         raise WorkspaceError("WS_SESSION_ACTIVE", "An active Session is inconsistent with a resumable Phase boundary.")
-    review_ref = _require_reference(args.boundary_review_ref, "WS_PHASE_REVIEW_REQUIRED", "Boundary review reference")
+    review_ref = _validate_record_id(
+        _require_reference(args.boundary_review_ref, "WS_PHASE_REVIEW_REQUIRED", "Boundary review reference"),
+        "Boundary Review ID",
+    )
     plan_review_ref = _require_reference(args.plan_review_ref, "WS_PHASE_PLAN_REVIEW_REQUIRED", "Plan review reference")
     authorization = _require_reference(args.authorization_ref, "WS_AUTHORIZATION_REQUIRED", "Authorization reference")
-    phase = _phase_entry(state, args.phase_id)
     if phase["status"] != "PAUSED":
         raise WorkspaceError("WS_PHASE_NOT_PAUSED", "Only a PAUSED Phase can be resumed.", phase["path"])
     path, _, text, bom = _phase_control_info(root, phase)
@@ -4065,32 +6617,37 @@ def command_resume_phase(args: argparse.Namespace) -> dict[str, Any]:
         if binding["Plan status"] != "ACTIVE" or binding["Last recheck result"] not in {"PASS", "UPDATED"} or binding["Launch review invalidated"] != "No":
             raise WorkspaceError("WS_PHASE_PLAN_STALE", "Resume blocked: Plan status, recheck result, or launch-review binding is not current.", phase["path"])
     now = _timestamp(args.timestamp)
-    text = _replace_line(text, "- Status:", "- Status: ACTIVE", "WS_PHASE_CONTROL_INVALID")
+    text = _replace_line(text, "- Status:", f"- Status: {target_status}", "WS_PHASE_CONTROL_INVALID")
     text = _replace_line(text, "- Updated at:", f"- Updated at: {now}", "WS_PHASE_CONTROL_INVALID")
     text = _replace_line(text, "- Resume boundary review:", f"- Resume boundary review: `{review_ref}`", "WS_PHASE_CONTROL_INVALID")
     text = _replace_line(text, "- Resume plan review:", f"- Resume plan review: `{plan_review_ref}`", "WS_PHASE_CONTROL_INVALID")
     text = _replace_line(text, "- Resume authorization:", f"- Resume authorization: `{authorization}`", "WS_PHASE_CONTROL_INVALID")
     text = _replace_line(text, "- Resumed at:", f"- Resumed at: `{now}`", "WS_PHASE_CONTROL_INVALID")
     updated = json.loads(json.dumps(state))
-    _phase_entry(updated, phase["phase_id"])["status"] = "ACTIVE"
-    updated["active_phase_id"] = phase["phase_id"]
+    _phase_entry(updated, phase["phase_id"])["status"] = target_status
     updated["maintenance_state"].update({"state": "clean", "last_action": "resume-phase", "last_checked_at": now})
-    updated["recovery_point"] = {
-        "summary": f"Phase {phase['phase_id']} resumed after explicit boundary, plan, and authorization review.",
-        "next_action": "Continue only within the resumed Phase Boundary Contract and reviewed authorization.",
-        "evidence_refs": [review_ref, plan_review_ref, authorization],
-    }
-    project_path = _target(root, "PROJECT_CONTROL.md")
-    project_text, project_bom = _decode_markdown(_read_bytes(root, "PROJECT_CONTROL.md"))
-    project_text = _replace_project_active_phase(project_text, phase["phase_id"])
-    changes = {
-        path: _encode_markdown(text, bom),
-        project_path: _encode_markdown(project_text, project_bom),
-        _state_path(root): _json_bytes(updated),
-    }
-    _finalize_v3_consistency(root, updated, changes, now)
+    changes = {path: _encode_markdown(text, bom), _state_path(root): _json_bytes(updated)}
+    if target_status == "ACTIVE":
+        updated["active_phase_id"] = phase["phase_id"]
+        recovery_summary, recovery_next_action = _localize_system_recovery(
+            language,
+            f"Phase {phase['phase_id']} resumed after explicit boundary, plan, and authorization review.",
+            "Continue only within the resumed Phase Boundary Contract and reviewed authorization.",
+        )
+        updated["recovery_point"] = {
+            "summary": recovery_summary,
+            "next_action": recovery_next_action,
+            "evidence_refs": [review_ref, plan_review_ref, authorization],
+        }
+        project_path = _target(root, "PROJECT_CONTROL.md")
+        project_text, project_bom = _decode_markdown(_read_bytes(root, "PROJECT_CONTROL.md"))
+        project_text = _replace_project_active_phase(project_text, phase["phase_id"])
+        changes[project_path] = _encode_markdown(project_text, project_bom)
+        _finalize_v3_consistency(root, updated, changes, now)
+    else:
+        changes[_state_path(root)] = _json_bytes(updated)
     _validate_state(root, updated)
-    result = _plan("resume-phase", root, changes, args.apply, phase_id=phase["phase_id"], active_status="ACTIVE", implicit_session_created=False)
+    result = _plan("resume-phase", root, changes, args.apply, phase_id=phase["phase_id"], active_status=target_status, primary_phase=target_status == "ACTIVE", implicit_session_created=False)
     if args.apply:
         _transaction_write(root, changes, operation="resume-phase")
     return result
@@ -4123,7 +6680,7 @@ def command_plan_phase_transition(args: argparse.Namespace) -> dict[str, Any]:
     root = _workspace(args.workspace)
     state = _load_state(root)
     _require_consistent_mutation(root, state)
-    if state["schema_version"] not in {2, 3, 4}:
+    if state["schema_version"] not in {2, 3, 4, 5}:
         raise WorkspaceError("WS_PHASE_MIGRATION_REQUIRED", "Phase transition planning requires workspace-control schema v2.")
     if state["active_session_id"] is not None:
         raise WorkspaceError("WS_SESSION_ACTIVE", "Close the active Session before planning a Phase transition.")
@@ -4348,7 +6905,7 @@ def command_apply_phase_transition(args: argparse.Namespace) -> dict[str, Any]:
     target_text = _append_table_rows(target_text, "phase-queue", target_queue_rows, "WS_PHASE_CARRY_OVER_INVALID")
     target_revision_path: Path | None = None
     target_revision_payload: bytes | None = None
-    if state["schema_version"] == 4:
+    if state["schema_version"] in CURRENT_BOUND_WORKSPACE_SCHEMAS:
         revision_id = f"{target_id}-boundary-r001"
         revision_relative = f"phases/{target_id}/boundary-revisions/{revision_id}.json"
         target_revision_path = _target(root, revision_relative)
@@ -4389,11 +6946,19 @@ def command_apply_phase_transition(args: argparse.Namespace) -> dict[str, Any]:
         updated["schema_version"] = 2
     updated["maintenance_state"].update({"state": "clean", "last_action": "apply-phase-transition", "last_checked_at": plan["created_at"]})
     transition_evidence = [plan["boundary_review_ref"], plan["authorization_ref"], f"transition-plan:{observed_plan_hash}"]
-    source_summary = f"Phase {source['phase_id']} was SUPERSEDED by {target_id} through reviewed plan {observed_plan_hash}."
-    target_summary = f"Phase {target_id} is active after superseding Phase {source['phase_id']} through reviewed plan {observed_plan_hash}."
+    source_summary, source_next_action = _localize_system_recovery(
+        language,
+        f"Phase {source['phase_id']} was SUPERSEDED by {target_id} through reviewed plan {observed_plan_hash}.",
+        f"Continue only in successor Phase {target_id}; this source Phase is immutable provenance.",
+    )
+    target_summary, target_next_action = _localize_system_recovery(
+        language,
+        f"Phase {target_id} is active after superseding Phase {source['phase_id']} through reviewed plan {observed_plan_hash}.",
+        f"Continue only in active Phase {target_id}; source carry-over rows are immutable provenance.",
+    )
     updated["recovery_point"] = {
         "summary": target_summary,
-        "next_action": f"Continue only in active Phase {target_id}; source carry-over rows are immutable provenance.",
+        "next_action": target_next_action,
         "evidence_refs": transition_evidence,
     }
     source_payload = _replace_recovery_record(
@@ -4402,7 +6967,7 @@ def command_apply_phase_transition(args: argparse.Namespace) -> dict[str, Any]:
         source["path"],
         record_id=f"phase:{source['phase_id']}:recovery:{plan['created_at']}",
         summary=source_summary,
-        next_action=f"Continue only in successor Phase {target_id}; this source Phase is immutable provenance.",
+        next_action=source_next_action,
         evidence_refs=transition_evidence,
         recorded_at=plan["created_at"],
     )
@@ -4479,13 +7044,13 @@ def command_open_session(args: argparse.Namespace) -> dict[str, Any]:
     structured_lease: dict[str, Any] | None = None
     owner_kind = getattr(args, "owner_kind", "MAIN_CONTROLLER")
     owner_id = _validate_id(getattr(args, "owner_id", "MAIN_CONTROLLER"), "Session owner ID")
-    if state["schema_version"] == 4:
+    if state["schema_version"] in CURRENT_BOUND_WORKSPACE_SCHEMAS:
         lease_id = _validate_id(args.lease_id, "Session lease ID")
         allowed_operations = list(dict.fromkeys(args.allowed_operation))
         write_scope = list(dict.fromkeys(args.write_scope))
         touch_set = list(dict.fromkeys(args.touch_set))
         if not allowed_operations or not write_scope or not touch_set:
-            raise WorkspaceError("WS_SESSION_LEASE_REQUIRED", "v4 Session requires non-empty allowed operations, write scope, and exact touch set.")
+            raise WorkspaceError("WS_SESSION_LEASE_REQUIRED", "v4/v5 Session requires non-empty allowed operations, write scope, and exact touch set.")
         checkpoint_hash = _sha256_payload(
             canonical_json({"session_id": session_id, "phase_id": phase["phase_id"], "goal": args.goal.strip(), "at": now})
         )
@@ -4526,9 +7091,15 @@ def command_open_session(args: argparse.Namespace) -> dict[str, Any]:
     updated["session_controls"].append(session_row)
     updated["active_session_id"] = session_id
     updated["maintenance_state"].update({"last_action": "open-session", "last_checked_at": now})
+    recovery_summary, recovery_next_action = _localize_system_recovery(
+        language,
+        f"Session {session_id} is active in Phase {phase['phase_id']}.",
+        args.goal.strip(),
+        next_action_is_system=False,
+    )
     updated["recovery_point"] = {
-        "summary": f"Session {session_id} is active in Phase {phase['phase_id']}.",
-        "next_action": args.goal.strip(),
+        "summary": recovery_summary,
+        "next_action": recovery_next_action,
         "evidence_refs": [f"session:{session_id}"],
     }
     changes = {session_path: control, _state_path(root): _json_bytes(updated)}
@@ -4542,6 +7113,7 @@ def command_open_session(args: argparse.Namespace) -> dict[str, Any]:
 
 def command_close_session(args: argparse.Namespace) -> dict[str, Any]:
     root = _workspace(args.workspace)
+    language = _language(args, root)
     state_data = _read_bytes(root, STATE_RELATIVE)
     state = _parse_state_bytes(root, state_data)
     _require_consistent_mutation(root, state)
@@ -4570,14 +7142,26 @@ def command_close_session(args: argparse.Namespace) -> dict[str, Any]:
     updated = json.loads(json.dumps(state))
     updated_session = next(item for item in updated["session_controls"] if item["session_id"] == session["session_id"])
     updated_session["status"] = args.status
-    if updated["schema_version"] == 4:
+    if updated["schema_version"] in CURRENT_BOUND_WORKSPACE_SCHEMAS:
         updated_session["updated_at"] = now
         updated_session["lease"]["state"] = "RELEASED"
     updated["active_session_id"] = None
     updated["maintenance_state"].update({"last_action": "close-session", "last_checked_at": now})
+    recovery_summary, recovery_next_action = _localize_system_recovery(
+        language,
+        f"Session {session['session_id']} closed with {args.status}; Phase {session['phase_id']} remains active.",
+        args.next_action,
+        next_action_is_system=False,
+    )
+    checkpoint_summary, checkpoint_next_action = _localize_system_recovery(
+        language,
+        f"Session {session['session_id']} closed with {args.status} in Phase {session['phase_id']}.",
+        args.next_action,
+        next_action_is_system=False,
+    )
     updated["recovery_point"] = {
-        "summary": f"Session {session['session_id']} closed with {args.status}; Phase {session['phase_id']} remains active.",
-        "next_action": args.next_action,
+        "summary": recovery_summary,
+        "next_action": recovery_next_action,
         "evidence_refs": [f"session:{session['session_id']}:{args.status.lower()}"],
     }
     session_payload = _replace_recovery_record(
@@ -4585,8 +7169,8 @@ def command_close_session(args: argparse.Namespace) -> dict[str, Any]:
         "session-checkpoint",
         session["path"],
         record_id=f"session:{session['session_id']}:checkpoint:{now}",
-        summary=f"Session {session['session_id']} closed with {args.status} in Phase {session['phase_id']}.",
-        next_action=args.next_action,
+        summary=checkpoint_summary,
+        next_action=checkpoint_next_action,
         evidence_refs=updated["recovery_point"]["evidence_refs"],
         recorded_at=now,
     )
@@ -4746,11 +7330,33 @@ def _collect_metrics(root: Path, state: dict[str, Any]) -> dict[str, Any]:
         if state["active_session_id"] is not None
         else []
     )
-    return {
+    result = {
         "root": item("PROJECT_CONTROL.md"),
         "phases": [item(entry["path"]) for entry in active_phase],
         "sessions": [item(entry["path"]) for entry in active_session],
     }
+    if state.get("contract_id") == CURRENT_WORKSPACE_CONTRACT:
+        hot_paths = [STATE_RELATIVE.as_posix()]
+        hot_paths.extend(entry["path"] for entry in active_phase)
+        hot_paths.extend(entry["path"] for entry in active_session)
+        profile = state.get("phase_governance", {}).get("profile", "single_phase")
+        if profile == "resource_admission":
+            hot_paths.append(coordination_runtime.COORDINATION_RELATIVE.as_posix())
+        existing_hot_paths = [relative for relative in hot_paths if _target(root, relative).is_file()]
+        max_files, max_bytes = workspace_entry_runtime.current_fast_path_limits(
+            str(profile),
+            bool(active_session),
+        )
+        hot_bytes = sum(_target(root, relative).stat().st_size for relative in existing_hot_paths)
+        result["entry_hot_set"] = {
+            "paths": existing_hot_paths,
+            "files": len(existing_hot_paths),
+            "bytes": hot_bytes,
+            "max_files": max_files,
+            "max_bytes": max_bytes,
+            "within_budget": len(existing_hot_paths) <= max_files and hot_bytes <= max_bytes,
+        }
+    return result
 
 
 def _budget_assessment(metrics: dict[str, Any], budget: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
@@ -4770,6 +7376,22 @@ def _budget_assessment(metrics: dict[str, Any], budget: dict[str, Any]) -> tuple
     ):
         if actual > budget[budget_key]:
             breaches.append({"path": "all-controls", "metric": metric, "actual": actual, "limit": budget[budget_key]})
+    entry_hot_set = metrics.get("entry_hot_set")
+    if isinstance(entry_hot_set, dict):
+        if entry_hot_set["files"] > entry_hot_set["max_files"]:
+            breaches.append({
+                "path": "current-entry-hot-set",
+                "metric": "entry_hot_files",
+                "actual": entry_hot_set["files"],
+                "limit": entry_hot_set["max_files"],
+            })
+        if entry_hot_set["bytes"] > entry_hot_set["max_bytes"]:
+            breaches.append({
+                "path": "current-entry-hot-set",
+                "metric": "entry_hot_bytes",
+                "actual": entry_hot_set["bytes"],
+                "limit": entry_hot_set["max_bytes"],
+            })
     if any(item["metric"] in {"lines", "bytes", "stale_history_ratio"} for item in breaches):
         return "compaction-required", breaches
     if breaches:
@@ -4802,7 +7424,10 @@ def _runtime_reference_warnings(root: Path, state: dict[str, Any]) -> list[dict[
 
 def _validate_workspace(root: Path, state: dict[str, Any]) -> tuple[list[dict[str, str]], dict[str, Any], list[dict[str, Any]]]:
     issues: list[dict[str, str]] = []
-    for relative in (*FIXED_FILES, "runtime"):
+    required_skeleton = ["AGENTS.md", "PROJECT_CONTROL.md", "CLAUDE.md", "runtime"]
+    if state.get("schema_version") != 5:
+        required_skeleton.insert(2, "WORK_TASK_REPORT.md")
+    for relative in required_skeleton:
         path = _target(root, relative)
         expected = "directory" if relative == "runtime" else "file"
         valid = path.is_dir() if expected == "directory" else path.is_file()
@@ -4854,7 +7479,7 @@ def _validate_workspace(root: Path, state: dict[str, Any]) -> tuple[list[dict[st
             issues.append(issue)
         closure = _structured_closure(phase_text)
         if closure is not None:
-            if phase["status"] in {"ACTIVE", "PAUSED", "PLANNED"}:
+            if phase["status"] in {"ACTIVE", "OPEN", "PAUSED", "PLANNED"}:
                 expected_placeholders = {
                     "Close result": "N/A",
                     "Exit criteria status": "NOT_EVALUATED",
@@ -4955,7 +7580,7 @@ def _validate_workspace(root: Path, state: dict[str, Any]) -> tuple[list[dict[st
 
 
 def _current_binding_issues(root: Path, state: dict[str, Any]) -> list[dict[str, str]]:
-    if state["schema_version"] == 1:
+    if state["schema_version"] in {1, 5}:
         return []
     issues: list[dict[str, str]] = []
     active = _phase_entry(state, state["active_phase_id"]) if state["active_phase_id"] is not None else None
@@ -5043,7 +7668,262 @@ def _current_binding_issues(root: Path, state: dict[str, Any]) -> list[dict[str,
     return issues
 
 
+def _maintenance_view_warnings(root: Path, state: dict[str, Any]) -> list[dict[str, str]]:
+    if state.get("schema_version") != 5:
+        return []
+    binding = state.get("current_phase_binding")
+    expected = {
+        "Binding schema": "3",
+        "Active Phase ID": binding["active_phase_id"] if binding is not None else "N/A",
+        "Active Phase control": binding["phase_control_path"] if binding is not None else "N/A",
+        "Phase control SHA-256": binding["phase_control_sha256"] if binding is not None else "N/A",
+        "Phase boundary SHA-256": binding["phase_boundary_sha256"] if binding is not None else "N/A",
+        "Boundary review ID": binding["boundary_review_id"] if binding is not None and binding["boundary_review_id"] is not None else "N/A",
+        "Boundary review SHA-256": binding["boundary_review_sha256"] if binding is not None else "N/A",
+        "Candidate mapping": binding["candidate_mapping"] if binding is not None and binding["candidate_mapping"] is not None else "N/A",
+        "Recommendation": binding["recommendation"] if binding is not None and binding["recommendation"] is not None else "N/A",
+        "Phase recovery SHA-256": binding["phase_recovery_sha256"] if binding is not None else "N/A",
+        "Recorded at": binding["recorded_at"] if binding is not None else "N/A",
+    }
+    observed_state_sha256 = _sha256_path(_state_path(root))
+    warnings: list[dict[str, str]] = []
+
+    def add(code: str, relative: str, message: str) -> None:
+        warnings.append(
+            {
+                "code": code,
+                "classification": "WARNING",
+                "path": relative,
+                "message": message,
+                "required_action": "Refresh this derived view with refresh-maintenance-views when a current report or handoff is actually needed.",
+            }
+        )
+
+    for relative in ("WORK_TASK_REPORT.md", "PROJECT_HANDOFF.md"):
+        path = _target(root, relative)
+        if not _path_is_file(path):
+            continue
+        text, _ = _decode_markdown(_path_read_bytes(path))
+        metadata = _marked_section(text, "maintenance-view-metadata")
+        binding_section = _marked_section(text, "current-phase-binding")
+        if metadata is None:
+            add("WS_MAINTENANCE_VIEW_UNMARKED", relative, "Existing CURRENT report or handoff is not marked as a bounded derived view.")
+        else:
+            try:
+                authority = _control_value(metadata, "Authority", "WS_MAINTENANCE_VIEW_INVALID")
+                source_hash = _control_value(metadata, "Source workspace-control SHA-256", "WS_MAINTENANCE_VIEW_INVALID")
+                history_coverage = _control_value(metadata, "History coverage", "WS_MAINTENANCE_VIEW_INVALID")
+                staleness_policy = _control_value(metadata, "Staleness policy", "WS_MAINTENANCE_VIEW_INVALID")
+                if authority != "DERIVED_NON_AUTHORITATIVE" or history_coverage != "CURRENT_SET_ONLY" or staleness_policy != "WARNING_ONLY":
+                    add("WS_MAINTENANCE_VIEW_INVALID", relative, "Derived view authority or loading policy metadata is invalid.")
+                elif source_hash != observed_state_sha256:
+                    add("WS_MAINTENANCE_VIEW_STALE", relative, "Derived view predates the current workspace-control state.")
+            except WorkspaceError as exc:
+                add(exc.code, relative, exc.message)
+        if binding_section is None:
+            add("WS_MAINTENANCE_VIEW_BINDING_STALE", relative, "Derived view lacks its current Phase projection.")
+            continue
+        try:
+            fields = {
+                label: _control_value(binding_section, label, "WS_MAINTENANCE_VIEW_BINDING_STALE")
+                for label in expected
+            }
+            mismatched = [label for label, value in expected.items() if fields[label] != value]
+            if mismatched:
+                add(
+                    "WS_MAINTENANCE_VIEW_BINDING_STALE",
+                    relative,
+                    "Derived current Phase projection is stale: " + ", ".join(mismatched),
+                )
+        except WorkspaceError as exc:
+            add(exc.code, relative, exc.message)
+    return warnings
+
+
+def _v5_binding_maintenance_warnings(root: Path, state: dict[str, Any]) -> list[dict[str, str]]:
+    """Report stale whole-control projections that are not CURRENT safety authority."""
+    if state.get("schema_version") != 5:
+        return []
+    warnings: list[dict[str, str]] = []
+
+    def add(code: str, relative: str, message: str) -> None:
+        warnings.append(
+            {
+                "code": code,
+                "classification": "WARNING",
+                "scope": "MAINTENANCE",
+                "path": relative,
+                "message": message,
+                "required_action": "Allow the next authorized lifecycle mutation to refresh derived hashes, or run explicit rebind/maintenance when a current projection is needed.",
+            }
+        )
+
+    binding = state.get("current_phase_binding")
+    if state.get("active_phase_id") is not None and isinstance(binding, dict):
+        phase = _active_phase(state)
+        phase_path = _target(root, phase["path"])
+        if _path_is_file(phase_path):
+            payload = _path_read_bytes(phase_path)
+            if _sha256_payload(payload) != binding.get("phase_control_sha256"):
+                safety_sections_match = True
+                for section_name, field in (
+                    ("phase-boundary", "phase_boundary_sha256"),
+                    ("phase-boundary-review", "boundary_review_sha256"),
+                    ("phase-recovery", "phase_recovery_sha256"),
+                ):
+                    try:
+                        if _normalized_section_sha256(payload, section_name, "WS_V5_BINDING_WARNING", phase["path"]) != binding.get(field):
+                            safety_sections_match = False
+                    except WorkspaceError:
+                        safety_sections_match = False
+                if safety_sections_match:
+                    add(
+                        "WS_PHASE_FULL_HASH_REFRESH_DUE",
+                        phase["path"],
+                        "The whole Phase-control hash is stale, but boundary, review, and recovery safety bindings remain exact. Queue/reporting edits do not freeze unrelated work.",
+                    )
+
+    recovery = state.get("recovery_binding")
+    if isinstance(recovery, dict) and recovery.get("source_kind") in {"ACTIVE_PHASE_RECOVERY", "TERMINAL_PHASE_RECOVERY"}:
+        relative = recovery["source_control_path"]
+        source_path = _target(root, relative)
+        if _path_is_file(source_path):
+            payload = _path_read_bytes(source_path)
+            if _sha256_payload(payload) != recovery.get("source_control_sha256"):
+                try:
+                    recovery_matches = _normalized_section_sha256(payload, "phase-recovery", "WS_V5_BINDING_WARNING", relative) == recovery.get("source_recovery_sha256")
+                except WorkspaceError:
+                    recovery_matches = False
+                if recovery_matches:
+                    add(
+                        "WS_RECOVERY_FULL_HASH_REFRESH_DUE",
+                        relative,
+                        "The whole recovery-source control hash is stale, but the normalized recovery record remains exact.",
+                    )
+    return warnings
+
+
+def _coordination_assessment(
+    root: Path,
+    state: dict[str, Any],
+    *,
+    observed_at: str | None = None,
+) -> tuple[list[dict[str, str]], list[dict[str, Any]]]:
+    if state.get("schema_version") != 5:
+        return [], []
+    governance = state.get("phase_governance")
+    if not isinstance(governance, dict) or governance.get("profile") != "resource_admission_v1":
+        return [], []
+    relative = coordination_runtime.COORDINATION_RELATIVE.as_posix()
+    path = _target(root, relative)
+    if not path.is_file():
+        return [{
+            "code": "COORD_STATE_MISSING",
+            "path": relative,
+            "message": "The opt-in resource Admission profile requires its exact coordination state.",
+            "required_action": "Restore or explicitly reconcile the bound coordination state before governed writes.",
+        }], []
+    try:
+        coordination_value = json.loads(_path_read_bytes(path).decode("utf-8-sig"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return [{"code": "COORD_STATE_INVALID", "path": relative, "message": str(exc)}], []
+    contract_issues = validate_instance(MALTS_ROOT, "workspace-coordination", coordination_value)
+    if contract_issues:
+        return [
+            {
+                "code": issue.code,
+                "path": relative,
+                "message": issue.render(),
+                "required_action": "Reconcile the coordination state from exact transaction evidence before governed writes.",
+            }
+            for issue in contract_issues
+        ], []
+    try:
+        assessment = coordination_runtime.inspect(root, observed_at=observed_at or _timestamp(None))
+    except coordination_runtime.CoordinationError as exc:
+        return [{
+            "code": exc.code,
+            "path": relative,
+            "message": exc.message,
+            "required_action": "Recover or explicitly reconcile the coordination authority before governed writes.",
+        }], []
+    warnings: list[dict[str, Any]] = []
+    blockers: list[dict[str, str]] = []
+    local_codes = {"COORD_EXPIRED_RECONCILE_REQUIRED", "COORD_RESOURCE_QUARANTINES"}
+    for finding in assessment["issues"]:
+        if finding.get("code") in local_codes:
+            warnings.append({
+                **finding,
+                "scope": "RESOURCE_LOCAL",
+                "message": "Only the named resource domains are blocked; unrelated admitted work may continue.",
+            })
+        else:
+            blockers.append({
+                "code": str(finding.get("code", "COORD_STATE_INVALID")),
+                "path": relative,
+                "message": "Workspace coordination authority requires recovery or reconcile.",
+                "required_action": "Recover the coordination transaction or reconcile the workspace-level quarantine before governed writes.",
+            })
+    return blockers, warnings
+
+
 def _deterministic_consistency_issues(root: Path, state: dict[str, Any]) -> list[dict[str, str]]:
+    if state["schema_version"] == 5:
+        coordination_issues, _ = _coordination_assessment(root, state)
+        recovery = state.get("recovery_binding")
+        phase_recovery_source = isinstance(recovery, dict) and recovery.get("source_kind") in {"ACTIVE_PHASE_RECOVERY", "TERMINAL_PHASE_RECOVERY"}
+        canonical_issues = []
+        for item in _deterministic_v4_consistency_issues(root, state):
+            derived_full_phase_hash = (
+                item["code"] == "WS_CURRENT_BINDING_STALE"
+                and item["message"] == "Active Phase full-control hash disagrees with current_phase_binding."
+            )
+            derived_task_index_hash = (
+                item["code"] == "WS_CURRENT_BINDING_STALE"
+                and item["path"] == STATE_RELATIVE.as_posix()
+                and item["message"] == "Task binding index hash drifted."
+            )
+            derived_phase_recovery_full_hash = (
+                phase_recovery_source
+                and item["code"] == "WS_RECOVERY_PHASE_BINDING_STALE"
+                and item["path"] == recovery.get("source_control_path")
+                and item["message"] == "Canonical recovery source full-control hash drifted."
+            )
+            if not (derived_full_phase_hash or derived_task_index_hash or derived_phase_recovery_full_hash):
+                canonical_issues.append(item)
+
+        binding = state.get("current_phase_binding")
+        if state.get("active_phase_id") is not None and isinstance(binding, dict):
+            phase = _active_phase(state)
+            phase_path = _target(root, phase["path"])
+            if _path_is_file(phase_path):
+                payload = _path_read_bytes(phase_path)
+                try:
+                    review_sha256 = _normalized_section_sha256(payload, "phase-boundary-review", "WS_PHASE_BOUNDARY_RECORD_STALE", phase["path"])
+                    if review_sha256 != binding.get("boundary_review_sha256"):
+                        canonical_issues.append({"code": "WS_PHASE_BOUNDARY_RECORD_STALE", "path": phase["path"], "message": "Normalized Phase boundary-review SHA-256 disagrees with runtime binding."})
+                    review = _boundary_review_record(payload, phase["path"])
+                    expected_review = {
+                        "Review ID": binding.get("boundary_review_id") or "N/A",
+                        "Candidate mapping": binding.get("candidate_mapping") or "N/A",
+                        "Recommended review": binding.get("recommendation") or "N/A",
+                    }
+                    if any(review[label] != value for label, value in expected_review.items()):
+                        canonical_issues.append({"code": "WS_CURRENT_BINDING_REVIEW_DRIFT", "path": phase["path"], "message": "Boundary Review values disagree with current_phase_binding."})
+                except WorkspaceError as exc:
+                    canonical_issues.append({"code": exc.code, "path": exc.path or phase["path"], "message": exc.message})
+                try:
+                    plan = _phase_plan_binding(root, phase, payload)
+                    if plan is not None and plan["Active plan"] != "N/A":
+                        plan_path = _target(root, plan["Active plan"])
+                        expected_plan_sha256 = plan["Plan content SHA-256"].upper()
+                        if not re.fullmatch(r"[0-9A-F]{64}", expected_plan_sha256):
+                            canonical_issues.append({"code": "WS_PLAN_SHA256_INVALID", "path": phase["path"], "message": "Phase-owned Plan content SHA-256 is invalid."})
+                        elif not _path_is_file(plan_path) or _sha256_path(plan_path) != expected_plan_sha256:
+                            canonical_issues.append({"code": "WS_PLAN_CONTENT_DRIFT", "path": plan["Active plan"], "message": "Active plan bytes do not match the Phase-owned SHA-256."})
+                except WorkspaceError as exc:
+                    canonical_issues.append({"code": exc.code, "path": exc.path or phase["path"], "message": exc.message})
+        return [*canonical_issues, *coordination_issues]
     if state["schema_version"] == 4:
         return _deterministic_v4_consistency_issues(root, state)
     if state["schema_version"] != 3:
@@ -5245,6 +8125,8 @@ def command_validate(args: argparse.Namespace) -> dict[str, Any]:
     ]
     current_binding_issues = _current_binding_issues(root, state)
     deterministic_issues = _deterministic_consistency_issues(root, state)
+    maintenance_view_warnings = [*_v5_binding_maintenance_warnings(root, state), *_maintenance_view_warnings(root, state)]
+    _, coordination_warnings = _coordination_assessment(root, state)
     phase_lifecycle_warnings = _phase_lifecycle_warnings(root, state)
     structural_issues = [*structural_issues, *runtime_reference_issues, *artifact_issues]
     issues = [*structural_issues, *current_binding_issues, *deterministic_issues]
@@ -5304,7 +8186,8 @@ def command_validate(args: argparse.Namespace) -> dict[str, Any]:
         "advisory_semantic_review": phase_lifecycle_warnings,
         "runtime_reference_warnings": runtime_reference_warnings,
         "phase_lifecycle_warnings": phase_lifecycle_warnings,
-        "current_binding_warnings": [],
+        "coordination_warnings": coordination_warnings,
+        "current_binding_warnings": maintenance_view_warnings,
         "artifact_notices": artifact_notices,
         "artifact_audit": artifact_audit,
         "capacity_warnings": breaches,
@@ -5313,17 +8196,13 @@ def command_validate(args: argparse.Namespace) -> dict[str, Any]:
         "active_session_id": state["active_session_id"],
         "initialization_status": initialization_status,
         "workspace_schema_class": (
-            "CURRENT_V4"
-            if state["schema_version"] == 4
-            else "RECONCILIATION_REQUIRED_V3"
+            "CURRENT"
+            if state.get("contract_id") == CURRENT_WORKSPACE_CONTRACT
+            else "RECONCILIATION_REQUIRED"
             if state["schema_version"] == 3 and (current_binding_issues or deterministic_issues)
-            else "CURRENT_V3"
-            if state["schema_version"] == 3
-            else "MIGRATION_REQUIRED_V2"
+            else "REORGANIZATION_REQUIRED"
             if state["schema_version"] == 2 and current_binding_issues
-            else "CURRENT_V2"
-            if state["schema_version"] == 2
-            else "LEGACY_V1"
+            else "SUPPORTED_LEGACY"
         ),
         "required_action": " ".join(required_actions) if required_actions else None,
         "implicit_session_created": False,
@@ -5487,10 +8366,11 @@ def _artifact_mutation_result(
 ) -> dict[str, Any]:
     if plan.get("status") == "BLOCKED":
         return plan
+    state = _inflate_workspace_state(state)
     changes: dict[Path, bytes] = plan.pop("changes")
     preconditions: dict[Path, str | None] = plan.pop("precondition_hashes", {})
     post_state = state
-    if changes and state["schema_version"] in (3, 4):
+    if changes and state["schema_version"] in (3, 4, 5):
         updated_state = json.loads(json.dumps(state))
         consistency_time = _timestamp(getattr(args, "captured_at", None))
         _finalize_v3_consistency(root, updated_state, changes, consistency_time)
@@ -5722,7 +8602,27 @@ def _plan_recheck_response(
 def command_plan_recheck(args: argparse.Namespace) -> dict[str, Any]:
     root = _workspace(args.workspace)
     state = _load_state(root)
-    phase = _active_phase(state)
+    phase = _phase_entry(state, args.phase_id) if args.phase_id else _active_phase(state)
+    paused_review = args.phase_id is not None and phase["status"] == "PAUSED"
+    if phase["status"] not in {"ACTIVE", "OPEN"} and not paused_review:
+        return _plan_recheck_response(
+            root,
+            args.trigger,
+            "BLOCKED",
+            issues=[{
+                "code": "WS_PLAN_PHASE_NOT_EXECUTABLE",
+                "path": phase["path"],
+                "message": "Plan Recheck requires an ACTIVE primary Phase, an OPEN admitted-work candidate Phase, or an explicitly selected PAUSED recovery Phase.",
+            }],
+        )
+    is_primary = phase["phase_id"] == state["active_phase_id"]
+    recovery = state.get("recovery_binding")
+    is_paused_recovery_owner = bool(
+        paused_review
+        and isinstance(recovery, dict)
+        and recovery.get("source_kind") == "PAUSED_PHASE_RECOVERY"
+        and recovery.get("source_phase_id") == phase["phase_id"]
+    )
     try:
         binding = _phase_plan_binding(root, phase)
     except WorkspaceError as exc:
@@ -5780,8 +8680,6 @@ def command_plan_recheck(args: argparse.Namespace) -> dict[str, Any]:
         issue("WS_PLAN_STATUS", phase["path"], "A required active plan must have Plan status ACTIVE.")
     if binding["Last recheck trigger"] not in PLAN_RECHECK_TRIGGERS:
         issue("WS_PLAN_TRIGGER_INVALID", phase["path"], "Last recheck trigger is not a canonical event value.")
-    elif binding["Last recheck trigger"] != args.trigger:
-        issue("WS_PLAN_TRIGGER_DRIFT", phase["path"], "Requested trigger does not match the recorded Phase recheck trigger.")
     if binding["Last recheck result"] not in PLAN_RECHECK_RESULTS:
         issue("WS_PLAN_RESULT_INVALID", phase["path"], "Last recheck result is not canonical.")
     elif binding["Last recheck result"] == "BLOCKED":
@@ -5796,39 +8694,40 @@ def command_plan_recheck(args: argparse.Namespace) -> dict[str, Any]:
     elif binding["Launch review invalidated"] == "Yes":
         issue("WS_PLAN_LAUNCH_REVIEW_INVALIDATED", phase["path"], "The current launch review is explicitly invalidated.")
 
-    root_text, _ = _decode_markdown(_read_bytes(root, "PROJECT_CONTROL.md"))
-    try:
-        root_section = _marked_section(root_text, "plan-recheck-index")
-        if root_section is not None:
-            root_fields = {
-                label: _control_value(root_section, label)
-                for label in (
-                    "Active plan",
-                    "Active Phase owner",
-                    "Plan revision",
-                    "Plan content SHA-256",
-                    "Latest recheck trigger",
-                    "Latest recheck result",
-                    "Launch review invalidated",
-                )
-            }
-            expected_root_fields = {
-                "Active plan": plan_relative,
-                "Active Phase owner": phase["path"],
-                "Plan revision": binding["Plan revision"],
-                "Plan content SHA-256": expected_sha256,
-                "Latest recheck trigger": binding["Last recheck trigger"],
-                "Latest recheck result": binding["Last recheck result"],
-                "Launch review invalidated": binding["Launch review invalidated"],
-            }
-            for label, expected in expected_root_fields.items():
-                if root_fields[label] != expected:
-                    issue("WS_PLAN_ROOT_INDEX_DRIFT", "PROJECT_CONTROL.md", f"Root Plan Recheck index disagrees on {label}.")
-    except WorkspaceError as exc:
-        issue(exc.code, "PROJECT_CONTROL.md", exc.message)
+    if is_primary or is_paused_recovery_owner:
+        root_text, _ = _decode_markdown(_read_bytes(root, "PROJECT_CONTROL.md"))
+        try:
+            root_section = _marked_section(root_text, "plan-recheck-index")
+            if root_section is not None:
+                root_fields = {
+                    label: _control_value(root_section, label)
+                    for label in (
+                        "Active plan",
+                        "Active Phase owner",
+                        "Plan revision",
+                        "Plan content SHA-256",
+                        "Latest recheck trigger",
+                        "Latest recheck result",
+                        "Launch review invalidated",
+                    )
+                }
+                expected_root_fields = {
+                    "Active plan": plan_relative,
+                    "Active Phase owner": phase["path"],
+                    "Plan revision": binding["Plan revision"],
+                    "Plan content SHA-256": expected_sha256,
+                    "Latest recheck trigger": binding["Last recheck trigger"],
+                    "Latest recheck result": binding["Last recheck result"],
+                    "Launch review invalidated": binding["Launch review invalidated"],
+                }
+                for label, expected in expected_root_fields.items():
+                    if root_fields[label] != expected:
+                        issue("WS_PLAN_ROOT_INDEX_DRIFT", "PROJECT_CONTROL.md", f"Root Plan Recheck index disagrees on {label}.")
+        except WorkspaceError as exc:
+            issue(exc.code, "PROJECT_CONTROL.md", exc.message)
 
     session_path_relative: str | None = None
-    if state["active_session_id"] is not None:
+    if state["active_session_id"] is not None and is_primary:
         session = _active_session(state)
         session_path_relative = session["path"]
         session_text, _ = _decode_markdown(_read_bytes(root, session["path"]))
@@ -5861,13 +8760,198 @@ def command_plan_recheck(args: argparse.Namespace) -> dict[str, Any]:
     evidence = {
         "phase_control": phase["path"],
         "session_control": session_path_relative,
+        "phase_status": phase["status"],
+        "paused_review": paused_review,
+        "execution_authority_granted": False,
         "active_plan": plan_relative,
         "plan_revision": binding["Plan revision"],
         "expected_sha256": expected_sha256,
         "observed_sha256": observed_sha256,
+        "requested_trigger": args.trigger,
+        "recorded_trigger": binding["Last recheck trigger"],
         "recorded_result": binding["Last recheck result"],
     }
     return _plan_recheck_response(root, args.trigger, "BLOCKED" if issues else "PASS", issues=issues, evidence=evidence)
+
+
+def command_workspace_entry(args: argparse.Namespace) -> dict[str, Any]:
+    try:
+        return workspace_entry_runtime.assess(
+            Path(args.workspace),
+            task_class=args.task_class,
+            phase_id=args.phase_id,
+            evaluated_at=args.evaluated_at,
+            admission_id=args.admission_id,
+            actor_id=args.actor_id,
+            fencing_tokens=args.token,
+        )
+    except workspace_entry_runtime.EntryError as exc:
+        raise WorkspaceError(exc.code, exc.message, exc.path) from exc
+
+
+def command_refresh_maintenance_views(args: argparse.Namespace) -> dict[str, Any]:
+    root = _workspace(args.workspace)
+    state, state_payload = _load_state_capture(root)
+    if state["schema_version"] != 5:
+        raise WorkspaceError(
+            "WS_MAINTENANCE_VIEW_SCHEMA",
+            "refresh-maintenance-views is the explicit CURRENT on-demand projection command.",
+            STATE_RELATIVE.as_posix(),
+        )
+    _require_consistent_mutation(root, state)
+    observed_state_sha256 = _sha256_payload(state_payload)
+    expected_state_sha256 = _require_expected_sha256(
+        args.expected_state_sha256,
+        "WS_MAINTENANCE_VIEW_STALE",
+        "Expected workspace state SHA-256",
+    )
+    if expected_state_sha256 != observed_state_sha256:
+        raise WorkspaceError("WS_MAINTENANCE_VIEW_STALE", "workspace_control.json changed after review.", STATE_RELATIVE.as_posix())
+
+    binding = state.get("current_phase_binding")
+    phase_path: Path | None = None
+    phase_sha256: str | None = None
+    if binding is not None:
+        phase_path = _target(root, binding["phase_control_path"])
+        if not _path_is_file(phase_path):
+            raise WorkspaceError("WS_FILE_MISSING", "Current Phase control is missing.", binding["phase_control_path"])
+        phase_sha256 = _sha256_path(phase_path)
+        expected_phase_sha256 = _require_expected_sha256(
+            args.expected_phase_sha256,
+            "WS_MAINTENANCE_VIEW_STALE",
+            "Expected Phase control SHA-256",
+        )
+        if phase_sha256 != expected_phase_sha256 or phase_sha256 != binding["phase_control_sha256"]:
+            raise WorkspaceError("WS_MAINTENANCE_VIEW_STALE", "Current Phase binding changed after review.", binding["phase_control_path"])
+    elif args.expected_phase_sha256 is not None:
+        raise WorkspaceError("WS_MAINTENANCE_VIEW_STALE", "No active Phase exists for the supplied Phase hash.")
+
+    values = {
+        "Binding schema": "3",
+        "Active Phase ID": binding["active_phase_id"] if binding is not None else "N/A",
+        "Active Phase control": binding["phase_control_path"] if binding is not None else "N/A",
+        "Phase control SHA-256": binding["phase_control_sha256"] if binding is not None else "N/A",
+        "Phase boundary SHA-256": binding["phase_boundary_sha256"] if binding is not None else "N/A",
+        "Boundary review ID": binding["boundary_review_id"] if binding is not None and binding["boundary_review_id"] is not None else "N/A",
+        "Boundary review SHA-256": binding["boundary_review_sha256"] if binding is not None else "N/A",
+        "Candidate mapping": binding["candidate_mapping"] if binding is not None and binding["candidate_mapping"] is not None else "N/A",
+        "Recommendation": binding["recommendation"] if binding is not None and binding["recommendation"] is not None else "N/A",
+        "Phase recovery SHA-256": binding["phase_recovery_sha256"] if binding is not None else "N/A",
+        "Recorded at": binding["recorded_at"] if binding is not None else "N/A",
+    }
+    report_path = _target(root, "WORK_TASK_REPORT.md")
+    language = _language(args, root)
+    report_payload = _path_read_bytes(report_path) if _path_is_file(report_path) else b""
+    report_projected = _replace_current_phase_binding(
+        _render_on_demand_work_report(root, state, language),
+        values,
+        "WORK_TASK_REPORT.md",
+    )
+    report_projected = _maintenance_view_metadata(
+        report_projected,
+        workspace_state_sha256=observed_state_sha256,
+        active_phase_id=binding["active_phase_id"] if binding is not None else None,
+        phase_control_sha256=phase_sha256,
+        relative="WORK_TASK_REPORT.md",
+    )
+    changes: dict[Path, bytes] = {}
+    if not _path_is_file(report_path) or report_projected != report_payload:
+        changes[report_path] = report_projected
+
+    omitted_views: list[str] = []
+    handoff_path = _target(root, "PROJECT_HANDOFF.md")
+    if args.include_existing_handoff:
+        if _path_is_file(handoff_path):
+            handoff_payload = _path_read_bytes(handoff_path)
+            handoff_projected = _replace_current_phase_binding(
+                _render_on_demand_project_handoff(root, state, language),
+                values,
+                "PROJECT_HANDOFF.md",
+            )
+            handoff_projected = _maintenance_view_metadata(
+                handoff_projected,
+                workspace_state_sha256=observed_state_sha256,
+                active_phase_id=binding["active_phase_id"] if binding is not None else None,
+                phase_control_sha256=phase_sha256,
+                relative="PROJECT_HANDOFF.md",
+            )
+            if handoff_projected != handoff_payload:
+                changes[handoff_path] = handoff_projected
+        else:
+            omitted_views.append("PROJECT_HANDOFF.md")
+
+    operation = "refresh-maintenance-views"
+    operation_id = _validate_id(args.operation_id, "Operation ID")
+    preconditions: dict[Path, str | None] = {
+        _state_path(root): observed_state_sha256,
+        report_path: _sha256_path(report_path) if _path_is_file(report_path) else None,
+    }
+    if phase_path is not None:
+        preconditions[phase_path] = phase_sha256
+    if args.include_existing_handoff and _path_is_file(handoff_path):
+        preconditions[handoff_path] = _sha256_path(handoff_path)
+    roles = {
+        path: "REPORT" if path == report_path else "HANDOFF"
+        for path in changes
+    }
+    if changes:
+        plan = _transaction_preview(
+            root,
+            operation_id=operation_id,
+            operation=operation,
+            changes=changes,
+            preconditions=preconditions,
+            target_roles=roles,
+        )
+    else:
+        plan_core = {
+            "plan_schema": 1,
+            "operation_id": operation_id,
+            "operation": operation,
+            "inputs": [
+                {"path": _relative(root, path), "expected_preimage": expected or "ABSENT"}
+                for path, expected in sorted(preconditions.items(), key=lambda item: _relative(root, item[0]))
+            ],
+            "targets": [],
+            "no_op": True,
+        }
+        plan = {**plan_core, "plan_sha256": _sha256_payload(canonical_json(plan_core))}
+    receipt = None
+    if args.apply and changes:
+        expected_plan_sha256 = _require_expected_sha256(
+            args.expected_plan_sha256,
+            "WS_MAINTENANCE_VIEW_STALE",
+            "Expected maintenance view plan SHA-256",
+        )
+        if expected_plan_sha256 != plan["plan_sha256"]:
+            raise WorkspaceError("WS_MAINTENANCE_VIEW_STALE", "Maintenance view plan changed after review.")
+        receipt = _apply_transaction_plan(
+            root,
+            operation_id=operation_id,
+            operation=operation,
+            changes=changes,
+            preconditions=preconditions,
+            target_roles=roles,
+            expected_plan_sha256=plan["plan_sha256"],
+        )
+    return {
+        "status": "PASS",
+        "operation": operation,
+        "mode": "APPLY" if args.apply else "DRY_RUN",
+        "workspace": str(root),
+        "writes_performed": bool(receipt and receipt.get("writes_performed")),
+        "planned_changes": sorted(_relative(root, path) for path in changes),
+        "no_op": not changes,
+        "projection_authority": "DERIVED_NON_AUTHORITATIVE",
+        "history_coverage": "CURRENT_SET_ONLY",
+        "omitted_views": omitted_views,
+        "plan": plan,
+        "receipt": receipt,
+        "implicit_session_created": False,
+        "implicit_agent_created": False,
+        "implicit_artifact_created": False,
+        "implicit_phase_created": False,
+    }
 
 
 def command_refresh_runtime_references(args: argparse.Namespace) -> dict[str, Any]:
@@ -5937,10 +9021,12 @@ def command_maintain(args: argparse.Namespace) -> dict[str, Any]:
             _artifact_required_action(artifact_audit) or "Artifact audit contains unresolved ISSUE findings.",
         )
     updated = json.loads(json.dumps(state))
-    updated["maintenance_state"].update(
-        {"state": maintenance_state, "last_action": "maintain", "last_checked_at": now, "runtime_is_canonical": False}
-    )
-    changes = {_state_path(root): _json_bytes(updated)}
+    changes: dict[Path, bytes] = {}
+    if updated["maintenance_state"].get("state") != maintenance_state or updated["maintenance_state"].get("runtime_is_canonical") is not False:
+        updated["maintenance_state"].update(
+            {"state": maintenance_state, "last_action": "maintain", "last_checked_at": now, "runtime_is_canonical": False}
+        )
+        changes[_state_path(root)] = _json_bytes(updated)
     result = _plan(
         "maintain",
         root,
@@ -5950,12 +9036,14 @@ def command_maintain(args: argparse.Namespace) -> dict[str, Any]:
         capacity_warnings=breaches,
         metrics=metrics,
         phase_lifecycle_warnings=_phase_lifecycle_warnings(root, state),
-        current_binding_warnings=_current_binding_issues(root, state),
+        current_binding_warnings=[*_current_binding_issues(root, state), *_v5_binding_maintenance_warnings(root, state), *_maintenance_view_warnings(root, state)],
         artifact_audit=artifact_audit,
         semantic_judgment_performed=False,
+        no_op=not changes,
+        observed_at=now,
         implicit_session_created=False,
     )
-    if args.apply:
+    if args.apply and changes:
         _transaction_write(root, changes, operation="maintain")
     return result
 
@@ -6073,6 +9161,7 @@ def command_recover(args: argparse.Namespace) -> dict[str, Any]:
     phase_lifecycle_warnings = _phase_lifecycle_warnings(root, state)
     current_binding_issues = _current_binding_issues(root, state)
     deterministic_issues = _deterministic_consistency_issues(root, state)
+    maintenance_view_warnings = [*_v5_binding_maintenance_warnings(root, state), *_maintenance_view_warnings(root, state)]
     validation_issues = [*validation_issues, *current_binding_issues, *deterministic_issues]
     ordered: list[Path] = []
 
@@ -6089,7 +9178,7 @@ def command_recover(args: argparse.Namespace) -> dict[str, Any]:
         add(_target(root, _active_phase(state)["path"]))
     if state["active_session_id"] is not None:
         add(_target(root, _active_session(state)["path"]))
-    if state["schema_version"] in {3, 4} and isinstance(state.get("recovery_binding"), dict):
+    if state["schema_version"] in {3, 4, 5} and isinstance(state.get("recovery_binding"), dict):
         add(_target(root, state["recovery_binding"]["source_control_path"]))
     for item in artifact_audit["input_hashes"]:
         if item["kind"] in {"CANONICAL_SHARED_INDEX", "CANONICAL_ARCHIVE_INDEX"}:
@@ -6101,13 +9190,24 @@ def command_recover(args: argparse.Namespace) -> dict[str, Any]:
     evidence = []
     for index, path in enumerate(ordered, start=1):
         data = path.read_bytes()
+        relative = _relative(root, path)
+        if relative.startswith("runtime/"):
+            canonical = False
+            authority_class = "RUNTIME_DERIVED"
+        elif relative in {"WORK_TASK_REPORT.md", "PROJECT_HANDOFF.md"} and state.get("contract_id") == CURRENT_WORKSPACE_CONTRACT:
+            canonical = False
+            authority_class = "DERIVED_NON_AUTHORITATIVE"
+        else:
+            canonical = True
+            authority_class = "CANONICAL_CONTROL_OR_INSTRUCTION"
         evidence.append(
             {
                 "order": index,
-                "path": _relative(root, path),
+                "path": relative,
                 "bytes": len(data),
                 "sha256": hashlib.sha256(data).hexdigest().upper(),
-                "canonical": not _relative(root, path).startswith("runtime/"),
+                "canonical": canonical,
+                "authority_class": authority_class,
             }
         )
     control_drift = [
@@ -6148,7 +9248,7 @@ def command_recover(args: argparse.Namespace) -> dict[str, Any]:
         item["required_action"] for item in deterministic_issues
         if item.get("required_action") and item["required_action"] not in required_actions
     )
-    if state["schema_version"] in {3, 4} and isinstance(state.get("recovery_binding"), dict):
+    if state["schema_version"] in {3, 4, 5} and isinstance(state.get("recovery_binding"), dict):
         recovery = state["recovery_binding"]
         recovery_source = {
             "kind": recovery["source_kind"],
@@ -6198,7 +9298,7 @@ def command_recover(args: argparse.Namespace) -> dict[str, Any]:
         "runtime_is_canonical": False,
         "summary_replaces_current_facts": False,
         "phase_lifecycle_warnings": phase_lifecycle_warnings,
-        "current_binding_warnings": [],
+        "current_binding_warnings": maintenance_view_warnings,
         "binding_validation": current_binding_issues,
         "deterministic_consistency_validation": deterministic_issues,
         "artifact_audit": artifact_audit,
@@ -6227,13 +9327,14 @@ def _add_phase_boundary_arguments(parser: argparse.ArgumentParser) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(dest="command", required=True, metavar="COMMAND")
 
     init = subparsers.add_parser("init")
     _add_common_write_arguments(init)
     init.add_argument("--project-id", required=True)
     init.add_argument("--goal", required=True)
     init.add_argument("--language", choices=("en", "zh-CN"), default="en")
+    init.add_argument("--phase-governance-profile", choices=("single_phase", "resource_admission"), default="single_phase")
     init.add_argument("--initial-phase-id", help="Required initial Phase ID for a new or legacy-minimal workspace.")
     init.add_argument("--initial-phase-goal", help="Required initial Phase goal for a new or legacy-minimal workspace.")
     _add_phase_boundary_arguments(init)
@@ -6247,12 +9348,13 @@ def build_parser() -> argparse.ArgumentParser:
     open_phase.set_defaults(handler=command_open_phase)
 
     close_phase = subparsers.add_parser("close-phase")
-    _add_common_write_arguments(close_phase)
+    _add_common_write_arguments(close_phase, language=True)
+    close_phase.add_argument("--phase-id", help="Defaults to the primary ACTIVE Phase; required to close a concurrent OPEN Phase.")
     close_phase.add_argument("--status", choices=("DONE", "BLOCKED", "FAILED"), required=True)
     close_phase.add_argument("--exit-criteria-status", choices=("SATISFIED", "NOT_SATISFIED", "NOT_APPLICABLE"))
     close_phase.add_argument("--carry-over-disposition", default="N/A")
     close_phase.add_argument("--closure-evidence")
-    close_phase.add_argument("--next-action", default="Open the next Phase when authorized.")
+    close_phase.add_argument("--next-action")
     close_phase.set_defaults(handler=command_close_phase)
 
     phase_review = subparsers.add_parser("phase-boundary-review")
@@ -6317,14 +9419,15 @@ def build_parser() -> argparse.ArgumentParser:
     recover_workspace_transaction.set_defaults(handler=command_recover_workspace_transaction)
 
     pause_phase = subparsers.add_parser("pause-phase")
-    _add_common_write_arguments(pause_phase)
+    _add_common_write_arguments(pause_phase, language=True)
+    pause_phase.add_argument("--phase-id", help="Defaults to the primary ACTIVE Phase; use for a concurrent OPEN Phase.")
     pause_phase.add_argument("--reason", required=True)
     pause_phase.add_argument("--boundary-review-ref", required=True)
     pause_phase.add_argument("--authorization-ref", required=True)
     pause_phase.set_defaults(handler=command_pause_phase)
 
     resume_phase = subparsers.add_parser("resume-phase")
-    _add_common_write_arguments(resume_phase)
+    _add_common_write_arguments(resume_phase, language=True)
     resume_phase.add_argument("--phase-id", required=True)
     resume_phase.add_argument("--boundary-review-ref", required=True)
     resume_phase.add_argument("--plan-review-ref", required=True)
@@ -6371,14 +9474,14 @@ def build_parser() -> argparse.ArgumentParser:
     open_session.set_defaults(handler=command_open_session)
 
     close_session = subparsers.add_parser("close-session")
-    _add_common_write_arguments(close_session)
+    _add_common_write_arguments(close_session, language=True)
     close_session.add_argument("--status", choices=("DONE", "BLOCKED", "FAILED"), required=True)
     close_session.add_argument("--next-action", required=True)
     close_session.set_defaults(handler=command_close_session)
 
-    record_events = subparsers.add_parser("record-result-events", help="Dry-run/apply one typed Result v2 event batch and all governed bindings.")
+    record_events = subparsers.add_parser("record-result-events", help="Dry-run/apply one typed CURRENT Result event batch and all governed bindings.")
     _add_common_write_arguments(record_events)
-    record_events.add_argument("--contract", required=True, help="Workspace-relative immutable Result Contract v2 path.")
+    record_events.add_argument("--contract", required=True, help="Workspace-relative immutable CURRENT Result Contract path.")
     record_events.add_argument("--events", required=True, type=Path, help="JSON file containing the non-empty event batch.")
     record_events.add_argument("--expected-contract-sha256")
     record_events.add_argument("--expected-projection-sha256")
@@ -6387,7 +9490,7 @@ def build_parser() -> argparse.ArgumentParser:
     record_events.add_argument("--actor-id", default="MAIN_CONTROLLER")
     record_events.set_defaults(handler=command_record_result_events)
 
-    rebuild_lineage = subparsers.add_parser("rebuild-result-lineage", help="Rebuild one declared Result v2 projection from its immutable chain.")
+    rebuild_lineage = subparsers.add_parser("rebuild-result-lineage", help="Rebuild one declared CURRENT Result projection from its immutable chain.")
     _add_common_write_arguments(rebuild_lineage)
     rebuild_lineage.add_argument("--contract", required=True)
     rebuild_lineage.add_argument("--operation-id", required=True)
@@ -6440,36 +9543,51 @@ def build_parser() -> argparse.ArgumentParser:
     transfer_lease.add_argument("--evidence-ref", action="append", required=True)
     transfer_lease.set_defaults(handler=command_transfer_session_lease)
 
-    migrate_workspace = subparsers.add_parser("migrate-workspace-v3-to-v4", help="Dry-run/apply one explicit cold workspace v3-to-v4 migration.")
-    _add_common_write_arguments(migrate_workspace)
-    migrate_workspace.add_argument("--operation-id", required=True)
-    migrate_workspace.add_argument("--expected-state-sha256", required=True)
-    migrate_workspace.add_argument("--paused-phase-id")
-    migrate_workspace.add_argument("--expected-phase-sha256")
-    migrate_workspace.add_argument("--expected-boundary-sha256")
-    migrate_workspace.add_argument("--expected-paused-plan-sha256")
-    migrate_workspace.add_argument("--expected-plan-sha256")
-    migrate_workspace.add_argument("--expected-recovery-sha256")
-    migrate_workspace.add_argument("--pause-review-ref")
-    migrate_workspace.add_argument("--pause-authorization-ref")
-    migrate_workspace.add_argument("--declared-lineage", action="append")
-    migrate_workspace.set_defaults(handler=command_migrate_workspace_v3_to_v4)
+    reorganize_workspace = subparsers.add_parser(
+        "reorganize-workspace",
+        help="Dry-run/apply one exact legacy-or-current layout reorganization into the CURRENT contract.",
+    )
+    _add_common_write_arguments(reorganize_workspace)
+    reorganize_workspace.add_argument("--operation-id", required=True)
+    reorganize_workspace.add_argument("--expected-state-sha256", required=True)
+    reorganize_workspace.add_argument("--expected-project-control-sha256")
+    reorganize_workspace.add_argument("--project-control-candidate")
+    reorganize_workspace.add_argument("--expected-candidate-sha256")
+    reorganize_workspace.add_argument("--expected-coordination-sha256")
+    reorganize_workspace.add_argument("--declared-lineage", action="append", default=[])
+    reorganize_workspace.add_argument("--profile", choices=("single_phase", "resource_admission"))
+    reorganize_workspace.add_argument("--review-ref", required=True)
+    reorganize_workspace.add_argument("--authorization-ref", required=True)
+    reorganize_workspace.add_argument("--expected-plan-sha256")
+    reorganize_workspace.set_defaults(handler=command_reorganize_workspace)
 
-    migrate_result = subparsers.add_parser("migrate-result-contract-v1-to-v2", help="Dry-run/apply one declared Result Contract v1-to-v2 migration.")
-    _add_common_write_arguments(migrate_result)
-    migrate_result.add_argument("--contract", required=True)
-    migrate_result.add_argument("--expected-contract-sha256", required=True)
-    migrate_result.add_argument("--task-id", required=True)
-    migrate_result.add_argument("--lineage-id", required=True)
-    migrate_result.add_argument("--phase-id", required=True)
-    migrate_result.add_argument("--expected-phase-boundary-sha256", required=True)
-    migrate_result.add_argument("--operation-id", required=True)
-    migrate_result.add_argument("--revision-id")
-    migrate_result.add_argument("--event-id")
-    migrate_result.add_argument("--review-ref", required=True)
-    migrate_result.add_argument("--authorization-ref", required=True)
-    migrate_result.add_argument("--expected-plan-sha256")
-    migrate_result.set_defaults(handler=command_migrate_result_contract_v1_to_v2)
+    def add_result_reorganization_arguments(parser: argparse.ArgumentParser) -> None:
+        _add_common_write_arguments(parser)
+        parser.add_argument("--contract", required=True)
+        parser.add_argument("--expected-contract-sha256", required=True)
+        parser.add_argument("--expected-phase-control-sha256", required=True)
+        parser.add_argument("--expected-phase-boundary-sha256", required=True)
+        parser.add_argument("--expected-coordination-sha256")
+        parser.add_argument("--operation-id", required=True)
+        parser.add_argument("--revision-id")
+        parser.add_argument("--task-id")
+        parser.add_argument("--lineage-id")
+        parser.add_argument("--phase-id")
+        parser.add_argument("--event-id")
+        parser.add_argument("--revision-reason", required=True)
+        parser.add_argument("--review-ref", required=True)
+        parser.add_argument("--authorization-ref", required=True)
+        parser.add_argument("--admission-id")
+        parser.add_argument("--actor-id")
+        parser.add_argument("--token", action="append", default=[])
+        parser.add_argument("--expected-plan-sha256")
+        parser.set_defaults(handler=command_reorganize_result_contract)
+
+    reorganize_result = subparsers.add_parser(
+        "reorganize-result-contract",
+        help="Dry-run/apply one direct legacy Result revision reorganization into the CURRENT Result contract.",
+    )
+    add_result_reorganization_arguments(reorganize_result)
 
     scoped_readiness = subparsers.add_parser("scoped-readiness", help="Read-only Fast Path route probe; advises only and never authorizes or writes.")
     scoped_readiness.add_argument("--workspace", required=True)
@@ -6578,9 +9696,32 @@ def build_parser() -> argparse.ArgumentParser:
 
     plan_recheck = subparsers.add_parser("plan-recheck")
     plan_recheck.add_argument("--workspace", required=True)
+    plan_recheck.add_argument("--phase-id")
     plan_recheck.add_argument("--trigger", choices=tuple(sorted(PLAN_RECHECK_TRIGGERS)), required=True)
     plan_recheck.add_argument("--require-active-plan", action="store_true")
     plan_recheck.set_defaults(handler=command_plan_recheck)
+
+    workspace_entry = subparsers.add_parser("workspace-entry")
+    workspace_entry.add_argument("--workspace", required=True)
+    workspace_entry.add_argument("--task-class", choices=tuple(sorted(workspace_entry_runtime.TASK_CLASSES)), default="LOW_RISK")
+    workspace_entry.add_argument("--phase-id")
+    workspace_entry.add_argument("--evaluated-at")
+    workspace_entry.add_argument("--admission-id")
+    workspace_entry.add_argument("--actor-id")
+    workspace_entry.add_argument("--token", action="append", default=[])
+    workspace_entry.set_defaults(handler=command_workspace_entry)
+
+    refresh_views = subparsers.add_parser(
+        "refresh-maintenance-views",
+        help="Dry-run/apply CURRENT on-demand non-authoritative report projections without changing canonical controls.",
+    )
+    _add_common_write_arguments(refresh_views, language=True)
+    refresh_views.add_argument("--operation-id", required=True)
+    refresh_views.add_argument("--expected-state-sha256", required=True)
+    refresh_views.add_argument("--expected-phase-sha256")
+    refresh_views.add_argument("--expected-plan-sha256")
+    refresh_views.add_argument("--include-existing-handoff", action="store_true")
+    refresh_views.set_defaults(handler=command_refresh_maintenance_views)
 
     refresh_runtime_references = subparsers.add_parser("refresh-runtime-references")
     _add_common_write_arguments(refresh_runtime_references)
@@ -6597,12 +9738,64 @@ def build_parser() -> argparse.ArgumentParser:
     recover = subparsers.add_parser("recover")
     recover.add_argument("--workspace", required=True)
     recover.set_defaults(handler=command_recover)
+
+    # Keep exact legacy compatibility entrypoints callable for frozen fixtures and
+    # recovery evidence, but remove them from ordinary CLI discovery. CURRENT
+    # user workflows expose only the one-hop reorganization commands.
+    subparsers._choices_actions[:] = [
+        action for action in subparsers._choices_actions
+        if action.dest not in HIDDEN_COMPATIBILITY_COMMANDS
+    ]
     return parser
 
 
+def _command_sets(parser: argparse.ArgumentParser) -> tuple[set[str], list[str]]:
+    subparser_action = next(
+        (action for action in parser._actions if isinstance(action, argparse._SubParsersAction)),
+        None,
+    )
+    if subparser_action is None:
+        return set(), []
+    known = set(subparser_action.choices)
+    visible = sorted(known - HIDDEN_COMPATIBILITY_COMMANDS)
+    return known, visible
+
+
 def main(argv: list[str] | None = None) -> int:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
+    raw_arguments = list(sys.argv[1:] if argv is None else argv)
+    if raw_arguments and raw_arguments[0] in LEGACY_PUBLIC_COMMAND_REPLACEMENTS:
+        old_command = raw_arguments[0]
+        replacement = LEGACY_PUBLIC_COMMAND_REPLACEMENTS[old_command]
+        guidance = {
+            "status": "FAIL",
+            "error_code": "LEGACY_COMMAND_REPLACED",
+            "message_zh_CN": f"旧命令 {old_command} 已退出普通工作流；请使用 {replacement} 一步整理到当前规范。未执行任何写入。",
+            "message_en": f"Legacy command {old_command} has left the ordinary workflow; use {replacement} for one-hop reorganization into the CURRENT contract. No writes were performed.",
+            "replacement_command": replacement,
+            "writes_performed": False,
+        }
+        print(json.dumps(guidance, ensure_ascii=False, indent=2), file=sys.stderr)
+        return 2
     parser = build_parser()
-    args = parser.parse_args(argv)
+    if raw_arguments and not raw_arguments[0].startswith("-"):
+        known_commands, visible_commands = _command_sets(parser)
+        if raw_arguments[0] not in known_commands:
+            unknown = raw_arguments[0]
+            guidance = {
+                "status": "FAIL",
+                "error_code": "UNKNOWN_COMMAND",
+                "message_zh_CN": f"未知的 CURRENT 命令：{unknown}。请运行 --help 查看当前公开命令。未执行任何写入。",
+                "message_en": f"Unknown CURRENT command: {unknown}. Run --help for current public commands. No writes were performed.",
+                "available_commands": visible_commands,
+                "writes_performed": False,
+            }
+            print(json.dumps(guidance, ensure_ascii=False, indent=2), file=sys.stderr)
+            return 2
+    args = parser.parse_args(raw_arguments)
     try:
         result = args.handler(args)
     except WorkspaceError as exc:

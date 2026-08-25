@@ -36,13 +36,13 @@
 
 ## Workspace Cross-Control Consistency Gate
 
-- [ ] 全新工作区使用精确 schema v4；schema v1/v2/v3 输入被显式分类，validation、recovery、maintenance 或 installation update 不会静默迁移。
-- [ ] Active Phase 拥有 Boundary Review 与 recovery record；active Session 拥有 checkpoint；current report binding 必需，existing handoff binding 存在时也会检查。
+- [ ] 全新工作区使用精确 CURRENT，默认 `single_phase`；受支持的旧输入被显式分类，entry、validation、recovery、maintenance 或 installation update 不会静默重整。
+- [ ] Project/Phase/Session 事实各有唯一 Markdown owner；workspace schema/profile/index 与 coordination authority 各有唯一 runtime owner。CURRENT contract report/handoff 是 derived/on-demand view；legacy workspace layout current projection binding 保持严格。
 - [ ] 没有把 `phase-boundary-review` operation status 当成 review outcome、persistence、decision 或 authorization；只有 `record-phase-boundary-review` 持久化记录，后续 mutation authorization 仍然独立。
-- [ ] 完整 Phase-control SHA-256 与 normalized boundary/review/recovery hashes 在 canonical authority、required report、optional handoff 和 typed runtime projection 间一致。
-- [ ] Structural、binding、deterministic-consistency 与 advisory-semantic finding 分层报告；deterministic drift 会阻断 `validate`、cold `recover` 和普通 lifecycle mutation。
+- [ ] 完整 Phase-control SHA-256 与 normalized boundary/review/recovery hash 在 canonical authority 与 machine binding 间一致；任何已刷新 view 都绑定当前精确字节且不成为 authority。
+- [ ] Structural、binding、deterministic-consistency、maintenance-warning 与 advisory-semantic finding 分层报告；safety-critical drift 阻断受影响 mutation，CURRENT contract derived-view drift 保持局部 warning/reconcile。
 - [ ] Recovery 顺序固定为 active Session checkpoint、active Phase recovery、显式绑定的 terminal Phase、Project recovery；不存在 latest historical Session fallback。
-- [ ] Workspace consistency mutation 使用 dry-run、精确 expected hashes、唯一 operation ID、`runtime/workspace_transaction.lock.json` 与 `runtime/workspace_transactions/`；Artifact transaction path/code 保持不变。
+- [ ] Workspace/coordination mutation 使用 dry-run、精确 expected hash、唯一 operation ID、共享 `runtime/workspace_transaction.lock.json`、`runtime/workspace_transactions/` 与锁后 preimage 复核；Artifact transaction path/code 保持不变。
 - [ ] Interrupted workspace transaction 只能通过精确 journal-hash `recover-workspace-transaction` review/apply 恢复；恢复失败时保留 lock/journal evidence。
 
 ## 验证证据
@@ -58,7 +58,7 @@
 - [ ] 对 GUI、视觉、覆盖层或强交互任务，已记录用户视觉确认或等价视觉证据。
 - [ ] 如果发生上下文饱和、压缩或中断，外部恢复状态已更新。
 - [ ] 长任务继续被表达为有边界的轮次和恢复点，而不是固定一次性运行时长承诺。
-- [ ] 新窗口或其他项目目录可从项目规则、最新 `PROJECT_CONTROL`、最新工作任务报告或交接文档，以及当前文件继续。
+- [ ] 新窗口从有界 `workspace-entry --task-class CONTEXT_RECOVERY` 与当前 owner 文件继续；不会仅按 recency 选择 report、handoff、history 或 Session。
 
 ## 多 Agent 分派门
 
@@ -77,7 +77,7 @@
 - [ ] runtime effort ID、归一化推理等级和展示标签没有混为一谈。
 - [ ] 仅有配置、CLI help 或接口发现时，没有标记为 `effective_verified`。
 - [ ] 每个 fallback 都记录 hard/soft 约束处理、原因、binding 状态和 usage evidence。
-- [ ] `N > 1` 同时受已批准 Agent 数、契约并发上限、生效运行时容量和无冲突 locator lease 限制。
+- [ ] `N > 1` 同时受已批准 Agent 数、契约并发上限、生效运行时容量，以及只读/不冲突 scope 或具有当前 lease/fencing 的有效 typed resource Admission 限制。
 - [ ] `agent_route_planner.py` 与 `result_controller.py` 仅作为建议 / 校验组件，没有冒充真实分派证据。
 - [ ] 如果使用 Codex peer task，已记录为 `codex-peer-task` / `delegation_mode=peer-task`，优先使用当前任务工作区，且没有描述成原生 `spawn_agent`。
 - [ ] Peer-task lifecycle 证据覆盖 PLANNED、RETURNED、Main 接受 / 返工 / 阻塞直至 ARCHIVED；除非明确允许替换，返工复用原任务。
@@ -91,7 +91,7 @@
 - [ ] 只有用户明确授权后，才使用无人值守继续。
 - [ ] 如果用户没有明确授权，未启动、安排或暗示无人自动运行。
 - [ ] `PROJECT_CONTROL` 已记录允许范围、禁止操作、多 Agent 权限、模型策略、轮次 / 时间上限、停止条件和报告要求。
-- [ ] 每个无人值守轮次都更新恢复状态，并生成或追加工作任务报告。
+- [ ] 每个无人值守轮次只持久化确有变化的 owner-local recovery/state；仅在授权包要求时刷新按需工作报告。
 - [ ] 开始下一轮无人值守前已检查停止条件。
 - [ ] 授权包未提前确认的新多 Agent 批次，已停下进行启动审阅并等待 `确认运行`。
 
@@ -111,6 +111,9 @@
 
 ## 成长卫生
 
+- [ ] 验证后、最终交付前已评估无写入 L1 Growth Routing Gate；`NO_OUTPUT` 保持静默，其他 route 均已面向用户可见。
+- [ ] 没有把仅写入报告的 Growth 条目当作用户可见结果的替代品。
+- [ ] L1 没有进行持久化写入；L2 项目维护和 L3 系统晋升仍各自保留独立授权门。
 - [ ] 有意义时记录可复用经验候选。
 - [ ] 一次性细节没有写入长期记忆。
 - [ ] 拟写入规则具备触发条件、执行动作、检查方法和适用边界。
@@ -119,12 +122,17 @@
 
 ## 用户报告
 
-- [ ] 任务或阶段完成时，已准备好给用户看的清晰工作任务报告。
+- [ ] 已准备清晰的用户结果；只有用户请求或确有必要时才生成 durable `WORK_TASK_REPORT.md` 视图，且不把它当作 lifecycle authority。
 
-## MALTS v1.3.0 门禁
+## Workspace v5 与兼容门禁
 
-- [ ] schema 为 v4 / Result Contract v2，或已执行显式审阅的冷迁移；无静默迁移。
+- [ ] 只有显式审阅一步重整后才使用 CURRENT workspace/Result contract；否则受支持的旧兼容输入保持字节不变；没有静默重整或用户可见版本链。
+- [ ] 重复、无变化的 `workspace-entry` 有界、零历史读取、零写入、不创建 Phase/Session/Agent/Artifact/coordination state，且文件字节/时间戳不变。
+- [ ] `single_phase` 无 coordination 开销；每个 `resource_admission` writer 都绑定当前 Phase hash、有效 Admission、未过期 lease、精确 fencing token 和已清除的受影响 quarantine domain。
+- [ ] 不相交 locator 可继续；重叠/父子路径/alias、exclusive/queued/isolate-required capability、stale executor 与 `UNKNOWN` 副作用按确定性 admission/quarantine/reconcile 规则处理。
+- [ ] safety-critical drift 只对受影响 authority/resource 标为 `BLOCKED`；CURRENT contract report/handoff 派生漂移为 `WARNING` 并局部刷新，legacy workspace layout 投影漂移保留严格兼容行为。
 - [ ] Attempt 失败未自动重试或升级 Task/Phase 终态；`max_authorized_rounds` STOP 已生效。
 - [ ] 外部副作用有 typed observations/counted units；有限硬预算下 UNKNOWN dispatch/outcome/charge 已 fail closed。
 - [ ] workspace 事务恰好提交一次，含 preimage/recovery 证据；未宣称瞬时原子可见。
 - [ ] `scoped-readiness` 与 `refresh-project-instructions` 仅按文档使用；无 marker 自定义文件未被动过。
+- [ ] Workspace/coordination writer 共享唯一写锁，并在获锁后复核精确 preimage；没有 stale writer 提交。

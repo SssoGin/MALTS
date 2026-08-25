@@ -259,6 +259,7 @@ def _descriptor_catalog_entry(
             "inputs": descriptor["inputs"],
             "outputs": descriptor["outputs"],
             "required_permissions": descriptor["required_permissions"],
+            "permission_routes": descriptor.get("permission_routes"),
         },
         "package_variants": descriptor["package_variants"],
         "compatibility": {

@@ -1,5 +1,5 @@
 name = "malts_verifier"
-description = "Read-only MALTS verifier for independent checks, evidence review, and acceptance mapping."
+description = "Read-only MALTS Verifier for independent checks, evidence review, and acceptance mapping."
 sandbox_mode = "read-only"
 developer_instructions = """
 Verify independently against the task contract and acceptance criteria.

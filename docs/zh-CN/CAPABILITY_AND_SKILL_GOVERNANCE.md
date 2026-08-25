@@ -43,7 +43,7 @@ v1.0 目标把五类职责分开：
 2. Registry metadata：identity、provenance、compatibility、risk、exposure 和 lifecycle。
 3. Tool projection：目标工具原生发现需要的 entry 或 overlay。
 4. Advisory Router：基于已登记 capability 给出可解释建议。
-5. Transactional manager：针对已验证 MALTS release 内容、另行门禁的 journaled install、update、repair 和 uninstall 层。
+5. Transactional manager：针对已验证 MALTS release 内容、另行门禁的 journaled install、update、repair、finalize 和 uninstall 层。`finalize` 是显式的同 release-series 重发 transaction，不是第三方 Skill 清理机制。
 
 这些层已按顺序交付。W3 实现 Registry/Resolver source component 和 isolated native-projection precondition；W6/G3 随后为 MALTS-owned 内容激活经过验证的 transactional lifecycle。Router 始终只提供建议，两个层都不授权第三方 Skill lifecycle 管理。
 

@@ -4,72 +4,98 @@
 
 Languages: [English](README.md) | [简体中文](README.zh-CN.md)
 
-MALTS is a file-based workflow system for AI coding agents. It records goals, plans, task ownership, verification, handoffs, and reviewed lessons in ordinary project files so long-running work stays recoverable, inspectable, and easier to continue safely.
+MALTS is a file-based operating model for AI-assisted project work that needs continuity, explicit decisions, or controlled delegation. It records the working objective, verified state, ownership, acceptance evidence, and recovery context in ordinary project files so work can continue safely across sessions, phases, and Agents.
 
-MALTS is relevant for migrations, multi-file changes, long investigations, release preparation, protocol or documentation work, and other tasks where a lost decision or an unverified claim of completion would create avoidable risk.
+MALTS complements normal project instructions; it does not replace them. A contained task with a clear outcome should remain lightweight. MALTS becomes useful when interruption, scope change, verification, handoff, or coordination would otherwise leave important work state implicit.
 
-MALTS is single-agent first. The main Agent remains the normal executor; multi-agent work is an optional, explicitly reviewed division of work rather than something that starts merely because MALTS is installed.
+## Task Types and Workflow Selection
+
+Use this decision table before selecting a workflow. Workflow names are the user-facing entries; implementation commands and runtime routes belong in the linked guides rather than in the primary navigation.
+
+| Work situation | Applicable condition | Recommended MALTS workflow | Start condition | Primary result |
+|---|---|---|---|---|
+| Contained project task | The work is clear, limited, and needs no durable recovery or coordination record. | Do not start MALTS. Follow the project instructions. | The project already provides sufficient execution and verification guidance. | The task stays proportionate; no unnecessary control files are created. |
+| First standard MALTS project | The project needs lightweight, durable control but not a Phase-based long workspace. | [MALTS Project Init](skills/malts-project-init/SKILL.md) (`malts-project-init`) | Project purpose and initial acceptance conditions are known. | One compact Project control with explicit ownership and next steps. |
+| First long-running or interruption-sensitive project | The work spans phases, is likely to resume across contexts, or needs deliberate recovery controls. | [MALTS Long Project Workspace Init](skills/malts-long-project-workspace-init/SKILL.md) (`malts-long-project-workspace-init`) | A long-workspace boundary and first Phase can be defined. | A recoverable Phase workspace; no Session, Artifact, or Agent is created implicitly. |
+| Ordinary work in an initialized workspace | The workspace is unchanged and the task remains inside its current approved scope. | Use the ordinary-workspace route in [Usage](docs/USAGE.md). | Current workspace authority is available and no recovery condition is present. | A bounded read of current state; no repeated initialization or routine control-file refresh. |
+| New write scope, recovery, or workspace reorganization | The task crosses an existing boundary, recorded state has genuinely drifted, or an older layout needs current controls. | Review [Lifecycle](docs/LIFECYCLE.md) and [Usage](docs/USAGE.md) before explicit execution. | The intended change and its impact are reviewed; any required plan is approved. | A deliberate, reversible or reconcilable lifecycle action instead of an implicit rewrite. |
+| Concurrent work in one workspace | More than one work lane is useful and each write scope and shared capability can be declared. | Use the resource-governed path in [Core Design](docs/CORE_DESIGN.md) and [Lifecycle](docs/LIFECYCLE.md). | The project explicitly enables resource admission and declares resources or capabilities. | Non-conflicting work may proceed independently; conflicts, stale writers, and uncertain effects remain governed. |
+| Multi-Agent execution | Delegation has clear value and responsibility lanes can be independent and auditable. | [MALTS Multi-Agent Long-Task Scheduling](skills/multi-agent-long-task-scheduling/SKILL.md) (`malts-multi-agent-long-task-scheduling`) | A launch review, task contracts, and explicit user confirmation are complete. | Controlled delegation with traceable responsibilities, model routing, verification, and recovery. |
+
+## Core MALTS Workflows
+
+These are the seven installed core workflows. Each has a narrow role; selecting one does not authorize unrelated lifecycle changes.
+
+| Applicable scenario | MALTS workflow | Start condition | Primary result |
+|---|---|---|---|
+| Establish a standard project control | [MALTS Project Init](skills/malts-project-init/SKILL.md) (`malts-project-init`) | The project needs lightweight durable control. | Establishes the initial Project-level control once. |
+| Clarify a non-trivial task before implementation | [MALTS Grill-Me Preflight](skills/grill-me-preflight/SKILL.md) (`malts-grill-me-preflight`) | Assumptions, boundaries, trade-offs, or acceptance criteria need clarification. | A read-only clarification result; no files are modified and no Agent is dispatched. |
+| Establish, recover, or structurally organize a long workspace | [MALTS Long Project Workspace Init](skills/malts-long-project-workspace-init/SKILL.md) (`malts-long-project-workspace-init`) | A Phase-based long project is initialized, structurally repaired, or deliberately reorganized. | A governed long-workspace structure and recovery path. |
+| Produce a bounded continuation record | [MALTS Session Handoff](skills/session-handoff/SKILL.md) (`malts-session-handoff`) | A later Agent or session needs verified current context. | An on-demand `PROJECT_HANDOFF.md` view, not a competing authority. |
+| Review verified project experience for possible reuse | [MALTS Project Retrospective Growth](skills/project-retrospective-growth/SKILL.md) (`malts-project-retrospective-growth`) | Completed, failed, or reworked work contains evidence worth reviewing. | Evidence-based growth candidates; durable promotion remains separately authorized. |
+| Perform the default post-task growth check | [MALTS Single-Agent Lightweight Growth](skills/single-agent-lightweight-growth/SKILL.md) (`malts-single-agent-lightweight-growth`) | A verified task finished and a no-write check is appropriate. | A low-overhead recommendation or no-op; no durable guidance is created automatically. |
+| Coordinate admitted delegated work | [MALTS Multi-Agent Long-Task Scheduling](skills/multi-agent-long-task-scheduling/SKILL.md) (`malts-multi-agent-long-task-scheduling`) | Work lanes, resources, verification responsibilities, and user authorization can be stated. | A governed launch-review and delegation path with cost-aware model routing. |
+
+For exact commands, permissions, and examples, see [Getting Started](docs/GETTING_STARTED.md), [Usage](docs/USAGE.md), and [Lifecycle](docs/LIFECYCLE.md).
+
+## What Problem It Solves
+
+Long Agent tasks fail differently from short prompts. Context can be compressed, goals can drift, incomplete work can be mistaken for completion, parallel work can collide, and useful lessons can be either lost or promoted too broadly.
+
+MALTS externalizes the task state that needs to survive these risks. It separates canonical control from derived reports, requires evidence before completion claims, records a recoverable continuation path, and requires a launch review before real delegated work begins.
+
+## Operating Model
+
+MALTS is single-Agent first. The main Agent remains the normal executor; multi-Agent work is an optional, reviewed division of responsibility rather than an automatic consequence of installation.
+
+Long-workspace initialization is reserved for first setup, structural repair, explicit reorganization, or a major lifecycle change. An initialized unchanged workspace uses a bounded, read-only ordinary-workspace assessment (implemented as `workspace-entry`); it creates no Phase, Session, Agent, Artifact, coordination service, or report update and loads no full history.
+
+Fresh long workspaces use the CURRENT workspace contract with `single_phase` by default. A project may explicitly opt into `resource_admission` when it can declare resources and capabilities. That route governs disjoint work through typed resource locators, capability policies, expiring leases, fencing epochs, queues, and domain-scoped reconciliation of uncertain external effects. MALTS Core contains no Unity, Unreal, VCS, database, CI, or device-specific conflict rule; adapters declare those concrete resources and capabilities.
+
+Project, Phase, and explicit Session controls own their respective facts. Machine-enforced contract, profile, index, and coordination state live in runtime contracts. Under CURRENT, `WORK_TASK_REPORT.md` and an existing `PROJECT_HANDOFF.md` are on-demand derived views, not daily mutation gates or alternate authorities. Supported legacy layouts remain readable compatibility inputs and are never silently reorganized.
 
 ## Start Here
 
 | Need | Read |
 |---|---|
-| Install MALTS and run a first task | [Getting Started](docs/GETTING_STARTED.md) |
-| Understand what MALTS does and when to use it | [System Overview](docs/SYSTEM_OVERVIEW.md) |
-| Review the full operating model and boundaries | [Core Design](docs/CORE_DESIGN.md) |
+| Install MALTS and complete a first task | [Getting Started](docs/GETTING_STARTED.md) |
+| Understand MALTS, its limits, and intended use | [System Overview](docs/SYSTEM_OVERVIEW.md) |
+| Review the operating model, concurrency, and safety invariants | [Core Design](docs/CORE_DESIGN.md) |
+| Use an initialized workspace or a specific workflow | [Usage](docs/USAGE.md) |
+| Recover, reorganize, or review lifecycle rules | [Lifecycle](docs/LIFECYCLE.md) |
 | Install or update a specific Agent tool | [Install](docs/INSTALL.md) and [Update](docs/UPDATE.md) |
 | Let an Agent assist with installation safely | [Agent Install](docs/AGENT_INSTALL.md) |
 | Use the optional offline archive | [Release Artifact](docs/RELEASE_ARTIFACT.md) |
-
-## What Problem It Solves
-
-Long Agent tasks fail differently from short prompts. Context can be compressed, goals can drift, an incomplete result can be mistaken for a completed one, several work lanes can collide, and useful lessons can be either lost or promoted too broadly.
-
-MALTS responds by externalizing important task state, defining completion and verification criteria, keeping a recoverable handoff, requiring a launch review before real sub-agent dispatch, and filtering reusable lessons before they become durable guidance.
-
-## What It Provides
-
-- Long-task planning and recovery through `PROJECT_CONTROL.md`
-- Phase or final evidence through `WORK_TASK_REPORT.md`
-- Agent-facing continuation through `PROJECT_HANDOFF.md`
-- Explicit Phase and Session controls for bounded long-project work
-- Event-triggered, read-only Plan Recheck with Phase-owned plan revision and SHA-256 binding
-- Grill-Me Preflight for assumptions, boundaries, tradeoffs, and acceptance criteria
-- Optional multi-agent launch review, task contracts, and responsibility boundaries
-- Governed Codex peer-task routing when native sub-agent dispatch cannot satisfy an approved hard model or effort contract
-- Delivery, quality, and memory-write checklists
-- English and Simplified Chinese runtime templates
-- Native `malts-*` Skill bridges for Codex, Claude Code, and OpenCode
-- Review-first install, update, recovery, rollback, and residue handling
-- Startup discovery cross-checked against the installed runtime state
-- Stable and preview runtime identities, read-only doctor diagnostics, bounded audit retention, and safe legacy migration
-- Migration handling for known MALTS `v0.1.0` through `v0.1.9` layouts
 
 ## Core And Optional Capabilities
 
 | Capability | Default | Purpose |
 |---|---|---|
-| Single-agent execution | On | Keep small and clear work low-overhead. |
-| `PROJECT_CONTROL.md` | Used for non-trivial or recovery-sensitive work | Preserve goal, queue, decisions, risks, and verification state. |
-| `WORK_TASK_REPORT.md` | Used after MALTS phases or final delivery | Record result, evidence, remaining risk, and next steps. |
-| `PROJECT_HANDOFF.md` | Used for continuation or context-risk handoff | Give a future Agent a restart-safe current state. |
+| Single-Agent execution | On | Keep small and clear work low-overhead. |
+| `PROJECT_CONTROL.md` | Used for non-trivial or recovery-sensitive work | Preserve Project facts, global acceptance, cross-Phase decisions, and verified recovery context. |
+| Phase and explicit Session controls | Available for long workspaces | Keep local scope, queues, checkpoints, and evidence with their owner. |
+| `WORK_TASK_REPORT.md` | On demand | Provide a derived report with evidence; never grant execution authority. |
+| `PROJECT_HANDOFF.md` | On demand | Provide a bounded continuation view; never compete with recovery authority. |
 | Grill-Me Preflight | Offered for unclear or non-trivial work | Surface assumptions and acceptance criteria before implementation. |
-| Multi-agent scheduling | Off | Add controlled delegation only when it has clear value. |
-| Plan Recheck | Event-triggered for active S3/S4 plans | Detect plan, scope, Session, and launch-review drift before gated actions. |
+| Multi-Agent scheduling | Off | Add controlled delegation only where it has clear value. |
+| Resource admission | Off | Govern eligible concurrent writes, shared capabilities, stale writers, and uncertain effects. |
+| Plan Recheck | Event-triggered for active plans | Detect plan, scope, Session, and launch-review drift before gated actions. |
 | Growth review | Available | Filter reviewed lessons before durable promotion. |
 | Bilingual documentation | Available | Provide English and Simplified Chinese references without duplicating project state. |
 
-## Activation And Artifacts
+## Control Files And Derived Views
 
-MALTS does not create permanent control files for every short task. For small work, stay single-agent and use the normal project instructions.
+MALTS does not create permanent control files for every short task. For contained work, stay single-Agent and follow the existing project instructions.
 
-When a task needs recoverable long-task mode, create or reuse `PROJECT_CONTROL.md` in the project root. Each MALTS phase or final delivery should write or update `WORK_TASK_REPORT.md`. Use `PROJECT_HANDOFF.md` when a future Agent needs the recorded state. Narrative content may use the project's working language; translated mirror files are optional and explicit.
+When a task needs recoverable long-task mode, create or reuse `PROJECT_CONTROL.md` in the project root. Refresh `WORK_TASK_REPORT.md` only when the user requests a durable report or a material delivery or recovery need justifies one. Create `PROJECT_HANDOFF.md` only when a future Agent needs a bounded continuation view. Narrative content may use the project's working language; translated mirror files are optional and explicit.
 
 | File | Default role |
 |---|---|
-| `PROJECT_CONTROL.md` | Canonical project state, task queue, decisions, risks, and verification status. |
-| `WORK_TASK_REPORT.md` | Canonical phase or final report with direct evidence. |
-| `PROJECT_HANDOFF.md` | Canonical continuation and recovery context. |
+| `PROJECT_CONTROL.md` | Canonical Project facts, global acceptance, cross-Phase decisions, and compact owner indexes. |
+| `PHASE_CONTROL.md` | Canonical Phase objective, boundary, local queue, deliverables, evidence, and closure. |
+| `SESSION_CONTROL.md` | Canonical checkpoint for one explicitly bounded work session. |
+| `WORK_TASK_REPORT.md` | On-demand derived report with direct evidence; never an authorization or lifecycle authority. |
+| `PROJECT_HANDOFF.md` | On-demand derived continuation view; never a competing recovery authority. |
 
 ## Repository Layout
 
@@ -91,14 +117,15 @@ THIRD_PARTY_NOTICES.md  Required attribution notices
 - [Getting Started](docs/GETTING_STARTED.md): installation and first-use path.
 - [Install](docs/INSTALL.md): installation commands and roots.
 - [Update](docs/UPDATE.md): review-first replacement of an existing installation.
-- [Lifecycle](docs/LIFECYCLE.md): runtime versions, recovery, rollback, doctor diagnostics, and cleanup.
-- [Usage](docs/USAGE.md): normal tasks, long tasks, multi-agent work, growth, and handoff.
+- [Lifecycle](docs/LIFECYCLE.md): runtime versions, recovery, reorganization, doctor diagnostics, and cleanup.
+- [Usage](docs/USAGE.md): ordinary tasks, long workspaces, multi-Agent work, growth, and handoff.
 - [System Overview](docs/SYSTEM_OVERVIEW.md): public explanation of goals, features, and boundaries.
 - [Core Design](docs/CORE_DESIGN.md): detailed operating model and invariants.
 - [Agent Install](docs/AGENT_INSTALL.md): authorization and source-selection rules for Agents.
 - [Release Artifact](docs/RELEASE_ARTIFACT.md): optional single-ZIP offline delivery.
 - [Security](docs/SECURITY.md): source and package verification plus privacy boundaries.
 - [Bilingual Docs](docs/BILINGUAL_DOCS.md): language and navigation policy.
+- [Changelog](CHANGELOG.md): version history; release summaries do not accumulate in this README.
 
 ## Acknowledgements
 
@@ -120,14 +147,7 @@ Installation is review-first. The installer writes a plan first and does not cha
 .\scripts\Install-MALTS.review.cmd -Tool AllIncluded
 ```
 
-Supported tools:
-
-```text
-Codex
-ClaudeCode
-OpenCode
-AllIncluded
-```
+Supported tools: `Codex`, `ClaudeCode`, `OpenCode`, and `AllIncluded`.
 
 If Windows PowerShell blocks script execution, run the same command with a process-local policy override:
 
@@ -135,7 +155,7 @@ If Windows PowerShell blocks script execution, run the same command with a proce
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-MALTS.ps1 -Tool Codex
 ```
 
-See [docs/INSTALL.md](docs/INSTALL.md) and [docs/AGENT_INSTALL.md](docs/AGENT_INSTALL.md).
+See [Install](docs/INSTALL.md) and [Agent Install](docs/AGENT_INSTALL.md).
 
 ## Update Preview
 
@@ -150,22 +170,6 @@ Installed users can update from a current repository checkout without manually d
 
 `MergeSafe` defaults to `InstructionMode ManagedMerge`: it updates the MALTS-managed instruction block while preserving surrounding user rules. Use `InstructionMode Skip` to leave the instruction file untouched.
 
-## Workspace Lifecycle, Discovery Hardening, and Release Test Deep-Path Fix
-
-MALTS 1.2.0 extends the long-project workspace without changing its minimal default. A Phase now has an explicit boundary contract, read-only boundary review, pause/resume, hash-bound transition planning, bidirectional carry-over, and terminal `SUPERSEDED` state.
-
-Artifact lifecycle is opt-in and defaults to `NOT_ENROLLED`. Phase and Session controls may own compact local registries; Project holds only enrollment and Shared/Archive pointers. Audit is read-only, mutation is dry-run by default and requires explicit `--apply`, and no Artifact command creates a Session, moves/deletes payloads, invokes VCS, or recursively scans undeclared trees.
-
-See [Lifecycle](docs/LIFECYCLE.md) for the contract and [Usage](docs/USAGE.md) for exact commands. Current long-project workspaces use schema v4 controls; existing schema v1/v2/v3 workspaces remain readable and are not silently migrated or enrolled.
-
-MALTS 1.2.2 preserves the v1.2.1 cross-control consistency and recovery hardening, and makes ordinary discovery authority paths explicit. A successful `discover` result exposes deterministic `authority_paths`, including the exact `<lifecycle-root>/registry/active_generation.json` pointer; callers must not probe or infer a sibling `<lifecycle-root>/active_generation.json` path. Missing, malformed, stale, or conflicting authority still fails closed.
-
-MALTS 1.2.3 fixes release test fixture copying that exceeded the Windows path length limit. The release test suite now excludes the private `.release-control/archive` historical tree, matching production clean-source classification; five `WinError 206` failures are resolved and all nine test suites are green. No runtime, schema, Artifact, dependency, payload, VCS, update-check, or remote-publication behavior changed.
-
-MALTS 1.3.0 upgrades the workspace schema to v4 and the Result Contract to v2, adds outcome-oriented Phase and typed Attempt semantics, an independent `max_authorized_rounds` STOP gate, recoverable multi-surface transactions, and a lower-overhead S0/S1 Fast Path. Schema and contract migration is explicit cold migration only (`migrate-workspace-v3-to-v4`, `migrate-result-contract-v1-to-v2`); EN/CH documents and the Codex/Claude Code/OpenCode adapters are synchronized from one machine-checkable invariant source.
-
-MALTS 1.3.1 fixes the v3-to-v4 workspace migration for workspaces with historical closed Sessions: closed Session registry rows are archived in the migration plan instead of failing v4 schema validation, no lease or owner authority is fabricated, and historical Session files remain byte-identical.
-
 ## Documentation Language
 
 The repository defaults to English source documents. Simplified Chinese documents live in `README.zh-CN.md` and `docs/zh-CN/`; localized runtime references live under `runtime/CH/`. Runtime project artifacts stay single and canonical by default. See [Bilingual Docs](docs/BILINGUAL_DOCS.md).
@@ -175,7 +179,7 @@ The repository defaults to English source documents. Simplified Chinese document
 Current release version:
 
 ```text
-1.3.1
+1.5.0
 ```
 
 ## License

@@ -15,6 +15,10 @@ Users may read either language. Commands, paths, schema fields, IDs, status valu
 
 When `NarrativeLanguage` is Simplified Chinese, an Agent may use the CH templates as drafting references while preserving the stable schema markers and machine-readable values required by MALTS.
 
+User-facing lifecycle and status text selects language in this order: explicit user language, `NarrativeLanguage`, then English fallback. Machine-readable fields and stable status codes remain English. Simplified Chinese presentation must include the Chinese meaning plus the original code in full-width parentheses, for example `已返回（RETURNED）`; use `malts_user_tools.py render-user-status` instead of maintaining a second translation table.
+
+Core-generated Phase/Session recovery summaries and default next actions follow the same language selection. Automatic selection reads only the stable `Narrative language` field inside `<!-- MALTS:section=metadata -->`, never a field-shaped line in free-form project text. Status labels still come from the shared status catalog; free-form user-authored goals, recovery prose, and next actions are preserved instead of being guessed or automatically translated. On-demand report and handoff projections render stored recovery prose as-is; newly generated system prose is already localized at its lifecycle write boundary, while legacy prose with no ownership provenance remains unchanged.
+
 ## Canonical Project Files
 
 MALTS uses one canonical file for each runtime role by default:

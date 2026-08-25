@@ -6,6 +6,20 @@ MALTS is single-agent first. Multi-agent execution is a controlled division-of-w
 
 In design terms, MALTS functions as a minimal-overhead Agent Project Operating System. It connects task delivery, recoverable execution, controlled delegation, verification evidence, and retrospective learning into one closed operating loop. Its central purpose is to preserve intent, evidence, recovery state, and reusable knowledge across bounded execution rounds.
 
+## Workspace authority, entry, and concurrency
+
+CURRENT workspace contract separates semantic ownership from machine enforcement:
+
+- `PROJECT_CONTROL.md` owns Project facts; each `PHASE_CONTROL.md` owns that Phase's goal, boundary, queue, plan, evidence, and recovery; an explicitly opened `SESSION_CONTROL.md` owns only one bounded checkpoint.
+- `runtime/workspace_control.json` owns the machine-enforced schema/profile/index and exact transaction bindings. `runtime/workspace_coordination.json` owns opt-in Admissions, capability queues, fencing epochs, and quarantine. Neither may invent or overwrite Markdown goals, plans, or recovery facts.
+- In CURRENT contract, work reports and existing handoffs are on-demand derived views. Their drift is a warning and local reconcile target, not another authority or global stop. legacy workspace layout retains its strict projection-binding behavior until explicit migration.
+
+Initialization and ordinary entry are separate operations. Full initialization is for first setup, structural repair, explicit reorganization, or major lifecycle change. An unchanged CURRENT workspace enters through one bounded, read-only `workspace-entry` assessment. Without an active Session, default `single_phase` reads at most four current-set files / 24 KiB and opt-in `resource_admission` at most five / 28 KiB; it reads no history, performs no writes, and creates no entity. Applicable instructions are host-owned, while Project control is loaded only by an explicit Project-level/review/recovery gate. Deep validation and cold recovery remain explicit escalation paths.
+
+Concurrency is an opt-in safety profile, not a new Phase hierarchy. `single_phase` preserves one open Phase and creates no coordination state. `resource_admission` keeps one scalar primary `active_phase_id` while permitting additional `OPEN` Phases. A write grant binds exact Phase bytes, actor, expiry, typed locators/capabilities, authorization, and monotonically increasing fencing epochs. Typed locators cover `PATH`, `ARTIFACT`, `RECORD`, `SERVICE`, `DEVICE`, and `ENVIRONMENT`; path conflicts include exact, parent/child, and declared alias overlap. Capability modes are `SHARED`, `EXCLUSIVE`, `QUEUED`, and `ISOLATE_REQUIRED`.
+
+Lease renewal is explicit and creates no daemon. Stale actors and old fencing tokens fail closed. Workspace and coordination authority writes use one unique-writer lock and recheck exact preimages after lock acquisition. An external effect reported as `UNKNOWN` quarantines only affected domains unless workspace authority/recovery itself is uncertain; unrelated domains may continue and quarantined domains require explicit evidence-backed reconcile. Tool-specific adapters declare resources and enforcement capabilities; Core contains no Unity, Unreal, VCS, database, CI, or device business rule.
+
 ## Design Baseline
 
 This document defines the core design principles, operating model, and system boundaries of MALTS. MALTS is designed for long-running coding tasks performed or assisted by AI agents, with emphasis on goal drift, state loss, insufficient verification evidence, cross-window recovery, and reusable learning. It specifies the relationship between single-agent execution, controlled multi-agent division of work, recovery, delivery verification, and growth.
@@ -173,14 +187,14 @@ MALTS has three practical modes.
 | Mode | When Used | Files Required | Behavior |
 |---|---|---|---|
 | Normal single-agent work | Small, clear, low-risk tasks | None by default | Finish directly, verify the relevant completion criteria, optionally make a low-overhead growth judgment |
-| MALTS single-agent mode | Work needs recoverable state or phase reporting | `PROJECT_CONTROL.md`; usually `WORK_TASK_REPORT.md` and `PROJECT_HANDOFF.md` when appropriate | Main controller still executes by default, but state and verification are persistent |
+| MALTS single-agent mode | Work needs recoverable state | Project authority plus the current owning Phase/Session controls; report/handoff only on demand | Main controller still executes by default, but material state and verification are recoverable without per-task document churn |
 | MALTS multi-agent mode | Delegation clearly reduces risk or cost | MALTS files plus task contracts and sub-agent reports | Requires launch review and explicit confirmation before dispatch |
 
 Single-agent first means the main controller remains the default executor after MALTS is enabled. The principle has two explicit boundaries: it neither enables MALTS for every task nor removes state files once MALTS has been activated.
 
 ### Long-Project Initialization Completion
 
-`malts-project-init` owns lightweight root project control. Selecting the dedicated `malts-long-project-workspace-init` entry instead is an affirmative request for a phase-oriented, recoverable workspace. That workflow is not complete when it has created only `AGENTS.md`, `PROJECT_CONTROL.md`, `WORK_TASK_REPORT.md`, thin `CLAUDE.md`, and non-canonical `runtime/`; its reviewed initialization must also register and create the first active `PHASE_CONTROL.md`.
+`malts-project-init` owns explicit lightweight root setup. Selecting the dedicated `malts-long-project-workspace-init` entry instead is an affirmative request for a phase-oriented, recoverable workspace. That workflow is not complete when it has created only root files and machine state; its reviewed initialization must also register and create the first active `PHASE_CONTROL.md`. Neither initializer is an ordinary per-task entry path.
 
 Missing initial Phase input is a zero-write input failure, not a silent minimal mode. Later Phases remain explicit, and a Session remains an independently bounded operation that is never created from initialization, ordinary conversation turns, normal writes, validation, maintenance, or compaction. A legacy root-only workspace is diagnosed as `NEEDS_INITIAL_PHASE` and migrated without overwriting existing user controls.
 
@@ -202,7 +216,7 @@ The Agent should explain the expected operational value of multi-agent work befo
 
 ## Project State Model
 
-`PROJECT_CONTROL.md` is the main state file when MALTS is enabled. It exists so the next window, next Agent, or same Agent after context compaction can continue from external evidence.
+`PROJECT_CONTROL.md` is the authority for Project-level facts when MALTS is enabled. Phase and Session facts remain in their owners, while runtime schema/profile/index and coordination facts remain in their machine contracts. Together, the bounded current set lets another window continue from external evidence without one oversized duplicate state file.
 
 Current MALTS version metadata inside `PROJECT_CONTROL.md` is not historical prose. Agents must resolve the active boot file, read `<MALTS_ROOT>/VERSION`, and write that value into current metadata. Version strings found in old control files, work reports, handoffs, templates, release notes, or chat history are historical until revalidated against the active root.
 
@@ -247,26 +261,26 @@ For small MALTS-enabled work, the file can remain compact. The objective is reco
 
 ### Long-Workspace Cross-Control Consistency
 
-Long-project state is not one flat file. Project owns the original goal/global acceptance/active Phase index and Project recovery; Phase owns its boundary, Boundary Review, plan, queue, evidence, Phase recovery, and closure; an explicit Session owns only its bounded scope and checkpoint. `WORK_TASK_REPORT.md` is the required current schema-v4 projection. `PROJECT_HANDOFF.md` is optional, but when present it is also a checked projection. Runtime JSON is typed non-canonical state and cannot overwrite Markdown authority.
+Long-project state is not one flat file. Project owns the original goal/global acceptance/primary Phase index and Project recovery; Phase owns its boundary, Boundary Review, plan, queue, evidence, Phase recovery, and closure; an explicit Session owns only its bounded scope and checkpoint. Machine workspace state owns schema/profile/index and transaction bindings; coordination state owns Admissions/queues/fencing/quarantine. CURRENT report/handoff files are on-demand derived views. legacy workspace layout keeps its required report and checked optional handoff compatibility projection.
 
-Fresh workspaces use an exact closed schema v4. Exact schema v1/v2/v3 remain readable compatibility contracts and require explicit migration; validators dispatch by declared version and reject unknown versions. The active Phase full-file SHA-256 and normalized boundary, Boundary Review, and recovery hashes bind the authority to report/handoff/runtime projections. Normalization converts line endings to LF, strips trailing whitespace per line, and preserves exactly one trailing LF before SHA-256.
+Fresh workspaces use the exact closed CURRENT contract and default to `single_phase`. Supported legacy layouts remain readable internal compatibility inputs and require explicit one-hop reorganization; internal validators dispatch by the declared legacy format and reject unknown formats. The selected Phase full-file SHA-256 and normalized boundary, Boundary Review, and recovery hashes bind machine enforcement and any refreshed views. Normalization converts line endings to LF, strips trailing whitespace per line, and preserves exactly one trailing LF before SHA-256.
 
 Boundary review execution, recorded outcome, decision, and authorization are separate state dimensions. Read-only `phase-boundary-review` never persists or authorizes work. Explicit `record-phase-boundary-review` persists only the structured record; later lifecycle mutations still require their own authorization evidence. Structural, binding, deterministic-consistency, and advisory-semantic findings remain separate so semantic advice cannot hide byte drift.
 
-Applied consistency migration/record/reconciliation uses an isolated persisted workspace transaction domain with exact preconditions and original-byte rollback. Its `runtime/workspace_transaction.lock.json`, `runtime/workspace_transactions/`, and `WS_TRANSACTION_*` codes never collide with Artifact transaction state. Interrupted journals are retained for exact-hash recovery rather than auto-deleted.
+Applied workspace/coordination migration, record, and reconciliation uses one persisted unique-writer transaction domain with exact preconditions, post-lock preimage checks, and original-byte rollback. Its `runtime/workspace_transaction.lock.json`, `runtime/workspace_transactions/`, and `WS_TRANSACTION_*` codes remain separate from Artifact transaction state. Interrupted journals are retained for exact-hash recovery rather than auto-deleted.
 
 ## Artifact Matrix
 
 | Artifact | Default Location | Audience | Purpose |
 |---|---|---|---|
 | `PROJECT_CONTROL.md` | Project root | Agent-facing | Current goal, queue, decisions, ownership, verification, risks, recovery state |
-| `WORK_TASK_REPORT.md` | Project root | Agent-facing structure and report source | Phase or final delivery report structure and evidence record |
-| `PROJECT_HANDOFF.md` | Project root | Agent-facing | Continuation source for future windows, tools, or Agents |
+| `WORK_TASK_REPORT.md` | Project root | User/Agent-facing derived view | On-demand Phase or final delivery summary; non-authoritative in CURRENT contract |
+| `PROJECT_HANDOFF.md` | Project root | Agent-facing derived view | On-demand continuation summary; non-authoritative in CURRENT contract |
 | `TASK_CONTRACT.template.en.md` | `runtime/EN/templates/` | Agent-facing | Contract for a real sub-agent task |
 | `SUB_AGENT_REPORT.template.en.md` | `runtime/EN/templates/` | Agent-facing | Structured result returned by a sub-agent |
 | `PROJECT_HANDOFF.template.en.md` | `runtime/EN/templates/` | Agent-facing | Template for fixed recovery handoff |
 | `WORK_TASK_REPORT.template.en.md` | `runtime/EN/templates/` | Agent-facing structure, user-facing output | Structure for reports that may be written in the user's language |
-| `WORK_TASK_REPORT.template.zh-CN.md` | `runtime/CH/templates/` | Localized reference | Reference for Chinese wording inside canonical reports or explicit translated mirrors |
+| `WORK_TASK_REPORT.template.zh-CN.md` | `runtime/CH/templates/` | Localized reference | Reference for Chinese wording inside on-demand report views or explicit translated views |
 | `DELIVERY_CHECKLIST.en.md` | `runtime/EN/checklists/` | Agent-facing | Final or phase delivery self-check |
 | `MEMORY_WRITE_CHECKLIST.en.md` | `runtime/EN/checklists/` | Agent-facing | Filter before durable memory or rule writes |
 | `QUALITY_GATE.en.md` | `runtime/EN/checklists/` | Agent-facing | General completion gate |
@@ -284,8 +298,8 @@ The standard MALTS execution protocol is round-based:
 5. Offer MALTS-native Grill-Me Preflight for non-trivial or unclear starts unless it is clearly N/A.
 6. Execute the next bounded round.
 7. Verify before marking tasks complete.
-8. Write or append `WORK_TASK_REPORT.md` after each MALTS phase or final delivery, using the user's or project's primary language for narrative content. Create a full translated mirror only when explicitly requested.
-9. When entering handoff, context-risk handling, or cross-window continuation, update `PROJECT_HANDOFF.md`.
+8. Provide a user-facing result; refresh `WORK_TASK_REPORT.md` only when a durable report is requested or materially useful. Create a full translated mirror only when explicitly requested.
+9. Persist material owner-local recovery state at context risk. Create/update `PROJECT_HANDOFF.md` only for an actual handoff request or recovery need.
 10. Route reusable lessons through the MALTS Memory Pipeline.
 
 Long work is modeled as a sequence of bounded rounds with explicit stop, report, and continuation points. This design makes continuity independent of any single uninterrupted chat window.
@@ -303,12 +317,7 @@ If context becomes risky, the main controller must persist recovery state before
 - unresolved sub-agent work
 - multiple active branches of work
 
-Before continuation, a future Agent should read in this order:
-
-1. `PROJECT_HANDOFF.md`
-2. `PROJECT_CONTROL.md`
-3. `WORK_TASK_REPORT.md`
-4. current project files needed for the next task
+Before continuation, a future Agent runs `workspace-entry --task-class CONTEXT_RECOVERY` and reads only its bounded current-set paths. A report/handoff is loaded only when the task or recovery decision references it; full history is never selected by default.
 
 If chat memory conflicts with file state, current file state wins until verified otherwise.
 
@@ -323,11 +332,11 @@ The supported responsibility lanes are:
 | Role | Participation | Default Permission | Responsibility |
 |---|---|---|---|
 | Main Controller | Required | Coordination, merge, final judgment | Owns user communication, state, launch review, merge, verification, delivery |
-| Planner | Optional | Read-only advice | Breaks work into tasks, dependencies, priorities, and batches |
-| Explorer | Optional | Read-only | Investigates project structure, logs, modules, or root cause |
-| Worker | Optional | Scoped write access | Implements within a declared file or task boundary |
-| Verifier | Optional | Read-only by default; may run checks | Tests, builds, scans, and validates delivery claims |
-| Memory Curator | Optional | Candidate writes only | Extracts reusable lessons and prepares filtered growth candidates |
+| MALTS Planner | Optional | Read-only advice | Breaks work into tasks, dependencies, priorities, and batches |
+| MALTS Explorer | Optional | Read-only | Investigates project structure, logs, modules, or root cause |
+| MALTS Worker | Optional | Scoped write access | Implements within a declared file or task boundary |
+| MALTS Verifier | Optional | Read-only by default; may run checks | Tests, builds, scans, and validates delivery claims |
+| MALTS Memory Curator | Optional | Candidate writes only | Extracts reusable lessons and prepares filtered growth candidates |
 
 Do not create a ceremonial `Planner → Explorer → Worker → Verifier → Memory Curator` chain. A bounded task may use no sub-agent at all, one targeted lane, or multiple independent lanes only when that improves delivery and the authorization and verification contracts permit it.
 
@@ -369,7 +378,7 @@ Sub-agent reports must be recycled before merge. Reports that are off-scope, unv
 
 Failures should be recorded as failures. Partial or failed sub-agent output must remain classified as incomplete work rather than completed progress.
 
-Schema-v4 recovery authority is deterministic: active Session checkpoint, otherwise active Phase recovery, otherwise an explicitly bound terminal Phase, otherwise Project recovery. Registry time/order and the newest historical Session are never authority. Required current report and optional current handoff bindings must agree before recovery-sensitive dispatch or delivery.
+legacy/CURRENT workspace layouts recovery authority is deterministic: active Session checkpoint, otherwise primary active Phase recovery, otherwise an explicitly bound terminal Phase, otherwise Project recovery. Registry time/order and the newest historical Session are never authority. legacy workspace layout projections retain exact checks; CURRENT derived-view drift is warning/local reconcile and cannot authorize dispatch.
 
 ## Verification And Delivery
 
@@ -419,6 +428,12 @@ Growth runs in tiers:
 
 This tiering keeps ordinary work at low operational cost while preserving lessons when their expected reuse value justifies retention.
 
+### Growth Routing Gate
+
+After verification and before final delivery, every normal task evaluates a no-write L1 Growth Routing Gate. Trivial work without a signal is silent (`NO_OUTPUT`). Non-trivial work or a correction, verification reversal, recovery, failure, or reusable method produces a short visible `LIGHT_REPORT`. Repeated/high-impact evidence, phase delivery, long-task completion, and delivery failure produce `RETROSPECTIVE_RECOMMENDED`; this recommends rather than automatically executes Standard or Major review. Explicitly requested or already authorized review is `RETROSPECTIVE_AUTHORIZED`.
+
+L1 is in-context only and cannot create a ledger, Phase, Session, Artifact, background service, or durable control update. L2 project maintenance and L3 system promotion remain independently authorized. A report-only record does not satisfy user-visible delivery. Applicable Plan/Boundary/transaction/unknown-effect gates run first and may return `BLOCKED`; Growth never bypasses them.
+
 ## MALTS Memory Pipeline
 
 MALTS Memory Pipeline is the durable growth path for reusable lessons. It is independent of any single external memory tool.
@@ -426,7 +441,7 @@ MALTS Memory Pipeline is the durable growth path for reusable lessons. It is ind
 The pipeline is:
 
 1. Observe a reusable lesson from delivery, failure, user correction, verification, or process friction.
-2. Record it locally first in `PROJECT_CONTROL.md`, `WORK_TASK_REPORT.md`, or a local retrospective.
+2. Keep L1 analysis temporary; record it locally only after the matching L2 project authorization exists.
 3. Filter it with `MEMORY_WRITE_CHECKLIST.en.md`.
 4. Deduplicate against existing rules, skills, and instruction files.
 5. Choose the narrowest durable destination: project skill, global skill, `GLOBAL_MEMORY.md`, `AGENTS.md`, `CLAUDE.md`, or an equivalent tool instruction entry.

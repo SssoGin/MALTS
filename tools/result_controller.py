@@ -686,6 +686,15 @@ def _apply_v2_event(
             return [_v2_issue("RC_EVENT_REPLAY_CONFLICT", "$.payload.observed_request_id", "Observed Request ID already exists.")]
         requests[payload["observed_request_id"]] = payload["request_intent_id"]
         projection.setdefault("observed_request_intents", set()).add(payload["request_intent_id"])
+        if payload.get("outcome_state") == "UNKNOWN" or payload.get("charge_state") == "UNKNOWN":
+            projection["unresolved_side_effects"] = True
+            projection["recovery_required"] = True
+            quarantine_id = payload.get("coordination_quarantine_id")
+            if quarantine_id is not None:
+                quarantines = projection.setdefault("coordination_quarantine_ids", [])
+                if quarantine_id not in quarantines:
+                    quarantines.append(quarantine_id)
+                    quarantines.sort()
     elif kind in {"RECOVERY_OBSERVATION", "CORRECTION_APPENDED"}:
         if (payload.get("unresolved_side_effects") is False or payload.get("recovery_required") is False) and not event.get("evidence_refs"):
             return [_v2_issue("RC_SIDE_EFFECT_UNKNOWN", "$.evidence_refs", "Clearing an unknown side effect or recovery state requires direct appended evidence.")]
@@ -693,6 +702,19 @@ def _apply_v2_event(
             projection["unresolved_side_effects"] = payload["unresolved_side_effects"]
         if "recovery_required" in payload:
             projection["recovery_required"] = payload["recovery_required"]
+        reconciled = set(payload.get("reconciled_quarantine_ids", []))
+        if reconciled:
+            projection["coordination_quarantine_ids"] = [
+                quarantine_id
+                for quarantine_id in projection.get("coordination_quarantine_ids", [])
+                if quarantine_id not in reconciled
+            ]
+        if not projection.get("coordination_quarantine_ids") and payload.get("unresolved_side_effects") is False:
+            projection["recovery_required"] = bool(payload.get("recovery_required", False))
+        if projection.get("coordination_quarantine_ids") and (
+            projection.get("unresolved_side_effects") is False or projection.get("recovery_required") is False
+        ):
+            return [_v2_issue("RC_SIDE_EFFECT_UNKNOWN", "$.payload.reconciled_quarantine_ids", "Every bound coordination quarantine must be reconciled before unknown/recovery state can be cleared.")]
     _increment_usage(projection, event)
     envelope_id = payload.get("envelope_id")
     if envelope_id:
@@ -746,6 +768,18 @@ def _hydrate_internal_state(projection: dict[str, Any], committed: list[dict[str
             projection["observed_request_intents"].add(str(payload.get("request_intent_id")))
 
 
+def _is_current_result_contract(contract: dict[str, Any]) -> bool:
+    return contract.get("contract_id") == "malts.result.current"
+
+
+def _is_governed_result_contract(contract: dict[str, Any]) -> bool:
+    return _is_current_result_contract(contract) or contract.get("contract_version") == "3"
+
+
+def _is_event_capable_result_contract(contract: dict[str, Any]) -> bool:
+    return _is_current_result_contract(contract) or contract.get("contract_version") in {"2", "3"}
+
+
 def _public_projection(value: dict[str, Any]) -> dict[str, Any]:
     public = copy.deepcopy(value)
     for internal_key in (
@@ -758,13 +792,11 @@ def _public_projection(value: dict[str, Any]) -> dict[str, Any]:
 
 def _new_v2_projection(
     contract: dict[str, Any],
-    model: dict[str, Any],
-    invariant_sha256: str,
     projected_at: str,
     contract_sha256: str,
 ) -> dict[str, Any]:
-    return {
-        "projection_schema": 1,
+    projection = {
+        "projection_schema": 2 if _is_governed_result_contract(contract) else 1,
         "canonical": False,
         "lineage_id": contract["lineage_id"],
         "task_id": contract["task_id"],
@@ -800,10 +832,14 @@ def _new_v2_projection(
                 "sha256": contract_sha256,
             }
         ],
-        "invariant_set_id": model["invariant_set_id"],
-        "invariant_source_sha256": invariant_sha256,
+        "invariant_set_id": contract["invariant_set_id"],
+        "invariant_source_sha256": contract["invariant_source_sha256"],
         "projected_at": projected_at,
     }
+    if _is_governed_result_contract(contract):
+        projection["execution_authority"] = copy.deepcopy(contract["execution_authority"])
+        projection["coordination_quarantine_ids"] = []
+    return projection
 
 
 def _semantic_batch_issues(
@@ -860,6 +896,11 @@ def _committed_chain_issues(
         return [_v2_issue("RC_LINEAGE_STALE", item.path, item.message) for item in projection_issues]
     if public.get("lineage_id") != contract.get("lineage_id") or public.get("task_id") != contract.get("task_id") or public.get("phase_id") != contract.get("phase_id"):
         return [_v2_issue("RC_LINEAGE_STALE", "$", "Projection identity does not match the Result Contract lineage.")]
+    expected_projection_schema = 2 if _is_governed_result_contract(contract) else 1
+    if public.get("projection_schema") != expected_projection_schema:
+        return [_v2_issue("RC_LINEAGE_STALE", "$.projection_schema", "Projection schema does not match the Result Contract version.")]
+    if _is_governed_result_contract(contract) and public.get("execution_authority") != contract.get("execution_authority"):
+        return [_v2_issue("RC_LINEAGE_STALE", "$.execution_authority", "Projection does not bind the CURRENT Result execution authority.")]
     latest_contract = public.get("latest_contract_revision", {})
     contract_sha = contract_sha256
     expected_contract_path = f"task-state/{contract['task_id']}/contracts/{contract['revision_id']}.json"
@@ -900,6 +941,11 @@ def _committed_chain_issues(
             return [_v2_issue("RC_LINEAGE_STALE", f"$.committed_events.{index}.contract_revision", "Committed event binds a different Result Contract revision.")]
         if event.get("phase_boundary_revision") != contract.get("accepted_phase_boundary"):
             return [_v2_issue("RC_LINEAGE_STALE", f"$.committed_events.{index}.phase_boundary_revision", "Committed event binds a different Phase boundary revision.")]
+        expected_event_version = 2 if _is_governed_result_contract(contract) else 1
+        if event.get("event_version") != expected_event_version:
+            return [_v2_issue("RC_LINEAGE_STALE", f"$.committed_events.{index}.event_version", "Committed event version does not match the Result Contract version.")]
+        if _is_governed_result_contract(contract) and event.get("execution_authority") != contract.get("execution_authority"):
+            return [_v2_issue("RC_LINEAGE_STALE", f"$.committed_events.{index}.execution_authority", "Committed event binds a different execution authority.")]
         recorded_at = _instant(str(event.get("recorded_at")))
         if previous_time is not None and recorded_at <= previous_time:
             return [_v2_issue("RC_LINEAGE_STALE", f"$.committed_events.{index}.recorded_at", "Committed event times must be strictly increasing.")]
@@ -928,8 +974,7 @@ def _committed_chain_issues(
     model, model_issues = load_lifecycle_invariants(malts_root)
     if model is None:
         return [{"code": item.code, "path": item.path, "message": item.message} for item in model_issues]
-    invariant_sha256 = hashlib.sha256((malts_root / "tools" / "lifecycle_invariants.json").read_bytes()).hexdigest().upper()
-    replay = _new_v2_projection(contract, model, invariant_sha256, committed[-1]["recorded_at"], contract_sha256)
+    replay = _new_v2_projection(contract, committed[-1]["recorded_at"], contract_sha256)
     operation_groups: list[list[dict[str, Any]]] = []
     for event in committed:
         if not operation_groups or operation_groups[-1][0]["operation_id"] != event["operation_id"]:
@@ -965,8 +1010,8 @@ def apply_event_batch_v2(
 ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
     """Pure, all-or-nothing v2 event replay/application. It performs no I/O."""
 
-    if contract.get("contract_version") != "2":
-        return None, {"decision": "DENIED", "issues": [_v2_issue("RC_V2_MIGRATION_REQUIRED", "$.contract_version", "Result v2 event commands require an explicit v1-to-v2 migration.")]}
+    if not _is_event_capable_result_contract(contract):
+        return None, {"decision": "DENIED", "issues": [_v2_issue("RC_REORGANIZATION_REQUIRED", "$", "Result event commands require the CURRENT Result contract or a supported legacy event-capable contract.")]}
     contract_issues = _contract_issues(malts_root, contract)
     if contract_issues:
         return None, {"decision": "INVALID_INPUT", "issues": [item.as_dict() for item in contract_issues]}
@@ -978,12 +1023,14 @@ def apply_event_batch_v2(
     model, model_issues = load_lifecycle_invariants(malts_root)
     if model is None:
         return None, {"decision": "INVALID_INPUT", "issues": [{"code": item.code, "path": item.path, "message": item.message} for item in model_issues]}
-    invariant_sha256 = hashlib.sha256((malts_root / "tools" / "lifecycle_invariants.json").read_bytes()).hexdigest().upper()
     base = copy.deepcopy(projection) if projection is not None else _new_v2_projection(
-        contract, model, invariant_sha256, events[-1].get("recorded_at"), effective_contract_sha256
+        contract, events[-1].get("recorded_at"), effective_contract_sha256
     )
-    if base.get("invariant_set_id") != model.get("invariant_set_id") or base.get("invariant_source_sha256") != invariant_sha256:
-        return None, {"decision": "DENIED", "issues": [_v2_issue("RC_LINEAGE_STALE", "$.invariant_source_sha256", "Projection does not bind the exact active lifecycle invariant source.")]}
+    if (
+        base.get("invariant_set_id") != contract.get("invariant_set_id")
+        or base.get("invariant_source_sha256") != contract.get("invariant_source_sha256")
+    ):
+        return None, {"decision": "DENIED", "issues": [_v2_issue("RC_LINEAGE_STALE", "$.invariant_source_sha256", "Projection does not bind the exact Result Contract lifecycle invariant source.")]}
     committed = list(committed_events or [])
     if projection is None and committed:
         return None, {"decision": "DENIED", "issues": [_v2_issue("RC_LINEAGE_STALE", "$.committed_events", "Committed events require their exact current projection.")]}
@@ -1025,6 +1072,11 @@ def apply_event_batch_v2(
         schema_issues = validate_instance(malts_root, "result-event", event)
         if schema_issues:
             return None, {"decision": "DENIED", "issues": [{"code": item.code, "path": item.path, "message": item.message} for item in schema_issues]}
+        expected_event_version = 2 if _is_governed_result_contract(contract) else 1
+        if event.get("event_version") != expected_event_version:
+            return None, {"decision": "DENIED", "issues": [_v2_issue("RC_EVENT_VERSION_MISMATCH", f"$.events.{index}.event_version", "Event version must match the Result Contract version.")]}
+        if _is_governed_result_contract(contract) and event.get("execution_authority") != contract.get("execution_authority"):
+            return None, {"decision": "DENIED", "issues": [_v2_issue("RC_EXECUTION_AUTHORITY_STALE", f"$.events.{index}.execution_authority", "Event execution authority differs from the accepted CURRENT Result revision.")]}
         if event.get("sequence") != expected_sequence:
             return None, {"decision": "DENIED", "issues": [_v2_issue("RC_LINEAGE_STALE", f"$.events.{index}.sequence", "Event sequence is not consecutive from the current head.")]}
         event_time = _instant(str(event.get("recorded_at")))
@@ -1098,8 +1150,8 @@ def rebuild_lineage_projection_v2(
     match the hashes bound into the chain.
     """
 
-    if contract.get("contract_version") != "2":
-        return None, {"decision": "DENIED", "issues": [_v2_issue("RC_V2_MIGRATION_REQUIRED", "$.contract_version", "Result v2 lineage rebuild requires an explicit v1-to-v2 migration.")]}
+    if not _is_event_capable_result_contract(contract):
+        return None, {"decision": "DENIED", "issues": [_v2_issue("RC_REORGANIZATION_REQUIRED", "$", "Result lineage rebuild requires the CURRENT Result contract or a supported legacy event-capable contract.")]}
     contract_issues = _contract_issues(malts_root, contract)
     if contract_issues:
         return None, {"decision": "INVALID_INPUT", "issues": [item.as_dict() for item in contract_issues]}
@@ -1109,11 +1161,10 @@ def rebuild_lineage_projection_v2(
     model, model_issues = load_lifecycle_invariants(malts_root)
     if model is None:
         return None, {"decision": "INVALID_INPUT", "issues": [{"code": item.code, "path": item.path, "message": item.message} for item in model_issues]}
-    invariant_sha256 = hashlib.sha256((malts_root / "tools" / "lifecycle_invariants.json").read_bytes()).hexdigest().upper()
     if not committed_events:
         projected_at = str(contract.get("accepted_at", "1970-01-01T00:00:00Z"))
         projection = _public_projection(
-            _new_v2_projection(contract, model, invariant_sha256, projected_at, effective_contract_sha256)
+            _new_v2_projection(contract, projected_at, effective_contract_sha256)
         )
         projection_issues = validate_instance(malts_root, "result-lineage-projection", projection)
         if projection_issues:

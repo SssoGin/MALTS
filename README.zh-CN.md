@@ -4,72 +4,98 @@
 
 语言：[English](README.md) | [简体中文](README.zh-CN.md)
 
-MALTS 是面向 AI 编程 Agent 的文件化工作流系统。它把目标、计划、任务归属、验证、交接和经过审阅的经验写入普通项目文件，使长期工作可恢复、可检查，也更容易安全续接。
+MALTS 是面向 AI 辅助项目工作的文件化操作模型，适合需要持续性、明确决策或受控委派的场景。它把工作目标、已验证状态、职责归属、验收证据和恢复上下文保存在普通项目文件中，使工作能够跨 Session、Phase 与 Agent 安全续接。
 
-它适用于迁移、多文件修改、长期排查、发布准备、协议或文档更新，以及任何因遗漏决策或未经验证就宣称完成而会带来风险的工作。
+MALTS 是对项目既有说明的补充，而不是替代。结果明确、范围有限的任务应保持轻量；当中断、范围变化、验证、交接或协同会使关键工作状态变得隐含时，才适合使用 MALTS。
 
-MALTS 坚持单 Agent 优先。主 Agent 是默认执行者；多 Agent 只是可选、必须经过启动审阅的分工机制，而不是安装后自动发生的行为。
+## 任务类型与工作流选择
+
+选择工作流前，请先按下表判断。工作流名称是面向使用者的入口；具体命令和 runtime 路径在对应指南中说明，不应成为首页导航的前置条件。
+
+| 工作状态 | 适用条件 | 对应 MALTS 工作流 | 启动条件 | 主要结果 |
+|---|---|---|---|---|
+| 范围有限的项目任务 | 工作目标清楚、范围受限，不需要持久恢复记录或协同控制。 | 不启用 MALTS，直接遵循项目说明。 | 项目自身已提供充分的执行与验证要求。 | 保持任务与实际复杂度相称，不额外创建控制文件。 |
+| 首次建立普通 MALTS 项目 | 项目需要轻量、可持续的控制，但不需要 Phase 化的长工作区。 | [MALTS Project Init](skills/malts-project-init/SKILL.md)（`malts-project-init`） | 已明确项目目的和初始验收条件。 | 建立一份紧凑的 Project control，并明确事实归属与下一步。 |
+| 首次建立长期或中断敏感项目 | 工作会跨多个 Phase、可能跨上下文续接，或需要明确恢复控制。 | [MALTS Long Project Workspace Init](skills/malts-long-project-workspace-init/SKILL.md)（`malts-long-project-workspace-init`） | 可以界定长工作区边界和首个 Phase。 | 建立可恢复的 Phase 工作区；不会隐式创建 Session、Artifact 或 Agent。 |
+| 已初始化工作区中的普通工作 | 工作区状态未变化，任务仍在当前已批准范围内。 | 使用[使用指南](docs/zh-CN/USAGE.md)中的普通工作区路径。 | 当前工作区权威状态可用，且没有恢复条件。 | 在继续前有界读取当前状态；不重复初始化，也不例行刷新控制文件。 |
+| 新写入范围、恢复或工作区重整 | 工作跨越既有边界、记录状态发生真实漂移，或旧布局需要纳入当前规范。 | 执行前阅读[生命周期](docs/zh-CN/LIFECYCLE.md)和[使用指南](docs/zh-CN/USAGE.md)。 | 已审阅预期变更及其影响，且所需计划已获批准。 | 进行明确、可回滚或可对账的生命周期操作，而不是隐式改写。 |
+| 同一工作区内的并行工作 | 多个工作通道确有价值，且每个写入范围和共享能力可以声明。 | 使用[核心设计](docs/zh-CN/CORE_DESIGN.md)和[生命周期](docs/zh-CN/LIFECYCLE.md)中的资源治理路径。 | 项目显式启用资源准入，并声明可能冲突的资源或能力。 | 不冲突工作可独立推进；冲突、陈旧执行者和不确定外部副作用仍受治理。 |
+| 多 Agent 执行 | 委派有明确价值，且职责通道可以做到独立、可审计。 | [MALTS Multi-Agent Long-Task Scheduling](skills/multi-agent-long-task-scheduling/SKILL.md)（`malts-multi-agent-long-task-scheduling`） | 已完成启动审阅、任务合同并取得用户明确确认。 | 形成可追溯的职责、模型路由、验证与恢复机制下的受控委派。 |
+
+## MALTS 核心工作流
+
+以下是已安装的 7 个核心工作流。每个工作流都只承担明确职责；选择其中一个，不等于获得无关生命周期变更的授权。
+
+| 适用场景 | 对应 MALTS 工作流 | 启动条件 | 主要结果 |
+|---|---|---|---|
+| 建立普通项目控制 | [MALTS Project Init](skills/malts-project-init/SKILL.md)（`malts-project-init`） | 项目需要轻量、可持续的控制。 | 一次性建立初始 Project 级控制。 |
+| 在实现前澄清非简单任务 | [MALTS Grill-Me Preflight](skills/grill-me-preflight/SKILL.md)（`malts-grill-me-preflight`） | 假设、边界、取舍或验收条件需要澄清。 | 只读的澄清结论；不修改文件，也不派发 Agent。 |
+| 初始化、恢复或结构化整理长工作区 | [MALTS Long Project Workspace Init](skills/malts-long-project-workspace-init/SKILL.md)（`malts-long-project-workspace-init`） | 正在建立 Phase 化长期项目、进行结构修复或明确重整。 | 受治理的长工作区结构与恢复路径。 |
+| 输出有界续接记录 | [MALTS Session Handoff](skills/session-handoff/SKILL.md)（`malts-session-handoff`） | 后续 Agent 或 Session 需要经过验证的当前上下文。 | 按需生成 `PROJECT_HANDOFF.md`；它不与规范权威竞争。 |
+| 复盘已验证的项目经验 | [MALTS Project Retrospective Growth](skills/project-retrospective-growth/SKILL.md)（`malts-project-retrospective-growth`） | 已完成、失败或返工的工作包含值得审阅的证据。 | 基于证据的成长候选；写入长期规则仍需单独授权。 |
+| 执行默认的任务后轻量成长检查 | [MALTS Single-Agent Lightweight Growth](skills/single-agent-lightweight-growth/SKILL.md)（`malts-single-agent-lightweight-growth`） | 已验证任务完成，适合执行无写入检查。 | 低成本建议或无操作；不会自行创建长期规则。 |
+| 协调已准入的委派工作 | [MALTS Multi-Agent Long-Task Scheduling](skills/multi-agent-long-task-scheduling/SKILL.md)（`malts-multi-agent-long-task-scheduling`） | 可以明确工作通道、资源、验证职责和用户授权。 | 具有成本感知模型路由的启动审阅与受治理委派路径。 |
+
+精确命令、权限与示例见[快速开始](docs/zh-CN/GETTING_STARTED.md)、[使用指南](docs/zh-CN/USAGE.md)和[生命周期](docs/zh-CN/LIFECYCLE.md)。
+
+## 它解决什么问题
+
+长期 Agent 任务与短提示的失败方式不同：上下文可能被压缩，目标可能漂移，不完整工作可能被误判为完成，并行工作可能发生冲突，而有用经验又可能被丢失或被过度提升。
+
+MALTS 将需要跨这些风险保存的任务状态外置。它区分规范控制与派生报告，在宣称完成前要求证据，保存可恢复的续接路径，并在真实委派开始前要求启动审阅。
+
+## 操作模型
+
+MALTS 坚持单 Agent 优先。主 Agent 是通常的执行者；多 Agent 只是可选、经过审阅的职责分工，而不是安装后自动发生的行为。
+
+长工作区初始化只用于首次建立、结构修复、显式重整或重大生命周期变化。已初始化且状态未变化的工作区会执行一次有界、只读的普通工作区检查（其实现路径为 `workspace-entry`）；它不创建 Phase、Session、Agent、Artifact、协调服务或报告更新，也不加载完整历史。
+
+全新长工作区使用 CURRENT 工作区规范，默认 profile 是 `single_phase`。项目只有在能声明资源和能力时，才可以显式启用 `resource_admission`。该路径通过 typed resource locator、capability policy、可过期 lease、fencing epoch、queue 和对不确定外部副作用的域级对账来治理不相交工作。MALTS Core 不包含 Unity、Unreal、VCS、数据库、CI 或设备专项冲突规则；具体资源和能力由 adapter 声明。
+
+Project、Phase 和显式 Session control 各自只拥有本层事实。机器强制执行的 contract、profile、index 与 coordination state 由 runtime contract 拥有。CURRENT 中，`WORK_TASK_REPORT.md` 和已存在的 `PROJECT_HANDOFF.md` 是按需派生视图，不是日常写入门禁或第二事实源。受支持的旧布局保持可读兼容，绝不静默重整。
 
 ## 从这里开始
 
 | 需求 | 阅读 |
 |---|---|
 | 安装 MALTS 并完成第一个任务 | [快速开始](docs/zh-CN/GETTING_STARTED.md) |
-| 了解 MALTS 的作用和适用边界 | [系统概览](docs/zh-CN/SYSTEM_OVERVIEW.md) |
-| 审阅完整操作模型和边界 | [核心设计](docs/zh-CN/CORE_DESIGN.md) |
+| 了解 MALTS 的作用、限制和适用边界 | [系统概览](docs/zh-CN/SYSTEM_OVERVIEW.md) |
+| 审阅操作模型、并发机制和安全不变量 | [核心设计](docs/zh-CN/CORE_DESIGN.md) |
+| 使用已初始化工作区或指定工作流 | [使用指南](docs/zh-CN/USAGE.md) |
+| 恢复、重整或审阅生命周期规则 | [生命周期](docs/zh-CN/LIFECYCLE.md) |
 | 安装或更新指定 Agent 工具 | [安装](docs/zh-CN/INSTALL.md) 与 [更新](docs/zh-CN/UPDATE.md) |
 | 让 Agent 安全协助安装 | [Agent 安装](docs/zh-CN/AGENT_INSTALL.md) |
 | 使用可选离线归档 | [发布产物](docs/zh-CN/RELEASE_ARTIFACT.md) |
-
-## 它解决什么问题
-
-长期 Agent 任务与短提示的失败方式不同：上下文可能被压缩，目标可能漂移，不完整结果可能被误判为完成，不同工作通道可能冲突，而有用经验又可能被丢失或被过度提升。
-
-MALTS 通过外置关键任务状态、定义完成与验证标准、保留可恢复交接、在真实子 Agent 派发前要求启动审阅，并在经验进入长期规则前进行筛选，来控制这些风险。
-
-## 它提供什么
-
-- 通过 `PROJECT_CONTROL.md` 进行长期任务规划与恢复
-- 通过 `WORK_TASK_REPORT.md` 保存 Phase 或最终交付证据
-- 通过 `PROJECT_HANDOFF.md` 提供 Agent 面向的续接上下文
-- 为有边界的长期项目提供显式 Phase 与 Session 控制
-- 提供事件触发、只读的 Plan Recheck，以 Phase 绑定 plan revision 与 SHA-256
-- 用 Grill-Me Preflight 暴露假设、边界、取舍和验收标准
-- 提供可选多 Agent 启动审阅、任务合同和责任边界
-- 当原生子 Agent 无法满足已批准的 hard model / effort 契约时，提供受治理的 Codex peer-task 路由
-- 提供交付、质量和记忆写入检查清单
-- 提供英文与简体中文 runtime 模板
-- 为 Codex、Claude Code、OpenCode 提供原生 `malts-*` Skill 桥接
-- 提供先审阅、再执行的安装、更新、恢复、回滚与残留处理
-- 启动时与已安装运行状态交叉核对，发现不一致时关闭式失败
-- 提供稳定版与预览版运行身份、只读 doctor 诊断、有界审计保留与安全旧版迁移
-- 识别并迁移已知 MALTS `v0.1.0` 至 `v0.1.9` 布局
 
 ## 核心与可选能力
 
 | 能力 | 默认 | 用途 |
 |---|---|---|
 | 单 Agent 执行 | 开启 | 让小型、清晰的工作保持低开销。 |
-| `PROJECT_CONTROL.md` | 非简单或恢复敏感任务使用 | 保存目标、队列、决策、风险和验证状态。 |
-| `WORK_TASK_REPORT.md` | MALTS Phase 或最终交付后使用 | 记录结果、证据、剩余风险和下一步。 |
-| `PROJECT_HANDOFF.md` | 需要续接或上下文风险交接时使用 | 为后续 Agent 提供可恢复的当前状态。 |
+| `PROJECT_CONTROL.md` | 非简单或恢复敏感任务使用 | 保存 Project 事实、全局验收、跨 Phase 决策和已验证恢复上下文。 |
+| Phase 与显式 Session control | 长工作区中可用 | 将局部范围、队列、检查点和证据留在对应 owner。 |
+| `WORK_TASK_REPORT.md` | 按需 | 提供带证据的派生报告；从不授予执行权限。 |
+| `PROJECT_HANDOFF.md` | 按需 | 提供有界续接视图；不与恢复权威竞争。 |
 | Grill-Me Preflight | 不清晰或非简单任务时建议 | 在实现前明确假设和验收标准。 |
 | 多 Agent 调度 | 关闭 | 仅在有明确价值时增加受控委派。 |
-| Plan Recheck | Active S3/S4 plan 按事件运行 | 在门禁动作前发现 plan、scope、Session 与 launch-review 漂移。 |
+| 资源准入 | 关闭 | 治理符合条件的并行写入、共享能力、陈旧执行者和不确定副作用。 |
+| Plan Recheck | Active plan 按事件运行 | 在门禁动作前发现 plan、scope、Session 与 launch-review 漂移。 |
 | 经验审阅 | 可用 | 在经验进入长期规则前进行筛选。 |
 | 双语文档 | 可用 | 提供中英文参考，不复制项目状态。 |
 
-## 启用与产物
+## 控制文件与派生视图
 
-MALTS 不会为每个短任务都创建永久控制文件。小型工作保持单 Agent，并遵循原有项目说明即可。
+MALTS 不会为每个短任务都创建永久控制文件。范围有限的工作保持单 Agent，并遵循原有项目说明即可。
 
-当任务需要可恢复的长期工作模式时，在项目根目录创建或复用 `PROJECT_CONTROL.md`。每个 MALTS Phase 或最终交付应写入或更新 `WORK_TASK_REPORT.md`。需要后续 Agent 续接时使用 `PROJECT_HANDOFF.md`。叙述内容可使用项目工作语言；完整翻译镜像仅在明确需要时建立。
+当任务需要可恢复的长期工作模式时，在项目根目录创建或复用 `PROJECT_CONTROL.md`。只有用户要求持久报告，或确有重要交付或恢复需要时，才刷新 `WORK_TASK_REPORT.md`；只有后续 Agent 需要有界续接视图时，才创建 `PROJECT_HANDOFF.md`。叙述内容可使用项目工作语言；完整翻译镜像仅在明确需要时建立。
 
 | 文件 | 默认角色 |
 |---|---|
-| `PROJECT_CONTROL.md` | 标准项目状态、任务队列、决策、风险和验证状态。 |
-| `WORK_TASK_REPORT.md` | 标准 Phase 或最终报告及直接证据。 |
-| `PROJECT_HANDOFF.md` | 标准续接与恢复上下文。 |
+| `PROJECT_CONTROL.md` | Project 事实、全局验收、跨 Phase 决策和紧凑 owner 索引的规范权威。 |
+| `PHASE_CONTROL.md` | Phase 目标、边界、局部队列、交付物、证据和收口的规范权威。 |
+| `SESSION_CONTROL.md` | 一次明确有界工作 Session 的规范检查点。 |
+| `WORK_TASK_REPORT.md` | 按需派生的直接证据报告；不授权写入，也不是生命周期权威。 |
+| `PROJECT_HANDOFF.md` | 按需派生的续接视图；不与恢复权威竞争。 |
 
 ## 仓库结构
 
@@ -91,14 +117,15 @@ THIRD_PARTY_NOTICES.md  必需的致谢说明
 - [快速开始](docs/zh-CN/GETTING_STARTED.md)：安装与首次使用路径。
 - [安装](docs/zh-CN/INSTALL.md)：安装命令与根目录选择。
 - [更新](docs/zh-CN/UPDATE.md)：先审阅再替换已有安装。
-- [生命周期](docs/zh-CN/LIFECYCLE.md)：运行版本、恢复、回滚、doctor 诊断与清理。
-- [使用](docs/zh-CN/USAGE.md)：普通任务、长期任务、多 Agent、经验与交接。
+- [生命周期](docs/zh-CN/LIFECYCLE.md)：运行版本、恢复、重整、doctor 诊断与清理。
+- [使用指南](docs/zh-CN/USAGE.md)：普通任务、长工作区、多 Agent、经验与交接。
 - [系统概览](docs/zh-CN/SYSTEM_OVERVIEW.md)：目标、能力与边界的公开说明。
 - [核心设计](docs/zh-CN/CORE_DESIGN.md)：详细操作模型与不变量。
 - [Agent 安装](docs/zh-CN/AGENT_INSTALL.md)：Agent 的授权和来源选择规则。
 - [发布产物](docs/zh-CN/RELEASE_ARTIFACT.md)：可选单 ZIP 离线交付。
 - [安全](docs/zh-CN/SECURITY.md)：来源、包验证和隐私边界。
 - [双语文档](docs/zh-CN/BILINGUAL_DOCS.md)：语言与导航策略。
+- [变更日志](CHANGELOG.md)：版本历史；发布摘要不在本 README 中累积。
 
 ## 致谢
 
@@ -120,14 +147,7 @@ MALTS 包含面向公开使用的 Agent 行为模式改写，灵感来自：
 .\scripts\Install-MALTS.review.cmd -Tool AllIncluded
 ```
 
-支持的工具：
-
-```text
-Codex
-ClaudeCode
-OpenCode
-AllIncluded
-```
+支持的工具：`Codex`、`ClaudeCode`、`OpenCode` 和 `AllIncluded`。
 
 如果 Windows PowerShell 阻止脚本执行，请使用进程级执行策略覆盖运行同一命令：
 
@@ -150,22 +170,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-MALTS.ps1 
 
 `MergeSafe` 默认使用 `InstructionMode ManagedMerge`：更新 MALTS 管理指令块，同时保留周围用户规则。使用 `InstructionMode Skip` 可完全不修改指令文件。
 
-## Workspace Lifecycle、Discovery Hardening 与 Release 测试深路径修复
-
-MALTS 1.2.0 扩展了长项目工作区，但不改变最小默认行为。Phase 现在具有显式 boundary contract、只读 boundary review、pause/resume、hash-bound transition plan、双向 carry-over provenance，以及终态 `SUPERSEDED`。
-
-Artifact lifecycle 是 opt-in，默认 `NOT_ENROLLED`。Phase 与 Session control 可拥有紧凑的本地 registry；Project 只保留 enrollment 与 Shared/Archive pointer。Audit 只读，mutation 默认 dry-run 且需要显式 `--apply`；任何 Artifact 命令都不会创建 Session、移动/删除 payload、调用 VCS 或递归扫描未声明目录。
-
-合同见[生命周期](docs/zh-CN/LIFECYCLE.md)，精确命令见[使用指南](docs/zh-CN/USAGE.md)。当前长项目 workspace 使用 schema v4 controls；现有 schema v1/v2/v3 workspace 保持可读，不会被静默迁移或 enrollment。
-
-MALTS 1.2.2 保留 v1.2.1 的 cross-control consistency 与 recovery 强化，并让普通 discovery 的权威路径显式化。成功的 `discover` 结果会返回 deterministic `authority_paths`，其中包含精确的 `<lifecycle-root>/registry/active_generation.json` pointer；调用方不得探测或推导旁路的 `<lifecycle-root>/active_generation.json`。权威面缺失、畸形、陈旧或冲突时仍然 fail closed。
-
-MALTS 1.2.3 修复 release 测试 fixture 复制超出 Windows 路径长度限制的问题。release 测试套件现在排除私有的 `.release-control/archive` 历史树，与生产 clean-source 分类保持一致；五个 `WinError 206` 失败已解决，九个测试套件全绿。本版本没有改变任何 runtime、schema、Artifact、依赖、payload、VCS、更新检查或远程发布行为。
-
-MALTS 1.3.0 将 workspace schema 升级到 v4、Result Contract 升级到 v2，加入成果导向 Phase 与 typed Attempt 语义、独立的 `max_authorized_rounds` STOP 门、可恢复多面事务，以及更低开销的 S0/S1 Fast Path。Schema 与合同迁移只提供显式冷迁移（`migrate-workspace-v3-to-v4`、`migrate-result-contract-v1-to-v2`）；EN/CH 文档与 Codex/Claude Code/OpenCode 适配器由单一机器可检查 invariant 源同步。
-
-MALTS 1.3.1 修复含历史已关闭 Session 的工作区 v3→v4 迁移：已关闭的 Session registry 行被归档进迁移计划，而不是因 v4 schema 校验失败阻断迁移；不伪造任何 lease 或 owner 权威，历史 Session 文件保持字节不变。
-
 ## 文档语言
 
 仓库默认以英文为技术参考。简体中文文档位于 `README.zh-CN.md` 与 `docs/zh-CN/`，本地化 runtime 参考位于 `runtime/CH/`。项目 runtime 产物默认保持单一标准文件。见[双语文档](docs/zh-CN/BILINGUAL_DOCS.md)。
@@ -175,7 +179,7 @@ MALTS 1.3.1 修复含历史已关闭 Session 的工作区 v3→v4 迁移：已�
 当前发布版本：
 
 ```text
-1.3.1
+1.5.0
 ```
 
 ## License

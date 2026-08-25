@@ -1,9 +1,9 @@
 ---
 name: worker
-description: Bounded implementation subagent. Use only when a task contract grants explicit file scope and verification requirements.
+description: Bounded MALTS Worker. Use only when a task contract grants explicit file scope and verification requirements.
 ---
 
-You are the Worker Agent.
+You are the MALTS Worker.
 
 Rules:
 

@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:malts:schema:workspace-entry-report:1",
+  "title": "MALTS Workspace Entry Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "operation", "status", "mode", "workspace", "evaluated_at",
+    "workspace_schema_version", "profile", "task_class", "entry_path", "decision",
+    "primary_phase_id", "selected_phase_id", "active_session_id", "read_set", "metrics",
+    "fast_path_limits", "within_fast_path_budget", "findings", "required_gates",
+    "planned_changes", "writes_performed", "entities_created", "safety"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "operation": {"const": "workspace-entry"},
+    "status": {"enum": ["PASS", "FAIL"]},
+    "mode": {"const": "READ_ONLY"},
+    "workspace": {"type": "string", "minLength": 1},
+    "evaluated_at": {"type": "string", "format": "date-time"},
+    "workspace_schema_version": {"type": ["integer", "null"], "minimum": 1},
+    "profile": {"enum": ["single_phase", "resource_admission", "legacy_v4", "unsupported", "unknown"]},
+    "task_class": {"enum": ["READ_ONLY", "LOW_RISK", "WRITE_EXISTING_SCOPE", "NEW_WRITE_SCOPE", "HIGH_RISK", "CONTEXT_RECOVERY"]},
+    "entry_path": {"enum": ["FAST_PATH", "INITIALIZATION_REQUIRED", "PHASE_REQUIRED", "FULL_RECOVERY_REQUIRED", "MIGRATION_REQUIRED"]},
+    "decision": {"enum": ["PROCEED", "PROCEED_WITH_WARNINGS", "REVIEW_REQUIRED", "BLOCKED"]},
+    "primary_phase_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "selected_phase_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "active_session_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "read_set": {
+      "type": "array", "maxItems": 8,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["path", "role", "bytes", "sha256"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1},
+          "role": {"enum": ["WORKSPACE_STATE", "INSTRUCTIONS", "PROJECT_CONTROL", "PHASE_CONTROL", "SESSION_CONTROL", "COORDINATION_STATE"]},
+          "bytes": {"type": "integer", "minimum": 0},
+          "sha256": {"type": "string", "pattern": "^[A-F0-9]{64}$"}
+        }
+      }
+    },
+    "metrics": {
+      "type": "object", "additionalProperties": false,
+      "required": ["workspace_files_read", "workspace_bytes_read", "workspace_files_considered", "workspace_bytes_considered", "history_files_read", "control_files_written", "user_confirmations_requested", "output_budget_bytes"],
+      "properties": {
+        "workspace_files_read": {"type": "integer", "minimum": 0},
+        "workspace_bytes_read": {"type": "integer", "minimum": 0},
+        "workspace_files_considered": {"type": "integer", "minimum": 0},
+        "workspace_bytes_considered": {"type": "integer", "minimum": 0},
+        "history_files_read": {"const": 0},
+        "control_files_written": {"const": 0},
+        "user_confirmations_requested": {"const": 0},
+        "output_budget_bytes": {"const": 12288}
+      }
+    },
+    "fast_path_limits": {
+      "type": "object", "additionalProperties": false,
+      "required": ["max_workspace_files", "max_workspace_bytes", "max_history_files"],
+      "properties": {
+        "max_workspace_files": {"type": "integer", "minimum": 1, "maximum": 8},
+        "max_workspace_bytes": {"type": "integer", "minimum": 1, "maximum": 131072},
+        "max_history_files": {"const": 0}
+      }
+    },
+    "within_fast_path_budget": {"type": "boolean"},
+    "findings": {
+      "type": "array", "maxItems": 32,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["code", "severity", "scope", "path", "message", "required_action"],
+        "properties": {
+          "code": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{2,95}$"},
+          "severity": {"enum": ["BLOCKED", "WARNING", "INFO"]},
+          "scope": {"enum": ["WORKSPACE", "PHASE", "RESOURCE", "MAINTENANCE"]},
+          "path": {"type": ["string", "null"]},
+          "message": {"type": "string", "minLength": 1},
+          "required_action": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "required_gates": {
+      "type": "array", "uniqueItems": true,
+      "items": {"enum": ["FULL_VALIDATE", "FULL_RECOVER", "PLAN_RECHECK", "PHASE_BOUNDARY_REVIEW", "RESOURCE_ADMISSION", "PHASE_SWITCH_REVIEW"]}
+    },
+    "planned_changes": {"type": "array", "maxItems": 0},
+    "writes_performed": {"const": false},
+    "entities_created": {
+      "type": "object", "additionalProperties": false,
+      "required": ["workspace", "phase", "session", "artifact", "agent"],
+      "properties": {
+        "workspace": {"const": false}, "phase": {"const": false}, "session": {"const": false},
+        "artifact": {"const": false}, "agent": {"const": false}
+      }
+    },
+    "safety": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "state_contract_valid", "primary_binding_valid", "session_binding_valid", "coordination_valid",
+        "report_or_handoff_required", "full_history_loaded", "raw_write_bypass_prevented"
+      ],
+      "properties": {
+        "state_contract_valid": {"type": "boolean"},
+        "primary_binding_valid": {"type": ["boolean", "null"]},
+        "session_binding_valid": {"type": ["boolean", "null"]},
+        "coordination_valid": {"type": ["boolean", "null"]},
+        "report_or_handoff_required": {"const": false},
+        "full_history_loaded": {"const": false},
+        "raw_write_bypass_prevented": {"const": false}
+      }
+    }
+  }
+}

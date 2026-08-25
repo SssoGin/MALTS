@@ -9,26 +9,29 @@
     "opencode": "malts-long-project-workspace-init"
   },
   "display_name": "MALTS Long Project Workspace Init",
-  "short_description": "Manage phase and artifact lifecycle workspaces",
-  "triggers": ["initialize a phase-ready long MALTS project workspace", "review or transition a MALTS Phase boundary", "pause resume or supersede a MALTS Phase", "audit enroll register promote supersede or reconcile workspace Artifacts", "recover a bounded multi-phase workspace", "compact MALTS project history safely"],
+  "short_description": "Initialize, recover, and govern long workspaces",
+  "triggers": ["initialize a phase-ready long MALTS project workspace", "perform structural workspace recovery or explicit CURRENT reorganization", "review or transition a MALTS Phase boundary", "opt in to resource-admitted parallel Phase work", "pause resume or supersede a MALTS Phase", "audit enroll register promote supersede or reconcile workspace Artifacts", "compact MALTS project history safely"],
   "applicability": {
     "task_types": ["long-project-initialization", "phase-lifecycle", "artifact-lifecycle", "workspace-maintenance", "workspace-recovery"],
     "modes": ["single-agent", "multi-agent", "review-only"],
     "conditions": ["The work is long-running, phase-oriented, interruption-prone, or recovery-sensitive."],
-    "contraindications": ["The task is S0/S1 or the user requested no project control artifacts."]
+    "contraindications": ["The task is S0/S1 or the user requested no project control artifacts.", "An initialized unchanged workspace only needs the read-only workspace-entry path; do not rerun full initialization."]
   },
   "inputs": ["workspace path", "project identifier", "original goal", "initial Phase identifier", "initial Phase goal", "narrative language", "explicit operation authorization"],
-  "outputs": ["phase-ready long-project workspace", "reviewed Phase boundary and transition evidence", "explicit later Phase and Session controls", "optional owner-local Artifact registries and Shared or Archive indexes", "capacity report", "ordered recovery evidence"],
+  "outputs": ["phase-ready long-project workspace", "bounded workspace-entry assessment", "reviewed Phase boundary and transition evidence", "explicit later Phase and Session controls", "optional resource Admission and fencing evidence", "optional owner-local Artifact registries and Shared or Archive indexes", "on-demand maintenance views", "ordered recovery evidence"],
   "risks": {
     "risk_class": "medium",
     "factors": ["scripts", "write"],
-    "forbidden_effects": ["Do not report initialization complete without a registered initial Phase.", "Do not overwrite user files.", "Do not enroll Artifact lifecycle or create a Session implicitly.", "Do not move or delete Artifact payloads or invoke VCS.", "Do not treat runtime state as canonical truth.", "Do not schedule automatic update checks."]
+    "forbidden_effects": ["Do not report initialization complete without a registered initial Phase.", "Do not rerun initialization for ordinary unchanged task entry.", "Do not overwrite user files.", "Do not enroll resource coordination or Artifact lifecycle or create a Session implicitly.", "Do not move or delete Artifact payloads or invoke VCS.", "Do not treat runtime state or maintenance views as canonical truth.", "Do not schedule automatic update checks."]
   },
   "required_permissions": ["read-files", "write-project-files"],
   "dependencies": [
     {"id": "malts.tool.long-workspace", "type": "tool", "required": true, "source_relative_path": "tools/long_workspace.py"},
     {"id": "malts.tool.workspace-artifacts", "type": "file", "required": true, "source_relative_path": "tools/workspace_artifacts.py"},
     {"id": "malts.tool.workspace-transactions", "type": "file", "required": true, "source_relative_path": "tools/workspace_transactions.py"},
+    {"id": "malts.tool.workspace-entry", "type": "file", "required": true, "source_relative_path": "tools/workspace_entry.py"},
+    {"id": "malts.tool.workspace-coordination", "type": "file", "required": true, "source_relative_path": "tools/workspace_coordination.py"},
+    {"id": "malts.tool.resource-locators", "type": "file", "required": true, "source_relative_path": "tools/resource_locators.py"},
     {"id": "malts.contract.workspace-control", "type": "file", "required": true, "source_relative_path": "tools/workspace_control.schema.json"},
     {"id": "malts.contract.workspace-artifact-snapshot", "type": "file", "required": true, "source_relative_path": "tools/workspace_artifact_snapshot.schema.json"},
     {"id": "malts.contract.tool-projection-manifest", "type": "file", "required": true, "source_relative_path": "tools/tool_projection_manifest.schema.json"},

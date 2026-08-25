@@ -158,7 +158,12 @@ Recommended format:
 This task is a good fit for `skill-name` because ... Use it?
 ```
 
+## Growth Routing Gate
+
+After verification and before final delivery, run the no-write L1 Growth Routing Gate in context. This is not a confirmation-gated Skill invocation: it classifies the completed work as `NO_OUTPUT`, `LIGHT_REPORT`, `RETROSPECTIVE_RECOMMENDED`, `RETROSPECTIVE_AUTHORIZED`, or `BLOCKED` without creating durable state. Keep trivial no-signal work silent; show a short user-visible Growth result for non-trivial work, correction, verification reversal, recovery, failure, or reusable evidence. Recommend Standard/Major retrospective for repeated, high-impact, phase, long-task, or delivery evidence, but do not execute it unless explicitly requested or already authorized. L2 project writes and L3 system promotion remain separately confirmation-gated. A report-only Growth entry does not replace the final user-visible result.
+
 <!-- MALTS:BEGIN managed instruction -->
+
 # Global Agent System Discovery
 
 The user may have a reusable Multi-Agent Long-Task Scheduling and Growth System.
@@ -189,34 +194,35 @@ At the start of each new project or new window:
 
 When activated, resolve and cross-check `MALTS_ROOT` through the strict tool-local discovery contract, verify its immutable generation metadata and `VERSION`, then load only the minimum needed runtime docs relative to that root. Read a separately configured global memory file only when a nearer user or project instruction requires it.
 
-When project initialization selects Simplified Chinese as `NarrativeLanguage`, use `runtime\CH\templates\PROJECT_CONTROL.template.zh-CN.md` and `runtime\CH\templates\WORK_TASK_REPORT.template.zh-CN.md` as localized drafting references for the canonical files while preserving stable schema markers and values.
+When project initialization selects Simplified Chinese as `NarrativeLanguage`, use `runtime\CH\templates\PROJECT_CONTROL.template.zh-CN.md` for the canonical Project control and `runtime\CH\templates\WORK_TASK_REPORT.template.zh-CN.md` for an on-demand report view while preserving stable schema markers and values.
 
 ## MALTS Operating Rules
 
 Cross-project stable rules learned from experience. These apply in every project.
 
 1. **Read all runtime docs before /init.** When initializing MALTS for a new project, read all runtime docs (skills, templates, checklists) before writing project-level CLAUDE.md. A partial CLAUDE.md that misses WORK_TASK_REPORT, Growth Review tiers, or checklist references is harder to fix later.
-2. **Keep one canonical runtime artifact by default.** `PROJECT_CONTROL.md`, `WORK_TASK_REPORT.md`, and `PROJECT_HANDOFF.md` are the default canonical files. Keep stable headings, fields, status values, IDs, paths, and commands in English-compatible form, and write narrative content in the user's or project's primary language. Create a full translated mirror only when the user explicitly requests one or an external workflow requires it.
-3. **Growth candidates must be written, not spoken.** Verbally declaring a growth candidate is not enough; record it in the canonical `PROJECT_CONTROL.md`, `WORK_TASK_REPORT.md`, or local retrospective as appropriate. Cross-project candidates also go into global CLAUDE.md/AGENTS.md.
+2. **Keep one authority for each fact.** Project, Phase, and explicit Session controls own only their respective facts; machine workspace/coordination contracts own schema/profile/index and Admission/fencing state. CURRENT report/handoff files are on-demand derived views, not daily gates or alternate authorities. Keep stable fields English-compatible and create translated mirrors only when explicitly requested.
+3. **Durable Growth candidates must be written, not spoken.** L1 analysis is temporary and performs no durable write. When an L2/L3 candidate is explicitly authorized, record it in the correct canonical destination; a user-visible Growth summary is additional visibility, not durable memory. Cross-project promotion always remains a separate L3 confirmation.
 4. **Adapter/doc patches must sync EN+CH across all three tools.** When modifying adapter READMEs, templates, checklists, or protocol docs, update both EN and CH versions, and check Codex, Claude Code, and OpenCode together. Skip only when the user explicitly scopes one out — and record the reason.
 4a. **Keep MALTS version metadata fresh.** Current project metadata must come from the active boot file and `<MALTS_ROOT>/VERSION`; treat versions found in old control/report/handoff/template files as historical until revalidated.
 5. **Ordinary documentation sync should be cost-aware but candidate-only.** Use scripts/structured checks first, low-cost workers only for candidate translation/gap-filling when available, and high-capability or main-controller approval for critical protocol, safety, permission, memory, unattended, dispatch semantics, and final merge.
 6. **Grill-Me preflight is MALTS-native.** For non-trivial starts, offer the built-in Grill-Me Preflight before implementation and record offered/accepted/declined/N/A in `PROJECT_CONTROL`. It is a clarification gate, not sub-agent dispatch, and does not require `确认运行`.
 7. **Use MALTS-prefixed native skill names.** When referring to tool-native slash-command or skill-picker entries, use the installed `malts-*` bridge names such as `malts-project-init`, `malts-grill-me-preflight`, and `malts-multi-agent-long-task-scheduling`. Do not suggest unprefixed native MALTS skill entries. Canonical implementation paths under `<MALTS_ROOT>/skills/...` remain unchanged.
 8. **Classify third-party Skill placement before installation.** Inspect the candidate `SKILL.md` and bundled files, follow an explicit user destination when provided, and wait for write authorization before installing. Do not silently duplicate third-party Skills across tools.
-9. **Route Agents dynamically.** Choose `0`, `1`, or `N` sub-agents from actual responsibility lanes, authorization, conflict-free locator leases, and effective runtime capacity. Do not impose a fixed role chain or derive reasoning effort from a role name.
+9. **Route Agents dynamically.** Choose `0`, `1`, or `N` sub-agents from actual responsibility lanes, authorization, conflict-free read scope or valid resource Admissions, and effective runtime capacity. Do not impose a fixed role chain or derive reasoning effort from a role name.
 10. **Recheck the active plan at defined boundaries.** When an active Phase has a plan, run read-only `long_workspace.py plan-recheck` at Phase switch, before launch review or a new write scope, after delegated returns, before and after verification, after user change, during context recovery, after failure or rollback, and before final delivery. A required missing plan, hash drift, or invalidated binding is `BLOCKED` until reconciled.
 
 <!-- MALTS:BEGIN workspace lifecycle contract -->
 ## Long-Workspace Phase And Artifact Lifecycle
-
-- The active Phase owns a written boundary contract. Use read-only `phase-boundary-review` before a candidate goal or touch set crosses that boundary; unresolved scope does not authorize writes.
+- Ordinary unchanged entry uses read-only `workspace-entry` and its returned bounded current-set read list: runtime current binding, selected Phase, and only an active Session or required coordination state. Applicable instructions are host-owned; Project control is loaded by explicit Project-level/review/recovery gates. Entry performs zero writes, loads no full history, and creates no lifecycle entity. Full initialization is for first setup, structural repair, explicit reorganization, or major lifecycle change.
+- The selected Phase owns a written boundary contract. Use read-only `phase-boundary-review` before a candidate goal or touch set crosses that boundary; unresolved scope does not authorize writes.
 - `phase-boundary-review` reports operation execution separately from review outcome and persistence. Only `record-phase-boundary-review` persists the structured record, and that record is not later mutation authorization.
-- Explicit Phase state changes use `pause-phase`, `resume-phase`, and hash-bound `plan-phase-transition` / `apply-phase-transition`. `SUPERSEDED` is terminal, carry-over keeps bidirectional provenance, and at most one Phase may be `ACTIVE`.
-- Fresh workspaces use exact schema v4; schema v1/v2/v3 remain readable and require explicit migration rather than silent migration. Cold schema v3-to-v4 and Result Contract v1-to-v2 migration use `migrate-workspace-v3-to-v4` and `migrate-result-contract-v1-to-v2`.
-- Schema v4 requires a current `WORK_TASK_REPORT.md` binding and current Task/Result lineage bindings. An existing `PROJECT_HANDOFF.md` is optional but must bind the same exact Phase control, boundary/review, and recovery hashes.
-- Structural, binding, or deterministic consistency drift blocks validation, cold recovery, and ordinary lifecycle mutation. Recovery selects active Session checkpoint, active Phase recovery, explicitly bound terminal Phase, then Project recovery; never the latest historical Session.
-- `migrate-workspace-v3-to-v4`, `migrate-result-contract-v1-to-v2`, and legacy `migrate-consistency-records`, `record-phase-boundary-review`, and `reconcile-consistency-records` are dry-run-first and exact-hash-bound. Workspace transactions use `runtime/workspace_transaction.lock.json`, `runtime/workspace_transactions/`, and `WS_TRANSACTION_*`; Artifact transaction paths and codes remain separate.
+- Explicit Phase state changes use `pause-phase`, `resume-phase`, and hash-bound `plan-phase-transition` / `apply-phase-transition`. Pause/resume use a stable boundary Review ID, not an evidence path. An explicitly selected `PAUSED` Phase may run read-only Plan Recheck before resume; PASS grants no execution authority. `SUPERSEDED` is terminal. `active_phase_id` stays scalar; default `single_phase` permits one open Phase, while opt-in `resource_admission` may add `OPEN` Phases whose writes require Admission.
+- Fresh workspaces use the exact CURRENT contract. Supported legacy layouts remain readable internal compatibility inputs and are never silently rewritten. The only public reorganization paths are one-hop `reorganize-workspace` and `reorganize-result-contract`; there are no user-visible version chains or downgrade path.
+- CURRENT `WORK_TASK_REPORT.md` and an existing `PROJECT_HANDOFF.md` are on-demand derived views; staleness is a warning or local reconcile condition. Legacy compatibility inputs retain their strict projection bindings until explicit CURRENT reorganization.
+- Canonical, authorization, Plan, Admission/fencing, transaction, or unknown-authority drift blocks only the affected operation or resource unless workspace authority itself is uncertain. Recovery selects active Session checkpoint, primary active Phase recovery, explicitly bound terminal Phase, then Project recovery; never the latest historical Session.
+- Workspace and coordination authority writes share `runtime/workspace_transaction.lock.json`, `runtime/workspace_transactions/`, `WS_TRANSACTION_*`, and post-lock exact-preimage checks. Artifact transaction paths and codes remain separate.
+- Under `resource_admission`, typed `PATH`/`ARTIFACT`/`RECORD`/`SERVICE`/`DEVICE`/`ENVIRONMENT` locators, capability modes, leases, fencing, queues, and domain quarantine govern writes. Renewal is explicit; no daemon is created. `UNKNOWN` effects require evidence-backed reconcile, while unrelated domains may continue unless workspace authority is uncertain.
 - Artifact lifecycle defaults to `NOT_ENROLLED`. Read-only or maintenance commands do not enroll it and perform no implicit Session creation.
 - The public nested commands are `artifact audit`, `artifact enrollment-preview`, `artifact enrollment-apply`, `artifact register`, `artifact promote`, `artifact supersede`, and `artifact reconcile`.
 - Owner-local rows belong in the owning Phase or Session; Project keeps only compact enrollment/Shared/Archive pointers. Missing declared indexes, duplicate authority, unresolved close rows, stale transaction state, or full-state hash drift fail closed.
@@ -236,7 +242,7 @@ When the user explicitly enables long-task or multi-agent mode:
 3. Define completion and acceptance criteria.
 4. Build a task queue.
 5. Use task contracts for delegated work.
-6. Ask whether the user wants to specify sub-agent model and effort choices and show the provider-neutral format: `responsibility=model-id@runtime-effort; responsibility=inherit@runtime-default; default=inherit@runtime-default`.
+6. Ask whether the user wants to override any sub-agent model or effort and show `responsibility=model-id@runtime-effort`. For omitted lanes, use cost-aware task/risk/budget routing; do not default to Main Controller inheritance.
 7. Run `BEFORE_LAUNCH_REVIEW` Plan Recheck when the active Phase owns a plan.
 8. Before any sub-agent dispatch, show the launch review packet: overall goal, total plan, dynamic Agent count, responsibility lanes, requested/recommended/configured/effective model-and-effort evidence, binding status, each task, and each short plan.
 9. Wait for the user's explicit `确认运行`.
@@ -293,13 +299,22 @@ When the user asks for a handoff, project handoff, session summary for the next 
 - Do not claim completion without verification.
 - Do not delete files, change permissions, change dependencies, change build configuration, or modify long-term rules without confirmation or a safety mechanism.
 - Treat Git as optional unless the user explicitly asks for Git operations.
+
+<!-- MALTS:BEGIN generated current presentation contract -->
+## MALTS Current Presentation Contract
+- Routes are separate: first initialization, ordinary `workspace-entry`, cold recovery, and explicit `reorganize-workspace`.
+- `WORK_TASK_REPORT.md` and `PROJECT_HANDOFF.md` are on-demand projections; they are not ordinary mutation gates or mandatory daily reads.
+- Chinese user output carries Chinese meaning plus stable English machine codes; English output carries English status text. Machine fields remain English.
+- Agent type and model/effort are separate decisions. If the user gives no override, use cost-aware task/risk/budget routing instead of automatic Main Controller inheritance. Record requested, recommended, configured, and effective route evidence separately; rendering does not prove effective runtime behavior.
+- This projection is generated from the shared source for Codex, Claude Code, and OpenCode. Tool-runtime behavior still requires independent verification.
+<!-- MALTS:END generated current presentation contract -->
 <!-- MALTS:END managed instruction -->
 
-## MALTS v1.3.0 Shared Invariants
+## MALTS Shared Invariants
 
 - Phase is an outcome/milestone/delivery/governance boundary; invocation count, retry count, and conversation turns are not automatic Phase boundaries. A failed Attempt terminates only that Attempt; no automatic retry and no automatic Task/Phase terminal promotion.
-- Fresh workspaces use workspace schema v4 and Result Contract v2; legacy schemas remain read-only and migrate only through explicit hash-bound cold commands. `max_authorized_rounds` is an independent runtime STOP gate.
+- Fresh workspaces use CURRENT workspace contract with zero-coordination `single_phase` by default; resource-profile execution uses CURRENT Result Contract authority. Legacy schemas remain readable and migrate only through explicit hash-bound commands. `max_authorized_rounds` is an independent runtime STOP gate.
 - External side effects use typed observations and counted units; `UNKNOWN` dispatch/outcome/charge fails closed under finite hard bounds; MALTS never claims cross-system exactly-once.
-- Governed Tasks own one Result Contract v2 lineage; Phase/Session/report/handoff/runtime keep bindings and rebuildable projections only. Typed events are append-only; corrections append events.
+- Governed Tasks own one Result lineage; Phase/Session/report/handoff/runtime summaries keep bindings and rebuildable projections only. Typed events are append-only; corrections append events.
 - `scoped-readiness` advises only (S0/S1/S2/ESCALATE) and never authorizes, writes, or dispatches. `refresh-project-instructions` rewrites only `MALTS-PROJECT:`-owned blocks with an exact reviewed plan; markerless customized files are never claimed automatically.
 - Workspace transactions promise recoverable consistency with locks/journals/preimages and explicit recovery; they are not filesystem-wide instantaneous multi-file atomic commits.

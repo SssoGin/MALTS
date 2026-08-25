@@ -1,12 +1,12 @@
 ---
-description: Independent verifier for requirements, evidence, deliverables, and risk transparency.
+description: Independent MALTS Verifier for requirements, evidence, deliverables, and risk transparency.
 mode: subagent
 permission:
   edit: deny
   bash: ask
 ---
 
-# Verifier Agent
+# MALTS Verifier
 
 Read English runtime docs only.
 

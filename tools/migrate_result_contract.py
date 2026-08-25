@@ -22,7 +22,6 @@ import result_controller as controller
 
 
 MALTS_ROOT = Path(__file__).resolve().parents[1]
-INVARIANT_SET_ID = "malts-v1.3.0-lifecycle-invariants"
 V1_EXECUTION_TERMINAL = {"DONE", "PARTIAL", "BLOCKED", "FAILED"}
 V2_TASK_STATUS_BY_V1_TERMINAL = {"DONE": "DONE", "PARTIAL": "PARTIAL", "BLOCKED": "BLOCKED", "FAILED": "FAILED"}
 
@@ -40,6 +39,14 @@ def invariant_source_sha256(malts_root: Path) -> str:
     if not path.is_file():
         raise ValueError("Canonical invariant source is missing: " + str(path))
     return sha256_payload(path.read_bytes())
+
+
+def lifecycle_invariant_binding(malts_root: Path) -> tuple[str, str]:
+    model, issues = contracts.load_lifecycle_invariants(malts_root)
+    if model is None:
+        codes = [item.code for item in issues]
+        raise ValueError("Lifecycle invariant validation failed: " + ", ".join(codes))
+    return str(model["invariant_set_id"]), invariant_source_sha256(malts_root)
 
 
 def _translate_budgets(v1_budgets: dict[str, Any]) -> dict[str, Any]:
@@ -83,6 +90,7 @@ def build_v2_revision_one(
     phase_boundary_revision_id: str,
     phase_boundary_revision_sha256: str,
     revision_id: str,
+    invariant_set_id: str,
     invariant_sha256: str,
     review_ref: str,
     authorization_ref: str,
@@ -100,7 +108,7 @@ def build_v2_revision_one(
             "revision_id": phase_boundary_revision_id,
             "sha256": phase_boundary_revision_sha256,
         },
-        "invariant_set_id": INVARIANT_SET_ID,
+        "invariant_set_id": invariant_set_id,
         "invariant_source_sha256": invariant_sha256,
         "goal": v1_contract["goal"],
         "authorized_scope": copy.deepcopy(v1_contract["authorized_scope"]),
@@ -212,7 +220,7 @@ def plan_result_contract_migration(
     else:
         task_status = "AWAITING_ATTEMPT_AUTHORIZATION"
         terminal_status = None
-    invariant_sha256 = invariant_source_sha256(malts_root)
+    invariant_set_id, invariant_sha256 = lifecycle_invariant_binding(malts_root)
     v2_contract = build_v2_revision_one(
         v1_contract,
         lineage_id=lineage_id,
@@ -221,6 +229,7 @@ def plan_result_contract_migration(
         phase_boundary_revision_id=phase_boundary_revision_id,
         phase_boundary_revision_sha256=phase_boundary_revision_sha256,
         revision_id=revision_id,
+        invariant_set_id=invariant_set_id,
         invariant_sha256=invariant_sha256,
         review_ref=review_ref,
         authorization_ref=authorization_ref,

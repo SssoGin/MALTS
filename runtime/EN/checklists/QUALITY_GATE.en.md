@@ -36,13 +36,13 @@
 
 ## Workspace Cross-Control Consistency Gate
 
-- [ ] Fresh workspaces use exact schema v4; schema v1/v2/v3 inputs are classified explicitly and are not silently migrated by validation, recovery, maintenance, or installation update.
-- [ ] The active Phase owns its Boundary Review and recovery records; an active Session owns its checkpoint; the current report binding is required and an existing handoff binding is checked.
+- [ ] Fresh workspaces use exact CURRENT with default `single_phase`; supported legacy inputs are classified explicitly and are not silently reorganized by entry, validation, recovery, maintenance, or installation update.
+- [ ] Project/Phase/Session facts have one Markdown owner; workspace schema/profile/index and coordination authority have one runtime owner. CURRENT report/handoff views are derived/on-demand; legacy workspace layout current projection bindings remain strict.
 - [ ] `phase-boundary-review` operation status is not treated as review outcome, persistence, decision, or authorization; only `record-phase-boundary-review` persists the record, and later mutation authorization remains separate.
-- [ ] Full Phase-control SHA-256 plus normalized boundary/review/recovery hashes agree across canonical authority, required report, optional handoff, and typed runtime projection.
-- [ ] Structural, binding, deterministic-consistency, and advisory-semantic findings are reported separately; deterministic drift blocks `validate`, cold `recover`, and ordinary lifecycle mutations.
+- [ ] Full Phase-control SHA-256 plus normalized boundary/review/recovery hashes agree across canonical authority and machine bindings; any refreshed view binds exact current bytes without becoming authority.
+- [ ] Structural, binding, deterministic-consistency, maintenance-warning, and advisory-semantic findings are reported separately; safety-critical drift blocks affected mutations while CURRENT derived-view drift remains local warning/reconcile.
 - [ ] Recovery selects active Session checkpoint, active Phase recovery, explicitly bound terminal Phase, then Project recovery; no latest-historical-Session fallback exists.
-- [ ] Workspace consistency mutations used dry-run, exact expected hashes, a unique operation ID, `runtime/workspace_transaction.lock.json`, and `runtime/workspace_transactions/`; Artifact transaction paths/codes remain unchanged.
+- [ ] Workspace/coordination mutations used dry-run, exact expected hashes, a unique operation ID, shared `runtime/workspace_transaction.lock.json`, `runtime/workspace_transactions/`, and post-lock preimage checks; Artifact transaction paths/codes remain unchanged.
 - [ ] An interrupted workspace transaction is recovered only through exact journal-hash `recover-workspace-transaction` review/apply; failed recovery retains lock/journal evidence.
 
 ## Verification Evidence
@@ -58,7 +58,7 @@
 - [ ] For GUI, visual, overlay, or interaction-heavy work, user visual confirmation or equivalent visual evidence is recorded.
 - [ ] If context saturation, compaction, or interruption occurred, the external recovery state was updated.
 - [ ] Long-task continuation is expressed as bounded rounds with recovery points, not as a fixed one-shot runtime promise.
-- [ ] New-window or other-project continuation can start from project instructions, latest `PROJECT_CONTROL`, latest work task report or handoff, and current files.
+- [ ] New-window continuation starts from bounded `workspace-entry --task-class CONTEXT_RECOVERY` and current owner files; it does not select reports, handoffs, history, or Sessions merely by recency.
 
 ## Multi-Agent Dispatch Gate
 
@@ -77,7 +77,7 @@
 - [ ] Runtime effort ID, normalized reasoning tier, and display label are not conflated.
 - [ ] Configuration, CLI help, or interface discovery alone was not labeled `effective_verified`.
 - [ ] Every fallback identifies hard/soft constraint treatment, reason, binding status, and usage evidence.
-- [ ] `N > 1` is bounded by approved Agent count, contract concurrency, effective runtime capacity, and conflict-free locator leases.
+- [ ] `N > 1` is bounded by approved Agent count, contract concurrency, effective runtime capacity, and either read-only/non-conflicting scope or valid typed resource Admissions with current leases/fencing.
 - [ ] `agent_route_planner.py` and `result_controller.py` were treated as advisory/validation components and not as proof of real dispatch.
 - [ ] A Codex peer task, if used, is recorded as `codex-peer-task` / `delegation_mode=peer-task`, uses the current task workspace, and is not described as native `spawn_agent`.
 - [ ] Peer-task lifecycle evidence covers PLANNED through RETURNED and Main acceptance/rework/block, then ARCHIVED; rework reused the existing task unless replacement was explicitly permitted.
@@ -91,7 +91,7 @@
 - [ ] Unattended continuation was used only if explicitly authorized by the user.
 - [ ] If not explicitly authorized, unattended automatic running was not started, scheduled, or implied.
 - [ ] `PROJECT_CONTROL` records allowed scope, prohibited operations, multi-agent permission, model policy, round/time caps, stop conditions, and report requirements.
-- [ ] Each unattended round updated recovery state and produced or appended a work task report.
+- [ ] Each unattended round persisted only material owner-local recovery/state deltas; an on-demand work report was refreshed only when the authorization package required it.
 - [ ] Stop conditions were checked before starting another unattended round.
 - [ ] Any new multi-agent batch not pre-confirmed in the authorization package stopped for launch review and `确认运行`.
 
@@ -111,6 +111,9 @@
 
 ## Growth Hygiene
 
+- [ ] After verification, the no-write L1 Growth Routing Gate was evaluated before final delivery; `NO_OUTPUT` was silent and every other route was visible to the user.
+- [ ] A report-only Growth entry was not used as a substitute for the user-visible Growth result.
+- [ ] L1 made no durable write; L2 project maintenance and L3 system promotion retained their separate authorization gates.
 - [ ] Reusable experience candidates are recorded when meaningful.
 - [ ] One-off details are not written into long-term memory.
 - [ ] Any proposed rule has trigger, action, check, and boundary.
@@ -119,12 +122,17 @@
 
 ## User Report
 
-- [ ] A clear work task report is ready for the user when the task or phase is complete.
+- [ ] A clear user-facing result is ready. A durable `WORK_TASK_REPORT.md` view exists only when requested or materially required and is not treated as lifecycle authority.
 
-## MALTS v1.3.0 gates
+## Workspace v5 and compatibility gates
 
-- [ ] Schema is v4/Result Contract v2 or an explicit reviewed cold migration was applied; no silent migration.
+- [ ] CURRENT workspace/Result contracts are used only after explicit reviewed one-hop reorganization, or the existing supported legacy compatibility input remains byte-unchanged; no silent reorganization or user-visible version chain.
+- [ ] Repeated unchanged `workspace-entry` is bounded, opens no history, performs zero writes, creates no Phase/Session/Agent/Artifact/coordination state, and leaves bytes/timestamps unchanged.
+- [ ] `single_phase` has no coordination overhead; every `resource_admission` writer has a current Phase hash, valid Admission, unexpired lease, exact fencing tokens, and clear affected quarantine domains.
+- [ ] Disjoint locators may proceed, while overlap, parent/child paths, aliases, exclusive/queued/isolate-required capabilities, stale executors, and `UNKNOWN` effects follow deterministic admission/quarantine/reconcile rules.
+- [ ] Safety-critical drift is `BLOCKED` only for its affected authority/resources; CURRENT derived report/handoff drift is `WARNING` and local refresh, while legacy workspace layout projection drift retains strict compatibility behavior.
 - [ ] A failed Attempt did not auto-retry or promote Task/Phase terminal state; `max_authorized_rounds` STOP enforced.
 - [ ] External side effects have typed observations/counted units; UNKNOWN dispatch/outcome/charge failed closed under finite bounds.
 - [ ] Workspace transaction committed exactly once with preimages/recovery evidence; no instantaneous-atomicity claim.
 - [ ] `scoped-readiness` and `refresh-project-instructions` were used only as documented; markerless custom files untouched.
+- [ ] Workspace/coordination writers shared one lock and rechecked exact preimages after lock acquisition; no stale writer committed.

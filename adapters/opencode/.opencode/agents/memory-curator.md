@@ -1,12 +1,12 @@
 ---
-description: Retrospective and memory hygiene agent. Proposes filtered growth candidates.
+description: MALTS Memory Curator for retrospective and memory hygiene. Proposes filtered growth candidates.
 mode: subagent
 permission:
   edit: deny
   bash: deny
 ---
 
-# Memory Curator Agent
+# MALTS Memory Curator
 
 Read English runtime docs only.
 

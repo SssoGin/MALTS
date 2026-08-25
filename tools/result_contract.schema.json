@@ -1,17 +1,18 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:malts:schema:result-contract:2",
-  "title": "MALTS Result Contract",
+  "$id": "urn:malts:schema:result-contract:current",
+  "title": "MALTS Current Result Contract",
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "contract_version", "lineage_id", "task_id", "phase_id", "revision_id", "revision_number",
+    "contract_id", "lineage_id", "task_id", "phase_id", "revision_id", "revision_number",
     "previous_revision", "accepted_phase_boundary", "invariant_set_id", "invariant_source_sha256",
     "goal", "authorized_scope", "prohibited_scope", "non_goals", "acceptance_criteria", "budgets",
-    "risk_policy", "continuation_policy", "revision_reason", "review_ref", "authorization_ref", "accepted_at"
+    "risk_policy", "continuation_policy", "revision_reason", "review_ref", "authorization_ref", "accepted_at",
+    "execution_authority"
   ],
   "properties": {
-    "contract_version": {"const": "2"},
+    "contract_id": {"const": "malts.result.current"},
     "lineage_id": {"$ref": "#/$defs/id"},
     "task_id": {"$ref": "#/$defs/id"},
     "phase_id": {"$ref": "#/$defs/id"},
@@ -19,7 +20,7 @@
     "revision_number": {"type": "integer", "minimum": 1},
     "previous_revision": {"$ref": "#/$defs/nullableRevisionBinding"},
     "accepted_phase_boundary": {"$ref": "#/$defs/boundaryBinding"},
-    "invariant_set_id": {"const": "malts-v1.3.0-lifecycle-invariants"},
+    "invariant_set_id": {"$ref": "#/$defs/id"},
     "invariant_source_sha256": {"$ref": "#/$defs/sha256"},
     "goal": {"type": "string", "minLength": 1},
     "authorized_scope": {"$ref": "#/$defs/authorizedScope"},
@@ -33,6 +34,7 @@
     "review_ref": {"type": "string", "minLength": 1},
     "authorization_ref": {"type": "string", "minLength": 1},
     "accepted_at": {"type": "string", "format": "date-time"}
+    ,"execution_authority": {"$ref": "#/$defs/executionAuthority"}
   },
   "$defs": {
     "resultContractV1": {
@@ -83,6 +85,27 @@
       "additionalProperties": false,
       "required": ["revision_id", "sha256"],
       "properties": {"revision_id": {"$ref": "#/$defs/id"}, "sha256": {"$ref": "#/$defs/sha256"}}
+    },
+    "fencingToken": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["domain_id", "epoch"],
+      "properties": {
+        "domain_id": {"$ref": "#/$defs/id"},
+        "epoch": {"type": "integer", "minimum": 1}
+      }
+    },
+    "executionAuthority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile", "admission_id", "actor_id", "phase_control_sha256", "fencing_tokens"],
+      "properties": {
+        "profile": {"enum": ["NONE", "RESOURCE_ADMISSION"]},
+        "admission_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+        "actor_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+        "phase_control_sha256": {"$ref": "#/$defs/sha256OrNull"},
+        "fencing_tokens": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/fencingToken"}}
+      }
     },
     "executionStatus": {"enum": ["DRAFT", "PREFLIGHT", "AWAITING_AUTHORIZATION", "AUTHORIZED", "PLANNING", "EXECUTING", "VERIFYING", "REPLANNING", "FINALIZING", "DONE", "PARTIAL", "BLOCKED", "FAILED"]},
     "resourceRule": {

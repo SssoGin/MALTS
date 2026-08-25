@@ -1,16 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:malts:schema:result-event:1",
+  "$id": "urn:malts:schema:result-event:2",
   "title": "MALTS Result Event",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "event_version", "lineage_id", "task_id", "phase_id", "sequence", "event_id", "operation_id",
     "event_kind", "recorded_at", "previous_event", "contract_revision", "phase_boundary_revision",
-    "actor", "session_lease_id", "payload", "evidence_refs"
+    "actor", "session_lease_id", "payload", "evidence_refs", "execution_authority"
   ],
   "properties": {
-    "event_version": {"const": 1},
+    "event_version": {"const": 2},
     "lineage_id": {"$ref": "#/$defs/id"},
     "task_id": {"$ref": "#/$defs/id"},
     "phase_id": {"$ref": "#/$defs/id"},
@@ -25,7 +25,8 @@
     "actor": {"$ref": "#/$defs/actor"},
     "session_lease_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
     "payload": {"$ref": "#/$defs/payload"},
-    "evidence_refs": {"$ref": "#/$defs/stringArray"}
+    "evidence_refs": {"$ref": "#/$defs/stringArray"},
+    "execution_authority": {"$ref": "#/$defs/executionAuthority"}
   },
   "$defs": {
     "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
@@ -61,6 +62,31 @@
       "type": "object", "additionalProperties": false,
       "required": ["kind", "id"],
       "properties": {"kind": {"enum": ["MAIN_CONTROLLER", "DELEGATED_AGENT", "MIGRATION", "SYSTEM_RECOVERY"]}, "id": {"$ref": "#/$defs/id"}}
+    },
+    "fencingToken": {
+      "type": "object", "additionalProperties": false,
+      "required": ["domain_id", "epoch"],
+      "properties": {"domain_id": {"$ref": "#/$defs/id"}, "epoch": {"type": "integer", "minimum": 1}}
+    },
+    "executionAuthority": {
+      "type": "object", "additionalProperties": false,
+      "required": ["profile", "admission_id", "actor_id", "phase_control_sha256", "fencing_tokens"],
+      "properties": {
+        "profile": {"enum": ["NONE", "RESOURCE_ADMISSION"]},
+        "admission_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+        "actor_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+        "phase_control_sha256": {"type": ["string", "null"], "pattern": "^[A-F0-9]{64}$"},
+        "fencing_tokens": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/fencingToken"}}
+      }
+    },
+    "coordinationReconcileRef": {
+      "type": "object", "additionalProperties": false,
+      "required": ["quarantine_id", "event_path", "event_sha256"],
+      "properties": {
+        "quarantine_id": {"$ref": "#/$defs/id"},
+        "event_path": {"type": "string", "pattern": "^runtime[/\\\\]workspace_coordination_events[/\\\\][A-Za-z0-9][A-Za-z0-9._-]{0,127}\\.json$"},
+        "event_sha256": {"$ref": "#/$defs/sha256"}
+      }
     },
     "usage": {
       "type": "object", "additionalProperties": false,
@@ -121,7 +147,10 @@
         "physical_request_bound_proven": {"type": "boolean"}, "usage_delta": {"$ref": "#/$defs/usage"},
         "target_event_id": {"$ref": "#/$defs/id"}, "target_event_sha256": {"$ref": "#/$defs/sha256"},
         "observation": {"type": "string", "minLength": 1}, "affected_fields": {"$ref": "#/$defs/stringArray"},
-        "unresolved_side_effects": {"type": "boolean"}, "recovery_required": {"type": "boolean"}
+        "unresolved_side_effects": {"type": "boolean"}, "recovery_required": {"type": "boolean"},
+        "coordination_quarantine_id": {"$ref": "#/$defs/id"},
+        "reconciled_quarantine_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "coordination_reconcile_refs": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/coordinationReconcileRef"}}
       }
     }
   }

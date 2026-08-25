@@ -14,18 +14,23 @@
 - `PROJECT_CONTROL.md` 负责原始目标、全局验收条件、active Phase 索引、跨 Phase 决策和 Project recovery record。
 - `phases/<phase-id>/PHASE_CONTROL.md` 负责该 Phase 的目标、boundary 与 Boundary Review record、plan、队列、交付物、证据、recovery record、收口和成长复盘。
 - `sessions/<session-id>/SESSION_CONTROL.md` 负责一次显式有界工作会话的范围、命令、touch set、checkpoint/recovery record 和下一步。
-- schema v4 中 `WORK_TASK_REPORT.md` 是必需 current projection；`PROJECT_HANDOFF.md` 可选，但存在时其 current Phase binding 也必须精确。
-- `runtime/` 是 non-canonical 生成态，禁止反向覆盖 canonical Markdown 控制文件。
+- `WORK_TASK_REPORT.md` 仅在 legacy workspace layout 兼容模式下是必需的精确投影。CURRENT contract 中，它与已存在的 `PROJECT_HANDOFF.md` 都是按需派生视图；过期只产生 warning，不成为竞争权威。
+- `runtime/workspace_control.json` 只拥有机器强制执行的 schema/profile/index 与 transaction binding；coordination state 拥有 Admission、queue、fencing 与 quarantine。其他 `runtime/` 内容是生成证据/缓存。Runtime 不得编造或反向覆盖 canonical Markdown 的目标、边界、计划或恢复事实。
 
 不得因每次 conversation turn 或普通持久写入创建 Session。只有显式定义 bounded work-session 边界时才创建。
 
-## Recovery order
+## 日常进入与 Recovery order
+
+已初始化工作区先按任务类别运行只读 `workspace-entry`，只加载其有界 current-set read list。该命令零写入、不创建实体、不加载完整历史。只有 entry 阻塞、用户明确要求恢复，或 recovery-sensitive gate 要求时才升级到完整恢复。
+
+完整恢复顺序：
 
 1. 读取最近适用的 instruction 文件。
 2. 读取根 `PROJECT_CONTROL.md`。
-3. 如存在，读取 active `PHASE_CONTROL.md`。
-4. 只在 active Session 存在时读取其 `SESSION_CONTROL.md`，随后读取 current report 与可选 handoff。
-5. 核查当前文件与 non-canonical runtime evidence。
+3. 如存在，读取显式选择或 primary `PHASE_CONTROL.md`。
+4. 只在 active Session 存在时读取其 `SESSION_CONTROL.md`。
+5. 仅在报告/交接任务或恢复决定明确需要时读取 report/handoff。
+6. 核查当前文件和 runtime 安全证据；历史文件只按显式引用读取。
 
 任何 summary 都不能替代 active MALTS version、当前文件或要求的 runtime probe。
 
@@ -33,11 +38,11 @@ canonical recovery authority 固定为：active Session checkpoint；否则 acti
 
 ## Cross-control consistency
 
-- 全新工作区使用精确 workspace schema v4。schema v1/v2/v3 与 Result Contract v1 保持可读兼容；只能通过显式 dry-run/apply 命令迁移（`migrate-workspace-v3-to-v4`、`migrate-result-contract-v1-to-v2`）。
+- 全新工作区使用精确 CURRENT workspace/Result contract，默认 profile 为 `single_phase`；只有显式启用 `resource_admission` 并取得 runtime Admission 时，才允许额外 `OPEN` Phase。受支持的旧布局作为内部兼容输入保持可读，只能通过一步、显式 dry-run/apply、精确 hash 绑定的重整到达 CURRENT。
 - `phase-boundary-review` 将 operation execution 与 `review_outcome` 分开报告；它不会持久化或授权工作。只有 `record-phase-boundary-review` 可记录 review，后续 mutation authorization 必须另行保存。
-- current report binding 缺失/过期、可选 handoff binding 过期、完整 Phase control 漂移、normalized Boundary/Recovery 漂移、unresolved review、typed recovery-source 漂移或 incomplete workspace transaction，都会阻断 validation、cold recovery 和普通 lifecycle mutation。
-- Workspace consistency 写入使用 `runtime/workspace_transaction.lock.json`、`runtime/workspace_transactions/` 与 `WS_TRANSACTION_*`；Artifact transaction 继续使用独立路径和 `ART_TRANSACTION_*` code。
-- 受治理 Task 拥有唯一一条 Result Contract v2 lineage 与 typed events；Phase/Session/report/handoff/runtime 只保存 binding 或可重建投影。
+- canonical control 漂移、normalized Boundary/Recovery 漂移、无效 plan/authorization/Admission/fencing 前提、影响权威的 UNKNOWN 外部副作用或 incomplete transaction，会阻断受影响操作。CURRENT contract report/handoff 漂移是 warning 并局部刷新；legacy workspace layout 投影漂移保留严格兼容阻塞。
+- Workspace 与 coordination authority 写入共享 `runtime/workspace_transaction.lock.json`、`runtime/workspace_transactions/`、`WS_TRANSACTION_*`、锁后精确 preimage 复核和唯一写者。Artifact transaction 继续使用独立路径和 `ART_TRANSACTION_*` code。
+- resource profile Task 使用 CURRENT Result Contract execution authority 与 append-only typed events；Phase/Session/report/handoff/runtime summary 只保存引用或可重建投影，绝不保存第二份完整 Attempt ledger。
 - `max_authorized_rounds` 是独立运行时 STOP 门。Attempt 失败只终止该 Attempt；不自动重试，也不自动升级 Task/Phase 终态。
 - `scoped-readiness` 是只读路由建议（S0/S1/S2/ESCALATE），绝不授权、写入或派发。`refresh-project-instructions` 只按精确审阅计划重写 `MALTS-PROJECT:` 拥有的 block；无 marker 的自定义文件绝不自动认领。
 
@@ -58,6 +63,13 @@ canonical recovery authority 固定为：active Session checkpoint；否则 acti
 - 普通启动只从当前工具相邻的 `MALTS_BOOT.md` 解析；交叉核对 registry、active pointer 与 `VERSION`。MALTS v1.1.1 起不再使用或创建机器全局 `GLOBAL_BOOT.md`。任何不一致都按 split brain fail closed。
 - Active Phase 拥有 plan path、revision、raw-byte SHA-256、recheck trigger/result 与 launch-review invalidation；root control 只保存索引，Session 只继承绑定。
 - S3/S4 工作在新写入范围、launch review、verifier、recovery/rollback 或 final delivery 前，按事件运行只读 `long_workspace.py plan-recheck --require-active-plan`。`BLOCKED` 必须停止；该命令不会创建授权。
+
+## Resource Admission
+
+- 默认 `single_phase` 不创建 coordination state，也不承担日常并发成本。
+- `resource_admission` 下，每次写入都核验 typed locator/capability Admission、精确 Phase hash、actor、lease expiry 和 fencing epoch。相同及父子路径冲突；声明 alias 的 locator 归入同一 domain。
+- Capability 模式为 `SHARED`、`EXCLUSIVE`、`QUEUED`、`ISOLATE_REQUIRED`。续租必须显式执行；不会创建 heartbeat daemon 或隐式 Agent。
+- 外部副作用为 `UNKNOWN` 时隔离受影响 domain。除非 workspace authority/recovery 本身不确定，无关 domain 可继续；被隔离 domain 必须显式、基于证据 reconcile。
 
 ## Safety
 

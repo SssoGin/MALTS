@@ -41,7 +41,7 @@
     "sha256": {"type": "string", "pattern": "^[A-F0-9]{64}$"},
     "relativePath": {"type": "string", "pattern": "^(?![A-Za-z]:|[/\\\\]|.*(?:^|[/\\\\])\\.\\.(?:[/\\\\]|$)).+$"},
     "state": {"enum": ["PREPARED", "IN_PROGRESS", "ROLLING_BACK", "ROLLED_BACK", "RECOVERY_REQUIRED", "COMMITTED"]},
-    "role": {"enum": ["IMMUTABLE_RECORD", "RESULT_PROJECTION", "SESSION_CONTROL", "PHASE_CONTROL", "REPORT", "HANDOFF", "PROJECT_CONTROL", "RUNTIME_STATE"]},
+    "role": {"enum": ["IMMUTABLE_RECORD", "RESULT_PROJECTION", "SESSION_CONTROL", "PHASE_CONTROL", "REPORT", "HANDOFF", "PROJECT_CONTROL", "COORDINATION_STATE", "RUNTIME_STATE"]},
     "stateEvent": {
       "type": "object", "additionalProperties": false,
       "required": ["state", "at", "replacement_cursor", "evidence_refs"],

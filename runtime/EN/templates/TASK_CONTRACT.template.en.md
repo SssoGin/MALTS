@@ -5,7 +5,7 @@
 ## Task Identity
 
 - Task ID:
-- Responsibility lane: Planner / Explorer / Worker / Verifier / Memory Curator / Other
+- Responsibility lane: MALTS Planner / MALTS Explorer / MALTS Worker / MALTS Verifier / MALTS Memory Curator / Other
 - Priority: P0 / P1 / P2 / P3
 - Status: READY
 - Assigned by: Main Controller
@@ -19,13 +19,13 @@
 - Current-project same-directory route and verified workspace, if peer-task:
 - Peer-task lifecycle state: PLANNED / CREATED / RUNNING / RETURNED / ACCEPTED / REWORK / BLOCKED / ARCHIVED / N/A
 - Rework reuse and archival rule, if peer-task:
-- Model policy: Inherit current main-controller session / Explicit model / Runtime default
-- Runtime effort policy: Inherit / Explicit runtime effort ID / Runtime default
+- Model policy: Cost-aware recommended route / Exact inherit only when cost class matches / Explicit user model / Runtime default
+- Runtime effort policy: Cost-aware recommended effort / Exact inherit only when cost class matches / Explicit runtime effort ID / Runtime default
 - Normalized reasoning tier: none / light / standard / deep / maximum / unknown
 - Display label, if exposed:
 - Cross-tool sync expectation for gap-filling tasks: Codex + Claude Code + OpenCode unless user-scoped otherwise / N/A
 - User-visible model name or policy:
-- User model specification source: User specified / User chose inherit / Default inherit after review
+- User model specification source: User specified / User chose exact inherit / Cost-aware recommendation / Runtime default after capability check
 - Explicit model, if any:
 - Reason for explicit model, if any:
 - Reason for explicit effort, if any:
@@ -63,7 +63,13 @@
 - Allowed to read:
 - Allowed to modify:
 - Prohibited from modifying:
-- Resource locks:
+- Governance profile: `single_phase` / `resource_admission` / N/A
+- Admission ID / exact Phase-control SHA-256 / actor ID: `N/A`
+- Typed locator requests (`PATH` / `ARTIFACT` / `RECORD` / `SERVICE` / `DEVICE` / `ENVIRONMENT`):
+- Capability requests (`SHARED` / `EXCLUSIVE` / `QUEUED` / `ISOLATE_REQUIRED`):
+- Lease expiry and required fencing epochs: `N/A`
+- Isolation key, when required: `N/A`
+- Quarantine/reconcile precondition: `CLEAR` / evidence reference / N/A
 
 ## Definition Of Ready
 
@@ -73,6 +79,7 @@
 - [ ] Prohibited changes are clear.
 - [ ] Dependencies are met.
 - [ ] No file or resource ownership conflict exists.
+- [ ] A resource-profile writer has a granted Admission, current Phase hash, unexpired lease, exact fencing tokens, and clear quarantine state; otherwise this is N/A.
 - [ ] Expected output format is clear.
 - [ ] Verification method is clear.
 - [ ] Runtime, model, effort, evidence quartet, constraint strength, and binding policy are clear.
@@ -103,6 +110,7 @@ Must include:
 - What was done.
 - Files changed, if any.
 - Verification performed.
+- Admission verification, fencing tokens, release/reconcile result, and any `UNKNOWN` external-effect evidence when resource governance applies.
 - Unverified items.
 - Risks or blockers.
 - Decisions required from the main controller.

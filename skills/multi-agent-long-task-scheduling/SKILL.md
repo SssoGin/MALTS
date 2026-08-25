@@ -94,33 +94,33 @@ This preflight is not multi-agent dispatch and does not require `确认运行`. 
 6. Memory Curator records growth candidates without polluting long-term memory.
 7. Completion without verification is not completion.
 8. Completion not checked against user goals is not real completion.
-9. `PROJECT_CONTROL.md` is the single source of truth for current project state.
+9. Each fact has one authority: `PROJECT_CONTROL.md` owns Project facts and indexes; the selected Phase owns Phase goal/queue/evidence/plan/recovery; an explicit Session owns only its bounded checkpoint; runtime coordination owns Admissions, queues, fencing, and quarantine. Reports and handoffs are projections.
 10. Process serves delivery; do not keep scheduling after the core goal is complete.
 11. Do not claim multi-agent validation unless sub-agent task contracts were dispatched and sub-agent reports were recycled.
 12. Do not claim a sub-agent ran unless the real runtime dispatch mechanism was used and recorded.
-13. Sub-agent routing is provider-neutral and explicit: record the requested model ID, runtime effort ID, normalized reasoning tier, and display label separately; otherwise record inheritance or runtime default without inventing an effective value.
+13. Sub-agent routing is provider-neutral, explicit, and cost-aware: if the user provides no override, derive a recommendation from task complexity, uncertainty, risk, audit importance, budget, latency, and verified runtime profiles. Do not default to inheriting the Main Controller. Record requested, recommended, configured, and effective routes separately without inventing effective evidence.
 14. Role describes responsibility, not difficulty. Select model and effort from task complexity, risk, budget, runtime support, and evidence; do not hard-code an effort merely because a lane is called Planner, Worker, or Verifier.
 15. When the user asks to use multi-agent mode, ask whether they want to specify sub-agent model and effort choices, explain the specification format, show the launch review packet, and wait for explicit `确认运行` before dispatching any sub-agent.
 16. For any gap-filling update to protocols, templates, checklists, adapters, or docs, check and synchronize Codex, Claude Code, and OpenCode together unless the user explicitly scopes one tool out.
-17. Long-task continuity is implemented through external state. If context saturation, compaction, interruption, or handoff risk appears, update `PROJECT_CONTROL.md`, task contracts, reports, and recovery notes before expanding the work.
-18. After each completed MALTS task or phase, write or append a plain work task report for the user, including the growth review result and memory-write decision when the phase is non-trivial, corrective, failed, or recovery-related.
+17. Long-task continuity is implemented through the smallest authoritative current set. If context saturation, compaction, interruption, or handoff risk appears, persist the material delta in its owning Project/Phase/Session record before expanding work; refresh a report/handoff only when requested or materially useful.
+18. Report task/Phase outcomes to the user, but do not rewrite a durable work report for a round with no material reporting delta. CURRENT reports are on-demand derived views; legacy workspace compatibility bindings remain strict until explicit reorganization. Render user-facing status in the user's explicit language, then the workspace `NarrativeLanguage`, then English fallback. Chinese output includes Chinese meaning plus the stable English code in full-width parentheses.
 19. Do not promise a fixed one-shot runtime such as "guaranteed 8 hours." Design long work as recoverable rounds.
 20. At long-task start, ask whether the user wants to enable unattended auto-continue. It requires explicit authorization recorded in `PROJECT_CONTROL.md`; without that authorization, unattended auto-running is forbidden and the system must stop at user checkpoints.
 21. If unattended continuation needs a new multi-agent batch that was not already reviewed and confirmed, stop and ask for the normal launch review confirmation.
 22. Standalone task or tool artifacts must keep their boundary explicit. Do not register a one-off artifact as a system entry, shared tool, or index item unless the user asks for that scope.
-23. Cross-window or cross-project continuation starts from external state: project instructions, `PROJECT_CONTROL`, the active Phase, the active Session if one exists, the required current `WORK_TASK_REPORT`, an optional current `PROJECT_HANDOFF`, and current files. Never select the latest historical Session by time or list order.
-24. In workspace schema v4, run `validate` and cold `recover` before dispatch or recovery-sensitive delivery. Missing/stale current bindings, Boundary/Recovery drift, unresolved review records, typed recovery-source drift, or an incomplete workspace transaction is `BLOCKED` until explicitly migrated, recorded, reconciled, or recovered.
+23. Cross-window continuation starts with read-only `workspace-entry --task-class CONTEXT_RECOVERY` and its bounded current-set paths. Escalate to cold `recover` only when entry blocks or the gate is recovery-sensitive. Do not load a report, handoff, or full history merely because it exists, and never select the latest historical Session by time or list order.
+24. Safety-critical canonical, authorization, Plan, Admission/fencing, unknown-effect, and transaction drift is `BLOCKED` for the affected authority/resource. CURRENT derived report/handoff drift is `WARNING` and locally refreshable; legacy workspace layout current projection drift retains its blocking compatibility behavior.
 
 ## Role Model
 
 | Role | Responsibility | Default Permission |
 |---|---|---|
 | Main Controller | Goal, status, dispatch, merge, final judgment | Full project coordination |
-| Planner | Task split and dependency suggestions | Read-only |
-| Explorer | Read-only discovery | Read-only |
-| Worker | Bounded implementation | Assigned write scope only |
-| Verifier | Independent check | Read-only plus allowed verification commands |
-| Memory Curator | Retrospective candidates | Candidate writes only |
+| MALTS Planner | Task split and dependency suggestions | Read-only |
+| MALTS Explorer | Read-only discovery | Read-only |
+| MALTS Worker | Bounded implementation | Assigned write scope only |
+| MALTS Verifier | Independent check | Read-only plus allowed verification commands |
+| MALTS Memory Curator | Retrospective candidates | Candidate writes only |
 
 ## Workflow
 
@@ -132,8 +132,8 @@ This preflight is not multi-agent dispatch and does not require `确认运行`. 
 6. Ask whether the user wants to enable unattended auto-continue and record the answer in `PROJECT_CONTROL.md`.
 7. Offer MALTS-native Grill-Me Preflight for non-trivial or unclear starts, unless it is clearly N/A, and record offered/accepted/declined/N/A.
 8. Run the Multi-Agent Fit Assessment and decide whether to stay single-agent, suggest multi-agent, or ask for clarification.
-9. Ask whether the user wants to specify sub-agent model and effort choices and show the accepted format.
-10. Prepare task contracts and a user-visible launch review packet. When the active Phase owns a plan, require a matching `BEFORE_LAUNCH_REVIEW` Plan Recheck; when schema v4 is active, require current report/handoff bindings and deterministic consistency first.
+9. Ask whether the user wants to override any sub-agent model or effort and show the accepted format. If they do not, use the cost-aware route planner and verified runtime catalog; inheritance is allowed only when the parent route exactly satisfies the recommended class/model/effort and policy permits it.
+10. Prepare task contracts and a user-visible launch review packet. When the selected Phase owns a plan, require a `BEFORE_LAUNCH_REVIEW` Plan Recheck against its current bytes/revision/scope; a previously recorded trigger is evidence, not an equality precondition. For legacy workspace layout, retain strict report/handoff consistency checks.
 11. Wait for the user's explicit `确认运行`.
 12. Dispatch only READY tasks with clear task contracts after confirmation.
 13. Record each real dispatch in the Agent Dispatch Log, including runtime agent ID and model policy when available.
@@ -142,14 +142,14 @@ This preflight is not multi-agent dispatch and does not require `确认运行`. 
 16. Reject or re-dispatch reports that are unstructured, off-scope, or unverified.
 17. Merge valid results.
 18. Run quality gate and delivery checks.
-19. Update `PROJECT_CONTROL.md`.
-20. Update recovery notes before context compaction, interruption, or handoff risk.
+19. Update only the authoritative control that owns a material state delta; do not mirror Phase/Session facts into `PROJECT_CONTROL.md`.
+20. Update the canonical recovery record before context compaction, interruption, or handoff risk; refresh derived views only on demand.
 21. Record growth candidates.
 22. Make growth visible to the user: report the review level, reusable lesson if any, and whether the lesson stayed local, became a candidate, or passed the memory-write checklist.
 23. Route filtered decisions and growth results through the MALTS Memory Pipeline.
 24. If a long-term memory target or optional external memory tool is unavailable, preserve the candidate locally in project state or the work task report and do not claim a completed long-term write.
 25. For protocol, template, checklist, adapter, or documentation gap-filling tasks, verify whether the same fix must be applied to Codex, Claude Code, and OpenCode.
-26. Provide or append `WORK_TASK_REPORT.md` as the canonical task or phase report. Use the user's or project's primary language for narrative content, keep English status/evidence fields stable, and create a full translated mirror only when explicitly requested.
+26. Provide or refresh `WORK_TASK_REPORT.md` only when the user requests a durable report or a material delivery/recovery need justifies it. In CURRENT contract it is a derived non-authoritative view; use the user's or project's primary language for narrative content, keep English status/evidence fields stable, and create a full translated mirror only when explicitly requested.
 27. If unattended auto-continue is authorized, check round caps and stop conditions before starting another round.
 28. Continue the next round or deliver with verified risks.
 
@@ -173,7 +173,7 @@ Before any real dispatch, the main controller must present a launch review packe
 
 - Overall goal and total plan.
 - A direct question asking whether the user wants to specify any sub-agent model or effort.
-- Provider-neutral specification instructions, for example: `analysis=model-id@high; verification=inherit@runtime-default; default=inherit@runtime-default`.
+- Provider-neutral override instructions, for example: `implementation=model-id@medium; verification=model-id@max`. Omitted lanes receive cost-aware recommendations, not automatic Main Controller inheritance.
 - Planned dispatch order or parallel batches.
 - Each planned responsibility lane's task objective, short plan, permission level, requested/recommended/configured/effective model-and-effort evidence, and whether the choice is user-specified, inherited, configured, or a verified fallback.
 - Any runtime limitation, such as an inherited model whose exact name is not exposed.
@@ -181,7 +181,7 @@ Before any real dispatch, the main controller must present a launch review packe
 
 For Claude Code, OpenCode, or any non-Codex runtime, record the runtime-specific visible sub-agent invocation, transcript, command output, or log reference. Do not invent a dispatch proof or model override that the installed runtime does not expose.
 
-In Codex, native `spawn_agent` is the preferred visible dispatch proof when its interface can satisfy the approved model and effort contract. If the user does not specify a model or effort, do not invent overrides; record the exposed inheritance/default policy. If the user specifies a value, pass it only when the current runtime interface supports it, and record configured values separately from the effective values returned or otherwise observed.
+In Codex, native `spawn_agent` is the preferred visible dispatch proof when its interface can satisfy the approved model and effort contract. If the user does not specify a model or effort, configure the verified profile selected by the cost-aware recommendation when the interface supports it; do not silently inherit the Main Controller. If the interface cannot configure the recommendation, record `unsupported` or a policy-approved verified fallback. User-specified hard routes fail closed on mismatch. Configured values remain separate from effective values returned or otherwise observed.
 
 ### Codex Peer-Task Route
 
@@ -213,26 +213,36 @@ The Main Controller always owns authorization, merge, final judgment, and delive
 - `1`: assign one bounded exploration, implementation, or independent-verification lane when that materially reduces risk.
 - `N`: use multiple conflict-free lanes only within the minimum of approved Agent count, contract concurrency, and effective runtime capacity.
 
-Planner, Explorer, Worker, Verifier, and Memory Curator remain responsibility names. Their presence, order, and count are determined by dependencies and acceptance criteria, not by a fixed ceremony.
+MALTS Planner, MALTS Explorer, MALTS Worker, MALTS Verifier, and MALTS Memory Curator remain responsibility names. Their presence, order, and count are determined by dependencies and acceptance criteria, not by a fixed ceremony.
 
 ### Role Boundaries
 
 | Role | Does | Does Not |
 |---|---|---|
-| Planner | Read plan, confirm edit locations, flag ambiguity | Modify files, dispatch agents, claim delivery |
-| Explorer | Discover structure, find patterns, report facts | Modify files, make decisions |
-| Worker | Edit assigned files within contract scope | Expand scope, modify prohibited files, delete without authorization |
-| Verifier | Independently check correctness, consistency, completeness | Fix issues, modify files (unless reassigned as Worker) |
-| Memory Curator | Extract, filter, and propose growth candidates | Write long-term memory without checklist, modify project files |
+| MALTS Planner | Read plan, confirm edit locations, flag ambiguity | Modify files, dispatch agents, claim delivery |
+| MALTS Explorer | Discover structure, find patterns, report facts | Modify files, make decisions |
+| MALTS Worker | Edit assigned files within contract scope | Expand scope, modify prohibited files, delete without authorization |
+| MALTS Verifier | Independently check correctness, consistency, completeness | Fix issues, modify files (unless reassigned as MALTS Worker) |
+| MALTS Memory Curator | Extract, filter, and propose growth candidates | Write long-term memory without checklist, modify project files |
 
 ### Assignment Rules
 
 1. Use the minimum number of lanes that improves the result; zero sub-agents is a valid routed outcome.
-2. Parallel write lanes must have non-overlapping locator leases. Read/read sharing is allowed; any shared write lease fails closed.
+2. Under default `single_phase`, scheduling remains single-open-Phase and creates no coordination state. Under opt-in CURRENT `resource_admission`, every write lane must hold a valid Admission for its typed locators/capabilities, exact Phase hash, actor, lease expiry, and fencing epochs. Read/read sharing is allowed; overlapping writes fail closed or queue according to declared capability policy.
 3. When independence is a hard acceptance requirement, the Verifier must be a different Agent instance from the work it verifies; if authorization or runtime evidence is missing, block rather than pretend independence.
 4. Planner and Explorer are always read-only. Never grant them write access.
 5. Memory Curator runs only when verified evidence exists and a growth review is actually warranted.
 6. Do not create placeholder lanes or assign unused roles merely to reach a count.
+
+### Resource Admission Rules
+
+Every resource Admission and any incomplete workspace transaction remains independently governed and must be reconciled before claiming completion.
+
+- Declare `PATH`, `ARTIFACT`, `RECORD`, `SERVICE`, `DEVICE`, or `ENVIRONMENT` locators and any `SHARED`, `EXCLUSIVE`, `QUEUED`, or `ISOLATE_REQUIRED` capability in the task contract. Do not encode tool-specific business rules in MALTS Core.
+- Exact and parent/child paths conflict; declared aliases join conflict domains. Non-fenceable exclusive tools serialize, while isolate-required work needs a distinct isolation key.
+- Lease renewal is explicit; MALTS starts no heartbeat daemon. A stale actor or old fencing epoch cannot continue writing. Verify Admission immediately before each governed mutation and include tokens in the returned report.
+- `UNKNOWN` external effects quarantine only affected domains unless workspace authority/recovery itself is uncertain. Continue unrelated admitted work, but require explicit evidence-backed reconcile before reusing quarantined domains.
+- Workspace and coordination authority mutations share one unique-writer lock with a post-lock exact-preimage check. A task contract or prompt cannot substitute for this runtime enforcement.
 
 ### Anti-Patterns
 
@@ -253,6 +263,8 @@ Planner, Explorer, Worker, Verifier, and Memory Curator remain responsibility na
 
 Before relying on a model, effort, fallback, or N-agent capacity, record all four route selections: `requested`, `recommended`, `configured`, and `effective`. Keep the runtime effort ID, normalized reasoning tier, and display label separate because runtimes may expose different IDs for similar labels.
 
+Create `agent-task-requirements` for each lane and run the deterministic recommendation in `agent_route_planner.py` against `runtime/agent-routing/model_effort_policy.json` plus current verified runtime/model-profile evidence. The default policy maps mechanical work toward `ECONOMY`, bounded implementation toward `BALANCED`, architecture or recovery-sensitive work toward `ADVANCED`, and high-importance independent verification toward `FLAGSHIP`. These are cost/risk classes, not fixed vendor models. `max` requires a high-risk/high-value reason or an explicit hard user override. Inheritance is not the default and is legal only on an exact policy match.
+
 Classify each route as one of `effective_verified`, `fallback_verified`, `configured_unverified`, `static_binding`, `inherited`, `unsupported`, or `unknown`. Configuration, CLI help, and interface discovery are not proof of effective use. Only direct behavior/return/log evidence plus usage evidence may support `effective_verified` or `fallback_verified`.
 
 - Hard model, effort, delegation, or concurrency constraints fail closed when the effective route differs.
@@ -260,6 +272,15 @@ Classify each route as one of `effective_verified`, `fallback_verified`, `config
 - `N > 1` requires effective or verified-fallback bindings and a non-null effective runtime concurrency value.
 - `agent_route_planner.py` is advisory and `result_controller.py` is authorization-aware; neither component dispatches an Agent.
 - Real Agent/provider behavior and the G4 runtime gate remain `NOT RUN` until a separate launch review is approved.
+
+## User-Facing Status Language
+
+- Keep JSON fields, lifecycle enums, error codes, model IDs, and evidence identifiers in stable English.
+- Render user-facing status through `malts_user_tools.py render-user-status` or the shared status catalog semantics.
+- Explicit user language wins, followed by workspace `NarrativeLanguage`, then English fallback.
+- For Simplified Chinese, write the Chinese meaning first and preserve the original stable code in full-width parentheses, for example `已返回（RETURNED）`. Never send a Chinese user an unexplained English-only status chain.
+- Use the installed responsibility display names `MALTS Planner`, `MALTS Explorer`, `MALTS Worker`, `MALTS Verifier`, and `MALTS Memory Curator`. When the runtime exposes a stable ID, show both, for example `MALTS Worker（malts_worker）`.
+- A Chinese-facing dispatch row follows this shape: `MALTS Worker（malts_worker） / 已计划（PLANNED） / 推荐：<model-id>@<effort> / 已配置（CONFIGURED） / 有效路由未知（UNKNOWN）`. Replace each status through the shared renderer; never claim the effective model before runtime evidence exists.
 
 ## Recycling Rules
 
@@ -280,7 +301,7 @@ Use `SUB_AGENT_REPORT.template.en.md` for returned results.
 
 If a task fails:
 
-1. Mark the task as FAILED or BLOCKED in `PROJECT_CONTROL.md`.
+1. Mark the task as `FAILED` or `BLOCKED` in its authoritative owner-local queue: the selected `PHASE_CONTROL.md` for Phase work, or an explicit `SESSION_CONTROL.md` only when that Session owns the bounded task. `PROJECT_CONTROL.md` receives only a Project-level decision or index delta; do not mirror the task status there.
 2. Record the failure type: requirement deviation, implementation error, verification failure, environment issue, scope violation, or scheduling failure.
 3. Decide whether to retry, split smaller, serialize, ask the user, or stop.
 4. Do not deliver failed work as completed.
@@ -325,14 +346,14 @@ Require confirmation or a safety mechanism before:
 - Standalone task artifacts stay in their own directory and are documented locally. They are not added to global `README`, handoff indexes, `tools/`, or adapter docs unless the user explicitly asks to promote them.
 - If a directory becomes a system entry, shared tool, adapter asset, or documented workflow location, update the relevant index and usage docs before delivery.
 - If a project workspace accidentally contains global skills or tool install copies, first verify the correct Agent global paths, promote or copy missing items there if appropriate, then remove or document the project copies. Do not leave unexplained agent-style skill folders in a task workspace.
-- At recovery time, a new window or another project folder should read the project instruction entry, root `PROJECT_CONTROL`, the active Phase, the active Session only when one exists, the required current report, an optional current handoff, and the directory guide when one exists. Continue only from verified current facts; do not fall back to the newest historical Session.
+- At recovery time, the host first loads applicable instructions, then runs `workspace-entry` and reads its returned bounded current-set paths: runtime current binding, selected/primary Phase, active Session only when one exists, and required coordination state. Project control is loaded by an explicit Project-level, review, or recovery gate; reports/handoffs are loaded only for reporting/handoff work or an explicit recovery need. Continue only from verified current facts; do not fall back to the newest historical Session.
 
 ## Runtime Duration And Round-Based Continuity
 
 - There is no reliable fixed maximum for a single uninterrupted run.
 - Treat runtime in three layers:
   - Single chat window / context: continues only until context, runtime, tool-call, or session limits.
-  - Single work round: a bounded batch that ends with state update, verification, and a work task report.
+  - Single work round: a bounded batch that ends with verification and any material authoritative state update; a durable work report is on demand, not automatic.
   - Whole long task / project: can continue across sessions as long as external state is current.
 - The practical rule is: do not try to make one window run forever; make every round recoverable, verifiable, and continuable.
 
@@ -358,7 +379,7 @@ Allowed unattended work:
 - Read approved project documents and files.
 - Continue approved edits inside scope.
 - Run approved verification commands.
-- Update `PROJECT_CONTROL.md`, task contracts, reports, recovery notes, and `WORK_TASK_REPORT.md`.
+- Update only the authoritative Project/Phase/Session fields and task contracts that materially changed; refresh report/handoff projections only when the authorization package requires them.
 
 Stop and ask the user when:
 
@@ -369,7 +390,7 @@ Stop and ask the user when:
 - The goal conflicts with later user input or cannot map to acceptance criteria.
 - Recovery state is missing or inconsistent.
 
-Each unattended round must re-read `PROJECT_CONTROL`, do only the next approved bounded step, verify, update state and reports, then check stop conditions before another round.
+Each unattended round must run bounded entry, read only the current authoritative set, do the next approved step, verify, persist material owner-local state, then check stop conditions before another round. It must not rewrite timestamps or derived views when nothing changed.
 
 ## Output
 
@@ -401,7 +422,8 @@ At delivery, report:
 - [ ] Dispatch logs, task contracts, reports, and feedback logs agree before claiming validation.
 - [ ] Any claim of multi-agent validation is backed by dispatched contracts and recycled reports.
 - [ ] Verification evidence exists before DONE.
-- [ ] For schema v4, structural/binding/deterministic consistency is clean, report/handoff bindings match exact Phase bytes, the typed recovery source is current, and no incomplete workspace transaction remains.
+- [ ] Safety-critical structural/binding/deterministic consistency is clean and no incomplete workspace/coordination transaction remains. legacy workspace layout report/handoff bindings retain exact compatibility checks; CURRENT derived-view drift is classified as warning and refreshed only when needed.
+- [ ] Every CURRENT resource-profile write lane has a valid Admission, current Phase hash, unexpired lease, exact fencing tokens, and resolved quarantine state; default single-profile work has no coordination overhead.
 - [ ] Main controller performed final acceptance mapping.
 - [ ] Risks are transparent.
 - [ ] Growth candidates are filtered before long-term memory writes.

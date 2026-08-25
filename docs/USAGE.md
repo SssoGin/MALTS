@@ -4,9 +4,23 @@ After lifecycle installation, start work from the tool's MALTS boot pointer.
 It resolves the active immutable generation; do not copy runtime files into a
 project manually.
 
+## Enter an existing workspace
+
+Do not rerun the initializer for an ordinary task. Classify the task and run one read-only entry assessment:
+
+```powershell
+python -B <MALTS_ROOT>\tools\long_workspace.py workspace-entry --workspace <WORKSPACE> --task-class LOW_RISK
+```
+
+Available classes are `READ_ONLY`, `LOW_RISK`, `WRITE_EXISTING_SCOPE`, `NEW_WRITE_SCOPE`, `HIGH_RISK`, and `CONTEXT_RECOVERY`. Read only the returned current-set paths. New scope/Phase changes trigger boundary review and Plan Recheck; real canonical/transaction/Admission drift triggers reconcile or recovery. Report/handoff/history loading and maintenance-view writes are not part of ordinary entry.
+
+If no Phase has ever been registered, entry reports `INITIALIZATION_REQUIRED`; if an initialized workspace has only terminal Phases, it reports `PHASE_REQUIRED` and requires a new explicit Phase. Neither path creates a Phase, Session, Agent, or Artifact.
+
+Fresh long workspaces default to CURRENT `single_phase`. To opt into resource-governed parallel Phases, review an initialization or explicit `reorganize-workspace` with `resource_admission`, then create Admission requests that bind typed locators/capabilities, exact Phase bytes, actor, expiry, authorization, and fencing tokens. All mutations are dry-run-first and require `--apply`; no daemon performs renewal.
+
 ## Start a project
 
-For a non-trivial task, define the goal, acceptance criteria, task queue, and
+For a non-trivial new project, define the goal, acceptance criteria, task queue, and
 recovery point in `PROJECT_CONTROL.md`. Record execution evidence in
 `WORK_TASK_REPORT.md`. Create `PROJECT_HANDOFF.md` when another Agent needs to
 continue the work.
@@ -25,6 +39,7 @@ the user explicitly requests a translated mirror.
 - Use Grill-Me Preflight when goals, assumptions, tradeoffs, or acceptance
   criteria need clarification.
 - Keep simple work single-agent.
+- After verification, normal single-agent work performs a no-write Growth Routing Gate automatically. Trivial no-signal work stays silent; non-trivial work or correction/failure/recovery receives a short visible Growth result. Repeated or high-impact evidence recommends, but does not automatically run, Standard/Major retrospective. L2/L3 writes remain separately authorized.
 - For a user-approved long or multi-agent task, show the launch review before
   dispatching work.
 - Use the handoff skill when continuation context must survive a session change.
@@ -77,28 +92,33 @@ separate review-only plan and exact plan-hash authorization flow.
 
 ### Review and change a Phase
 
-Use `phase-boundary-review` before a candidate goal or touch set may leave the active boundary. It is read-only and does not authorize implementation. Treat `status`/`operation_status` as command execution only; inspect `review_outcome`, mapping, recommendation, and `persisted` separately. Use `record-phase-boundary-review` to persist a structured result; that record still does not authorize implementation. Use `pause-phase` when ownership must be preserved but work must stop; use `resume-phase` only with current boundary/plan/authorization evidence. A cross-Phase handoff is a two-step, hash-bound `plan-phase-transition` then `apply-phase-transition` operation with explicit carry-over and disposition files.
+Use `phase-boundary-review` before a candidate goal or touch set may leave the active boundary. It is read-only and does not authorize implementation. Treat `status`/`operation_status` as command execution only; inspect `review_outcome`, mapping, recommendation, and `persisted` separately. Use `record-phase-boundary-review` to persist a structured result; that record still does not authorize implementation. Use `pause-phase` when ownership must be preserved but work must stop. Supply a stable Review ID such as `review:phase-030:001`, not a path, to pause/resume; evidence paths remain separate. Before resume, an explicitly selected PAUSED Phase may run read-only `plan-recheck`; PASS validates the binding but grants no execution authority. Use `resume-phase` only with current boundary/plan/authorization evidence. A cross-Phase handoff is a two-step, hash-bound `plan-phase-transition` then `apply-phase-transition` operation with explicit carry-over and disposition files.
 
 ```powershell
 python -B <MALTS_ROOT>\tools\long_workspace.py phase-boundary-review --workspace <workspace> --candidate-goal <goal> --candidate-touch-set <paths> --candidate-mapping UNCLEAR --recommendation USER_DECISION_REQUIRED
-python -B <MALTS_ROOT>\tools\long_workspace.py pause-phase --workspace <workspace> --reason <reason> --boundary-review-ref <ref> --authorization-ref <ref>
-python -B <MALTS_ROOT>\tools\long_workspace.py resume-phase --workspace <workspace> --phase-id <id> --boundary-review-ref <ref> --plan-review-ref <ref> --expected-plan-sha256 <sha256> --authorization-ref <ref>
+python -B <MALTS_ROOT>\tools\long_workspace.py pause-phase --workspace <workspace> --reason <reason> --boundary-review-ref <review-id> --authorization-ref <ref>
+python -B <MALTS_ROOT>\tools\long_workspace.py plan-recheck --workspace <workspace> --phase-id <paused-phase-id> --trigger CONTEXT_RECOVERY --require-active-plan
+python -B <MALTS_ROOT>\tools\long_workspace.py resume-phase --workspace <workspace> --phase-id <id> --boundary-review-ref <review-id> --plan-review-ref <ref> --expected-plan-sha256 <sha256> --authorization-ref <ref>
 ```
 
-Review the dry-run output before adding `--apply`. `SUPERSEDED` is terminal and at most one Phase can be `ACTIVE`.
+Review the dry-run output before adding `--apply`. `SUPERSEDED` is terminal. `active_phase_id` remains the scalar primary Phase; only `resource_admission` may also register additional `OPEN` Phases, and their writes require Admission.
 
-### Migrate, record, and reconcile consistency
+### Reorganize and recover consistency
 
-Fresh workspaces use schema v4. Schema v1/v2/v3 remain readable and are not silently upgraded. Begin with `validate`; if it returns a migration or reconciliation classification, use the exact hashes it reports and review the matching command without `--apply` (`migrate-workspace-v3-to-v4` and `migrate-result-contract-v1-to-v2` for v1.3.x cold migration; legacy `migrate-consistency-records`, `record-phase-boundary-review`, and `reconcile-consistency-records` stay dry-run-first).
+Fresh workspaces use CURRENT with default `single_phase`. Supported legacy workspace and Result layouts remain readable and are not silently upgraded. Begin with `validate`; when it classifies an input for reorganization, use the exact hashes it reports and review one matching command without `--apply`. The public path always targets CURRENT directly and never asks the user to traverse intermediate versions or a downgrade chain.
 
 ```powershell
-python -B <MALTS_ROOT>\tools\long_workspace.py migrate-consistency-records --workspace <workspace> --authority workspace-state --expected-state-sha256 <sha256> --operation-id <id>
 python -B <MALTS_ROOT>\tools\long_workspace.py record-phase-boundary-review --workspace <workspace> --phase-id <id> --review-id <id> --candidate-mapping SAME_PHASE --recommendation KEEP --evidence-ref <ref> --expected-phase-sha256 <sha256> --operation-id <id>
-python -B <MALTS_ROOT>\tools\long_workspace.py reconcile-consistency-records --workspace <workspace> --authority canonical-controls --expected-state-sha256 <sha256> --expected-source-sha256 <sha256> --expected-phase-sha256 <sha256> --operation-id <id>
 python -B <MALTS_ROOT>\tools\long_workspace.py recover-workspace-transaction --workspace <workspace> --operation-id <id> --expected-journal-sha256 <sha256>
+python -B <MALTS_ROOT>\tools\long_workspace.py reorganize-workspace --workspace <workspace> --operation-id <id> --expected-state-sha256 <sha256> --expected-project-control-sha256 <sha256> [--project-control-candidate <workspace-relative-path> --expected-candidate-sha256 <sha256>] --profile <single_phase-or-resource_admission> --review-ref <ref> --authorization-ref <ref> [--expected-plan-sha256 <sha256>]
+python -B <MALTS_ROOT>\tools\long_workspace.py reorganize-result-contract --workspace <workspace> --contract <legacy-or-current-contract> --expected-contract-sha256 <sha256> --expected-phase-control-sha256 <sha256> --expected-phase-boundary-sha256 <sha256> --operation-id <id> --revision-reason <reason> --review-ref <ref> --authorization-ref <ref> [--task-id <tid> --lineage-id <lid> --phase-id <pid> --event-id <eid> --expected-plan-sha256 <sha256>]
 ```
 
-Applied consistency writes use an isolated workspace transaction lock/journal and `WS_TRANSACTION_*` errors. Do not delete an incomplete journal; run the exact-journal-hash recovery dry run before `--apply`. Current recovery authority is active Session checkpoint, active Phase recovery, explicitly bound terminal Phase, then Project recovery—never the latest historical Session.
+Applied workspace and coordination authority writes share a unique-writer lock/journal and recheck exact preimages after acquiring the lock. Do not delete an incomplete journal; run the matching exact-journal-hash recovery dry run before `--apply`. Current recovery authority is active Session checkpoint, primary active Phase recovery, explicitly bound terminal Phase, then Project recovery—never the latest historical Session.
+
+### Coordinate resource-profile writes
+
+`workspace_coordination.py` admits typed locators/capabilities, renews/releases leases, verifies fencing, reaps expired grants, and records/reconciles `UNKNOWN` effects. Every mutation is a dry run until `--apply`; renewal is explicit and no daemon is created. Use a request JSON conforming to `workspace_coordination.schema.json`. Non-fenceable exclusive capabilities serialize, and `ISOLATE_REQUIRED` needs a distinct isolation key.
 
 ### Audit, enroll, and mutate Artifacts
 
@@ -126,10 +146,12 @@ For an active S3/S4 long-project Phase, bind the active plan path, revision, and
 
 Codex can use a governed peer task when native sub-agent dispatch cannot satisfy an approved hard model/effort contract and the official task/thread interface can. The task uses the current project workspace, is recorded as `codex-peer-task` / `peer-task`, has no silent fallback, reuses the same task for rework, and is archived only after Main Controller acceptance or terminal closure. This is part of the existing multi-agent Skill, not a separate Skill or hidden child Agent.
 
-## MALTS v1.3.0 commands
+## Current workspace commands
 
-- `record-result-events` / `rebuild-result-lineage`: typed Result v2 event append and projection rebuild (dry-run by default).
-- `migrate-workspace-v3-to-v4` / `migrate-result-contract-v1-to-v2`: explicit hash-bound cold migrations; quiescence required.
+- `workspace-entry` / `refresh-maintenance-views`: bounded read-only daily entry and on-demand non-authoritative view rebuild from canonical current controls; older projection prose is not retained.
+- `record-result-events` / `rebuild-result-lineage`: typed Result event append and projection rebuild (dry-run by default); resource execution uses CURRENT Result authority.
+- `reorganize-workspace` / `reorganize-result-contract`: one-hop, explicit, hash-bound reorganization from any supported legacy input to CURRENT, with matching quiescence and recovery conditions.
+- `workspace_coordination.py`: Admission, queue, lease, fencing, quarantine, and reconcile; no heartbeat daemon.
 - `plan-phase-boundary-amendment` / `apply-phase-boundary-amendment`: immutable Phase boundary revisions.
 - `transfer-session-lease`: hash-bound Session lease owner transfer.
 - `scoped-readiness`: read-only S0/S1/S2/ESCALATE route advice; never authorizes or writes.

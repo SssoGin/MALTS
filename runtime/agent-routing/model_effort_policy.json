@@ -1,0 +1,24 @@
+{
+  "contract_id": "malts.agent-route-policy.current",
+  "policy_id": "malts.cost-aware-default",
+  "route_classes": [
+    {"route_class": "ECONOMY", "rank": 1, "preferred_capability_tiers": ["efficient", "balanced"], "allowed_cost_classes": ["low", "medium"], "default_effort": "low", "allowed_efforts": ["low", "medium"]},
+    {"route_class": "BALANCED", "rank": 2, "preferred_capability_tiers": ["balanced", "efficient", "strategic"], "allowed_cost_classes": ["low", "medium"], "default_effort": "medium", "allowed_efforts": ["medium", "high"]},
+    {"route_class": "ADVANCED", "rank": 3, "preferred_capability_tiers": ["balanced", "strategic"], "allowed_cost_classes": ["medium", "high"], "default_effort": "high", "allowed_efforts": ["high"]},
+    {"route_class": "FLAGSHIP", "rank": 4, "preferred_capability_tiers": ["strategic"], "allowed_cost_classes": ["high", "medium"], "default_effort": "max", "allowed_efforts": ["high", "max"]}
+  ],
+  "thresholds": {"balanced_min": 3, "advanced_min": 8, "flagship_min": 13},
+  "weights": {
+    "workload": {"MECHANICAL": 0, "BOUNDED_IMPLEMENTATION": 2, "SEMANTIC_ANALYSIS": 3, "ARCHITECTURE_SECURITY": 6, "INDEPENDENT_VERIFICATION": 6},
+    "level": {"LOW": 0, "MEDIUM": 1, "HIGH": 2},
+    "risk": {"NONE": 0, "LOW": 0, "MEDIUM": 1, "HIGH": 2},
+    "independent_verification": 2,
+    "failure": 1,
+    "scope_expanded": 1
+  },
+  "safety_floors": {"architecture_security": "ADVANCED", "high_recovery_risk": "ADVANCED", "high_importance_independent_verification": "FLAGSHIP"},
+  "inheritance": {"default_allowed": false, "require_exact_model_effort": true, "require_route_class_match": true},
+  "max_effort": {"requires_justification": true, "permitted_workloads": ["ARCHITECTURE_SECURITY", "INDEPENDENT_VERIFICATION"], "explicit_hard_override_allowed": true},
+  "fallback": {"hard_constraint_action": "BLOCK", "soft_constraint_action": "VERIFIED_FALLBACK_ONLY", "silent_substitution_allowed": false},
+  "escalation": {"failure_count_threshold": 1, "scope_expansion_escalates": true, "high_uncertainty_escalates": true}
+}

@@ -4,6 +4,12 @@ Use this adapter from a verified MALTS installation. It supplies the
 OpenCode instruction template, agent definitions, and settings required by a
 MALTS project.
 
+## Workspace startup contract
+
+OpenCode must not rerun `malts-long-project-workspace-init` for every ordinary task. In an initialized workspace it runs read-only `workspace-entry`, reads only the returned bounded current set, and escalates only for new scope, Phase change, real safety drift, or explicit recovery. CURRENT reports/handoffs are on-demand derived views; they are not startup gates. Default `single_phase` creates no coordination state. Under explicit `resource_admission`, every write lane must verify its Admission, current Phase hash, lease, fencing tokens, and quarantine state before mutation.
+
+This adapter exposes the same Core/schema contract as Codex and Claude Code. Adapter settings and prompts do not grant mutation authority, fence tools that bypass MALTS, or silently migrate legacy workspaces.
+
 ## Install through the lifecycle
 
 1. Verify the downloaded package before extraction.
@@ -56,9 +62,11 @@ equivalent route, return, acceptance, and closure evidence.
 
 - Phase review and transition commands: `phase-boundary-review`, `pause-phase`, `resume-phase`, `plan-phase-transition`, and `apply-phase-transition`.
 - Boundary review operation success is not semantic resolution, persistence, or authorization. Use exact-hash, dry-run-first `migrate-consistency-records`, `record-phase-boundary-review`, and `reconcile-consistency-records`.
-- Fresh workspaces use schema v4. Schema v1/v2/v3 remain readable and require explicit migration (`migrate-workspace-v3-to-v4`, `migrate-result-contract-v1-to-v2`); current `WORK_TASK_REPORT.md` is required and an existing handoff must bind exact Phase, boundary/review, and recovery hashes.
-- Deterministic drift blocks validation, cold recovery, and ordinary lifecycle mutation. Recovery never chooses the latest historical Session; it uses active Session, active Phase, explicitly bound terminal Phase, then Project authority.
-- Workspace transactions use the isolated `runtime/workspace_transaction.lock.json` / `runtime/workspace_transactions/` namespace and `WS_TRANSACTION_*` codes.
+- Fresh workspaces use CURRENT with default `single_phase`; supported legacy layouts remain readable and reach CURRENT only through explicit one-hop reorganization. `resource_admission` is opt-in. CURRENT `WORK_TASK_REPORT.md`/handoff views are on demand; legacy projection bindings remain strict until reorganization.
+- When the user gives no model/effort override, MALTS recommends a verified route from task complexity, uncertainty, risk, audit value, budget, latency, and runtime capability; it does not default to Main Controller inheritance. `max` requires a recorded high-risk/high-value reason or a hard user override.
+- User-facing lifecycle and status text follows explicit user language, then `NarrativeLanguage`, then English fallback. Chinese output shows the Chinese meaning plus the stable English code, for example `已返回（RETURNED）`; machine fields and status codes stay English.
+- Safety-critical canonical/authorization/transaction/Admission/fencing/unknown-effect drift blocks affected work. Recovery never chooses the latest historical Session; it uses active Session, primary active Phase, explicitly bound terminal Phase, then Project authority.
+- Workspace/coordination authority shares `runtime/workspace_transaction.lock.json`, `runtime/workspace_transactions/`, and `WS_TRANSACTION_*` with post-lock preimage checking. Typed locators, capability modes, leases, fencing, queues, quarantine, and explicit reconcile govern resource-profile writes; Artifact transactions remain separate.
 - Artifact commands: `artifact audit`, `artifact enrollment-preview`, `artifact enrollment-apply`, `artifact register`, `artifact promote`, `artifact supersede`, and `artifact reconcile`.
 - The Artifact contract defaults to `NOT_ENROLLED`. Invariant: no implicit Session.
 - State changes are dry-run by default and require explicit `--apply`; they do not move/delete payloads, invoke VCS, or recursively scan undeclared trees.

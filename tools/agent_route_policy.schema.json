@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:malts:schema:agent-route-policy:current",
+  "title": "MALTS Current Cost-Aware Agent Route Policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_id", "policy_id", "route_classes", "thresholds", "weights", "safety_floors",
+    "inheritance", "max_effort", "fallback", "escalation"
+  ],
+  "properties": {
+    "contract_id": {"const": "malts.agent-route-policy.current"},
+    "policy_id": {"const": "malts.cost-aware-default"},
+    "route_classes": {
+      "type": "array", "minItems": 4, "maxItems": 4,
+      "items": {"$ref": "#/$defs/routeClass"}
+    },
+    "thresholds": {
+      "type": "object", "additionalProperties": false,
+      "required": ["balanced_min", "advanced_min", "flagship_min"],
+      "properties": {
+        "balanced_min": {"type": "integer", "minimum": 0, "maximum": 100},
+        "advanced_min": {"type": "integer", "minimum": 0, "maximum": 100},
+        "flagship_min": {"type": "integer", "minimum": 0, "maximum": 100}
+      }
+    },
+    "weights": {
+      "type": "object", "additionalProperties": false,
+      "required": ["workload", "level", "risk", "independent_verification", "failure", "scope_expanded"],
+      "properties": {
+        "workload": {"$ref": "#/$defs/workloadWeights"},
+        "level": {"$ref": "#/$defs/levelWeights"},
+        "risk": {"$ref": "#/$defs/riskWeights"},
+        "independent_verification": {"type": "integer", "minimum": 0, "maximum": 20},
+        "failure": {"type": "integer", "minimum": 0, "maximum": 20},
+        "scope_expanded": {"type": "integer", "minimum": 0, "maximum": 20}
+      }
+    },
+    "safety_floors": {
+      "type": "object", "additionalProperties": false,
+      "required": ["architecture_security", "high_recovery_risk", "high_importance_independent_verification"],
+      "properties": {
+        "architecture_security": {"$ref": "#/$defs/routeClassName"},
+        "high_recovery_risk": {"$ref": "#/$defs/routeClassName"},
+        "high_importance_independent_verification": {"$ref": "#/$defs/routeClassName"}
+      }
+    },
+    "inheritance": {
+      "type": "object", "additionalProperties": false,
+      "required": ["default_allowed", "require_exact_model_effort", "require_route_class_match"],
+      "properties": {
+        "default_allowed": {"const": false},
+        "require_exact_model_effort": {"const": true},
+        "require_route_class_match": {"const": true}
+      }
+    },
+    "max_effort": {
+      "type": "object", "additionalProperties": false,
+      "required": ["requires_justification", "permitted_workloads", "explicit_hard_override_allowed"],
+      "properties": {
+        "requires_justification": {"const": true},
+        "permitted_workloads": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["ARCHITECTURE_SECURITY", "INDEPENDENT_VERIFICATION"]}},
+        "explicit_hard_override_allowed": {"const": true}
+      }
+    },
+    "fallback": {
+      "type": "object", "additionalProperties": false,
+      "required": ["hard_constraint_action", "soft_constraint_action", "silent_substitution_allowed"],
+      "properties": {
+        "hard_constraint_action": {"const": "BLOCK"},
+        "soft_constraint_action": {"const": "VERIFIED_FALLBACK_ONLY"},
+        "silent_substitution_allowed": {"const": false}
+      }
+    },
+    "escalation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["failure_count_threshold", "scope_expansion_escalates", "high_uncertainty_escalates"],
+      "properties": {
+        "failure_count_threshold": {"type": "integer", "minimum": 1, "maximum": 1000},
+        "scope_expansion_escalates": {"const": true},
+        "high_uncertainty_escalates": {"const": true}
+      }
+    }
+  },
+  "$defs": {
+    "routeClassName": {"enum": ["ECONOMY", "BALANCED", "ADVANCED", "FLAGSHIP"]},
+    "effort": {"enum": ["low", "medium", "high", "max"]},
+    "routeClass": {
+      "type": "object", "additionalProperties": false,
+      "required": ["route_class", "rank", "preferred_capability_tiers", "allowed_cost_classes", "default_effort", "allowed_efforts"],
+      "properties": {
+        "route_class": {"$ref": "#/$defs/routeClassName"},
+        "rank": {"type": "integer", "minimum": 1, "maximum": 4},
+        "preferred_capability_tiers": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["strategic", "balanced", "efficient", "specialized", "unknown"]}},
+        "allowed_cost_classes": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["low", "medium", "high", "unknown"]}},
+        "default_effort": {"$ref": "#/$defs/effort"},
+        "allowed_efforts": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/effort"}}
+      }
+    },
+    "workloadWeights": {
+      "type": "object", "additionalProperties": false,
+      "required": ["MECHANICAL", "BOUNDED_IMPLEMENTATION", "SEMANTIC_ANALYSIS", "ARCHITECTURE_SECURITY", "INDEPENDENT_VERIFICATION"],
+      "properties": {
+        "MECHANICAL": {"type": "integer", "minimum": 0, "maximum": 20},
+        "BOUNDED_IMPLEMENTATION": {"type": "integer", "minimum": 0, "maximum": 20},
+        "SEMANTIC_ANALYSIS": {"type": "integer", "minimum": 0, "maximum": 20},
+        "ARCHITECTURE_SECURITY": {"type": "integer", "minimum": 0, "maximum": 20},
+        "INDEPENDENT_VERIFICATION": {"type": "integer", "minimum": 0, "maximum": 20}
+      }
+    },
+    "levelWeights": {
+      "type": "object", "additionalProperties": false,
+      "required": ["LOW", "MEDIUM", "HIGH"],
+      "properties": {"LOW": {"type": "integer"}, "MEDIUM": {"type": "integer"}, "HIGH": {"type": "integer"}}
+    },
+    "riskWeights": {
+      "type": "object", "additionalProperties": false,
+      "required": ["NONE", "LOW", "MEDIUM", "HIGH"],
+      "properties": {"NONE": {"type": "integer"}, "LOW": {"type": "integer"}, "MEDIUM": {"type": "integer"}, "HIGH": {"type": "integer"}}
+    }
+  }
+}

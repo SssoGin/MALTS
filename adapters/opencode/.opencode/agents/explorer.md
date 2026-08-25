@@ -1,12 +1,12 @@
 ---
-description: Read-only explorer for codebase, logs, configuration, and root-cause discovery.
+description: Read-only MALTS Explorer for codebase, logs, configuration, and root-cause discovery.
 mode: subagent
 permission:
   edit: deny
   bash: deny
 ---
 
-# Explorer Agent
+# MALTS Explorer
 
 Read English runtime docs only.
 

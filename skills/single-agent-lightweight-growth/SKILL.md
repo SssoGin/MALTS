@@ -15,6 +15,18 @@ This is the default growth mode.
 
 Use for all normal tasks unless multi-agent long-task scheduling is explicitly enabled.
 
+## Growth Routing Gate
+
+After verification and before final delivery, perform one in-context L1 routing decision. This is a no-write lifecycle check, not a user-confirmation-gated Skill invocation.
+
+- A trivial task with no signal returns `NO_OUTPUT` and stays silent.
+- A non-trivial task, user correction, verification reversal, recovery, failure, or reusable method returns `LIGHT_REPORT` with a short user-visible result.
+- Repeated failure, rework, phase/long-task completion, delivery failure, or high-impact evidence returns `RETROSPECTIVE_RECOMMENDED`; recommend Standard or Major review but do not start it automatically.
+- An explicitly requested retrospective or an already authorized retrospective returns `RETROSPECTIVE_AUTHORIZED`; any L2/L3 durable write remains separately authorization-gated.
+- An applicable blocked Plan Recheck returns `BLOCKED`; Growth never bypasses a plan, boundary, safety, unknown-effect, or transaction gate.
+
+The Gate creates no Growth ledger, Phase, Session, Artifact, runtime cache, background process, or durable control-file update. L1 is available without project write permission. A user-visible L1 summary is temporary visibility, not durable memory.
+
 ## Principle
 
 Growth analysis may be continuous, but durable growth writes are permission-bound. Most small tasks should not produce files, long reviews, or heavy process.
@@ -31,6 +43,7 @@ Growth analysis may be continuous, but durable growth writes are permission-boun
 2. Verify before claiming completion.
 3. At the end, briefly check whether the task produced a high-signal event: user correction, verification reversal, repeated failure, rework, recovery/rollback, a materially successful method, or a tool-fact/assumption conflict.
 4. If no meaningful signal exists, do not create a growth file.
+4a. If no durable control or reporting delta exists, do not rewrite `PROJECT_CONTROL.md`, `WORK_TASK_REPORT.md`, `PROJECT_HANDOFF.md`, Phase/Session controls, runtime indexes, or timestamps merely to record that nothing changed.
 5. Under L1, analyze the signal in memory and report only a temporary candidate when useful.
 6. Under an explicit L2 authorization, record the candidate only in the declared project surface and run the anti-pollution gate.
 7. Retrieve candidates only when their task type, risk, tool, workspace key, and failure signature are relevant. Retrieval is not permission to apply the candidate.
@@ -40,7 +53,7 @@ Growth analysis may be continuous, but durable growth writes are permission-boun
 11. High-risk candidates also require an independent review or negative/counterexample test.
 12. Harmful evidence moves the candidate to `CHALLENGED`; severe harmful evidence moves it to `SUSPENDED` and stops automatic application.
 13. Any L3 proposal or write requires a separate user confirmation even when the memory checklist passes.
-14. For non-trivial tasks, user corrections, recovery rounds, or failures, include a short user-facing growth result in the final or phase report.
+14. For non-trivial tasks, user corrections, recovery rounds, or failures, include the short user-facing Growth Routing result in final delivery; a report-only entry does not satisfy this visibility requirement.
 15. When the task runs inside an active S3/S4 MALTS Phase with a bound plan, run the matching read-only Plan Recheck event before a new write scope, after a user goal change or failure/recovery, and before final delivery. Do not create a plan or authorization from this lightweight growth workflow; `BLOCKED` stops the gated action and `N/A` is valid only when the Phase does not require a plan.
 
 ## Lightweight Growth Triggers
@@ -68,21 +81,18 @@ Do not record:
 
 ## Output
 
-If meaningful:
+For `LIGHT_REPORT`, `RETROSPECTIVE_RECOMMENDED`, or `RETROSPECTIVE_AUTHORIZED`:
 
 ```md
-Growth candidate:
-- Authority level: L1 / L2 / L3
-- Trigger:
-- Action:
-- Check:
-- Boundary:
-- Evidence:
-- Lifecycle status:
-- Durable write authorization: None / Project authorization reference / Separate L3 confirmation required
+Growth review:
+- Route: LIGHT_REPORT / RETROSPECTIVE_RECOMMENDED / RETROSPECTIVE_AUTHORIZED
+- Reusable experience found: Yes / No
+- Next-time change: ... / N/A
+- Durable write decision: None / Project authorization reference / Separate L3 confirmation required
+- Full retrospective: Not needed / Standard recommended / Major recommended / Authorized
 ```
 
-If not meaningful, no growth output is required.
+For `NO_OUTPUT`, show no empty Growth template. For a Chinese user, render Chinese meaning plus the route code, for example `轻量成长复核（LIGHT_REPORT）`.
 
 For non-trivial or recovery tasks, include this short report even when no long-term write is made:
 
@@ -112,7 +122,9 @@ Growth review:
 - [ ] Failed or unavailable memory writes were preserved as local candidates instead of claimed as completed.
 - [ ] The user-facing report includes the growth result when the task is non-trivial or recovery-related.
 
-## Fast Path growth (MALTS v1.3.0)
+## Fast Path growth
 
 - S0/S1 project-external or same-scope no-durable-delta work records no Phase/Session growth and never creates a Session or reverse Phase trigger.
 - A durable state delta routes through `scoped-readiness` as `S2_GOVERNED`; `UNKNOWN` delta, active Session lease, enrolled Artifact, unresolved side effect, or consistency drift escalates and growth recording follows the governed path.
+- In an initialized long workspace, ordinary read-only/low-risk entry uses the bounded read-only `workspace-entry` report. It loads no full history and performs no maintenance-view refresh.
+- CURRENT report/handoff projections are refreshed only on demand when there is a material reporting or handoff need. Derived-view staleness is a warning; canonical, authorization, transaction, Admission/fencing, or unknown-effect drift remains fail-closed for the affected scope.

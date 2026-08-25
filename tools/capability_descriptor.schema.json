@@ -96,6 +96,20 @@
         ]
       }
     },
+    "permission_routes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseline", "conditional"],
+      "properties": {
+        "baseline": {"$ref": "#/$defs/permissionRoute"},
+        "conditional": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/permissionRoute"}
+        }
+      }
+    },
     "dependencies": {
       "type": "array",
       "items": {
@@ -148,6 +162,38 @@
     }
   },
   "$defs": {
+    "permissionRoute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["route_id", "required_permissions", "durable_write", "requires_confirmation", "description"],
+      "properties": {
+        "route_id": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"},
+        "required_permissions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/permission"}
+        },
+        "durable_write": {"type": "boolean"},
+        "requires_confirmation": {"type": "boolean"},
+        "description": {"type": "string", "minLength": 1}
+      }
+    },
+    "permission": {
+      "enum": [
+        "read-files",
+        "write-project-files",
+        "write-local-canonical",
+        "write-global-state",
+        "tool-invocation",
+        "agent-dispatch",
+        "git-read",
+        "git-write",
+        "network",
+        "install-dependency",
+        "delete-managed-files",
+        "release"
+      ]
+    },
     "toolMetadata": {
       "type": "object",
       "additionalProperties": false,

@@ -1,21 +1,21 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:malts:schema:workspace-control:4",
-  "title": "MALTS Long-Project Workspace Control",
+  "$id": "urn:malts:schema:workspace-control:current",
+  "title": "MALTS Current Long-Project Workspace Control",
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "schema_version", "project_id", "active_phase_id", "active_session_id", "project_control",
+    "contract_id", "project_id", "active_phase_id", "active_session_id", "project_control",
     "phase_controls", "session_controls", "capacity_budget", "maintenance_state", "recovery_point",
-    "current_phase_binding", "current_session_binding", "current_task_bindings", "recovery_binding"
+    "current_phase_binding", "current_session_binding", "current_task_bindings", "recovery_binding", "phase_governance"
   ],
   "properties": {
-    "schema_version": {"const": 4},
+    "contract_id": {"const": "malts.workspace.current"},
     "project_id": {"$ref": "#/$defs/id"},
     "active_phase_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
     "active_session_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
     "project_control": {"const": "PROJECT_CONTROL.md"},
-    "phase_controls": {"type": "array", "items": {"$ref": "#/$defs/phaseControl"}},
+    "phase_controls": {"type": "array", "items": {"$ref": "#/$defs/phaseControlV5"}},
     "session_controls": {"type": "array", "items": {"$ref": "#/$defs/sessionControlV4"}},
     "capacity_budget": {"$ref": "#/$defs/capacityBudget"},
     "maintenance_state": {"$ref": "#/$defs/maintenanceState"},
@@ -23,7 +23,8 @@
     "current_phase_binding": {"$ref": "#/$defs/currentPhaseBindingV3"},
     "current_session_binding": {"$ref": "#/$defs/currentSessionBinding"},
     "current_task_bindings": {"type": "array", "items": {"$ref": "#/$defs/taskBindingV4"}},
-    "recovery_binding": {"$ref": "#/$defs/recoveryBindingV2"}
+    "recovery_binding": {"$ref": "#/$defs/recoveryBindingV2"},
+    "phase_governance": {"$ref": "#/$defs/phaseGovernance"}
   },
   "$defs": {
     "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
@@ -41,6 +42,27 @@
         "phase_id": {"$ref": "#/$defs/id"},
         "path": {"type": "string", "pattern": "^phases[/\\\\][A-Za-z0-9._-]+[/\\\\]PHASE_CONTROL\\.md$"},
         "status": {"enum": ["PLANNED", "ACTIVE", "PAUSED", "DONE", "SUPERSEDED", "BLOCKED", "FAILED"]}
+      }
+    },
+    "phaseControlV5": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["phase_id", "path", "status"],
+      "properties": {
+        "phase_id": {"$ref": "#/$defs/id"},
+        "path": {"type": "string", "pattern": "^phases[/\\\\][A-Za-z0-9._-]+[/\\\\]PHASE_CONTROL\\.md$"},
+        "status": {"enum": ["PLANNED", "ACTIVE", "OPEN", "PAUSED", "DONE", "SUPERSEDED", "BLOCKED", "FAILED"]}
+      }
+    },
+    "phaseGovernance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile", "coordination_path", "report_projection_policy", "history_load_policy"],
+      "properties": {
+        "profile": {"enum": ["single_phase", "resource_admission"]},
+        "coordination_path": {"type": ["string", "null"], "enum": ["runtime/workspace_coordination.json", null]},
+        "report_projection_policy": {"const": "ON_DEMAND"},
+        "history_load_policy": {"const": "CURRENT_SET_ONLY"}
       }
     },
     "sessionControl": {
@@ -297,6 +319,29 @@
         "project_control": {"const": "PROJECT_CONTROL.md"}, "phase_controls": {"type": "array", "items": {"$ref": "#/$defs/phaseControl"}}, "session_controls": {"type": "array", "items": {"$ref": "#/$defs/sessionControlV4"}},
         "capacity_budget": {"$ref": "#/$defs/capacityBudget"}, "maintenance_state": {"$ref": "#/$defs/maintenanceState"}, "recovery_point": {"$ref": "#/$defs/recoveryPoint"},
         "current_phase_binding": {"$ref": "#/$defs/currentPhaseBindingV3"}, "current_session_binding": {"$ref": "#/$defs/currentSessionBinding"}, "current_task_bindings": {"type": "array", "items": {"$ref": "#/$defs/taskBindingV4"}}, "recovery_binding": {"$ref": "#/$defs/recoveryBindingV2"}
+      }
+    },
+    "workspaceControlV5": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "project_id", "active_phase_id", "active_session_id", "project_control", "phase_controls", "session_controls", "capacity_budget", "maintenance_state", "recovery_point", "current_phase_binding", "current_session_binding", "current_task_bindings", "recovery_binding", "phase_governance"],
+      "properties": {
+        "schema_version": {"const": 5}, "project_id": {"$ref": "#/$defs/id"}, "active_phase_id": {"$ref": "#/$defs/nullableId"}, "active_session_id": {"$ref": "#/$defs/nullableId"},
+        "project_control": {"const": "PROJECT_CONTROL.md"}, "phase_controls": {"type": "array", "items": {"$ref": "#/$defs/phaseControlV5"}}, "session_controls": {"type": "array", "items": {"$ref": "#/$defs/sessionControlV4"}},
+        "capacity_budget": {"$ref": "#/$defs/capacityBudget"}, "maintenance_state": {"$ref": "#/$defs/maintenanceState"}, "recovery_point": {"$ref": "#/$defs/recoveryPoint"},
+        "current_phase_binding": {"$ref": "#/$defs/currentPhaseBindingV3"}, "current_session_binding": {"$ref": "#/$defs/currentSessionBinding"}, "current_task_bindings": {"type": "array", "items": {"$ref": "#/$defs/taskBindingV4"}}, "recovery_binding": {"$ref": "#/$defs/recoveryBindingV2"},
+        "phase_governance": {"$ref": "#/$defs/phaseGovernanceLegacyV5"}
+      }
+    },
+    "phaseGovernanceLegacyV5": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile", "coordination_path", "report_projection_policy", "history_load_policy"],
+      "properties": {
+        "profile": {"enum": ["single_phase_v1", "resource_admission_v1"]},
+        "coordination_path": {"type": ["string", "null"], "enum": ["runtime/workspace_coordination.json", null]},
+        "report_projection_policy": {"const": "ON_DEMAND"},
+        "history_load_policy": {"const": "CURRENT_SET_ONLY"}
       }
     }
   }

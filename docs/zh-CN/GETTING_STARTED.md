@@ -8,6 +8,20 @@ MALTS 不是后台自治服务。它由 Skill、模板、合同、生命周期�
 
 主 Agent 对结果保持责任。子 Agent 是可选的，且只有用户确认完整启动审阅后才能真实派发。
 
+## 1.1 区分初始化与日常进入
+
+`malts-project-init` 用于显式轻量初始化/指令修复；`malts-long-project-workspace-init` 用于首次长工作区初始化、结构恢复、显式迁移或重大 lifecycle/profile 变化。不要为每个普通任务重新执行完整 initializer。
+
+已有长工作区先运行：
+
+```powershell
+python -B <MALTS_ROOT>\tools\long_workspace.py workspace-entry --workspace <WORKSPACE> --task-class LOW_RISK
+```
+
+只读取返回的 current-set 路径。只读任务用 `READ_ONLY`，已有/新写入范围用 `WRITE_EXISTING_SCOPE` 或 `NEW_WRITE_SCOPE`，安全敏感工作用 `HIGH_RISK`，窗口/上下文切换后用 `CONTEXT_RECOVERY`。只有 decision 要求时才升级到 boundary review、Plan Recheck、validation 或 cold recovery。重复、无变化的 entry 零写入、不加载历史，也不创建 Phase、Session、Agent、Artifact 或 coordination state。
+
+全新长工作区默认使用 CURRENT contract `single_phase`。只有确实需要多个受资源治理的 `OPEN` Phase 时，才通过显式审阅的初始化/迁移启用 `resource_admission`；旧工作区在显式迁移前保持原 schema/profile。
+
 ## 2. 选择安装来源
 
 仓库是正常安装来源。Agent 读取仓库、验证 `MALTS_RELEASE.json` 与 `VERSION`，然后只创建审阅计划。除非用户明确要求可选离线归档，否则不会下载 Release 资产。
@@ -65,9 +79,9 @@ Artifact lifecycle 在真实需求出现前保持 `NOT_ENROLLED`。先运行只�
 
 有意义的 control 变更后运行 `validate` 与 `recover`。S3/S4 工作存在 active plan 时，在 write-scope、recovery、failure/rollback、verifier、final-delivery 边界运行匹配的只读 Plan Recheck trigger。
 
-全新 long-project workspace 使用 schema v4。现有 schema v1/v2/v3 control 保持可读，但绝不会被静默重写。若 `validate` 报告需要 migration 或 reconciliation，先在不带 `--apply` 的情况下审阅精确报告的匹配命令 —— `migrate-workspace-v3-to-v4`、`migrate-result-contract-v1-to-v2`，或 legacy 的 `migrate-consistency-records` / `record-phase-boundary-review` / `reconcile-consistency-records` —— 绑定精确 expected hash，并且只在当前 workspace authorization 内 apply。
+全新 long-project workspace 使用 CURRENT，默认 `single_phase`。受支持的旧 workspace 与 Result 布局保持可读，绝不静默重写。若 `validate` 报告需要重整，先审阅一次直接的 `reorganize-workspace` 或 `reorganize-result-contract` dry run，绑定所有报告的 hash/review/authorization precondition，复用同一固定 timestamp，并且只在当前 workspace authorization 内 apply。用户流程不暴露中间布局或降级链。
 
-Current recovery authority 固定为：active Session checkpoint；否则 active Phase recovery；否则显式绑定的 terminal Phase；否则 Project recovery。历史 Session 不会仅因时间最新而被选择。Incomplete workspace transaction 会保留 lock/journal evidence，直到 exact-journal-hash `recover-workspace-transaction` review/apply 成功。
+Current recovery authority 固定为：active Session checkpoint；否则 primary active Phase recovery；否则显式绑定的 terminal Phase；否则 Project recovery。历史 Session 不会仅因时间最新而被选择。Incomplete workspace/coordination transaction 会保留 lock/journal evidence，直到 exact-journal-hash `recover-workspace-transaction` 成功。
 
 ## 下一步阅读
 

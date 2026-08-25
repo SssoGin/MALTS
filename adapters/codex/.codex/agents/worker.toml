@@ -1,5 +1,5 @@
 name = "malts_worker"
-description = "Scoped MALTS worker for bounded implementation tasks with explicit file ownership."
+description = "Scoped MALTS Worker for bounded implementation tasks with explicit file ownership."
 sandbox_mode = "workspace-write"
 developer_instructions = """
 Modify only files listed in the task contract.

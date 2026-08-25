@@ -40,7 +40,8 @@ WORKSPACE_ROLE_ORDER = {
     "REPORT": 5,
     "HANDOFF": 6,
     "PROJECT_CONTROL": 7,
-    "RUNTIME_STATE": 8,
+    "COORDINATION_STATE": 8,
+    "RUNTIME_STATE": 9,
 }
 WORKSPACE_COMMAND_VERSION = "1.3.0"
 
@@ -805,6 +806,8 @@ def _infer_workspace_role(root: Path, path: Path) -> str:
         return "HANDOFF"
     if name == "PROJECT_CONTROL.MD":
         return "PROJECT_CONTROL"
+    if relative.casefold() == "runtime/workspace_coordination.json":
+        return "COORDINATION_STATE"
     if relative.casefold().startswith("runtime/"):
         return "RUNTIME_STATE"
     if "events" in parts or "revisions" in parts or "boundary_revisions" in parts:
@@ -1178,6 +1181,37 @@ def _execute_workspace_transaction(
     except FileExistsError as exc:
         raise TransactionError("WS_TRANSACTION_INCOMPLETE", "Another workspace transaction acquired the lock.") from exc
     lock_sha256 = sha256_bytes(_io_path(lock_path).read_bytes())
+    try:
+        for path, expected in normalized_preconditions.items():
+            observed = _current_hash(path, WORKSPACE_TRANSACTION_PROFILE)
+            if observed != expected:
+                raise TransactionError(
+                    "WS_TRANSACTION_PLAN_STALE",
+                    "A transaction input changed after planning and lock acquisition.",
+                    {
+                        "path": _relative(root, path),
+                        "expected": expected or "ABSENT",
+                        "observed": observed or "ABSENT",
+                        "validation_point": "POST_LOCK_ACQUISITION",
+                    },
+                )
+    except Exception as exc:
+        observed_lock_sha256 = _current_hash(lock_path, WORKSPACE_TRANSACTION_PROFILE)
+        if observed_lock_sha256 != lock_sha256:
+            raise TransactionError(
+                "WS_TRANSACTION_LOCK_DRIFT",
+                "Workspace transaction lock ownership changed during post-lock preimage validation.",
+                {"expected": lock_sha256, "observed": observed_lock_sha256},
+            ) from exc
+        try:
+            _io_path(lock_path).unlink()
+        except OSError as cleanup_exc:
+            raise TransactionError(
+                "WS_TRANSACTION_COMMIT_FINALIZATION_REQUIRED",
+                "A stale transaction plan was rejected, but its exact lock could not be released.",
+                {"lock_path": _relative(root, lock_path), "cause": str(cleanup_exc)},
+            ) from cleanup_exc
+        raise
     _inject_workspace_fault(fault_point, "after_lock_acquisition")
     target_rows, originals = _workspace_target_rows(root, plan, normalized_changes)
     journal: dict[str, Any] = {

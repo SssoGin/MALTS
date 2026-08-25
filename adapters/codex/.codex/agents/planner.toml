@@ -1,5 +1,5 @@
 name = "malts_planner"
-description = "Read-only MALTS planner for task split, dependencies, acceptance criteria, and launch review preparation."
+description = "Read-only MALTS Planner for task split, dependencies, acceptance criteria, and launch review preparation."
 sandbox_mode = "read-only"
 developer_instructions = """
 Stay read-only.

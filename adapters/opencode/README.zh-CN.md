@@ -2,6 +2,12 @@
 
 此适配器从已验证的 MALTS 安装使用，提供 OpenCode 项目所需的指令模板、角色定义和设置。
 
+## 工作区启动合同
+
+OpenCode 不得为每个普通任务重新运行 `malts-long-project-workspace-init`。已有工作区运行只读 `workspace-entry`，只读取返回的有界 current set；只有新 scope、Phase 变化、真实安全漂移或显式 recovery 才升级。CURRENT contract report/handoff 是按需 derived view，不是启动门。默认 `single_phase` 不创建 coordination state；显式 `resource_admission` 下，每条写入通道必须在 mutation 前核验 Admission、当前 Phase hash、lease、fencing token 与 quarantine state。
+
+本 adapter 与 Codex、Claude Code 暴露相同 Core/schema 合同。Adapter setting 与 prompt 不授予 mutation authority，不能 fence 绕过 MALTS 的工具，也不静默迁移旧 workspace。
+
 ## 通过生命周期安装
 
 1. 先验证下载包，再解包。
@@ -48,9 +54,11 @@ verifier、recovery、rollback 与 final-delivery 边界运行只读 `plan-reche
 
 - Phase 审阅与转换命令：`phase-boundary-review`、`pause-phase`、`resume-phase`、`plan-phase-transition`、`apply-phase-transition`。
 - Boundary review operation success 不等于 semantic resolution、persistence 或 authorization。使用 exact-hash、dry-run-first 的 `migrate-consistency-records`、`record-phase-boundary-review` 与 `reconcile-consistency-records`。
-- 全新工作区使用 schema v4。schema v1/v2/v3 保持可读且必须显式迁移（`migrate-workspace-v3-to-v4`、`migrate-result-contract-v1-to-v2`）；current `WORK_TASK_REPORT.md` 必需，existing handoff 必须绑定精确 Phase、boundary/review 与 recovery hashes。
-- Deterministic drift 会阻断 validation、cold recovery 和普通 lifecycle mutation。Recovery 禁止选择最新历史 Session，固定使用 active Session、active Phase、显式绑定 terminal Phase、Project authority。
-- Workspace transaction 使用独立 `runtime/workspace_transaction.lock.json` / `runtime/workspace_transactions/` namespace 和 `WS_TRANSACTION_*` code。
+- 全新工作区使用 CURRENT，默认 `single_phase`；受支持的旧布局保持可读，只能通过显式一步重整到达 CURRENT。`resource_admission` 必须 opt-in。CURRENT `WORK_TASK_REPORT.md`/handoff view 按需生成；旧布局在重整前保持严格 projection binding。
+- 用户未指定 model/effort 时，MALTS 根据任务复杂度、不确定性、风险、审计价值、额度、延迟和 runtime 能力推荐并验证 route；不默认继承 Main Controller。只有存在已记录的高风险/高价值依据或用户硬约束时才使用 `max`。
+- 面向用户的 lifecycle/status 文字依次采用用户明确语言、`NarrativeLanguage`、英文 fallback。中文输出同时显示中文含义和稳定英文代码，例如 `已返回（RETURNED）`；机器字段和状态代码保持英文。
+- Safety-critical canonical/authorization/transaction/Admission/fencing/unknown-effect drift 阻断受影响工作。Recovery 禁止选择最新历史 Session，固定使用 active Session、primary active Phase、显式绑定 terminal Phase、Project authority。
+- Workspace/coordination authority 共享 `runtime/workspace_transaction.lock.json`、`runtime/workspace_transactions/` 与 `WS_TRANSACTION_*`，并执行锁后 preimage 复核。Typed locator、capability mode、lease、fencing、queue、quarantine 与显式 reconcile 治理 resource-profile 写入；Artifact transaction 保持独立。
 - Artifact 命令：`artifact audit`、`artifact enrollment-preview`、`artifact enrollment-apply`、`artifact register`、`artifact promote`、`artifact supersede`、`artifact reconcile`。
 - Artifact contract 默认 `NOT_ENROLLED`。Invariant: no implicit Session.
 - 状态修改默认 dry-run，只有显式 `--apply` 才执行；不会移动/删除 payload、调用 VCS 或递归扫描未声明目录。

@@ -9,16 +9,16 @@
     "opencode": "malts-project-init"
   },
   "display_name": "MALTS Project Init",
-  "short_description": "Initialize MALTS project files and control artifacts",
-  "triggers": ["initialize a MALTS project", "create PROJECT_CONTROL", "set up recoverable project artifacts"],
+  "short_description": "Initialize lightweight MALTS project control once",
+  "triggers": ["initialize a MALTS project for the first time", "create PROJECT_CONTROL", "perform an explicitly requested structural instruction refresh"],
   "applicability": {
     "task_types": ["project-initialization", "control-artifact-setup", "recovery-setup"],
     "modes": ["single-agent", "preflight", "multi-agent"],
     "conditions": ["The user has authorized project initialization writes."],
-    "contraindications": ["The task is a trivial lookup or the user requested no project artifacts."]
+    "contraindications": ["The task is a trivial lookup or the user requested no project artifacts.", "An already initialized unchanged workspace only needs ordinary task entry, not project initialization."]
   },
   "inputs": ["workspace path", "user goal", "narrative language", "active MALTS root and version"],
-  "outputs": ["PROJECT_CONTROL.md", "WORK_TASK_REPORT.md", "project AGENTS.md when required"],
+  "outputs": ["PROJECT_CONTROL.md", "optional initial WORK_TASK_REPORT.md scaffold", "project AGENTS.md when required"],
   "risks": {
     "risk_class": "medium",
     "factors": ["write", "scripts"],

@@ -2,6 +2,10 @@
 
 The lifecycle engine turns a verified MALTS source into immutable installed versions. One local registry identifies the active version; each selected Agent tool receives only its projection and a boot pointer.
 
+Installation lifecycle and project-workspace lifecycle are separate boundaries. Installing or activating a generation never silently reorganizes a workspace. Any supported legacy workspace or Result input reaches CURRENT through one direct `reorganize-workspace` or `reorganize-result-contract` transaction with a dry run, exact source/Phase/coordination hashes, fixed timestamp, review and authorization references, explicit apply, and recoverable journal. There is no public intermediate-version or downgrade chain. Reorganization creates no unrelated Phase, Session, Agent, Artifact, Workspace, or background service.
+
+The active installed generation remains immutable evidence and must not be patched in place. Workspace coordination journals share the workspace authority lock but remain project runtime state; they are not lifecycle registry state. Candidate generation, activation, repository commit/push/tag, and public Release are still distinct authorization gates.
+
 ## Core Invariants
 
 - A version comes from one verified repository source or one explicitly verified extracted release package.
@@ -45,6 +49,7 @@ committed or rolled-back result.
 | `install` | Create and activate a first version. | Repository or extracted package |
 | `update` | Stage and activate a newer verified version. | Repository or extracted package |
 | `repair` | Reconcile selected projections with the active version. | Repository or extracted package |
+| `finalize` | Explicitly reissue one stable version by replacing its retiring target and removing only reviewed retiring generations from the same major/minor series. | Repository or extracted package; existing v1 lifecycle state |
 | `uninstall` | Remove MALTS-owned projections and registry state under the reviewed plan. | Active installation only |
 | `recover` | Resume or roll back an interrupted transaction. | Existing lifecycle state |
 
@@ -53,6 +58,8 @@ committed or rolled-back result.
 The user lifecycle scripts create a plan first. A plan includes the source identity, selected roots, target version identity, writes, removals, user-modification classification, legacy migration or residue actions, rollback, and post-validation checks.
 
 Execution requires the same plan file and its exact `plan_hash`. Source or environment drift fails before mutation.
+
+`finalize` is not an ordinary update or an automatic retention policy. It is used only after review has established that unpublished interim generations in the same major/minor series must be retired. The target generation must already be a registered retiring generation; an active, unbound, cross-series, or user-modified target fails closed. Its plan enumerates every destructive replacement and cleanup path, snapshots the complete pre-state, and recovery either restores that state or records a failure bundle without replacing the restored current-binding receipt.
 
 ## Preview Verification
 
@@ -141,15 +148,15 @@ The engine distinguishes MALTS-owned paths from user-owned or uncertain paths. I
 
 ### Phase boundary and state
 
-Every current Phase records its milestone, in-scope and out-of-scope work, exit criteria, carry-over policy, and boundary-review triggers. `phase-boundary-review` is read-only and classifies a proposed goal/touch set without granting write authorization. Its compatibility `status` and `operation_status` describe command execution only; read `review_outcome`, `candidate_mapping`, `recommendation`, and `persisted` separately. Only `record-phase-boundary-review` persists the structured review, and that record is not authorization for later work. `PAUSED` preserves ownership and recovery evidence; `resume-phase` requires fresh boundary, plan, exact hash, and authorization references. Cross-Phase work uses a persisted `plan-phase-transition` followed by hash-bound `apply-phase-transition`; the old Phase becomes terminal `SUPERSEDED`, the new Phase becomes the sole `ACTIVE` owner, and carry-over provenance is recorded in both directions.
+Every current Phase records its milestone, in-scope and out-of-scope work, exit criteria, carry-over policy, and boundary-review triggers. `phase-boundary-review` is read-only and classifies a proposed goal/touch set without granting write authorization. Its compatibility `status` and `operation_status` describe command execution only; read `review_outcome`, `candidate_mapping`, `recommendation`, and `persisted` separately. Only `record-phase-boundary-review` persists the structured review, and that record is not authorization for later work. `PAUSED` preserves ownership and recovery evidence; an explicitly selected PAUSED Phase may run read-only `plan-recheck` before `resume-phase`, but PASS grants no execution authority. Pause/resume use a stable boundary Review ID, not an evidence path; the evidence path stays in its separate field. `resume-phase` requires fresh boundary, plan, exact hash, and authorization references. Cross-Phase transition uses a persisted `plan-phase-transition` followed by hash-bound `apply-phase-transition`; `SUPERSEDED` is terminal and carry-over provenance is bidirectional. The primary `active_phase_id` stays scalar; only `resource_admission` may also retain additional `OPEN` Phases.
 
 ### Cross-control consistency and recovery authority
 
-Fresh long-project workspaces use exact schema v4. Exact schema v1/v2/v3 inputs remain readable compatibility contracts and are never silently rewritten by `validate`, `recover`, maintenance, installation update, or active-generation switching. An active v2 workspace that lacks the required current projection is classified for explicit migration rather than guessed repair.
+Fresh long-project workspaces use exact CURRENT with default `single_phase`; supported legacy layouts remain readable internal compatibility inputs and are never silently rewritten by entry, validation, recovery, maintenance, installation update, or active-generation switching. `resource_admission` is explicit opt-in and is never inferred from multiple directories, tools, Agents, or user prose.
 
-The active `PHASE_CONTROL.md` owns Boundary Review and Phase recovery records; an active Session owns its checkpoint. Schema v4 requires a current `WORK_TASK_REPORT.md` binding and current Task/Result lineage bindings. `PROJECT_HANDOFF.md` remains optional, but when present it must bind the same exact Phase-control, normalized boundary/review, and normalized recovery hashes. Runtime JSON is a typed non-canonical projection. Validation reports structural, binding, deterministic-consistency, and advisory-semantic findings separately; deterministic drift blocks cold recovery and ordinary lifecycle mutation.
+The selected `PHASE_CONTROL.md` owns Boundary Review, plan, queue/evidence, and Phase recovery; an active Session owns its checkpoint. Machine workspace state owns schema/profile/index and transaction bindings. Coordination state owns Admissions, capability queues, fencing, and quarantine. In CURRENT contract, report and existing handoff are on-demand derived views whose drift is a warning; legacy workspace layout retains required current report/lineage and checked optional handoff bindings. Validation reports structural, binding, deterministic-consistency, maintenance-warning, and advisory-semantic findings separately.
 
-Cold schema v3-to-v4 and Result Contract v1-to-v2 migration use `migrate-workspace-v3-to-v4` and `migrate-result-contract-v1-to-v2`. Legacy review recording and reconciliation use `migrate-consistency-records`, `record-phase-boundary-review`, and `reconcile-consistency-records`. All are dry-run-first and bind explicit authority, operation ID, and exact expected hashes. Workspace-control writes use a separate `runtime/workspace_transaction.lock.json`, `runtime/workspace_transactions/`, and `WS_TRANSACTION_*` domain. An incomplete journal is retained until exact-hash `recover-workspace-transaction` succeeds; failed recovery keeps its evidence. Artifact transaction paths and `ART_TRANSACTION_*` codes are unchanged.
+`reorganize-workspace` and `reorganize-result-contract` are the only public reorganization paths. They are dry-run-first and bind authority, operation ID, review/authorization references, one fixed timestamp, and exact expected hashes. Legacy parsers and consistency repair helpers remain internal compatibility adapters rather than user-facing migration steps. Workspace and coordination authority writes share `runtime/workspace_transaction.lock.json`, `runtime/workspace_transactions/`, one `WS_TRANSACTION_*` domain, a unique writer, and post-lock preimage checks. An incomplete journal is retained until exact-hash recovery succeeds; failed recovery keeps its evidence. Artifact transaction paths and `ART_TRANSACTION_*` codes are unchanged.
 
 Canonical recovery selection is active Session checkpoint, otherwise active Phase recovery, otherwise an explicitly bound terminal Phase, otherwise Project recovery. It never chooses the latest historical Session by timestamp or registry order.
 
@@ -167,7 +174,7 @@ Artifact mutation never moves/deletes payloads or invokes VCS. It never creates 
 
 ### Compatibility and non-goals
 
-Schema-v1, schema-v2, and schema-v3 workspaces remain readable. Fresh workspaces use schema v4; migration is explicit (`migrate-workspace-v3-to-v4`, `migrate-result-contract-v1-to-v2`), safe duplicate-marker cleanup is limited to empty duplicate sections, and non-empty duplicates or ambiguous legacy review semantics fail closed for manual reconciliation. Workspace consistency does not add automatic update checks, background watchers, project-wide payload hashing, directory organization, Unity defaults, or remote publication. G4 still requires real Codex, Claude Code, and OpenCode invocation; component/projection tests alone are not G4.
+Supported legacy workspace layouts remain readable until explicit one-hop CURRENT reorganization. Reorganization never silently rewrites an input, never exposes intermediate layouts, and rolls back original bytes or enters evidence-backed reconcile when interrupted. Safe duplicate-marker cleanup remains limited to empty duplicate sections; non-empty duplicates or ambiguous legacy review semantics fail closed. Workspace coordination adds no automatic update check, heartbeat/background watcher, project-wide payload hash, directory organizer, product-specific rule, or remote publication. G4 still requires real Codex, Claude Code, and OpenCode invocation; component/projection tests alone are not G4.
 
 ## Ordinary Startup Discovery
 

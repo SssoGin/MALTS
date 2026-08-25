@@ -11,7 +11,7 @@ param(
     [ValidateSet('codex', 'claude-code', 'opencode')]
     [string[]] $Tool = @(),
 
-    [ValidateSet('install', 'update', 'repair', 'uninstall')]
+    [ValidateSet('install', 'update', 'repair', 'finalize', 'uninstall')]
     [string] $Operation,
 
     [string] $ReleaseRoot,

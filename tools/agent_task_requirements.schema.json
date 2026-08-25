@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:malts:schema:agent-task-requirements:current",
+  "title": "MALTS Current Agent Task Requirements",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_id", "task_id", "responsibility", "workload_class", "semantic_complexity",
+    "uncertainty", "write_risk", "recovery_risk", "audit_importance",
+    "independent_verification", "budget_priority", "budget_pressure", "latency_priority",
+    "failure_count", "scope_expanded", "required_capabilities", "requested_route", "parent_route"
+  ],
+  "properties": {
+    "contract_id": {"const": "malts.agent-task-requirements.current"},
+    "task_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
+    "responsibility": {"type": "string", "minLength": 1, "maxLength": 512},
+    "workload_class": {"enum": ["MECHANICAL", "BOUNDED_IMPLEMENTATION", "SEMANTIC_ANALYSIS", "ARCHITECTURE_SECURITY", "INDEPENDENT_VERIFICATION"]},
+    "semantic_complexity": {"$ref": "#/$defs/level"},
+    "uncertainty": {"$ref": "#/$defs/level"},
+    "write_risk": {"$ref": "#/$defs/risk"},
+    "recovery_risk": {"$ref": "#/$defs/risk"},
+    "audit_importance": {"$ref": "#/$defs/level"},
+    "independent_verification": {"type": "boolean"},
+    "budget_priority": {"enum": ["MINIMIZE_COST", "BALANCED", "QUALITY_FIRST"]},
+    "budget_pressure": {"enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL", "UNKNOWN"]},
+    "latency_priority": {"enum": ["MINIMIZE_LATENCY", "BALANCED", "QUALITY_FIRST"]},
+    "failure_count": {"type": "integer", "minimum": 0, "maximum": 1000},
+    "scope_expanded": {"type": "boolean"},
+    "required_capabilities": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 128}},
+    "requested_route": {"$ref": "#/$defs/requestedRoute"},
+    "parent_route": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/parentRoute"}]}
+  },
+  "$defs": {
+    "level": {"enum": ["LOW", "MEDIUM", "HIGH"]},
+    "risk": {"enum": ["NONE", "LOW", "MEDIUM", "HIGH"]},
+    "effort": {"enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra", null]},
+    "constraint": {"enum": ["HARD", "SOFT", "NONE"]},
+    "requestedRoute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_id", "reasoning_effort", "model_constraint", "effort_constraint"],
+      "properties": {
+        "model_id": {"type": ["string", "null"], "minLength": 1},
+        "reasoning_effort": {"$ref": "#/$defs/effort"},
+        "model_constraint": {"$ref": "#/$defs/constraint"},
+        "effort_constraint": {"$ref": "#/$defs/constraint"}
+      }
+    },
+    "parentRoute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_id", "reasoning_effort", "route_class"],
+      "properties": {
+        "model_id": {"type": "string", "minLength": 1},
+        "reasoning_effort": {"$ref": "#/$defs/effort"},
+        "route_class": {"enum": ["ECONOMY", "BALANCED", "ADVANCED", "FLAGSHIP"]}
+      }
+    }
+  }
+}

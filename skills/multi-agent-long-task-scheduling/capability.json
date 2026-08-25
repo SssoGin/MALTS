@@ -9,23 +9,27 @@
     "opencode": "malts-multi-agent-long-task-scheduling"
   },
   "display_name": "MALTS Multi-Agent Long-Task Scheduling",
-  "short_description": "Run recoverable long-task scheduling after launch review",
-  "triggers": ["run a recoverable long task", "coordinate multiple Agents", "schedule parallel bounded work"],
+  "short_description": "Coordinate admitted work with cost-aware Agent routing",
+  "triggers": ["run a recoverable long task", "coordinate multiple Agents", "schedule parallel bounded work with typed resource Admissions", "reconcile stale fencing or unknown external effects"],
   "applicability": {
     "task_types": ["long-task", "multi-agent-coordination", "parallel-verification"],
     "modes": ["multi-agent", "review-only"],
-    "conditions": ["A launch review has been shown and the user explicitly confirmed dispatch."],
+    "conditions": ["A launch review has been shown and the user explicitly confirmed dispatch.", "Every write lane has a valid authority path: legacy single-Phase ownership or an opt-in resource Admission."],
     "contraindications": ["The task is trivial, tightly coupled, or has no useful independent work."]
   },
-  "inputs": ["authorized goal", "launch review", "task contracts", "model policy"],
-  "outputs": ["bounded task queue", "dispatch evidence", "reconciled Agent reports", "recovery checkpoint"],
+  "inputs": ["authorized goal", "launch review", "task contracts", "task cost and risk requirements", "verified runtime and model-profile evidence", "model policy", "user budget and latency preferences"],
+  "outputs": ["bounded task queue", "cost-aware requested recommended configured and effective route evidence", "typed locator and capability Admission evidence when enabled", "dispatch evidence", "localized user-facing status", "reconciled Agent reports", "recovery checkpoint"],
   "risks": {
     "risk_class": "high",
     "factors": ["write", "external-runtime"],
-    "forbidden_effects": ["Do not dispatch before explicit confirmation.", "Do not exceed the authorized Agent batch or scope."]
+    "forbidden_effects": ["Do not dispatch before explicit confirmation.", "Do not exceed the authorized Agent batch or scope.", "Do not allow a stale or expired fencing token to write.", "Do not treat UNKNOWN external effects as completed until exact reconcile evidence exists."]
   },
   "required_permissions": ["read-files", "write-project-files", "agent-dispatch", "tool-invocation"],
-  "dependencies": [],
+  "dependencies": [
+    {"id": "malts.tool.agent-route-planner", "type": "tool", "required": true, "source_relative_path": "tools/agent_route_planner.py"},
+    {"id": "malts.policy.agent-route", "type": "file", "required": true, "source_relative_path": "runtime/agent-routing/model_effort_policy.json"},
+    {"id": "malts.catalog.user-status", "type": "file", "required": true, "source_relative_path": "runtime/status/user_status_labels.json"}
+  ],
   "supported_tools": ["codex", "claude-code", "opencode"],
   "package_variants": ["local", "public"],
   "tool_metadata": {

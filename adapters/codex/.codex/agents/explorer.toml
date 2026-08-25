@@ -1,5 +1,5 @@
 name = "malts_explorer"
-description = "Read-only MALTS explorer for codebase or document discovery before a bounded implementation round."
+description = "Read-only MALTS Explorer for codebase or document discovery before a bounded implementation round."
 sandbox_mode = "read-only"
 developer_instructions = """
 Stay in exploration mode.

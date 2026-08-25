@@ -1,13 +1,13 @@
 Start the Agent Project Operating System long-task mode.
 
-Use the `multi-agent-long-task-scheduling` skill.
+Use the `malts-multi-agent-long-task-scheduling` skill.
 
-Pre-check: If the project has no CLAUDE.md or PROJECT_CONTROL.md yet, suggest running `/init` first to set up MALTS. Do not start a long task without project control files.
+Pre-check: resolve the exact tool-adjacent MALTS boot authority. If the project has no long-workspace controls, suggest explicit initialization. If it is already initialized, run read-only `workspace-entry` and do not rerun `/init` or the full long-workspace initializer for an ordinary task.
 
 Instructions:
 
-1. Read English runtime docs only.
-2. Create or update canonical `PROJECT_CONTROL.md`; create or update `项目控制.md` only when the user explicitly requests a translated mirror.
+1. Read the runtime documents required by the selected narrative language; keep stable machine fields and status codes in English.
+2. Read only the bounded current set returned by `workspace-entry`. Create/update only the control that owns a material Project/Phase/Session fact; update `项目控制.md` only when the user explicitly requests a translated mirror.
 3. Capture the user original goal.
 4. Define completion and acceptance criteria.
 5. Build the initial task queue.
@@ -21,8 +21,10 @@ Instructions:
 13. Ask whether the user wants to enable unattended auto-continue.
 14. Use unattended auto-continue only when `PROJECT_CONTROL.md` records explicit user authorization, scope, stop conditions, round caps, reports, and recovery point.
 15. If the user does not explicitly authorize unattended auto-continue, do not create, schedule, or rely on automatic unattended running.
-16. In a new window or another project folder, resume from project instructions, latest `PROJECT_CONTROL`, latest work task report or handoff, and current files.
+16. In a new window or another project folder, use `workspace-entry --task-class CONTEXT_RECOVERY`; escalate to cold recovery only when it blocks or the gate requires it. Do not select reports, handoffs, or historical Sessions by recency.
 17. Keep standalone task/tool artifacts local unless the user explicitly promotes them into system entries, shared tools, or global indexes.
+18. Under `resource_admission`, dispatch a writer only after typed locator/capability Admission, exact Phase hash, actor, lease, fencing tokens, and quarantine state pass verification. Default `single_phase` has no coordination state.
+19. Refresh CURRENT report/handoff views only on demand; their drift is warning/local reconcile, not lifecycle authority. Preserve legacy workspace layout strict compatibility bindings.
 
 User request:
 

@@ -43,6 +43,16 @@
 | Task ID | Objective | Status | Evidence |
 |---|---|---|---|
 
+<!-- MALTS:section=phase-resource-admission-index -->
+## Resource Admission References
+
+本节只保存紧凑引用。`runtime/workspace_coordination.json` 拥有 Admission、capability queue、lease expiry、fencing epoch 与 quarantine；不得把该 ledger 复制到这里。
+
+- Governance profile: `single_phase` / `resource_admission`
+- Current Admission IDs: `N/A`
+- Declared typed locator/capability scope references: `N/A`
+- Latest verify/release/reconcile evidence: `N/A`
+
 <!-- MALTS:section=phase-deliverables -->
 ## Deliverables And Acceptance
 
@@ -123,3 +133,5 @@
 - Closure evidence: N/A
 - Closed at: N/A
 - Growth candidates:
+
+`resource_admission` 下，Phase 收口前必须释放或显式 reconcile 该 Phase 的全部 Admission；本控制文件本身不会释放 runtime grant。

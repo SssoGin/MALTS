@@ -2,6 +2,10 @@
 
 生命周期引擎把已验证的 MALTS 来源转换为不可变安装版本。一个本地 registry 标识活动版本；每个选定 Agent 工具只接收自己的投影和 boot pointer。
 
+安装生命周期与项目 workspace 生命周期是不同边界。安装或激活 generation 绝不静默重整工作区。任意受支持的旧 workspace 或 Result 输入都只通过一次直接的 `reorganize-workspace` 或 `reorganize-result-contract` transaction 到达 CURRENT；它要求 dry run、精确 source/Phase/coordination hash、固定 timestamp、review/authorization reference、显式 apply 与可恢复 journal。公开流程不存在中间版本或降级链。重整不得创建无关 Phase、Session、Agent、Artifact、Workspace 或后台服务。
+
+Active installed generation 是不可变证据，禁止原位修补。Workspace coordination journal 与 workspace authority 共享写锁，但属于 project runtime state，不是 lifecycle registry state。候选 generation 生成、激活、repository commit/push/tag 与公开 Release 仍是彼此独立的授权门。
+
 ## 核心不变量
 
 - 版本来自一个已验证仓库来源，或一个明确验证后解出的 release package。
@@ -41,10 +45,13 @@ committed 或 rolled-back 终态。
 | `install` | 创建并激活首个版本。 | 仓库或已解出 package |
 | `update` | 暂存并激活更新的已验证版本。 | 仓库或已解出 package |
 | `repair` | 用活动版本协调选定投影。 | 仓库或已解出 package |
+| `finalize` | 显式重发一个稳定版本：替换其 retiring target，并且只移除已审阅的同 major/minor 系列 retiring generation。 | 仓库或已解出 package；已有 v1 lifecycle 状态 |
 | `uninstall` | 在已审阅计划下移除 MALTS 拥有投影和 registry 状态。 | 仅已有安装状态 |
 | `recover` | 继续或回滚中断的 transaction。 | 已有 lifecycle 状态 |
 
 ## 先审阅计划
+
+`finalize` 不是普通 update，也不是自动保留清理策略。它只用于已审阅确认：同一 major/minor 系列中未公开的中间 generation 必须退出时。目标 generation 必须已登记为 retiring；active、未绑定、跨系列或用户修改的 target 一律 fail closed。其 plan 会逐项列出替换与清理的破坏性路径，先快照完整旧状态；recovery 要么精确恢复旧状态，要么记录 failure bundle，绝不把失败的 operation 伪装成已恢复 current-binding 的来源。
 
 用户生命周期脚本先创建计划。计划包含来源身份、选定根目录、目标版本身份、写入、移除、用户修改分类、旧版迁移或残留动作、回滚和后置验证。
 
@@ -125,15 +132,15 @@ Lifecycle audit state 使用闭合 schema 与固定 ownership 规则，保留：
 
 ### Phase boundary 与状态
 
-每个 current Phase 都记录 milestone、in-scope/out-of-scope、exit criteria、carry-over policy 和 boundary-review triggers。`phase-boundary-review` 只读，只对候选 goal/touch set 分类，不授予写权限。其 compatibility `status` 与 `operation_status` 只描述 command execution；必须分别读取 `review_outcome`、`candidate_mapping`、`recommendation` 与 `persisted`。只有 `record-phase-boundary-review` 会持久化 structured review，该记录并不是后续工作授权。`PAUSED` 保留 ownership 与 recovery evidence；`resume-phase` 需要新的 boundary、plan、精确 hash 与 authorization reference。跨 Phase 工作先生成 persisted `plan-phase-transition`，再执行 hash-bound `apply-phase-transition`；旧 Phase 进入终态 `SUPERSEDED`，新 Phase 成为唯一 `ACTIVE` owner，carry-over provenance 在两端双向记录。
+每个 current Phase 都记录 milestone、in-scope/out-of-scope、exit criteria、carry-over policy 和 boundary-review triggers。`phase-boundary-review` 只读，只对候选 goal/touch set 分类，不授予写权限。其 compatibility `status` 与 `operation_status` 只描述 command execution；必须分别读取 `review_outcome`、`candidate_mapping`、`recommendation` 与 `persisted`。只有 `record-phase-boundary-review` 会持久化 structured review，该记录并不是后续工作授权。`PAUSED` 保留 ownership 与 recovery evidence；显式选中的 PAUSED Phase 可以在 `resume-phase` 前运行只读 `plan-recheck`，但 PASS 不授予执行权限。Pause/resume 使用稳定的 boundary Review ID，不把 evidence path 当 ID；证据路径保存在独立字段。`resume-phase` 仍需要新的 boundary、plan、精确 hash 与 authorization reference。跨 Phase transition 先生成 persisted `plan-phase-transition`，再执行 hash-bound `apply-phase-transition`；`SUPERSEDED` 是终态，carry-over provenance 在两端双向记录。Primary `active_phase_id` 保持单值；只有 `resource_admission` 可同时保留额外 `OPEN` Phase。
 
 ### Cross-control consistency 与 recovery authority
 
-全新 long-project workspace 使用精确 schema v4。精确 schema v1/v2/v3 input 作为可读 compatibility contract 保留，`validate`、`recover`、maintenance、installation update 或 active-generation switch 绝不会静默重写。Active v2 workspace 缺少 required current projection 时会被分类为需要显式迁移，而不是猜测修复。
+全新 long-project workspace 使用精确 CURRENT，默认 `single_phase`；受支持的旧布局作为内部兼容输入保持可读，entry、`validate`、`recover`、maintenance、installation update 或 active-generation switch 绝不静默重写。`resource_admission` 必须显式启用，不得从多个目录、工具、Agent 或用户 prose 推断。
 
-Active `PHASE_CONTROL.md` 拥有 Boundary Review 与 Phase recovery record；active Session 拥有 checkpoint。schema v4 要求 current `WORK_TASK_REPORT.md` binding 与 current Task/Result lineage binding。`PROJECT_HANDOFF.md` 仍然可选，但存在时必须绑定同一组精确 Phase-control、normalized boundary/review 与 normalized recovery hashes。Runtime JSON 是 typed non-canonical projection。Validation 分层报告 structural、binding、deterministic-consistency 与 advisory-semantic finding；deterministic drift 会阻断 cold recovery 和普通 lifecycle mutation。
+Selected `PHASE_CONTROL.md` 拥有 Boundary Review、plan、queue/evidence 与 Phase recovery；active Session 拥有 checkpoint。Machine workspace state 拥有 schema/profile/index 与 transaction binding；coordination state 拥有 Admission、capability queue、fencing 与 quarantine。CURRENT contract 中 report 与 existing handoff 是按需 derived view，漂移属于 warning；legacy workspace layout 保留 required current report/lineage 与 checked optional handoff binding。Validation 分层报告 structural、binding、deterministic-consistency、maintenance-warning 与 advisory-semantic finding。
 
-Schema v3→v4 与 Result Contract v1→v2 冷迁移分别使用 `migrate-workspace-v3-to-v4` 与 `migrate-result-contract-v1-to-v2`。Legacy review recording 与 reconciliation 使用 `migrate-consistency-records`、`record-phase-boundary-review`、`reconcile-consistency-records`。所有命令均 dry-run-first，并绑定显式 authority、operation ID 与精确 expected hash。Workspace-control 写入使用独立 `runtime/workspace_transaction.lock.json`、`runtime/workspace_transactions/` 和 `WS_TRANSACTION_*` domain。Incomplete journal 会保留到 exact-hash `recover-workspace-transaction` 成功；失败 recovery 继续保留证据。Artifact transaction path 与 `ART_TRANSACTION_*` code 不变。
+`reorganize-workspace` 与 `reorganize-result-contract` 是仅有的公开重整路径。它们必须 dry-run-first，并绑定 authority、operation ID、review/authorization reference、同一固定 timestamp 与精确 expected hash。旧格式 parser 与 consistency repair helper 仅作为内部兼容 adapter 保留，不成为用户迁移步骤。Workspace/coordination authority 写入共享 `runtime/workspace_transaction.lock.json`、`runtime/workspace_transactions/`、一个 `WS_TRANSACTION_*` domain、唯一 writer 与锁后 preimage 复核。Incomplete journal 保留到 exact-hash recovery 成功；失败 recovery 继续保留证据。Artifact transaction path 与 `ART_TRANSACTION_*` code 不变。
 
 Canonical recovery selection 固定为 active Session checkpoint；否则 active Phase recovery；否则显式绑定的 terminal Phase；否则 Project recovery。禁止按 timestamp 或 registry order 选择最新历史 Session。
 
@@ -151,7 +158,7 @@ Artifact mutation 绝不移动/删除 payload 或调用 VCS，也绝不创建 Se
 
 ### Compatibility 与 non-goals
 
-Schema-v1、schema-v2 与 schema-v3 workspace 保持可读。全新工作区使用 schema v4；migration 必须显式执行（`migrate-workspace-v3-to-v4`、`migrate-result-contract-v1-to-v2`），安全 duplicate-marker cleanup 仅限空重复 section，non-empty duplicate 或 ambiguous legacy review semantics 必须 fail closed 并人工 reconciliation。Workspace consistency 不增加自动 update check、background watcher、project-wide payload hashing、目录整理、Unity 默认规则或远端 publication。G4 仍需真实 Codex、Claude Code、OpenCode invocation；component/projection test 不能冒充 G4。
+受支持的旧 workspace 布局保持可读，直到显式执行一步 CURRENT 重整。重整绝不静默改写输入，不暴露中间布局；中断时恢复原始字节，或进入有证据的 reconcile。安全 duplicate-marker cleanup 仍只限空重复 section；non-empty duplicate 或 ambiguous legacy review semantics 必须 fail closed。Workspace coordination 不增加自动 update check、heartbeat/background watcher、project-wide payload hash、目录整理、产品专项规则或远端 publication。G4 仍需真实 Codex、Claude Code、OpenCode invocation；component/projection test 不能冒充 G4。
 
 ## 普通启动 Discovery
 

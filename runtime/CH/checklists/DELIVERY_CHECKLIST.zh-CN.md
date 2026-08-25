@@ -40,7 +40,7 @@
 
 ## Workspace Consistency Delivery
 
-- [ ] 已报告 workspace schema class 及显式 v1/v2-to-v3 migration/reconciliation 动作；没有把 compatibility input 描述为静默升级。
+- [ ] 已报告 workspace contract class 及显式一步 CURRENT 重整；没有把 compatibility input 描述为静默升级或用户可见版本链。
 - [ ] Required report 与 existing handoff（如有）声明精确 current Phase full-control、boundary/review 和 recovery binding hashes。
 - [ ] 交付的 `validate` 没有 structural、binding 或 deterministic-consistency failure，fresh-process `recover` 指向预期 typed canonical recovery source。
 - [ ] Boundary Review execution status、recorded outcome、decision 与 authorization 分开描述。
@@ -83,11 +83,12 @@
 
 ## 工作任务报告
 
-- [ ] 任务或阶段完成后，已提供面向用户的白话工作任务报告。
-- [ ] 报告语言策略已满足：`WORK_TASK_REPORT.md` 是 canonical report，字段稳定；翻译镜像只在明确要求时生成。
+- [ ] 完成后已提供面向用户的白话结果；只有用户请求或确有材料价值时才刷新 durable report view。
+- [ ] 报告语言策略已满足：CURRENT contract 的 `WORK_TASK_REPORT.md` 是 derived/non-authoritative、按需生成；legacy workspace layout 严格绑定保持兼容；翻译镜像只在明确要求时生成。
 - [ ] 报告记录了交付前已审阅 `DELIVERY_CHECKLIST.en.md`，或说明其 N/A 原因。
 - [ ] 报告说明结果、改动、验证、风险、恢复点和下一步。
 - [ ] 对非琐碎任务、用户纠正或恢复轮次，报告说明成长复盘结果和记忆写入决定。
+- [ ] 最终用户回复而不只是文件，已展示适用的 Growth Routing 结果；完整复盘只在用户请求或已授权时执行。
 - [ ] 如果因外部服务或目标不可用而不能写入长期记忆，报告已说明本地 fallback 记录位置。
 - [ ] 报告说明新窗口或其他项目目录应如何从已记录文件恢复。
 - [ ] 用户不需要逐个打开底层文档，也能理解本次工作发生了什么。
@@ -99,7 +100,11 @@
 - 已知风险：
 - 建议用户确认：
 
-## MALTS v1.3.0 交付
+## CURRENT Workspace 交付
 
-- [ ] 新命令已记录：`record-result-events`、迁移、amendment、lease transfer、`scoped-readiness`、`refresh-project-instructions`。
+- [ ] 当前命令已记录：`workspace-entry`、`refresh-maintenance-views`、一步 `reorganize-workspace` / `reorganize-result-contract`、resource Admission/renew/release/reap/verify/UNKNOWN/reconcile/recover，以及既有 lifecycle command。
+- [ ] 已有陈旧 report/handoff 投影会从当前 canonical control 重建；旧权威或 active Phase 叙述不再保留，重复刷新为 byte-preserving no-op。
+- [ ] 进入成本证据记录 files/bytes/history/writes 与 fresh-process P50/P95/max；首次初始化、日常进入、deep validation 和 cold recovery 分开测量。
+- [ ] 并行验收覆盖不相交/重叠/父子 locator、全部 capability mode、stale lease/fencing、中断、唯一写者、局部 quarantine 与显式 reconcile，Core 不含工具专项规则。
+- [ ] 旧工作区未被静默重整；中断时恢复原始字节或进入显式、证据绑定的 reconcile，且没有使用降级链。
 - [ ] active/公开/Git/GitHub 写入都走各自精确审阅包；本 checklist 本身不是授权。

@@ -43,6 +43,16 @@
 | Task ID | Objective | Status | Evidence |
 |---|---|---|---|
 
+<!-- MALTS:section=phase-resource-admission-index -->
+## Resource Admission References
+
+This is a compact reference only. `runtime/workspace_coordination.json` owns Admissions, capability queues, lease expiry, fencing epochs, and quarantine; do not copy that ledger here.
+
+- Governance profile: `single_phase` / `resource_admission`
+- Current Admission IDs: `N/A`
+- Declared typed locator/capability scope references: `N/A`
+- Latest verify/release/reconcile evidence: `N/A`
+
 <!-- MALTS:section=phase-deliverables -->
 ## Deliverables And Acceptance
 
@@ -123,3 +133,5 @@ This optional owner-local registry exists only after explicit Artifact enrollmen
 - Closure evidence: N/A
 - Closed at: N/A
 - Growth candidates:
+
+Closure under `resource_admission` requires every Admission for this Phase to be released or explicitly reconciled; this control does not release runtime grants by itself.

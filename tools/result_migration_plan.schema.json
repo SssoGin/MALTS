@@ -1,80 +1,90 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:malts:schema:result-migration-plan:1",
-  "title": "MALTS Result Contract v1-to-v2 Migration Plan",
+  "title": "MALTS Explicit Result Contract Migration Plan",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schema_version", "operation_id", "operation", "plan_id", "source", "target",
-    "created", "binding_mode", "declarations", "rollback", "plan_sha256"
+    "created", "binding_mode", "preconditions", "review", "implementation_binding", "declarations", "rollback", "plan_sha256"
   ],
   "properties": {
     "schema_version": {"const": 1},
     "operation_id": {"$ref": "#/$defs/id"},
-    "operation": {"const": "migrate-result-contract-v1-to-v2"},
+    "operation": {"enum": ["migrate-result-contract-v1-to-v2", "migrate-result-contract-v2-to-v3"]},
     "plan_id": {"$ref": "#/$defs/id"},
     "source": {
-      "type": "object",
-      "additionalProperties": false,
+      "type": "object", "additionalProperties": false,
       "required": ["path", "sha256", "contract_version", "execution_status", "terminal_status"],
       "properties": {
-        "path": {"type": "string", "pattern": "^(?![A-Za-z]:|[/\\\\]|.*(?:^|[/\\\\])\\.\\.(?:[/\\\\]|$)).+\\.json$"},
-        "sha256": {"$ref": "#/$defs/sha256"},
-        "contract_version": {"const": "1"},
-        "execution_status": {"type": "string", "minLength": 1},
+        "path": {"$ref": "#/$defs/relativeJsonPath"}, "sha256": {"$ref": "#/$defs/sha256"},
+        "contract_version": {"enum": ["1", "2"]},
+        "execution_status": {"type": ["string", "null"], "minLength": 1},
         "terminal_status": {"type": ["string", "null"], "minLength": 1}
       }
     },
     "target": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["task_id", "lineage_id", "phase_id", "phase_boundary_revision_id", "phase_boundary_revision_sha256"],
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "task_id", "lineage_id", "phase_id", "phase_boundary_revision_id", "phase_boundary_revision_sha256",
+        "source_revision_id", "target_revision_id", "execution_authority"
+      ],
       "properties": {
-        "task_id": {"$ref": "#/$defs/id"},
-        "lineage_id": {"$ref": "#/$defs/id"},
-        "phase_id": {"$ref": "#/$defs/id"},
-        "phase_boundary_revision_id": {"$ref": "#/$defs/id"},
-        "phase_boundary_revision_sha256": {"$ref": "#/$defs/sha256"}
+        "task_id": {"$ref": "#/$defs/id"}, "lineage_id": {"$ref": "#/$defs/id"}, "phase_id": {"$ref": "#/$defs/id"},
+        "phase_boundary_revision_id": {"$ref": "#/$defs/id"}, "phase_boundary_revision_sha256": {"$ref": "#/$defs/sha256"},
+        "source_revision_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
+        "target_revision_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
+        "execution_authority": {"type": ["object", "null"], "additionalProperties": false, "required": ["profile", "admission_id", "actor_id", "phase_control_sha256", "fencing_tokens"], "properties": {
+          "profile": {"enum": ["NONE", "RESOURCE_ADMISSION"]},
+          "admission_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+          "actor_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+          "phase_control_sha256": {"$ref": "#/$defs/nullableSha256"},
+          "fencing_tokens": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/fencingToken"}}
+        }}
       }
     },
     "created": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["v2_contract_path", "import_event_path", "projection_path"],
+      "type": "object", "additionalProperties": false,
+      "required": ["v2_contract_path", "v3_contract_path", "import_event_path", "projection_path"],
       "properties": {
-        "v2_contract_path": {"type": "string", "pattern": "^task-state[/\\\\][A-Za-z0-9._-]+[/\\\\]contracts[/\\\\][A-Za-z0-9._-]+\\.json$"},
-        "import_event_path": {"type": "string", "pattern": "^task-state[/\\\\][A-Za-z0-9._-]+[/\\\\]events[/\\\\]1-[A-Za-z0-9._-]+\\.json$"},
-        "projection_path": {"type": "string", "pattern": "^task-state[/\\\\][A-Za-z0-9._-]+[/\\\\]RESULT_LINEAGE\\.json$"}
+        "v2_contract_path": {"type": ["string", "null"], "pattern": "^task-state[/\\\\][A-Za-z0-9._-]+[/\\\\]contracts[/\\\\][A-Za-z0-9._-]+\\.json$"},
+        "v3_contract_path": {"type": ["string", "null"], "pattern": "^task-state[/\\\\][A-Za-z0-9._-]+[/\\\\]contracts[/\\\\][A-Za-z0-9._-]+\\.json$"},
+        "import_event_path": {"type": ["string", "null"], "pattern": "^task-state[/\\\\][A-Za-z0-9._-]+[/\\\\]events[/\\\\]1-[A-Za-z0-9._-]+\\.json$"},
+        "projection_path": {"type": ["string", "null"], "pattern": "^task-state[/\\\\][A-Za-z0-9._-]+[/\\\\]RESULT_LINEAGE\\.json$"}
       }
     },
-    "binding_mode": {"enum": ["V4_BOUND", "PENDING_WORKSPACE_BINDING"]},
+    "binding_mode": {"enum": ["V4_BOUND", "PENDING_WORKSPACE_BINDING", "V4_NONE", "V5_NONE", "V5_ADMISSION_BOUND"]},
+    "preconditions": {"type": "object", "additionalProperties": false, "required": ["workspace_state_sha256", "phase_control_sha256", "coordination_sha256"], "properties": {
+      "workspace_state_sha256": {"$ref": "#/$defs/sha256"},
+      "phase_control_sha256": {"$ref": "#/$defs/sha256"},
+      "coordination_sha256": {"$ref": "#/$defs/nullableSha256"}
+    }},
+    "review": {"type": "object", "additionalProperties": false, "required": ["review_ref", "authorization_ref"], "properties": {
+      "review_ref": {"type": "string", "minLength": 1}, "authorization_ref": {"type": "string", "minLength": 1}
+    }},
+    "implementation_binding": {"type": "object", "additionalProperties": false, "required": ["tool_path", "tool_sha256", "invariant_path", "invariant_sha256", "malts_version"], "properties": {
+      "tool_path": {"const": "tools/long_workspace.py"}, "tool_sha256": {"$ref": "#/$defs/sha256"},
+      "invariant_path": {"const": "tools/lifecycle_invariants.json"}, "invariant_sha256": {"$ref": "#/$defs/sha256"},
+      "malts_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"}
+    }},
     "declarations": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["source_bytes_unchanged", "fabricated_history", "implicit_session_created", "recursive_discovery_performed", "git_or_network_performed"],
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "source_bytes_unchanged", "fabricated_history", "implicit_session_created", "implicit_agent_created",
+        "implicit_artifact_created", "implicit_phase_created", "recursive_discovery_performed", "git_or_network_performed"
+      ],
       "properties": {
-        "source_bytes_unchanged": {"const": true},
-        "fabricated_history": {"const": false},
-        "implicit_session_created": {"const": false},
-        "recursive_discovery_performed": {"const": false},
-        "git_or_network_performed": {"const": false}
+        "source_bytes_unchanged": {"const": true}, "fabricated_history": {"const": false},
+        "implicit_session_created": {"const": false}, "implicit_agent_created": {"const": false},
+        "implicit_artifact_created": {"const": false}, "implicit_phase_created": {"const": false},
+        "recursive_discovery_performed": {"const": false}, "git_or_network_performed": {"const": false}
       }
     },
     "rollback": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["preimages", "created_outputs"],
+      "type": "object", "additionalProperties": false, "required": ["preimages", "created_outputs"],
       "properties": {
-        "preimages": {
-          "type": "array",
-          "uniqueItems": true,
-          "items": {"$ref": "#/$defs/preimageRow"}
-        },
-        "created_outputs": {
-          "type": "array",
-          "uniqueItems": true,
-          "items": {"type": "string", "pattern": "^(?![A-Za-z]:|[/\\\\]|.*(?:^|[/\\\\])\\.\\.(?:[/\\\\]|$)).+"}
-        }
+        "preimages": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/preimageRow"}},
+        "created_outputs": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/relativePath"}}
       }
     },
     "plan_sha256": {"$ref": "#/$defs/sha256"}
@@ -83,14 +93,13 @@
     "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
     "sha256": {"type": "string", "pattern": "^[A-F0-9]{64}$"},
     "nullableSha256": {"type": ["string", "null"], "pattern": "^[A-F0-9]{64}$"},
-    "preimageRow": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["path", "sha256"],
-      "properties": {
-        "path": {"type": "string", "pattern": "^(?![A-Za-z]:|[/\\\\]|.*(?:^|[/\\\\])\\.\\.(?:[/\\\\]|$)).+"},
-        "sha256": {"$ref": "#/$defs/nullableSha256"}
-      }
-    }
+    "relativePath": {"type": "string", "pattern": "^(?![A-Za-z]:|[/\\\\]|.*(?:^|[/\\\\])\\.\\.(?:[/\\\\]|$)).+"},
+    "relativeJsonPath": {"type": "string", "pattern": "^(?![A-Za-z]:|[/\\\\]|.*(?:^|[/\\\\])\\.\\.(?:[/\\\\]|$)).+\\.json$"},
+    "fencingToken": {"type": "object", "additionalProperties": false, "required": ["domain_id", "epoch"], "properties": {
+      "domain_id": {"$ref": "#/$defs/id"}, "epoch": {"type": "integer", "minimum": 1}
+    }},
+    "preimageRow": {"type": "object", "additionalProperties": false, "required": ["path", "sha256"], "properties": {
+      "path": {"$ref": "#/$defs/relativePath"}, "sha256": {"$ref": "#/$defs/nullableSha256"}
+    }}
   }
 }

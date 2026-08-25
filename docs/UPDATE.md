@@ -2,6 +2,10 @@
 
 MALTS updates from a separately reviewed current repository checkout by default. The updater does not pull Git, discover updates in the background, or download a Release archive. It creates a review-only plan before any installation state changes.
 
+An installation update does not reorganize project workspaces or Result Contracts. After activation, an old workspace remains on its existing compatibility behavior until a separate one-hop `reorganize-workspace` or `reorganize-result-contract` dry run is reviewed and explicitly applied. Reorganization binds exact source hashes, review/authorization references, one fixed timestamp, and a recoverable journal. It never runs during ordinary `workspace-entry`, `validate`, `recover`, or generation switching.
+
+Do not patch an active generation to obtain CURRENT workspace contract. Change and verify the maintenance source, then cross the candidate, activation, Git, tag, and public Release gates separately. Default single-profile workspaces do not need the concurrency profile and incur no coordination state.
+
 ## Before Updating
 
 1. Finish or recover any incomplete lifecycle transaction.
@@ -80,19 +84,17 @@ For locally consistent core state, `DoctorRepairPlan` may scope derived repair t
 
 ## Update Workspace Controls
 
-Updating MALTS installs new runtime behavior but does not rewrite project controls. Exact schema-v1/v2/v3 long-project workspaces remain readable, fresh workspaces use schema v4, and Artifact lifecycle stays `NOT_ENROLLED`.
+Updating MALTS installs new runtime behavior but does not rewrite project controls. Supported legacy long-project layouts remain readable, fresh workspaces use CURRENT with default `single_phase`, and Artifact lifecycle stays `NOT_ENROLLED`. The resource profile and every reorganization remain explicit workspace operations.
 
-For an active legacy Phase that lacks the v1.2.0 boundary sections, first run `migrate-phase-control` without `--apply`, review the exact preimage-bound plan, then apply only under current workspace authorization. The migration preserves the Phase goal, queue, evidence, recovery point, and active ownership.
+Run `validate` first and preserve its exact state hash/classification. If it reports a supported legacy layout, review one `reorganize-workspace` dry run that classifies every retained, moved, archived, or derived section and targets CURRENT directly. Apply only the same hash-bound plan under current workspace authorization. Legacy parser and consistency-repair details stay internal; validation and recovery never reorganize automatically.
 
 Run `artifact audit` before considering enrollment. A legacy `shared/`-like directory is only a candidate observation; it is never silently adopted. If enrollment is wanted, run `artifact enrollment-preview`, review exact index paths and findings, then run `artifact enrollment-apply` with a unique operation ID and explicit `--apply`.
 
-For a v1/v2 workspace, run `validate` first and preserve its exact state hash/classification. If consistency migration is required, review `migrate-consistency-records --authority workspace-state --expected-state-sha256 <sha256> --operation-id <id>` without `--apply`, then apply only the same expected state inside current workspace authorization. Validation/recovery never performs this migration automatically.
+If a Boundary Review remains unresolved after reorganization, persist a structured result only through `record-phase-boundary-review` with the exact Phase SHA-256; recording is not authorization for later mutation. Ambiguous non-empty duplicate markers or legacy prose semantics fail closed rather than being inferred.
 
-If a migrated Boundary Review remains unresolved, persist a structured result only through `record-phase-boundary-review` with the exact Phase SHA-256; recording is not authorization for later mutation. If canonical controls and projections disagree, use dry-run `reconcile-consistency-records --authority canonical-controls` with exact state/source/Phase hashes. Ambiguous non-empty duplicate markers or legacy prose semantics fail closed rather than being inferred.
+Interrupted workspace/coordination authority writes use the shared `runtime/workspace_transaction.lock.json` and `runtime/workspace_transactions/`, separate from Artifact transactions. Review `recover-workspace-transaction` with the exact journal SHA-256 before adding `--apply`; failed recovery retains the evidence.
 
-An interrupted workspace-control write uses `runtime/workspace_transaction.lock.json` and `runtime/workspace_transactions/`, separate from Artifact transactions. Review `recover-workspace-transaction` with the exact journal SHA-256 before adding `--apply`; failed recovery retains the evidence.
-
-No update path moves/deletes payloads, invokes VCS, creates a Session, selects the newest historical Session as recovery authority, or starts an automatic/background workspace scan. Roll back the installed MALTS generation through the lifecycle plan; do not attempt to downgrade canonical workspace controls by copying old templates over them.
+No update path moves/deletes payloads, invokes VCS, creates a Session, selects the newest historical Session as recovery authority, or starts an automatic/background workspace scan. Roll back the installed MALTS generation through the lifecycle plan; never copy old templates over canonical workspace controls. Workspace reorganization recovers original bytes or uses explicit reconcile evidence.
 
 ## Recovery
 

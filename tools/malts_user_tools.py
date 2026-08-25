@@ -8,9 +8,12 @@ discovery.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
+
+from user_status_renderer import UserStatusError, render_statuses
 
 
 TASK_STATUS = {
@@ -235,10 +238,32 @@ def main(argv: list[str] | None = None) -> int:
     control.add_argument("--malts-version")
     next_id = subparsers.add_parser("next-task-id")
     next_id.add_argument("--project-control", required=True)
+    status = subparsers.add_parser("render-user-status")
+    status.add_argument("--malts-root", default=str(Path(__file__).resolve().parent.parent))
+    status.add_argument("--language")
+    status.add_argument("--narrative-language")
+    status.add_argument("--code", action="append", required=True)
+    status.add_argument("--output", choices=("json", "text"), default="json")
     args = parser.parse_args(argv)
     if args.command == "check-project-control":
         return check_project_control(Path(args.project_control), Path(args.malts_root) if args.malts_root else None, args.malts_version)
-    return next_task_id(Path(args.project_control))
+    if args.command == "next-task-id":
+        return next_task_id(Path(args.project_control))
+    try:
+        report = render_statuses(
+            args.malts_root,
+            args.code,
+            explicit_language=args.language,
+            narrative_language=args.narrative_language,
+        )
+    except UserStatusError as exc:
+        print(json.dumps({"status": "FAIL", "code": exc.code, "message": exc.message, "detail": exc.detail}, ensure_ascii=False, indent=2))
+        return 2
+    if args.output == "text":
+        print(report["rendered_chain"])
+    else:
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0
 
 
 if __name__ == "__main__":

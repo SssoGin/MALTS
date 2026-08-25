@@ -1,6 +1,6 @@
 ---
 name: malts-project-init
-description: Initialize or refresh MALTS-aware project instructions for a workspace. Use when the user asks for an /init-like workflow, project initialization, project-level AGENTS.md, PROJECT_CONTROL.md, WORK_TASK_REPORT.md, PROJECT_HANDOFF.md, optional translated mirrors on explicit request, Claude Code compatibility through CLAUDE.md, or setup of MALTS operating rules for a new or existing project. This is a shared MALTS installed skill for supported Agent adapters, not a Claude Code slash command.
+description: Initialize or structurally refresh MALTS-aware project instructions and lightweight project control. Use for an explicit /init-like request, first setup, structural repair, or major instruction change; do not rerun it for ordinary unchanged task entry. This is a shared MALTS installed skill for supported Agent adapters, not a Claude Code slash command.
 ---
 
 # MALTS Project Init
@@ -14,6 +14,15 @@ Initialize a workspace with project-level Agent instructions and MALTS control f
 - Accept authorization only when it responds to the latest concrete plan and uses words such as "执行", "确认执行", "确认", "继续", "直接做", "都做了", `确认运行`, or an equivalent explicit approval.
 - If the user only asks what init does, whether it is needed, or how it differs from Claude Code `/init`, answer without writing files.
 - If additional work is discovered outside the approved plan, stop and ask for a new authorization.
+
+## Invocation Boundary
+
+This Skill is an initializer and structural-maintenance workflow, not a per-task startup ritual.
+
+- First setup, missing project controls, an explicit instruction refresh, or a major lifecycle/profile change may use the full workflow below.
+- An already initialized long workspace uses `malts-long-project-workspace-init`'s read-only `workspace-entry` path for ordinary unchanged work. Do not reread all initialization templates, recreate files, or refresh timestamps merely because a new task arrived.
+- Read-only or project-external questions read only directly relevant files and create no MALTS entity.
+- A new write scope, Phase switch, real state drift, incomplete transaction, or context-recovery failure escalates to the matching explicit review/reconcile/recovery operation; it does not justify silently rerunning initialization.
 
 ## Workflow
 
@@ -75,8 +84,8 @@ For a Simplified Chinese user or Chinese-facing workspace:
 
 - Write project-specific `AGENTS.md` headings and explanatory prose in Simplified Chinese, while preserving code, commands, paths, variables, model names, and proper nouns.
 - Draft canonical `PROJECT_CONTROL.md` from `runtime\CH\templates\PROJECT_CONTROL.template.zh-CN.md`.
-- Draft canonical `WORK_TASK_REPORT.md` from `runtime\CH\templates\WORK_TASK_REPORT.template.zh-CN.md`.
-- Keep the canonical filenames unchanged. Do not create `项目控制.md` or `工作任务报告.md` unless the user explicitly requests a full translated mirror.
+- If the reviewed plan includes an on-demand report view, draft the derived `WORK_TASK_REPORT.md` from `runtime\CH\templates\WORK_TASK_REPORT.template.zh-CN.md`; otherwise do not create or refresh it.
+- Keep the standard filenames unchanged. Do not create `项目控制.md` or `工作任务报告.md` unless the user explicitly requests a full translated mirror.
 
 ### 3. Offer Preflight When Appropriate
 
@@ -96,7 +105,7 @@ Before writing, state:
 - Whether `AGENTS.md` is new or a merge.
 - Whether `CLAUDE.md` will be created, updated, or left alone.
 - Whether `PROJECT_CONTROL.md` will be created or updated as the canonical control file.
-- Whether `WORK_TASK_REPORT.md` will be created, updated, or left alone.
+- Whether an on-demand `WORK_TASK_REPORT.md` projection will be created, refreshed, or left alone.
 - Whether any optional translated mirror will be created, updated, or left alone because the user explicitly requested it.
 - The default write scope for the init round.
 - Any source project paths that are read-only context, and the exact authorization required before writing to them.
@@ -112,8 +121,8 @@ Default outputs:
 
 - `AGENTS.md`: primary project-level instructions for Codex and compatible agents.
 - `PROJECT_CONTROL.md`: canonical project control file. Use the selected localized template for visible headings and narrative content; keep `MALTS:section` markers, status values, task IDs, evidence levels, paths, and commands stable.
-- `WORK_TASK_REPORT.md`: canonical lightweight task execution report scaffold for future work logs and verification records. Use the selected localized template and the user's or project's primary language while keeping stable structure fields.
-- `PROJECT_HANDOFF.md`: create only for handoff or context-risk workflows, not during default initialization. When created, include a short English Agent Brief and then use the user's or project's primary language.
+- `WORK_TASK_REPORT.md`: optional/on-demand lightweight task execution and verification view. In CURRENT workspace contract it is derived and non-authoritative; create or refresh it only when the reviewed initialization/reporting workflow needs it. Use the selected localized template and the user's or project's primary language while keeping stable structure fields.
+- `PROJECT_HANDOFF.md`: create only for handoff or context-risk workflows, not during default initialization. When created, write the Agent Brief in the user's or project's primary language while preserving stable English field names and machine status codes.
 - Optional translated mirrors (`项目控制.md`, `工作任务报告.md`, `项目交接.md`): create only when the user explicitly asks for full translated mirrors or an external workflow requires them.
 - `CLAUDE.md`: optional compatibility shim, usually:
 
@@ -139,8 +148,8 @@ Keep `AGENTS.md` concise and project-specific. Include:
 - MALTS discovery rule: resolve the exact tool-adjacent `MALTS_BOOT.md`, cross-check registry / active pointer / `VERSION`, then read `<GLOBAL_MEMORY>` only when a nearer instruction requires it.
 - When to suggest MALTS and Grill-Me Preflight.
 - Requirement to create or reuse project control before substantive non-trivial implementation.
-- Requirement that `PROJECT_CONTROL.md` is the single canonical control file by default.
-- Requirement to maintain `WORK_TASK_REPORT.md` for non-trivial implementation tasks.
+- Requirement that each fact has one owner: root `PROJECT_CONTROL.md` for Project facts, Phase control for Phase facts, and explicit Session control for bounded-session facts.
+- Requirement that `WORK_TASK_REPORT.md` is an on-demand derived view in CURRENT contract, not a daily write gate or a competing authority. Preserve legacy workspace layout's stricter compatibility binding until explicitly migrated.
 - Requirement to avoid full translated mirrors unless explicitly requested; Chinese narrative can live inside `WORK_TASK_REPORT.md`.
 - Rule that no sub-agent dispatch happens until a launch review is shown and the user replies `确认运行`.
 - Rule that unattended auto-continue requires explicit authorization and recording.
@@ -155,7 +164,7 @@ Avoid:
 
 ### 7. Required Control File Content
 
-Create or reuse `PROJECT_CONTROL.md` as the single canonical control file. Do not create a full translated mirror by default. If an optional translated mirror already exists, preserve it and either update it only when explicitly requested or record that `PROJECT_CONTROL.md` is authoritative.
+Create or reuse `PROJECT_CONTROL.md` as the authority for Project-level facts. It must not duplicate Phase queue/evidence/recovery facts or Session checkpoints. Do not create a full translated mirror by default. If an optional translated mirror already exists, preserve it and either update it only when explicitly requested or record that the canonical English-named control owns the corresponding Project facts.
 
 Use the selected localized template for visible headings and narrative content. Preserve stable `MALTS:section` markers so lint and future Agents do not depend on the display language.
 
@@ -181,17 +190,17 @@ Include:
 
 When Chinese text is present on Windows, prefer UTF-8 with BOM if the surrounding project convention does not conflict.
 
-### 8. Required Work Task Report Content
+### 8. Work Task Report Content
 
-Create a compact scaffold, not a verbose report. `WORK_TASK_REPORT.md` is the canonical structure and evidence source. Use the user's or project's primary language for narrative content and keep English status values, evidence levels, paths, commands, and IDs stable. Do not create a full translated mirror unless explicitly requested. Include:
+When the reviewed workflow calls for a report, create a compact view rather than a verbose second ledger. `WORK_TASK_REPORT.md` reports task execution and verification; it does not authorize work or replace Project/Phase/Session controls. In CURRENT contract it is explicitly derived, non-authoritative, and refreshed on demand. Use the user's or project's primary language for narrative content and keep English status values, evidence levels, paths, commands, and IDs stable. Do not create a full translated mirror unless explicitly requested. Include:
 
 - Purpose: task-level execution and verification notes for future non-trivial work.
 - Current task table with task id, status, owner, scope, files touched, and last update.
 - Verification log with command, result, date/time, and notes.
 - Blockers and follow-ups.
-- Rule that reports should be updated during and after substantive implementation, not used as a substitute for user authorization.
+- Rule that reports are refreshed when requested or materially useful, never on every task/round without a durable reporting delta, and never used as a substitute for user authorization.
 
-If `WORK_TASK_REPORT.md` or an optional translated mirror already exists, preserve history and add only missing scaffold sections inside the canonical file unless the user requested mirror maintenance.
+If `WORK_TASK_REPORT.md` or an optional translated mirror already exists, preserve it. In CURRENT contract, refresh the derived view only through the explicit on-demand path when the user requested reporting or a material handoff/recovery need exists; do not turn the file into a second authority or append a no-change round. Preserve legacy workspace layout strict compatibility bindings until explicit migration.
 
 ### 9. Verify
 
@@ -200,7 +209,7 @@ After writing, run read-only checks:
 - Re-read created or updated files.
 - Confirm required files exist.
 - Confirm `PROJECT_CONTROL.md` exists when the plan included MALTS state.
-- Confirm `WORK_TASK_REPORT.md` exists or that the plan explicitly left it out.
+- Confirm `WORK_TASK_REPORT.md` exists only when the plan included the on-demand view, or record that it was intentionally left untouched.
 - Confirm optional translated mirrors exist only when explicitly requested, or that they were intentionally not generated.
 - Confirm `AGENTS.md` contains the execution gate and MALTS discovery pointer.
 - Confirm `AGENTS.md` records default write scope and the source-project boundary rule when a separate source project or external path was provided.
@@ -218,8 +227,9 @@ Use `git diff -- AGENTS.md CLAUDE.md PROJECT_CONTROL.md WORK_TASK_REPORT.md PROJ
 
 Claude Code `/init` generates or improves `CLAUDE.md` for Claude Code. This skill generates or maintains `AGENTS.md` and MALTS control files for Codex/MALTS workflows. Create a thin `CLAUDE.md` importing `AGENTS.md` only when compatibility is desired.
 
-## MALTS v1.3.0 routing
+## Current workspace routing
 
-- Fresh MALTS-enabled projects use workspace schema v4; legacy schema v1/v2/v3 remain readable and migrate only through explicit hash-bound commands.
+- Fresh long-project workspaces use CURRENT with `single_phase` by default; `resource_admission` is explicit opt-in. Supported legacy layouts remain readable and reach CURRENT only through one-hop, dry-run-first, exact-hash-bound reorganization.
+- Ordinary entry into an unchanged initialized workspace is read-only and bounded. It does not invoke this initializer, update report/handoff timestamps, load full history, or create Phase, Session, Agent, Artifact, coordination state, or another Workspace.
 - Project instruction refresh is explicit and marker-owned: `refresh-project-instructions` rewrites only `MALTS-PROJECT:BEGIN/END` blocks with a reviewed plan; customized markerless files are never claimed automatically.
 - For a long-project workspace, delegate to `malts-long-project-workspace-init`; do not silently reduce it to minimal project control.

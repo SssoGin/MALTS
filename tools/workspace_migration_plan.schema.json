@@ -1,18 +1,19 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:malts:schema:workspace-migration-plan:1",
-  "title": "MALTS Workspace v3-to-v4 Migration Plan",
+  "title": "MALTS Explicit Workspace Migration Plan",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schema_version", "operation_id", "operation", "plan_id", "workspace_identity",
-    "source_schema_version", "target_schema_version", "inputs", "outputs", "paused_phase",
-    "compatibility", "rollback", "declarations", "plan_sha256"
+    "source_schema_version", "target_schema_version", "target_profile", "inputs", "outputs", "paused_phase",
+    "compatibility", "rollback", "review", "implementation_binding", "declarations",
+    "dormant_coordination_retained", "plan_sha256"
   ],
   "properties": {
     "schema_version": {"const": 1},
     "operation_id": {"$ref": "#/$defs/id"},
-    "operation": {"const": "migrate-workspace-v3-to-v4"},
+    "operation": {"enum": ["migrate-workspace-v3-to-v4", "migrate-workspace-v4-to-v5", "migrate-workspace-v5-to-v4"]},
     "plan_id": {"$ref": "#/$defs/id"},
     "workspace_identity": {
       "type": "object",
@@ -20,8 +21,9 @@
       "required": ["project_id"],
       "properties": {"project_id": {"$ref": "#/$defs/id"}}
     },
-    "source_schema_version": {"const": 3},
-    "target_schema_version": {"const": 4},
+    "source_schema_version": {"enum": [3, 4, 5]},
+    "target_schema_version": {"enum": [4, 5]},
+    "target_profile": {"type": ["string", "null"], "enum": [null, "single_phase_v1", "resource_admission_v1"]},
     "inputs": {
       "type": "array",
       "minItems": 1,
@@ -68,17 +70,45 @@
         }
       }
     },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["review_ref", "authorization_ref"],
+      "properties": {
+        "review_ref": {"type": "string", "minLength": 1},
+        "authorization_ref": {"type": "string", "minLength": 1}
+      }
+    },
+    "implementation_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool_path", "tool_sha256", "invariant_path", "invariant_sha256", "malts_version"],
+      "properties": {
+        "tool_path": {"const": "tools/long_workspace.py"},
+        "tool_sha256": {"$ref": "#/$defs/sha256"},
+        "invariant_path": {"const": "tools/lifecycle_invariants.json"},
+        "invariant_sha256": {"$ref": "#/$defs/sha256"},
+        "malts_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"}
+      }
+    },
     "declarations": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["implicit_session_created", "recursive_discovery_performed", "git_or_network_performed", "active_runtime_or_public_touched"],
+      "required": [
+        "implicit_session_created", "implicit_agent_created", "implicit_artifact_created", "implicit_phase_created",
+        "recursive_discovery_performed", "git_or_network_performed", "active_runtime_or_public_touched"
+      ],
       "properties": {
         "implicit_session_created": {"const": false},
+        "implicit_agent_created": {"const": false},
+        "implicit_artifact_created": {"const": false},
+        "implicit_phase_created": {"const": false},
         "recursive_discovery_performed": {"const": false},
         "git_or_network_performed": {"const": false},
         "active_runtime_or_public_touched": {"const": false}
       }
     },
+    "dormant_coordination_retained": {"type": "boolean"},
     "plan_sha256": {"$ref": "#/$defs/sha256"}
   },
   "$defs": {
@@ -93,7 +123,7 @@
       "required": ["path", "role", "sha256"],
       "properties": {
         "path": {"$ref": "#/$defs/relativePath"},
-        "role": {"enum": ["WORKSPACE_STATE", "PHASE_CONTROL", "PROJECT_CONTROL", "REPORT", "HANDOFF", "DECLARED_LINEAGE", "INVARIANT_SOURCE"]},
+        "role": {"enum": ["WORKSPACE_STATE", "PHASE_CONTROL", "PROJECT_CONTROL", "REPORT", "HANDOFF", "DECLARED_LINEAGE", "INVARIANT_SOURCE", "TOOL_SOURCE", "COORDINATION_STATE"]},
         "sha256": {"$ref": "#/$defs/sha256"}
       }
     },
@@ -103,7 +133,7 @@
       "required": ["path", "role", "bytes", "sha256"],
       "properties": {
         "path": {"$ref": "#/$defs/relativePath"},
-        "role": {"enum": ["WORKSPACE_STATE", "PHASE_CONTROL", "BOUNDARY_REVISION", "PROJECT_CONTROL", "REPORT", "HANDOFF"]},
+        "role": {"enum": ["WORKSPACE_STATE", "PHASE_CONTROL", "BOUNDARY_REVISION", "PROJECT_CONTROL", "REPORT", "HANDOFF", "COORDINATION_STATE"]},
         "bytes": {"type": "integer", "minimum": 1},
         "sha256": {"$ref": "#/$defs/sha256"}
       }
