@@ -8,23 +8,28 @@ MALTS 是面向 AI 辅助项目工作的文件化操作模型，适合需要持�
 
 MALTS 是对项目既有说明的补充，而不是替代。结果明确、范围有限的任务应保持轻量；当中断、范围变化、验证、交接或协同会使关键工作状态变得隐含时，才适合使用 MALTS。
 
-## 任务类型与工作流选择
+## 开始使用与文档导航
 
-选择工作流前，请先按下表判断。工作流名称是面向使用者的入口；具体命令和 runtime 路径在对应指南中说明，不应成为首页导航的前置条件。
+请根据当前需要解决的问题，从相应文档开始阅读。
 
-| 工作状态 | 适用条件 | 对应 MALTS 工作流 | 启动条件 | 主要结果 |
-|---|---|---|---|---|
-| 范围有限的项目任务 | 工作目标清楚、范围受限，不需要持久恢复记录或协同控制。 | 不启用 MALTS，直接遵循项目说明。 | 项目自身已提供充分的执行与验证要求。 | 保持任务与实际复杂度相称，不额外创建控制文件。 |
-| 首次建立普通 MALTS 项目 | 项目需要轻量、可持续的控制，但不需要 Phase 化的长工作区。 | [MALTS Project Init](skills/malts-project-init/SKILL.md)（`malts-project-init`） | 已明确项目目的和初始验收条件。 | 建立一份紧凑的 Project control，并明确事实归属与下一步。 |
-| 首次建立长期或中断敏感项目 | 工作会跨多个 Phase、可能跨上下文续接，或需要明确恢复控制。 | [MALTS Long Project Workspace Init](skills/malts-long-project-workspace-init/SKILL.md)（`malts-long-project-workspace-init`） | 可以界定长工作区边界和首个 Phase。 | 建立可恢复的 Phase 工作区；不会隐式创建 Session、Artifact 或 Agent。 |
-| 已初始化工作区中的普通工作 | 工作区状态未变化，任务仍在当前已批准范围内。 | 使用[使用指南](docs/zh-CN/USAGE.md)中的普通工作区路径。 | 当前工作区权威状态可用，且没有恢复条件。 | 在继续前有界读取当前状态；不重复初始化，也不例行刷新控制文件。 |
-| 新写入范围、恢复或工作区重整 | 工作跨越既有边界、记录状态发生真实漂移，或旧布局需要纳入当前规范。 | 执行前阅读[生命周期](docs/zh-CN/LIFECYCLE.md)和[使用指南](docs/zh-CN/USAGE.md)。 | 已审阅预期变更及其影响，且所需计划已获批准。 | 进行明确、可回滚或可对账的生命周期操作，而不是隐式改写。 |
-| 同一工作区内的并行工作 | 多个工作通道确有价值，且每个写入范围和共享能力可以声明。 | 使用[核心设计](docs/zh-CN/CORE_DESIGN.md)和[生命周期](docs/zh-CN/LIFECYCLE.md)中的资源治理路径。 | 项目显式启用资源准入，并声明可能冲突的资源或能力。 | 不冲突工作可独立推进；冲突、陈旧执行者和不确定外部副作用仍受治理。 |
-| 多 Agent 执行 | 委派有明确价值，且职责通道可以做到独立、可审计。 | [MALTS Multi-Agent Long-Task Scheduling](skills/multi-agent-long-task-scheduling/SKILL.md)（`malts-multi-agent-long-task-scheduling`） | 已完成启动审阅、任务合同并取得用户明确确认。 | 形成可追溯的职责、模型路由、验证与恢复机制下的受控委派。 |
+| 目标 | 建议入口 |
+|---|---|
+| 判断 MALTS 是否适合当前项目 | [系统概览](docs/zh-CN/SYSTEM_OVERVIEW.md) |
+| 安装 MALTS 并完成第一个任务 | [快速开始](docs/zh-CN/GETTING_STARTED.md) |
+| 使用已初始化工作区或选择工作流 | [使用指南](docs/zh-CN/USAGE.md) |
+| 审阅工作区恢复、重整或生命周期操作 | [生命周期](docs/zh-CN/LIFECYCLE.md) |
+| 了解并行、委派与安全不变量 | [核心设计](docs/zh-CN/CORE_DESIGN.md) |
+| 安装或更新支持的 Agent 工具 | [安装](docs/zh-CN/INSTALL.md) 与 [更新](docs/zh-CN/UPDATE.md) |
+
+## 它解决什么问题
+
+长期 Agent 任务与短提示的失败方式不同：上下文可能被压缩，目标可能漂移，不完整工作可能被误判为完成，并行工作可能发生冲突，而有用经验又可能被丢失或被过度提升。
+
+MALTS 将需要跨这些风险保存的任务状态外置。它区分规范控制与派生报告，在宣称完成前要求证据，保存可恢复的续接路径，并在真实委派开始前要求启动审阅。
 
 ## MALTS 核心工作流
 
-以下是已安装的 7 个核心工作流。每个工作流都只承担明确职责；选择其中一个，不等于获得无关生命周期变更的授权。
+MALTS 提供 7 个核心工作流。每份指南均说明其用途、适用条件、操作步骤和验证要求。
 
 | 适用场景 | 对应 MALTS 工作流 | 启动条件 | 主要结果 |
 |---|---|---|---|
@@ -36,14 +41,6 @@ MALTS 是对项目既有说明的补充，而不是替代。结果明确、范�
 | 执行默认的任务后轻量成长检查 | [MALTS Single-Agent Lightweight Growth](skills/single-agent-lightweight-growth/SKILL.md)（`malts-single-agent-lightweight-growth`） | 已验证任务完成，适合执行无写入检查。 | 低成本建议或无操作；不会自行创建长期规则。 |
 | 协调已准入的委派工作 | [MALTS Multi-Agent Long-Task Scheduling](skills/multi-agent-long-task-scheduling/SKILL.md)（`malts-multi-agent-long-task-scheduling`） | 可以明确工作通道、资源、验证职责和用户授权。 | 具有成本感知模型路由的启动审阅与受治理委派路径。 |
 
-精确命令、权限与示例见[快速开始](docs/zh-CN/GETTING_STARTED.md)、[使用指南](docs/zh-CN/USAGE.md)和[生命周期](docs/zh-CN/LIFECYCLE.md)。
-
-## 它解决什么问题
-
-长期 Agent 任务与短提示的失败方式不同：上下文可能被压缩，目标可能漂移，不完整工作可能被误判为完成，并行工作可能发生冲突，而有用经验又可能被丢失或被过度提升。
-
-MALTS 将需要跨这些风险保存的任务状态外置。它区分规范控制与派生报告，在宣称完成前要求证据，保存可恢复的续接路径，并在真实委派开始前要求启动审阅。
-
 ## 操作模型
 
 MALTS 坚持单 Agent 优先。主 Agent 是通常的执行者；多 Agent 只是可选、经过审阅的职责分工，而不是安装后自动发生的行为。
@@ -53,19 +50,6 @@ MALTS 坚持单 Agent 优先。主 Agent 是通常的执行者；多 Agent 只�
 全新长工作区使用 CURRENT 工作区规范，默认 profile 是 `single_phase`。项目只有在能声明资源和能力时，才可以显式启用 `resource_admission`。该路径通过 typed resource locator、capability policy、可过期 lease、fencing epoch、queue 和对不确定外部副作用的域级对账来治理不相交工作。MALTS Core 不包含 Unity、Unreal、VCS、数据库、CI 或设备专项冲突规则；具体资源和能力由 adapter 声明。
 
 Project、Phase 和显式 Session control 各自只拥有本层事实。机器强制执行的 contract、profile、index 与 coordination state 由 runtime contract 拥有。CURRENT 中，`WORK_TASK_REPORT.md` 和已存在的 `PROJECT_HANDOFF.md` 是按需派生视图，不是日常写入门禁或第二事实源。受支持的旧布局保持可读兼容，绝不静默重整。
-
-## 从这里开始
-
-| 需求 | 阅读 |
-|---|---|
-| 安装 MALTS 并完成第一个任务 | [快速开始](docs/zh-CN/GETTING_STARTED.md) |
-| 了解 MALTS 的作用、限制和适用边界 | [系统概览](docs/zh-CN/SYSTEM_OVERVIEW.md) |
-| 审阅操作模型、并发机制和安全不变量 | [核心设计](docs/zh-CN/CORE_DESIGN.md) |
-| 使用已初始化工作区或指定工作流 | [使用指南](docs/zh-CN/USAGE.md) |
-| 恢复、重整或审阅生命周期规则 | [生命周期](docs/zh-CN/LIFECYCLE.md) |
-| 安装或更新指定 Agent 工具 | [安装](docs/zh-CN/INSTALL.md) 与 [更新](docs/zh-CN/UPDATE.md) |
-| 让 Agent 安全协助安装 | [Agent 安装](docs/zh-CN/AGENT_INSTALL.md) |
-| 使用可选离线归档 | [发布产物](docs/zh-CN/RELEASE_ARTIFACT.md) |
 
 ## 核心与可选能力
 
@@ -124,8 +108,8 @@ THIRD_PARTY_NOTICES.md  必需的致谢说明
 - [Agent 安装](docs/zh-CN/AGENT_INSTALL.md)：Agent 的授权和来源选择规则。
 - [发布产物](docs/zh-CN/RELEASE_ARTIFACT.md)：可选单 ZIP 离线交付。
 - [安全](docs/zh-CN/SECURITY.md)：来源、包验证和隐私边界。
-- [双语文档](docs/zh-CN/BILINGUAL_DOCS.md)：语言与导航策略。
-- [变更日志](CHANGELOG.md)：版本历史；发布摘要不在本 README 中累积。
+- [双语文档](docs/zh-CN/BILINGUAL_DOCS.md)：中英文文档的覆盖范围与对应关系。
+- [变更日志](CHANGELOG.md)：版本历史与发布说明。
 
 ## 致谢
 
@@ -172,7 +156,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-MALTS.ps1 
 
 ## 文档语言
 
-仓库默认以英文为技术参考。简体中文文档位于 `README.zh-CN.md` 与 `docs/zh-CN/`，本地化 runtime 参考位于 `runtime/CH/`。项目 runtime 产物默认保持单一标准文件。见[双语文档](docs/zh-CN/BILINGUAL_DOCS.md)。
+MALTS 提供英文与简体中文文档。各语言版本的覆盖范围与对应关系见[双语文档](docs/zh-CN/BILINGUAL_DOCS.md)。
 
 ## 版本
 

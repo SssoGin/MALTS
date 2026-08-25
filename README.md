@@ -8,23 +8,28 @@ MALTS is a file-based operating model for AI-assisted project work that needs co
 
 MALTS complements normal project instructions; it does not replace them. A contained task with a clear outcome should remain lightweight. MALTS becomes useful when interruption, scope change, verification, handoff, or coordination would otherwise leave important work state implicit.
 
-## Task Types and Workflow Selection
+## Getting Started and Documentation
 
-Use this decision table before selecting a workflow. Workflow names are the user-facing entries; implementation commands and runtime routes belong in the linked guides rather than in the primary navigation.
+Use the following entry points according to the question you need to answer.
 
-| Work situation | Applicable condition | Recommended MALTS workflow | Start condition | Primary result |
-|---|---|---|---|---|
-| Contained project task | The work is clear, limited, and needs no durable recovery or coordination record. | Do not start MALTS. Follow the project instructions. | The project already provides sufficient execution and verification guidance. | The task stays proportionate; no unnecessary control files are created. |
-| First standard MALTS project | The project needs lightweight, durable control but not a Phase-based long workspace. | [MALTS Project Init](skills/malts-project-init/SKILL.md) (`malts-project-init`) | Project purpose and initial acceptance conditions are known. | One compact Project control with explicit ownership and next steps. |
-| First long-running or interruption-sensitive project | The work spans phases, is likely to resume across contexts, or needs deliberate recovery controls. | [MALTS Long Project Workspace Init](skills/malts-long-project-workspace-init/SKILL.md) (`malts-long-project-workspace-init`) | A long-workspace boundary and first Phase can be defined. | A recoverable Phase workspace; no Session, Artifact, or Agent is created implicitly. |
-| Ordinary work in an initialized workspace | The workspace is unchanged and the task remains inside its current approved scope. | Use the ordinary-workspace route in [Usage](docs/USAGE.md). | Current workspace authority is available and no recovery condition is present. | A bounded read of current state; no repeated initialization or routine control-file refresh. |
-| New write scope, recovery, or workspace reorganization | The task crosses an existing boundary, recorded state has genuinely drifted, or an older layout needs current controls. | Review [Lifecycle](docs/LIFECYCLE.md) and [Usage](docs/USAGE.md) before explicit execution. | The intended change and its impact are reviewed; any required plan is approved. | A deliberate, reversible or reconcilable lifecycle action instead of an implicit rewrite. |
-| Concurrent work in one workspace | More than one work lane is useful and each write scope and shared capability can be declared. | Use the resource-governed path in [Core Design](docs/CORE_DESIGN.md) and [Lifecycle](docs/LIFECYCLE.md). | The project explicitly enables resource admission and declares resources or capabilities. | Non-conflicting work may proceed independently; conflicts, stale writers, and uncertain effects remain governed. |
-| Multi-Agent execution | Delegation has clear value and responsibility lanes can be independent and auditable. | [MALTS Multi-Agent Long-Task Scheduling](skills/multi-agent-long-task-scheduling/SKILL.md) (`malts-multi-agent-long-task-scheduling`) | A launch review, task contracts, and explicit user confirmation are complete. | Controlled delegation with traceable responsibilities, model routing, verification, and recovery. |
+| Goal | Start with |
+|---|---|
+| Evaluate whether MALTS fits the project | [System Overview](docs/SYSTEM_OVERVIEW.md) |
+| Install MALTS and complete a first task | [Getting Started](docs/GETTING_STARTED.md) |
+| Use an initialized workspace or select a workflow | [Usage](docs/USAGE.md) |
+| Review workspace recovery, reorganization, or lifecycle operations | [Lifecycle](docs/LIFECYCLE.md) |
+| Review concurrency, delegation, and safety invariants | [Core Design](docs/CORE_DESIGN.md) |
+| Install or update a supported Agent tool | [Install](docs/INSTALL.md) and [Update](docs/UPDATE.md) |
+
+## What Problem It Solves
+
+Long Agent tasks fail differently from short prompts. Context can be compressed, goals can drift, incomplete work can be mistaken for completion, parallel work can collide, and useful lessons can be either lost or promoted too broadly.
+
+MALTS externalizes the task state that needs to survive these risks. It separates canonical control from derived reports, requires evidence before completion claims, records a recoverable continuation path, and requires a launch review before real delegated work begins.
 
 ## Core MALTS Workflows
 
-These are the seven installed core workflows. Each has a narrow role; selecting one does not authorize unrelated lifecycle changes.
+MALTS provides seven core workflows. Each guide states its purpose, entry conditions, operating steps, and verification expectations.
 
 | Applicable scenario | MALTS workflow | Start condition | Primary result |
 |---|---|---|---|
@@ -36,14 +41,6 @@ These are the seven installed core workflows. Each has a narrow role; selecting 
 | Perform the default post-task growth check | [MALTS Single-Agent Lightweight Growth](skills/single-agent-lightweight-growth/SKILL.md) (`malts-single-agent-lightweight-growth`) | A verified task finished and a no-write check is appropriate. | A low-overhead recommendation or no-op; no durable guidance is created automatically. |
 | Coordinate admitted delegated work | [MALTS Multi-Agent Long-Task Scheduling](skills/multi-agent-long-task-scheduling/SKILL.md) (`malts-multi-agent-long-task-scheduling`) | Work lanes, resources, verification responsibilities, and user authorization can be stated. | A governed launch-review and delegation path with cost-aware model routing. |
 
-For exact commands, permissions, and examples, see [Getting Started](docs/GETTING_STARTED.md), [Usage](docs/USAGE.md), and [Lifecycle](docs/LIFECYCLE.md).
-
-## What Problem It Solves
-
-Long Agent tasks fail differently from short prompts. Context can be compressed, goals can drift, incomplete work can be mistaken for completion, parallel work can collide, and useful lessons can be either lost or promoted too broadly.
-
-MALTS externalizes the task state that needs to survive these risks. It separates canonical control from derived reports, requires evidence before completion claims, records a recoverable continuation path, and requires a launch review before real delegated work begins.
-
 ## Operating Model
 
 MALTS is single-Agent first. The main Agent remains the normal executor; multi-Agent work is an optional, reviewed division of responsibility rather than an automatic consequence of installation.
@@ -53,19 +50,6 @@ Long-workspace initialization is reserved for first setup, structural repair, ex
 Fresh long workspaces use the CURRENT workspace contract with `single_phase` by default. A project may explicitly opt into `resource_admission` when it can declare resources and capabilities. That route governs disjoint work through typed resource locators, capability policies, expiring leases, fencing epochs, queues, and domain-scoped reconciliation of uncertain external effects. MALTS Core contains no Unity, Unreal, VCS, database, CI, or device-specific conflict rule; adapters declare those concrete resources and capabilities.
 
 Project, Phase, and explicit Session controls own their respective facts. Machine-enforced contract, profile, index, and coordination state live in runtime contracts. Under CURRENT, `WORK_TASK_REPORT.md` and an existing `PROJECT_HANDOFF.md` are on-demand derived views, not daily mutation gates or alternate authorities. Supported legacy layouts remain readable compatibility inputs and are never silently reorganized.
-
-## Start Here
-
-| Need | Read |
-|---|---|
-| Install MALTS and complete a first task | [Getting Started](docs/GETTING_STARTED.md) |
-| Understand MALTS, its limits, and intended use | [System Overview](docs/SYSTEM_OVERVIEW.md) |
-| Review the operating model, concurrency, and safety invariants | [Core Design](docs/CORE_DESIGN.md) |
-| Use an initialized workspace or a specific workflow | [Usage](docs/USAGE.md) |
-| Recover, reorganize, or review lifecycle rules | [Lifecycle](docs/LIFECYCLE.md) |
-| Install or update a specific Agent tool | [Install](docs/INSTALL.md) and [Update](docs/UPDATE.md) |
-| Let an Agent assist with installation safely | [Agent Install](docs/AGENT_INSTALL.md) |
-| Use the optional offline archive | [Release Artifact](docs/RELEASE_ARTIFACT.md) |
 
 ## Core And Optional Capabilities
 
@@ -124,8 +108,8 @@ THIRD_PARTY_NOTICES.md  Required attribution notices
 - [Agent Install](docs/AGENT_INSTALL.md): authorization and source-selection rules for Agents.
 - [Release Artifact](docs/RELEASE_ARTIFACT.md): optional single-ZIP offline delivery.
 - [Security](docs/SECURITY.md): source and package verification plus privacy boundaries.
-- [Bilingual Docs](docs/BILINGUAL_DOCS.md): language and navigation policy.
-- [Changelog](CHANGELOG.md): version history; release summaries do not accumulate in this README.
+- [Bilingual Docs](docs/BILINGUAL_DOCS.md): available English and Simplified Chinese documentation.
+- [Changelog](CHANGELOG.md): version history and release notes.
 
 ## Acknowledgements
 
@@ -172,7 +156,7 @@ Installed users can update from a current repository checkout without manually d
 
 ## Documentation Language
 
-The repository defaults to English source documents. Simplified Chinese documents live in `README.zh-CN.md` and `docs/zh-CN/`; localized runtime references live under `runtime/CH/`. Runtime project artifacts stay single and canonical by default. See [Bilingual Docs](docs/BILINGUAL_DOCS.md).
+MALTS documentation is available in English and Simplified Chinese. See [Bilingual Docs](docs/BILINGUAL_DOCS.md) for language coverage and corresponding documents.
 
 ## Version
 

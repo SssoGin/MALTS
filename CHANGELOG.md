@@ -4,6 +4,12 @@ All notable public changes to MALTS are documented here.
 
 ## 1.5.0
 
+### Public documentation and release notes
+
+- Reorganize the README around a concise product introduction, documentation guide, problem statement, and a single catalog of the seven MALTS workflows.
+- Add direct links from the README to system overview, getting started, usage, lifecycle, core design, installation, and update guidance in both English and Simplified Chinese.
+- Publish expanded bilingual release notes that describe the 1.5.0 workspace, recovery, delegation, compatibility, and verification changes.
+
 - Add a no-write Growth Routing Gate after verification and before final delivery. It keeps trivial no-signal work silent, makes applicable Growth results user-visible, recommends rather than auto-runs deeper retrospectives, and preserves separate L2/L3 authorization.
 - Make Growth capability metadata permission-correct: L1 requires only read access, while project maintenance and system promotion remain conditional write routes.
 - Add explicit GRT-01 through GRT-16 behavior coverage for silent/no-signal work, final-reply visibility, L2/L3 authorization, declined retrospective handling, plan-gate precedence, uninitialized workspaces, candidate-only evidence, and three-tool routing equivalence.
