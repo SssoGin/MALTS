@@ -64,6 +64,17 @@ Agent 从当前任务及相关资料开始，不需要每次重新阅读全部�
 | 普通任务后判断是否有值得记录的经验 | [轻量成长](skills/single-agent-lightweight-growth/SKILL.md) · `malts-single-agent-lightweight-growth` | 简短建议，或没有信号时不产生输出 |
 | 已决定使用多个 Agent 完成复杂工作 | [多 Agent 调度](skills/multi-agent-long-task-scheduling/SKILL.md) · `malts-multi-agent-long-task-scheduling` | 明确分工、资源、预算、检查点和整合责任 |
 
+## 核心与可选能力的默认方式
+
+| 能力 | 默认方式 | 何时使用 |
+|---|---|---|
+| 单 Agent 工作 | 默认执行路径 | 普通项目工作与依赖较强的任务 |
+| 项目和长期工作记录 | 按项目需要启用 | 工作跨多轮、阶段或窗口，需要保留目标与进度 |
+| 多 Agent 调度 | 明确授权后启用 | 职责、资源和结果可以分离，分工确有价值 |
+| 报告与交接 | 按需生成 | 用户需要持久报告，或其他窗口/执行者需要继续 |
+| 轻量成长与复盘 | 有实际信号或明确请求时使用 | 纠正、验证失败、恢复或值得检验的方法 |
+| 后台与无人值守工作 | 需要对应明确范围 | 任务已说明持续运行方式和停止条件 |
+
 ## 典型使用场景
 
 **多轮代码迁移。** 保存目标和兼容性要求，按模块安排阶段与任务；每个模块完成后检查行为，遇到中断时从已验证的结果继续。
@@ -98,6 +109,22 @@ MALTS 的已验证安装路径为 Windows，要求 Python 3.11 或更高版本�
 
 需要可执行的首次任务示例、安装核查和详细步骤，阅读[快速开始](docs/zh-CN/GETTING_STARTED.md)。
 
+## 更新已有安装
+
+从准备使用的仓库版本生成更新计划：
+
+```powershell
+.\scripts\Update-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool Codex
+```
+
+审阅计划后，使用输出的准确路径与哈希执行：
+
+```powershell
+.\scripts\Update-MALTS.ps1 -Apply -PlanPath '<reviewed-plan-path>' -ExpectedPlanHash '<reviewed-plan-sha256>'
+```
+
+更新所选工具和处理已有用户内容的完整说明见[升级指南](docs/zh-CN/UPDATE.md)；安装更新不会自动迁移项目。
+
 ## 当前版本怎样完善这套系统
 
 2.0.0 保留 MALTS 的整体工作过程，同时改进长期工作的状态管理、执行保护与结果验证：
@@ -116,6 +143,18 @@ MALTS 组织 Agent 的项目工作；模型推理、具体工具能力、代码�
 
 当前已有代码、安装与代表性原生任务/恢复验证，但不保证任意任务都成功，也不承诺普遍提速或费用节省。DeepSeek Harness 的已记录 Desktop 验证使用 Windows 0.2.0-rc.2，具体能力和限制见[适配说明](adapters/deepseek-harness/README.zh-CN.md)。跨用户恢复及外部工具控制等详细边界见[安全说明](docs/zh-CN/SECURITY.md)。
 
+## 工作区与主要产物
+
+| 记录或产物 | 用途 |
+|---|---|
+| 项目、阶段与任务记录 | 保存目标、范围、计划、依赖、当前进度和验收 |
+| 业务交付物 | 用户实际需要的代码、文档、数据或工具结果 |
+| 验证与恢复资料 | 支持完成判定，保留检查结果、检查点和必要备份 |
+| 工作报告与交接说明 | 按需说明结果、未解决事项和下一步，保全手工内容 |
+| 有来源的经验候选与试用结果 | 判断方法是否适用、是否有效以及何时停止复用 |
+
+这些内容由对应工作流维护。当前工作区状态与阅读报告分别管理，业务文件和用户资料保留在其实际项目中；详细操作见[使用指南](docs/zh-CN/USAGE.md)。
+
 ## 文档导航
 
 | 想了解什么 | 文档 |
@@ -128,6 +167,7 @@ MALTS 组织 Agent 的项目工作；模型推理、具体工具能力、代码�
 | Skill、工具能力与经验复用如何管理 | [能力与 Skill 治理](docs/zh-CN/CAPABILITY_AND_SKILL_GOVERNANCE.md) |
 | 控制端命令和准确协议 | [操作参考](docs/zh-CN/V2_PREVIEW_USAGE.md)、[状态合同](docs/zh-CN/V2_STATE_CONTRACT.md) |
 | 安全、离线包和文档语言 | [安全](docs/zh-CN/SECURITY.md)、[发布归档](docs/zh-CN/RELEASE_ARTIFACT.md)、[双语文档](docs/zh-CN/BILINGUAL_DOCS.md) |
+| 让 Agent 协助安装与核查 | [Agent 安装](docs/zh-CN/AGENT_INSTALL.md) |
 | 当前及历史版本的变化 | [CHANGELOG](CHANGELOG.md) |
 
 ## 仓库组成
@@ -141,4 +181,18 @@ scripts/      安装、升级与安装生命周期入口
 docs/         系统说明、使用指南、设计与技术参考
 ```
 
-MALTS 采用 [MIT License](LICENSE)。部分 Agent 工作方法参考了 [andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills) 与 [mattpocock/skills](https://github.com/mattpocock/skills)；它们不是运行依赖，作者也不代表认可本项目。完整声明见[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+## 版本
+
+当前发布版本：**2.0.0**。版本说明与可选离线包见[MALTS 2.0.0 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.0.0)，历史变化见[CHANGELOG](CHANGELOG.md)。
+
+## 文档语言
+
+提供英文与简体中文指南；项目记录和用户手工内容保持原语言，不建立两套状态。语言与文档对应关系见[双语文档](docs/zh-CN/BILINGUAL_DOCS.md)。
+
+## 致谢
+
+部分 Agent 工作方法参考了 [andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills) 与 [mattpocock/skills](https://github.com/mattpocock/skills)；它们不是运行依赖，作者也不代表认可本项目。完整声明见[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+## License
+
+MALTS 采用 [MIT License](LICENSE)。

@@ -64,6 +64,17 @@ Workflows are delivered as Skills: method packages an Agent can discover and use
 | Check for a lesson after ordinary work | [Lightweight Growth](skills/single-agent-lightweight-growth/SKILL.md) · malts-single-agent-lightweight-growth | Brief advice or no output without a signal |
 | Carry out approved multi-Agent work | [Scheduling](skills/multi-agent-long-task-scheduling/SKILL.md) · malts-multi-agent-long-task-scheduling | Roles, resources, budgets, checkpoints and integration responsibility |
 
+## Core and optional capabilities: defaults
+
+| Capability | Default | When useful |
+|---|---|---|
+| Single Agent | Normal execution path | Ordinary work and strongly dependent tasks |
+| Project and long-work records | Selected according to need | Work spans turns/stages/windows and needs persistent goals/progress |
+| Multi-Agent scheduling | Requires explicit delegation scope | Responsibilities/resources/results can be separated with useful value |
+| Reports and handoffs | On demand | Durable reporting or continuation by another window/executor |
+| Lightweight Growth and review | Actual signal or explicit request | Correction, failed checks, recovery or a method worth testing |
+| Background/unattended execution | Requires corresponding explicit scope | Runtime behavior and stopping conditions are agreed |
+
 ## Typical scenarios
 
 **Code migrations over several rounds.** Preserve the target and compatibility requirements, organize modules into stages/tasks, verify each result and continue from accepted work after interruption.
@@ -98,6 +109,22 @@ Or continue existing work:
 
 See [Getting Started](docs/GETTING_STARTED.md) for a runnable first example and exact setup/verification.
 
+## Updating an existing installation
+
+Create an update plan from the repository version you intend to use:
+
+```powershell
+.\scripts\Update-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool Codex
+```
+
+Review it, then use the actual reported path/hash:
+
+```powershell
+.\scripts\Update-MALTS.ps1 -Apply -PlanPath '<reviewed-plan-path>' -ExpectedPlanHash '<reviewed-plan-sha256>'
+```
+
+See [Update](docs/UPDATE.md) for tool selection and treatment of user content. Installation updates do not automatically migrate projects.
+
 ## How the current version improves the system
 
 2.0.0 retains MALTS's overall process while strengthening state, execution and verification:
@@ -116,6 +143,18 @@ MALTS organizes project work; reasoning, tools, repositories, editors and user d
 
 Code, installation and representative native-task/recovery evidence exist, without a guarantee that every task succeeds or universal speed/money savings. Recorded DeepSeek Harness Desktop evidence uses Windows0.2.0-rc.2; see its [adapter guide](adapters/deepseek-harness/README.md). See [Security](docs/SECURITY.md) for protected restoration and external-tool boundaries.
 
+## Workspace records and deliverables
+
+| Record or output | Purpose |
+|---|---|
+| Project, stage and task records | Goals, scope, plans, dependencies, progress and acceptance |
+| Business deliverables | Code, documents, data or tool results the user actually needs |
+| Verification and recovery material | Checks, checkpoints and necessary backups supporting acceptance/recovery |
+| Reports and handoffs | On-demand outputs, unresolved work, next steps and preserved manual notes |
+| Sourced experience candidates/trials | Applicability, observed benefit and withdrawal conditions |
+
+Corresponding workflows maintain these records. Current workspace state remains distinct from reading reports, while business files/user data stay in their actual project. See [Usage](docs/USAGE.md).
+
 ## Documentation map
 
 | Topic | Reading |
@@ -128,6 +167,7 @@ Code, installation and representative native-task/recovery evidence exist, witho
 | Skills, capabilities and experience reuse | [Governance](docs/CAPABILITY_AND_SKILL_GOVERNANCE.md) |
 | Controller commands and exact protocols | [Operations](docs/V2_PREVIEW_USAGE.md), [State Contract](docs/V2_STATE_CONTRACT.md) |
 | Safety, offline package and languages | [Security](docs/SECURITY.md), [Archive](docs/RELEASE_ARTIFACT.md), [Languages](docs/BILINGUAL_DOCS.md) |
+| Agent-assisted setup and checks | [Agent Installation](docs/AGENT_INSTALL.md) |
 | Current and historical version changes | [Changelog](CHANGELOG.md) |
 
 ## Repository contents
@@ -141,4 +181,18 @@ scripts/      Installation, updates and installation lifecycle
 docs/         System, usage, design and technical references
 ```
 
-MALTS uses the [MIT License](LICENSE). Some Agent methods draw on [andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills) and [mattpocock/skills](https://github.com/mattpocock/skills); they are not runtime dependencies and their authors do not endorse this project. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+## Version
+
+Current release: **2.0.0**. See the [MALTS 2.0.0 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.0.0) for notes/optional offline ZIP and [Changelog](CHANGELOG.md) for history.
+
+## Documentation languages
+
+English and Simplified Chinese guides describe the same system. Project records/manual notes retain their language without a second state copy. See [Languages](docs/BILINGUAL_DOCS.md).
+
+## Acknowledgements
+
+Some Agent methods draw on [andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills) and [mattpocock/skills](https://github.com/mattpocock/skills); they are not runtime dependencies and their authors do not endorse this project. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## License
+
+MALTS uses the [MIT License](LICENSE).
