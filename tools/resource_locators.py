@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import posixpath
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -319,6 +320,19 @@ def locator_conflict(left: Mapping[str, Any], right: Mapping[str, Any]) -> Confl
                     right_value=right_value,
                 )
     return None
+
+
+def legacy_lease_conflict(left: Mapping[str, str], right: Mapping[str, str]) -> Conflict | None:
+    """Lexical compatibility only; callers still need physical identity/Host enforcement."""
+    def normalized(lease, identifier):
+        value=lease['locator'].replace('\\','/')
+        kind='OPAQUE' if '://' in value else 'PATH'
+        canonical=value if kind=='OPAQUE' else posixpath.normpath(value)
+        if os.name=='nt' and kind=='PATH':
+            canonical=canonical.casefold()
+        return {'locator_id':identifier,'kind':kind,'access':lease['access'].upper(),
+                'canonical_value':canonical,'canonical_aliases':[]}
+    return locator_conflict(normalized(left,'requested'),normalized(right,'held'))
 
 
 def find_conflicts(requested: Sequence[Mapping[str, Any]], held: Sequence[Mapping[str, Any]]) -> list[dict[str, str]]:

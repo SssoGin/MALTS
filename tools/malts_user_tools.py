@@ -10,8 +10,11 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+sys.dont_write_bytecode = True
 
 from user_status_renderer import UserStatusError, render_statuses
 

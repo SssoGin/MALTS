@@ -19,10 +19,10 @@ from typing import Any, Iterable
 
 sys.dont_write_bytecode = True
 
-from malts_user_contracts import ContractIssue, load_json, validate_instance
+from malts_user_contracts import ContractIssue, load_json, validate_instance, READ_ONLY_CAPABILITY_PERMISSIONS
 
 
-TOOLS = ("codex", "claude-code", "opencode")
+TOOLS = ("codex", "claude-code", "opencode", "deepseek-harness")
 RISK_ORDER = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 FRONT_MATTER = re.compile(r"\A---\r?\n(?P<body>.*?)\r?\n---(?:\r?\n|\Z)", re.DOTALL)
 FRONT_MATTER_FIELD = re.compile(r"^([A-Za-z0-9_-]+):\s*(.*)$")
@@ -144,13 +144,13 @@ def load_capability_descriptor(malts_root: Path, descriptor_path: Path) -> dict[
         )
     projected = descriptor["projected_names"]
     if set(projected) != set(TOOLS) or len({projected[tool].casefold() for tool in TOOLS}) != 1:
-        raise CapabilityError("CAP_DESCRIPTOR_PROJECTION_NAME: all three tools require one stable MALTS-prefixed name")
+        raise CapabilityError("CAP_DESCRIPTOR_PROJECTION_NAME: all supported tools require one stable MALTS-prefixed name")
     if not projected["codex"].startswith("malts-"):
         raise CapabilityError("CAP_DESCRIPTOR_PROJECTION_NAME: projected names must use the malts- prefix")
     if descriptor["tool_metadata"]["codex"]["include_openai_metadata"] is not True:
         raise CapabilityError("CAP_DESCRIPTOR_TOOL_METADATA: Codex projection requires agents/openai.yaml metadata")
-    if any(descriptor["tool_metadata"][tool]["include_openai_metadata"] for tool in ("claude-code", "opencode")):
-        raise CapabilityError("CAP_DESCRIPTOR_TOOL_METADATA: Claude Code and OpenCode must not inherit Codex-only metadata")
+    if any(descriptor["tool_metadata"][tool]["include_openai_metadata"] for tool in TOOLS if tool != "codex"):
+        raise CapabilityError("CAP_DESCRIPTOR_TOOL_METADATA: non-Codex projections must not inherit Codex-only metadata")
     return descriptor
 
 
@@ -566,11 +566,28 @@ def resolve_capability(catalog: dict[str, Any], request: dict[str, Any]) -> dict
             reasons.append("not-installed")
         if exposed and capability_id not in exposed:
             reasons.append("not-in-effective-catalog")
-        permissions = set(entry.get("interface", {}).get("required_permissions", []))
+        interface=entry.get('interface',{})
+        permissions = set(interface.get("required_permissions", []))
+        risk = entry.get("execution_risk", "critical")
+        selected_route=None
+        route_writes=False
+        permission_routes=interface.get('permission_routes')
+        if permission_routes:
+            routes=[permission_routes['baseline'],*permission_routes['conditional']]
+            if any('modes' in route for route in routes):
+                matching=[route for route in routes if mode in route.get('modes',[])]
+                if len(matching)!=1:
+                    reasons.append('permission-route-mode-unresolved')
+                else:
+                    selected_route=matching[0]['route_id']
+                    permissions=set(matching[0]['required_permissions'])
+                    risk=matching[0].get('risk_class',risk)
+                    route_writes=matching[0]['durable_write']
+        if mode=='review-only' and (route_writes or not permissions.issubset(READ_ONLY_CAPABILITY_PERMISSIONS)):
+            reasons.append('review-only-requires-write-or-dispatch')
         missing_permissions = sorted(permissions - authorized_permissions)
         if missing_permissions:
             reasons.append("authorization-required:" + ",".join(missing_permissions))
-        risk = entry.get("execution_risk", "critical")
         if RISK_ORDER.get(risk, 99) > RISK_ORDER[max_risk]:
             reasons.append(f"risk-exceeds-policy:{risk}")
         for dependency in entry.get("dependencies", []):
@@ -586,8 +603,7 @@ def resolve_capability(catalog: dict[str, Any], request: dict[str, Any]) -> dict
         for trigger in routing.get("triggers", []):
             if str(trigger).casefold() in intent_folded:
                 score += 20
-        if mode in routing.get("modes", []):
-            score += 10
+        mode_matches=mode in routing.get("modes", [])
         if capability_id in required_capabilities:
             score += 40
         if user_override == capability_id:
@@ -599,6 +615,8 @@ def resolve_capability(catalog: dict[str, Any], request: dict[str, Any]) -> dict
             reasons.append("contraindicated")
         if score == 0:
             reasons.append("task-mismatch")
+        elif mode_matches:
+            score += 10
         verification = "runtime-verified" if entry.get("review_status") == "runtime-verified" else "static-only"
         candidates.append(
             {
@@ -609,6 +627,9 @@ def resolve_capability(catalog: dict[str, Any], request: dict[str, Any]) -> dict
                 "missing_dependencies": sorted(missing_dependencies),
                 "contraindications": contraindications,
                 "verification_freshness": verification,
+                "permission_route": selected_route,
+                "required_permissions": sorted(permissions),
+                "execution_risk": risk,
                 "projection_required": capability_id not in exposed if exposed else True,
             }
         )

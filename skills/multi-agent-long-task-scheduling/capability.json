@@ -6,40 +6,178 @@
   "projected_names": {
     "codex": "malts-multi-agent-long-task-scheduling",
     "claude-code": "malts-multi-agent-long-task-scheduling",
-    "opencode": "malts-multi-agent-long-task-scheduling"
+    "opencode": "malts-multi-agent-long-task-scheduling",
+    "deepseek-harness": "malts-multi-agent-long-task-scheduling"
   },
   "display_name": "MALTS Multi-Agent Long-Task Scheduling",
   "short_description": "Coordinate admitted work with cost-aware Agent routing",
-  "triggers": ["run a recoverable long task", "coordinate multiple Agents", "schedule parallel bounded work with typed resource Admissions", "reconcile stale fencing or unknown external effects"],
+  "triggers": [
+    "run a recoverable long task",
+    "coordinate multiple Agents",
+    "schedule parallel bounded work with typed resource Admissions",
+    "reconcile stale fencing or unknown external effects"
+  ],
   "applicability": {
-    "task_types": ["long-task", "multi-agent-coordination", "parallel-verification"],
-    "modes": ["multi-agent", "review-only"],
-    "conditions": ["A launch review has been shown and the user explicitly confirmed dispatch.", "Every write lane has a valid authority path: legacy single-Phase ownership or an opt-in resource Admission."],
-    "contraindications": ["The task is trivial, tightly coupled, or has no useful independent work."]
+    "task_types": [
+      "long-task",
+      "multi-agent-coordination",
+      "parallel-verification"
+    ],
+    "modes": [
+      "single-agent",
+      "multi-agent",
+      "review-only"
+    ],
+    "conditions": [
+      "The user requested a scheduling assessment, execution workflow, or recovery of an approved run.",
+      "Review-only reads context without writes or dispatch; single-agent execution stays in the Main Controller.",
+      "Actual Agent dispatch requires a launch review and corresponding user authorization.",
+      "Every write lane has a valid authority path: legacy single-Phase ownership or an opt-in resource Admission."
+    ],
+    "contraindications": [
+      "The task is trivial, tightly coupled, or has no useful independent work."
+    ]
   },
-  "inputs": ["authorized goal", "launch review", "task contracts", "task cost and risk requirements", "verified runtime and model-profile evidence", "model policy", "user budget and latency preferences"],
-  "outputs": ["bounded task queue", "cost-aware requested recommended configured and effective route evidence", "typed locator and capability Admission evidence when enabled", "dispatch evidence", "localized user-facing status", "reconciled Agent reports", "recovery checkpoint"],
+  "inputs": [
+    "authorized goal",
+    "launch review",
+    "task contracts",
+    "task cost and risk requirements",
+    "verified runtime and model-profile evidence",
+    "model policy",
+    "user budget and latency preferences"
+  ],
+  "outputs": [
+    "bounded task queue",
+    "cost-aware requested recommended configured and effective route evidence",
+    "typed locator and capability Admission evidence when enabled",
+    "dispatch evidence",
+    "localized user-facing status",
+    "reconciled Agent reports",
+    "recovery checkpoint"
+  ],
   "risks": {
     "risk_class": "high",
-    "factors": ["write", "external-runtime"],
-    "forbidden_effects": ["Do not dispatch before explicit confirmation.", "Do not exceed the authorized Agent batch or scope.", "Do not allow a stale or expired fencing token to write.", "Do not treat UNKNOWN external effects as completed until exact reconcile evidence exists."]
+    "factors": [
+      "write",
+      "external-runtime"
+    ],
+    "forbidden_effects": [
+      "Do not dispatch before explicit confirmation.",
+      "Do not exceed the authorized Agent batch or scope.",
+      "Do not allow a stale or expired fencing token to write.",
+      "Do not treat UNKNOWN external effects as completed until exact reconcile evidence exists."
+    ]
   },
-  "required_permissions": ["read-files", "write-project-files", "agent-dispatch", "tool-invocation"],
-  "dependencies": [
-    {"id": "malts.tool.agent-route-planner", "type": "tool", "required": true, "source_relative_path": "tools/agent_route_planner.py"},
-    {"id": "malts.policy.agent-route", "type": "file", "required": true, "source_relative_path": "runtime/agent-routing/model_effort_policy.json"},
-    {"id": "malts.catalog.user-status", "type": "file", "required": true, "source_relative_path": "runtime/status/user_status_labels.json"}
+  "required_permissions": [
+    "read-files",
+    "write-project-files",
+    "agent-dispatch",
+    "tool-invocation"
   ],
-  "supported_tools": ["codex", "claude-code", "opencode"],
-  "package_variants": ["local", "public"],
+  "permission_routes": {
+    "baseline": {
+      "route_id": "DISPATCH_AGENTS",
+      "modes": [
+        "multi-agent"
+      ],
+      "risk_class": "high",
+      "required_permissions": [
+        "read-files",
+        "write-project-files",
+        "agent-dispatch",
+        "tool-invocation"
+      ],
+      "durable_write": true,
+      "requires_confirmation": true,
+      "description": "Dispatch only within an explicitly authorized launch scope; reuse matching approval."
+    },
+    "conditional": [
+      {
+        "route_id": "REVIEW_ONLY",
+        "modes": [
+          "review-only"
+        ],
+        "risk_class": "low",
+        "required_permissions": [
+          "read-files"
+        ],
+        "durable_write": false,
+        "requires_confirmation": false,
+        "description": "Assess fit and outline scheduling choices without creating controls or dispatching."
+      },
+      {
+        "route_id": "SINGLE_AGENT_RUN",
+        "modes": [
+          "single-agent"
+        ],
+        "risk_class": "medium",
+        "required_permissions": [
+          "read-files",
+          "write-project-files",
+          "tool-invocation"
+        ],
+        "durable_write": true,
+        "requires_confirmation": true,
+        "description": "Continue an authorized recoverable task in the Main Controller; no Agent dispatch."
+      }
+    ]
+  },
+  "dependencies": [
+    {
+      "id": "malts.tool.agent-route-planner",
+      "type": "tool",
+      "required": true,
+      "source_relative_path": "tools/agent_route_planner.py"
+    },
+    {
+      "id": "malts.policy.agent-route",
+      "type": "file",
+      "required": true,
+      "source_relative_path": "runtime/agent-routing/model_effort_policy.json"
+    },
+    {
+      "id": "malts.catalog.user-status",
+      "type": "file",
+      "required": true,
+      "source_relative_path": "runtime/status/user_status_labels.json"
+    }
+  ],
+  "supported_tools": [
+    "codex",
+    "claude-code",
+    "opencode",
+    "deepseek-harness"
+  ],
+  "package_variants": [
+    "local",
+    "public"
+  ],
   "tool_metadata": {
-    "codex": {"projection_type": "native", "include_openai_metadata": true},
-    "claude-code": {"projection_type": "native", "include_openai_metadata": false},
-    "opencode": {"projection_type": "native", "include_openai_metadata": false}
+    "codex": {
+      "projection_type": "native",
+      "include_openai_metadata": true
+    },
+    "claude-code": {
+      "projection_type": "native",
+      "include_openai_metadata": false
+    },
+    "opencode": {
+      "projection_type": "native",
+      "include_openai_metadata": false
+    },
+    "deepseek-harness": {
+      "projection_type": "native",
+      "include_openai_metadata": false
+    }
   },
   "verification": {
     "status": "static-validated",
-    "levels": ["static"],
-    "evidence_refs": ["test:T-SK-W3-DESC-003"]
+    "levels": [
+      "static"
+    ],
+    "evidence_refs": [
+      "test:T-SK-W3-DESC-003"
+    ]
   }
 }

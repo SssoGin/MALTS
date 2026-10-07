@@ -2296,6 +2296,40 @@ def _result_execution_authority_gate(
     return coordination_path, coordination_hash
 
 
+def _completion_artifact_path(root: Path, relative: str, contract: dict[str, Any]) -> Path:
+    """Resolve an authorized regular artifact without traversing aliases."""
+    parts = Path(relative.replace("\\", "/"))
+    if parts.is_absolute() or ".." in parts.parts or not parts.parts:
+        raise WorkspaceError("RC_DONE_ARTIFACT_SCOPE", "Completion artifact must be workspace-relative.", relative)
+    current = root
+    for part in parts.parts:
+        current = current / part
+        try:
+            info = current.lstat()
+        except OSError as exc:
+            raise WorkspaceError("RC_DONE_STALE_ARTIFACT", "Completion artifact cannot be inspected.", relative) from exc
+        if current.is_symlink() or getattr(info, "st_file_attributes", 0) & 0x400:
+            raise WorkspaceError("RC_DONE_ARTIFACT_REPARSE", "Completion artifacts cannot traverse links or reparse points.", relative)
+    target = _target(root, parts)
+    allowed = False
+    for resource in contract.get("authorized_scope", {}).get("resources", []):
+        if not set(resource.get("operations", [])).intersection({"read", "write"}):
+            continue
+        locator = resource.get("locator", "")
+        try:
+            scope = _target(root, locator)
+        except WorkspaceError:
+            continue
+        if target == scope or target.is_relative_to(scope):
+            allowed = True
+            break
+    if not allowed:
+        raise WorkspaceError("RC_DONE_ARTIFACT_SCOPE", "Completion artifact is outside the authorized task resources.", relative)
+    if not _path_is_file(target):
+        raise WorkspaceError("RC_DONE_STALE_ARTIFACT", "Completion artifact must be a regular file.", relative)
+    return target
+
+
 def _build_result_orchestration(
     args: argparse.Namespace,
     *,
@@ -2343,6 +2377,7 @@ def _build_result_orchestration(
             bound_observed = "ABSENT" if projection_payload is None else _sha256_payload(projection_payload)
             if bound_observed != binding_row["projection_sha256"] and expected_projection is None:
                 raise WorkspaceError("RC_LINEAGE_STALE", "Stale lineage projection requires --expected-projection-sha256 to bind the reviewed preimage.", projection_relative)
+    completion_preconditions: dict[Path, str] = {}
     if rebuild:
         updated_projection, decision = rebuild_lineage_projection_v2(contract, committed, MALTS_ROOT, contract_hash)
         operation_id = _validate_id(args.operation_id, "Operation ID")
@@ -2353,7 +2388,27 @@ def _build_result_orchestration(
             raise WorkspaceError("RC_EVENT_BATCH_EMPTY", "--events must identify a non-empty JSON array.", str(args.events))
         events = events_value
         operation_id = _result_operation_id(events)
-        updated_projection, decision = apply_event_batch_v2(contract, events, projection, committed, MALTS_ROOT, contract_hash)
+        completion_observations: dict[str, str] = {}
+        committed_ids = {item["event_id"] for item in committed}
+        for event in events:
+            if not isinstance(event, dict) or event.get("event_id") in committed_ids:
+                continue
+            payload = event.get("payload")
+            if not isinstance(payload, dict) or "completion_proof" not in payload:
+                continue
+            proof = payload["completion_proof"]
+            proof_issues = validate_instance(MALTS_ROOT, "completion-proof", proof)
+            if proof_issues:
+                raise WorkspaceError("RC_DONE_PROOF_INVALID", "Completion proof does not match its schema.")
+            for artifact in proof["artifacts"]:
+                relative = artifact["artifact_id"]
+                artifact_path = _completion_artifact_path(root, relative, contract)
+                if not _path_is_file(artifact_path):
+                    raise WorkspaceError("RC_DONE_STALE_ARTIFACT", "Completion artifact is missing or is not a regular file.", relative)
+                observed = _sha256_path(artifact_path)
+                completion_observations[relative] = observed
+                completion_preconditions[artifact_path] = observed
+        updated_projection, decision = apply_event_batch_v2(contract, events, projection, committed, MALTS_ROOT, contract_hash, completion_observations)
     if updated_projection is None:
         issue = (decision.get("issues") or [{"code": "RC_LINEAGE_STALE", "message": "Result controller denied the operation."}])[0]
         raise WorkspaceError(str(issue.get("code")), str(issue.get("message")), str(issue.get("path", contract_relative)))
@@ -2437,6 +2492,10 @@ def _build_result_orchestration(
         for path in changes
     }
     preconditions[contract_path] = contract_hash
+    for artifact_path, observed in completion_preconditions.items():
+        if artifact_path in changes:
+            raise WorkspaceError("RC_DONE_ARTIFACT_WRITE_CONFLICT", "Completion cannot attest a file changed by the same control transaction.", _relative(root, artifact_path))
+        preconditions[artifact_path] = observed
     for path, event_hash in event_hashes.items():
         preconditions[path] = event_hash
     preconditions[_state_path(root)] = _sha256_payload(state_payload)

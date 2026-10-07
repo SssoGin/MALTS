@@ -1,173 +1,31 @@
-﻿# MALTS 生命周期
+﻿# MALTS 2.0.0 生命周期
 
-生命周期引擎把已验证的 MALTS 来源转换为不可变安装版本。一个本地 registry 标识活动版本；每个选定 Agent 工具只接收自己的投影和 boot pointer。
+## 1. 两类生命周期
 
-安装生命周期与项目 workspace 生命周期是不同边界。安装或激活 generation 绝不静默重整工作区。任意受支持的旧 workspace 或 Result 输入都只通过一次直接的 `reorganize-workspace` 或 `reorganize-result-contract` transaction 到达 CURRENT；它要求 dry run、精确 source/Phase/coordination hash、固定 timestamp、review/authorization reference、显式 apply 与可恢复 journal。公开流程不存在中间版本或降级链。重整不得创建无关 Phase、Session、Agent、Artifact、Workspace 或后台服务。
+安装生命周期管理不可变版本、工具投影、registry、计划和事务。项目生命周期管理 Project/Phase/Task、操作、证据和恢复。安装更新不会自动采用或重建项目；项目备份也不能替代安装快照。
 
-Active installed generation 是不可变证据，禁止原位修补。Workspace coordination journal 与 workspace authority 共享写锁，但属于 project runtime state，不是 lifecycle registry state。候选 generation 生成、激活、repository commit/push/tag 与公开 Release 仍是彼此独立的授权门。
+## 2. 安装计划与正式归并
 
-## 核心不变量
+通常使用 Install/Update 的 review-first脚本。更完整控制入口是 `scripts/Invoke-MALTSLifecycle.ps1`：Plan、PreviewPlan、Execute、Recover、Inspect、Scan、Doctor、DoctorRepairPlan。operations 为 install、update、repair、finalize、uninstall；以当前 `--help`核参数。
 
-- 版本来自一个已验证仓库来源，或一个明确验证后解出的 release package。
-- 激活后安装 payload 字节保持不可变。
-- 版本来源信息只保存来源类型和哈希绑定身份；绝不保存 package、仓库或机器路径。
-- 安装或更新成功后恰好有一个活动版本。
-- 计划会被持久化、可审阅，并绑定精确 SHA-256。
-- 执行只接受精确已审阅计划和已观察到的前置条件。
-- 未被选定的工具根目录不会被修改。
-- 未知或用户拥有的文件会保留或阻塞，不会被静默移除。
+`finalize`用于同版本正式归并，保全原目标快照并核精确输入；它不是任意覆盖。创建 Plan 不改变安装，Execute 必须传入已审阅 PlanPath和ExpectedPlanHash。preview 使用新隔离根核来源、投影与实际后置条件，再对正常目标执行。事务记录负责恢复，不能手改journal或删除锁绕过前置条件。
 
-## 来源模式
+## 3. 发现与诊断
 
-| 来源 | 正常用途 | 验证 |
-|---|---|---|
-| 仓库 | 默认安装和更新路径 | `MALTS_RELEASE.json`、`VERSION`、精确源码树清单、必需用户入口和安全仓库拓扑。 |
-| 已解出的 release package | 明确的离线/固定归档路径 | 闭合 `release_manifest.json`、release inventory、内部 lifecycle artifact 和 package identity。 |
-
-可选 ZIP 只是归档交付方式，不是第三种 lifecycle 来源。bootstrap 验证会把它解出为第二种来源模式。
-
-## 语义化版本身份与迁移
-
-稳定版本使用 `malts-v<version>`，隔离预览版本使用
-`malts-v<version>-preview.<positive-sequence>`。release builder 与 lifecycle engine
-调用同一身份函数。已安装稳定身份精确一致时为显式 `NO_OP`；同一 ID 对应不同内容，
-或存在未绑定同名目录时，会在创建 transaction 或 lock 状态前失败。
-
-`malts-1.0.0-<hash>` 等 legacy ID 只作为已识别迁移输入。先 stage 并 prevalidate
-新的语义版本，再以 transaction 切换 registry、active pointer、global boot 和已选工具投影。
-只有 post-validation 证明旧权威引用为零后才移除旧版本。任一状态发生 crash 时，恢复到唯一
-committed 或 rolled-back 终态。
-
-## 操作
-
-| 操作 | 用途 | 所需来源 |
-|---|---|---|
-| `install` | 创建并激活首个版本。 | 仓库或已解出 package |
-| `update` | 暂存并激活更新的已验证版本。 | 仓库或已解出 package |
-| `repair` | 用活动版本协调选定投影。 | 仓库或已解出 package |
-| `finalize` | 显式重发一个稳定版本：替换其 retiring target，并且只移除已审阅的同 major/minor 系列 retiring generation。 | 仓库或已解出 package；已有 v1 lifecycle 状态 |
-| `uninstall` | 在已审阅计划下移除 MALTS 拥有投影和 registry 状态。 | 仅已有安装状态 |
-| `recover` | 继续或回滚中断的 transaction。 | 已有 lifecycle 状态 |
-
-## 先审阅计划
-
-`finalize` 不是普通 update，也不是自动保留清理策略。它只用于已审阅确认：同一 major/minor 系列中未公开的中间 generation 必须退出时。目标 generation 必须已登记为 retiring；active、未绑定、跨系列或用户修改的 target 一律 fail closed。其 plan 会逐项列出替换与清理的破坏性路径，先快照完整旧状态；recovery 要么精确恢复旧状态，要么记录 failure bundle，绝不把失败的 operation 伪装成已恢复 current-binding 的来源。
-
-用户生命周期脚本先创建计划。计划包含来源身份、选定根目录、目标版本身份、写入、移除、用户修改分类、旧版迁移或残留动作、回滚和后置验证。
-
-执行需要相同计划文件及其精确 `plan_hash`。来源或环境漂移会在变更前失败。
-
-## 预览验证
-
-影响 runtime 的新版本必须在显式绝对 preview root 中验证，之后才可考虑真实安装。该 root 不能是磁盘根、reparse point、source/runtime root，也不能与任何 protected root 互为祖先或后代。Preview lifecycle、registry、global boot，以及每个已选工具的 config、home、cache 和 temp 根都必须留在该边界下。
-
-先创建零写入 preview plan，审阅后再只持久化并执行其精确 hash：
+从工具 Boot 解析运行根，discovery交叉核 registry、active pointer、generation identity与VERSION。Doctor只读判断信任及漂移，不修复。Inspect列安装状态；Scan列残留，不表示可删除。比如：
 
 ```powershell
-.\scripts\Invoke-MALTSLifecycle.ps1 `
-  -Command PreviewPlan `
-  -PreviewRoot <ABSOLUTE_PREVIEW_ROOT> `
-  -ReleaseRoot <PREVIEW_RELEASE_ROOT> `
-  -ProtectedRoot <REAL_LIFECYCLE_ROOT> `
-  -Tool codex,claude-code,opencode `
-  -OutPath <NEW_PREVIEW_PLAN_PATH> `
-  -Apply
+.\scripts\Invoke-MALTSLifecycle.ps1 -Command Doctor -LifecycleRoot '<existing-lifecycle-root>' -ToolRootCodex '<codex-config-root>'
 ```
 
-全新 Codex、Claude Code 和 OpenCode 进程必须通过 process-local 隔离根发现预览版本。无法证明隔离时，操作被阻断，绝不回退真实根。未用真实工具集成验证的预览会被如实记录，不能视为完整合格。
+共享三端传入全部实际工具根；Harness使用其独立lifecycle和 `-ToolRootDeepSeekDesktop`，该现有参数名对应当前 `deepseek-harness`，不表示宿主身份恢复为旧名称。
 
-## Doctor 与 Repair 信任
+## 4. v2 项目恢复
 
-`Doctor` 返回闭合 `lifecycle-doctor-report`，包含精确 locator、expected/observed 证据、严重度、core trust 与建议命令；它始终只读。派生 boot 或投影漂移可由本地一致活动版本限定；payload、manifest、registry 或 pointer 被篡改时，必须提供与 installed binding 精确一致的外部已验证来源。
+普通暂停续接准确Task/Run；灾难恢复先核已采用binding/epoch、备份和原writer。verify-backup后对新的目标restore，保持隔离并对账后续修改、UNKNOWN、预算和资源。缺回执不证明无效果；恢复不复活旧Grant/Host/已消费额度，不回到legacy运行。
 
-`DoctorRepairPlan` 是独立审阅步骤。来自本地活动版本的建议不可执行。精确已验证来源可以生成普通 hash-bound repair plan，但仍须使用 `Execute -Apply` 和已审阅 plan hash 执行，并保留正常 snapshot、rollback 与 post-validation 行为。
+## 5. 保留与清理
 
-## 版本与 Boot Pointer
+保留活动代际、registry、当前状态库、binding/source-seal、原始验收、未决操作与必要恢复快照。过期时间、candidate目录名和终态均不足以证明可删；先查引用、归属、完整占用及替代恢复。按用户和宿主文件策略处理，可恢复失败保留原对象。
 
-lifecycle root 包含不可变版本目录、registry 状态、transaction journal、审计证据和残留记录。每个选定工具接收一个小型投影以及 `MALTS_BOOT.md`，它在使用时解析活动版本。
-
-不要把物理版本路径复制进项目控制文件。需要当前 runtime 信息时，先解析 boot pointer，再读取活动 `VERSION`。
-
-公开 Python CLI entrypoint 会在导入 MALTS 本地模块前抑制 bytecode 写入，因此普通只读启动也不会在 immutable installed generation 中创建 `__pycache__` 或 `.pyc`。示例仍使用 `python -B` 作为纵深防护；installed-generation purity 与 Doctor 检查会对任何生成缓存残留 fail closed。
-
-如果旧的长项目工作区在生成的 `PROJECT_CONTROL.md` 中保留了物理版本路径，先检查迁移计划：
-
-```powershell
-python -B .\tools\long_workspace.py refresh-runtime-references --workspace <PROJECT_WORKSPACE>
-```
-
-仅在审阅返回计划后再应用：
-
-```powershell
-python -B .\tools\long_workspace.py refresh-runtime-references --workspace <PROJECT_WORKSPACE> --apply
-```
-
-该命令只改写生成的版本来源元数据行。静态版本引用会使 `validate` 以
-`WS_STALE_RUNTIME_REFERENCE` 失败；必须刷新或人工审阅，不能被静默忽略，也不能在该生成行之外被静默改写。
-
-旧版本可能保留 legacy 绝对来源 locator，仅用于让已验证更新替换它。它仍可被读取以完成迁移，但在更新生成不含路径的当前记录前，安装纯净度检查会关闭式失败。
-
-## 有界 Audit 保留
-
-Lifecycle audit state 使用闭合 schema 与固定 ownership 规则，保留：
-
-- 一份 current active-binding receipt；uninstall 后不保留 current binding
-- 最近 20 份 compact success-operation receipt
-- 最近 10 组完整 failure/recovery plan-and-journal bundle
-- 最近 12 个日历月各一份 compact summary
-
-未完成且可恢复的 transaction 永不 prune。新 record 会先安全写入，再按精确名称和 hash-bound 清单 prune。未知名称、hash drift、reparse point、被禁止的版本/package/ZIP/payload 副本或 cleanup failure 都会被保留，并阻断 stable 或 zero-residue 结果。Audit write 与 prune recovery 保持幂等。
-
-对于早于该保留契约的唯一旧 Audit 布局，迁移只识别精确闭合的 v1 envelope、plan、context 和 terminal journal 形状。它会验证原始 plan/context hash 以及 operation / artifact / journal binding，然后在 `state/audit/legacy-pre-retention/<operation_id>/` 保留源文件的原始字节；绝不伪造较新的版本身份。缺字段、多字段、hash drift、reparse point、不能匹配的 archive 内容和任何未识别文件都继续阻断。
-
-可识别的标准 legacy plan/journal pair 会使用其 `release_identity` 已绑定的版本身份压缩为当前 receipt；缺少派生 plan 字段绝不被当作新的身份。若普通失败发生在 `COMMIT` 之后，journaled snapshot rollback 仍是显式恢复路径。恢复后只要 registry 回到 stable active，严格 audit 校验前也会先补齐对应的 current binding receipt。
-
-## 恢复与残留
-
-中断操作会写入 journal。恢复会检查 journal、registry、活动 pointer、版本、选定投影和受管残留，之后才会宣称状态稳定。
-
-引擎区分 MALTS 拥有路径与用户拥有或不确定路径。它只会在已审阅计划下移除有确凿归属证据的 MALTS 残留；不明确路径会保留或等待明确用户决定。
-
-## Workspace Phase And Artifact Lifecycle
-
-### Phase boundary 与状态
-
-每个 current Phase 都记录 milestone、in-scope/out-of-scope、exit criteria、carry-over policy 和 boundary-review triggers。`phase-boundary-review` 只读，只对候选 goal/touch set 分类，不授予写权限。其 compatibility `status` 与 `operation_status` 只描述 command execution；必须分别读取 `review_outcome`、`candidate_mapping`、`recommendation` 与 `persisted`。只有 `record-phase-boundary-review` 会持久化 structured review，该记录并不是后续工作授权。`PAUSED` 保留 ownership 与 recovery evidence；显式选中的 PAUSED Phase 可以在 `resume-phase` 前运行只读 `plan-recheck`，但 PASS 不授予执行权限。Pause/resume 使用稳定的 boundary Review ID，不把 evidence path 当 ID；证据路径保存在独立字段。`resume-phase` 仍需要新的 boundary、plan、精确 hash 与 authorization reference。跨 Phase transition 先生成 persisted `plan-phase-transition`，再执行 hash-bound `apply-phase-transition`；`SUPERSEDED` 是终态，carry-over provenance 在两端双向记录。Primary `active_phase_id` 保持单值；只有 `resource_admission` 可同时保留额外 `OPEN` Phase。
-
-### Cross-control consistency 与 recovery authority
-
-全新 long-project workspace 使用精确 CURRENT，默认 `single_phase`；受支持的旧布局作为内部兼容输入保持可读，entry、`validate`、`recover`、maintenance、installation update 或 active-generation switch 绝不静默重写。`resource_admission` 必须显式启用，不得从多个目录、工具、Agent 或用户 prose 推断。
-
-Selected `PHASE_CONTROL.md` 拥有 Boundary Review、plan、queue/evidence 与 Phase recovery；active Session 拥有 checkpoint。Machine workspace state 拥有 schema/profile/index 与 transaction binding；coordination state 拥有 Admission、capability queue、fencing 与 quarantine。CURRENT contract 中 report 与 existing handoff 是按需 derived view，漂移属于 warning；legacy workspace layout 保留 required current report/lineage 与 checked optional handoff binding。Validation 分层报告 structural、binding、deterministic-consistency、maintenance-warning 与 advisory-semantic finding。
-
-`reorganize-workspace` 与 `reorganize-result-contract` 是仅有的公开重整路径。它们必须 dry-run-first，并绑定 authority、operation ID、review/authorization reference、同一固定 timestamp 与精确 expected hash。旧格式 parser 与 consistency repair helper 仅作为内部兼容 adapter 保留，不成为用户迁移步骤。Workspace/coordination authority 写入共享 `runtime/workspace_transaction.lock.json`、`runtime/workspace_transactions/`、一个 `WS_TRANSACTION_*` domain、唯一 writer 与锁后 preimage 复核。Incomplete journal 保留到 exact-hash recovery 成功；失败 recovery 继续保留证据。Artifact transaction path 与 `ART_TRANSACTION_*` code 不变。
-
-Canonical recovery selection 固定为 active Session checkpoint；否则 active Phase recovery；否则显式绑定的 terminal Phase；否则 Project recovery。禁止按 timestamp 或 registry order 选择最新历史 Session。
-
-### Artifact enrollment 与 ownership
-
-Artifact lifecycle 是可选能力。Project 只拥有 `NOT_ENROLLED`/`ENROLLED` 状态以及紧凑 Shared/Archive pointer。Phase 或显式有界 Session 拥有本地 Artifact rows；Shared 拥有 current reusable authority，Archive 拥有 cold/superseded history。Runtime snapshot 只能缓存 locator 与 count，绝不能覆盖 canonical Markdown。
-
-`artifact audit` 只读，范围只包含当前已声明 control。`artifact enrollment-preview` 提出精确 enrollment/index 变更；只有携带唯一 operation ID 且显式 `--apply` 的 `artifact enrollment-apply` 才会 enrollment workspace。Legacy directory 只是 observation，不是 authority；已声明 index 缺失时 fail closed，绝不隐式重建。
-
-### Mutation、close 与 recovery
-
-Register、promote、supersede、reconcile 默认 dry-run。Apply 时持有唯一 workspace lock、写入 persisted hash-bound journal、重读 full-state precondition、stage 精确 replacement，并且要么提交全部已声明 control，要么恢复原始精确 bytes。相同重试是 no-op success；竞争 writer、stale lock/journal、bytes 变化、duplicate authority、cycle 或 incomplete reference 均安全失败。
-
-Artifact mutation 绝不移动/删除 payload 或调用 VCS，也绝不创建 Session。含 `UNRESOLVED` row 的 enrolled Phase/Session 无法关闭。`recover` 报告精确 stale transaction 人工审阅动作，只沿当前 recovery chain 所需的 owner/Shared/Archive pointer 读取，不递归扫描大型 payload tree。
-
-### Compatibility 与 non-goals
-
-受支持的旧 workspace 布局保持可读，直到显式执行一步 CURRENT 重整。重整绝不静默改写输入，不暴露中间布局；中断时恢复原始字节，或进入有证据的 reconcile。安全 duplicate-marker cleanup 仍只限空重复 section；non-empty duplicate 或 ambiguous legacy review semantics 必须 fail closed。Workspace coordination 不增加自动 update check、heartbeat/background watcher、project-wide payload hash、目录整理、产品专项规则或远端 publication。G4 仍需真实 Codex、Claude Code、OpenCode invocation；component/projection test 不能冒充 G4。
-
-## 普通启动 Discovery
-
-每个工具从自身相邻的 `MALTS_BOOT.md` 启动，其 schema 只允许一条绝对 `MALTS_ROOT:` 行。MALTS v1.1.1 起不再使用或创建机器全局 `GLOBAL_BOOT.md`。只读 `discover` 命令验证 tool boot、stable registry 状态、唯一 active record、精确的 `<lifecycle-root>\\registry\\active_generation.json` pointer、active `VERSION` 与版本身份。PASS 结果会显式返回 `authority_paths.active_generation_pointer`，调用方不得猜测或探测 `<lifecycle-root>\\active_generation.json`。普通启动不计算完整树 hash，也不写入。权威面缺失、畸形、陈旧或冲突时全部 fail closed。
-
-另见[安装](INSTALL.md)、[更新](UPDATE.md)和[安全](SECURITY.md)。
-
-### v1.3.0 生命周期新增
-
-- 冷 workspace/Result 迁移是显式 dry-run/apply 操作，普通 init/validate/recover/update 绝不隐式触发。
-- workspace 控制事务使用 `runtime/workspace_transaction.lock.json` 与 `runtime/workspace_transactions/`；Artifact 与全局 lifecycle 事务保持独立域。
-- 仅记录 Plan Recheck 的更新必须保留精确 recovery summary、next action 与 evidence references。
+安装清理必须通过已审阅 lifecycle计划，不能直接清理当前不可变代际。持续保留恢复数据可能增长磁盘占用，当前没有无限期固定空间保证。见[状态合同](V2_STATE_CONTRACT.md)和[更新](UPDATE.md)。

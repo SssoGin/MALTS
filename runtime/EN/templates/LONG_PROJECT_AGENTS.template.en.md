@@ -7,7 +7,7 @@ This workspace uses MALTS long-project controls.
 - Selecting the long-project initializer means the user wants a long-project workspace, not an ordinary minimal project-control skeleton.
 - A newly initialized workspace is ready only when `runtime/workspace_control.json` registers its first Phase and `active_phase_id` names that Phase.
 - If root controls exist but the Phase registry is empty, report `NEEDS_INITIAL_PHASE` and propose the no-overwrite migration. Do not report initialization complete.
-- Always tell the user whether an active Session exists and why no Session was created.
+- After initialization or an explicit Session operation, report whether an active Session exists and why it was or was not created; ordinary turns need no repeated Session report.
 
 ## Canonical ownership
 
@@ -73,7 +73,11 @@ Refresh only through the explicit command:
 
 ## Safety
 
-- Separate read-only review from state-changing execution.
+- Preserve explicit read-only requests. An approved implementation scope covers its necessary local edits, relevant verification and same-scope follow-through; do not ask for repeated approval.
 - Do not overwrite user files or expand scope silently.
 - Do not use Git, network, providers, Agent dispatch, dependency installation, or destructive cleanup without separate authorization.
 - Do not run automatic, periodic, background, or ordinary-use update checks.
+
+## Verification scope
+
+Use the relevant behavior and contract checks. Reuse evidence while its source, toolchain and environment bindings remain valid. Runtime-required plan/resource checks still apply; do not add repeated full-history reads, full regression or extra approvals for an unchanged ordinary task.

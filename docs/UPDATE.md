@@ -1,105 +1,53 @@
-# Update MALTS
+# Update to MALTS 2.0.0
 
-MALTS updates from a separately reviewed current repository checkout by default. The updater does not pull Git, discover updates in the background, or download a Release archive. It creates a review-only plan before any installation state changes.
+## 1. Before updating
 
-An installation update does not reorganize project workspaces or Result Contracts. After activation, an old workspace remains on its existing compatibility behavior until a separate one-hop `reorganize-workspace` or `reorganize-result-contract` dry run is reviewed and explicitly applied. Reorganization binds exact source hashes, review/authorization references, one fixed timestamp, and a recoverable journal. It never runs during ordinary `workspace-entry`, `validate`, `recover`, or generation switching.
+Inspect the installed identity, intended source and workspace binding separately. Preserve recovery materials, settle relevant Hosts/effects and identify user edits. The updater performs no Git pull, automatic ZIP download or unspecified project migration.
 
-Do not patch an active generation to obtain CURRENT workspace contract. Change and verify the maintenance source, then cross the candidate, activation, Git, tag, and public Release gates separately. Default single-profile workspaces do not need the concurrency profile and incur no coordination state.
+2.0.0 gives the selected v2 store execution ownership. A workspace not yet adopted remains readable under its verified contract; v2 adoption requires reviewed mapping, writers, unknown effects and backup. Core reads/writes Schema69 only, without implicit development-store upgrades or legacy runtime restoration.
 
-## Before Updating
+## 2. Review the update
 
-1. Finish or recover any incomplete lifecycle transaction.
-2. Obtain the intended current repository source.
-3. Verify `MALTS_RELEASE.json`, `VERSION`, and, when available, the checked-out Git tag.
-4. Identify the existing lifecycle root and every selected tool root.
-5. Back up user-owned tool configuration through the tool's normal procedure when appropriate.
+From the reviewed 2.0.0 repository:
 
-Do not update from an unverified folder. A repository identity mismatch, unexpected file, cache, or `.malts` residue stops the planning operation.
+```powershell
+.\scripts\Update-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool AllIncluded
+```
+
+For explicit roots, supply the existing lifecycle/tool roots. Review source identity, personal-content classification, generation changes, snapshots and postchecks, then use actual reported values:
+
+```powershell
+.\scripts\Update-MALTS.ps1 -Apply -PlanPath '<reviewed-plan-path>' -ExpectedPlanHash '<reviewed-plan-sha256>'
+```
+
+An identical same-version source may return `NO_OP`. Different content under the same version needs the lifecycle `finalize` contract with preserved preimages and exact source binding. Do not invent 2.0.1 or empty/patch the active generation. See [Lifecycle](LIFECYCLE.md).
+
+## 3. Instructions and Host loading
+
+Installation maintains marked MALTS blocks with the exact installed `MALTS_BOOT_PATH` and preserves personal content outside them. Follow that precise pointer when an instruction file and its Boot are in different locations. Installation does not create/remove `AGENTS.override.md`, which can change Codex's actual instruction loading. Reload the Host and check Boot/discovery, native Skills and MCP instead of assuming a process has loaded the new code.
+
+## 4. Workspaces and recovery
+
+Adopted workspaces continue through `workspace`, `entry-status` and Task services, without legacy initialization or dual writes. Restoration creates a new epoch; old Grants/Hosts/acceptance do not become valid automatically and consumption is not reset. Reconcile uncertain effects under their original identity.
+
+Cross-user DPAPI recovery, arbitrary external-writer exclusion and GUI model cancellation remain uncertified. Historical evidence must match its relevant inputs. Documentation edits do not automatically invalidate unchanged code behavior, but do require command/reference checks. See the [State Contract](V2_STATE_CONTRACT.md).
 
 ## Repository Update Review
 
-From the reviewed repository source:
+The updater does not pull Git. Review a fetched/selected checkout independently, then inspect modification classes:
 
-```powershell
-.\scripts\Update-MALTS.ps1 `
-  -RepositoryRoot (Get-Location).Path `
-  -UseDefaultRoots `
-  -Tool Codex
-```
-
-For explicit roots:
-
-```powershell
-.\scripts\Update-MALTS.ps1 `
-  -RepositoryRoot <REPOSITORY_ROOT> `
-  -LifecycleRoot <LIFECYCLE_ROOT> `
-  -Tool Codex `
-  -ToolRootCodex <CODEX_ROOT> `
-  -PlanPath <NEW_UPDATE_PLAN_PATH>
-```
-
-Review the plan before execution. It shows the active and target version identities, selected projections, user-modification classifications, migration or cleanup actions, rollback actions, and post-validation checks.
-
-```powershell
-.\scripts\Update-MALTS.ps1 `
-  -Apply `
-  -PlanPath <REVIEWED_UPDATE_PLAN_PATH> `
-  -ExpectedPlanHash <REVIEWED_UPDATE_PLAN_SHA256>
-```
-
-## Version Migration And Collision Handling
-
-Stable versions use `malts-v<version>`, while isolated previews use
-`malts-v<version>-preview.<sequence>`. Recognized legacy IDs such as
-`malts-1.0.0-<hash>` remain migration inputs; MALTS does not rename them in
-place or treat their physical paths as current pointers.
-
-An update stages and prevalidates the target before switching the registry, active pointer, and selected tool-local Boot/projection transaction unit. The installed managed instruction records the exact installed `MALTS_BOOT_PATH`; it is never resolved relative to `cwd` or a project file. The old version is cleaned only after post-validation proves that no authoritative reference still points to it. A same-version exact match is a no-op; a same-version content conflict or unbound same-name directory fails before writes. Process loss resumes or rolls back through the transaction journal.
+| Class | Meaning | Action |
+|---|---|---|
+| U0 | Missing or exactly MALTS-owned | Replace/remove only as planned |
+| U1 | Mergeable managed instruction block | Preserve outside content and merge the block |
+| U2 | Deterministic evidence-backed merge | Use the recorded validation |
+| U3 | User-owned or ambiguous edits | Preserve pending an explicit decision |
+| U4 | Sensitive or unsafe conflict | Fail closed |
 
 ## Optional Offline Archive Update
 
-When the update source must be a fixed offline archive, explicitly verify and extract the single `MALTS-<version>.zip` first. Then invoke the extracted updater with `-ReleaseRoot <EXTRACTED_RELEASE_ROOT>`. The archive is an explicit source choice; it is not a normal updater dependency.
+Verify/extract the matching archive and use ReleaseRoot with the same update-plan/hash sequence. This does not relax drift/ownership checks.
 
-## User Modifications And Cleanup
+## Historical workspace adoption
 
-MALTS classifies existing projected files before changing them:
-
-| Class | Meaning | Default result |
-|---|---|---|
-| U0 | Missing or exactly MALTS-owned | Replace or remove as planned. |
-| U1 | Managed instruction block can be merged | Merge the managed block. |
-| U2 | Deterministic evidence-backed merge | Merge only with the recorded validation. |
-| U3 | User-owned or ambiguous modification | Stop for an explicit user decision. |
-| U4 | Sensitive or unsafe conflict | Fail closed. |
-
-Known legacy layouts may be migrated only when ownership evidence is sufficient. Unknown, user-owned, or ambiguous files are preserved or block the update; they are not silently deleted.
-
-A verified update also replaces any old absolute source locator in the installed provenance with the current path-free record. Do not edit an installed version manually.
-
-## Diagnose Before Repair
-
-Use `Invoke-MALTSLifecycle.ps1 -Command Doctor` with the lifecycle root and all selected tool roots before attempting repair. Doctor is read-only and distinguishes derived boot/projection drift from invalid core payload, manifest, registry, or pointer state.
-
-For locally consistent core state, `DoctorRepairPlan` may scope derived repair targets from the active version, but that recommendation is not itself an executable mutation. Persist an executable repair plan only with the exact verified source that matches the installed binding; then review its hash and execute it as a separate authorized transaction.
-
-## Update Workspace Controls
-
-Updating MALTS installs new runtime behavior but does not rewrite project controls. Supported legacy long-project layouts remain readable, fresh workspaces use CURRENT with default `single_phase`, and Artifact lifecycle stays `NOT_ENROLLED`. The resource profile and every reorganization remain explicit workspace operations.
-
-Run `validate` first and preserve its exact state hash/classification. If it reports a supported legacy layout, review one `reorganize-workspace` dry run that classifies every retained, moved, archived, or derived section and targets CURRENT directly. Apply only the same hash-bound plan under current workspace authorization. Legacy parser and consistency-repair details stay internal; validation and recovery never reorganize automatically.
-
-Run `artifact audit` before considering enrollment. A legacy `shared/`-like directory is only a candidate observation; it is never silently adopted. If enrollment is wanted, run `artifact enrollment-preview`, review exact index paths and findings, then run `artifact enrollment-apply` with a unique operation ID and explicit `--apply`.
-
-If a Boundary Review remains unresolved after reorganization, persist a structured result only through `record-phase-boundary-review` with the exact Phase SHA-256; recording is not authorization for later mutation. Ambiguous non-empty duplicate markers or legacy prose semantics fail closed rather than being inferred.
-
-Interrupted workspace/coordination authority writes use the shared `runtime/workspace_transaction.lock.json` and `runtime/workspace_transactions/`, separate from Artifact transactions. Review `recover-workspace-transaction` with the exact journal SHA-256 before adding `--apply`; failed recovery retains the evidence.
-
-No update path moves/deletes payloads, invokes VCS, creates a Session, selects the newest historical Session as recovery authority, or starts an automatic/background workspace scan. Roll back the installed MALTS generation through the lifecycle plan; never copy old templates over canonical workspace controls. Workspace reorganization recovers original bytes or uses explicit reconcile evidence.
-
-## Recovery
-
-If an update is interrupted, inspect or recover the lifecycle transaction before creating another plan. See [Lifecycle](LIFECYCLE.md) for registry, journal, rollback, and residue behavior.
-
-## Post-Update Discovery
-
-After a successful update, run read-only discovery for every selected tool root. Each exact installed `MALTS_BOOT_PATH` must resolve the same new active version and match registry, active pointer, and `VERSION`. MALTS does not use a machine-global Boot for ordinary discovery. Do not keep using a stale tool boot or guess a version path; repair follows a separately reviewed lifecycle transaction.
+Installation updates do not adopt existing projects. Review their facts, writer quiescence, unknown effects and backups through explicit v2 adoption. Preserve historical source/seals; recovery stays in v2. Legacy reorganization commands do not own adopted-workspace state.

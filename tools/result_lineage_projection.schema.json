@@ -10,6 +10,7 @@
     "lineage_id": {"$ref": "#/$defs/id"}, "task_id": {"$ref": "#/$defs/id"}, "phase_id": {"$ref": "#/$defs/id"},
     "latest_contract_revision": {"$ref": "#/$defs/revisionBinding"}, "latest_event": {"$ref": "#/$defs/nullableEventBinding"},
     "task_status": {"$ref": "#/$defs/taskStatus"}, "terminal_status": {"type": ["string", "null"], "enum": ["DONE", "PARTIAL", "BLOCKED", "FAILED", null]},
+    "completion_evidence_state": {"enum": ["HISTORICAL_DECLARED", "EVIDENCE_RECORDED"]},
     "current_round_id": {"$ref": "#/$defs/nullableId"}, "current_attempt_id": {"$ref": "#/$defs/nullableId"}, "current_invocation_id": {"$ref": "#/$defs/nullableId"},
     "hard_budget_usage": {"$ref": "#/$defs/usage"}, "envelope_usage": {"type": "array", "items": {"$ref": "#/$defs/envelopeUsage"}},
     "active_authorization_envelope_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},

@@ -1,6 +1,6 @@
-﻿---
+---
 name: grill-me-preflight
-description: Use before non-trivial task or project starts to expose hidden assumptions, goal boundaries, key tradeoffs, and acceptance criteria.
+description: Clarify material unresolved goals, tradeoffs or acceptance criteria, or run an explicitly requested preflight interview. Task size alone does not trigger an interview.
 ---
 
 # Skill: Grill-Me Preflight
@@ -15,26 +15,23 @@ The goal is to uncover hidden assumptions, goal boundaries, key tradeoffs, accep
 
 ## Trigger
 
-Offer this workflow at the start of a non-trivial task when any of these are true:
+Use this workflow when the user explicitly requests a preflight interview, or when inspection leaves a decision-changing gap in goals, scope, acceptance criteria, consequential tradeoffs or authorization.
 
-- New project or new major workstream.
-- Multi-step, multi-file, risky, recovery-sensitive, or long-running work.
-- Design, architecture, planning, migration, workflow, or protocol decisions.
-- Requirements, success criteria, exclusions, or tradeoffs are not fully settled.
+Task size, multiple files, a new project, migration or an S2/S3/S4 label is not sufficient by itself. Discover facts from the current files first. Infer routine technical IDs and language from established conventions and explain assumptions briefly. When the goal and acceptance criteria are clear, proceed without an interview offer.
 
-Do not offer it for S0/S1 tasks where the goal and verification are already clear.
+For one concrete missing decision, ask that question directly. Offer a longer interview only when several connected choices need structured discussion.
 
 ## User-Facing Prompt
 
 Use this wording or an equivalent concise version:
 
-> This task is a good fit for MALTS Grill-Me Preflight because it can expose hidden assumptions, goal boundaries, key tradeoffs, and acceptance criteria before implementation, reducing rework and requirement mismatch. Do you want to run a short preflight grilling round first?
+> The remaining decision is <specific unresolved choice>; it changes <concrete outcome>. I recommend <option> because <reason>. Which outcome should this task use?
 
 ## Workflow
 
 1. Explore the repository, project state, and available docs first for facts that can be discovered without asking the user.
 2. Ask only questions that materially change the goal, scope, design, sequencing, risk handling, or acceptance criteria.
-3. Ask one question at a time.
+3. Group short independent questions when that reduces interruptions; ask dependent questions one at a time. Do not ask the user to repeat settled choices.
 4. For each question, include the recommended answer and why it is the default.
 5. Walk the decision tree until the goal, success criteria, audience, in/out of scope, constraints, key tradeoffs, edge cases, and verification path are clear enough to implement.
 6. Stop when further questions would not materially improve delivery.
@@ -42,22 +39,22 @@ Use this wording or an equivalent concise version:
 
 ## Boundaries
 
-- This workflow is a clarification and planning gate, not a sub-agent dispatch.
+- This workflow resolves missing decisions; it does not reset existing approval or grant Agent dispatch permission.
 - It does not require `确认运行`.
-- It must not be used to delay obvious small tasks.
-- If the user declines, proceed with the best stated assumptions and record that the preflight was declined when the task is non-trivial.
-- If the task later becomes ambiguous or risky, offer it again at the next checkpoint.
+- It must not delay any task whose goal, relevant constraints and acceptance criteria are already clear, regardless of size.
+- If the user declines an optional interview, proceed with reasonable reversible assumptions inside the approved scope. A missing authorization or consequential unresolved choice still pauses only its dependent action; declining an interview does not authorize it.
+- Ask again only when new facts create a material decision gap; do not repeat an offer because the same task remains complex.
 
 ## Checklist
 
 - [ ] Discoverable facts were explored before asking.
 - [ ] The user was asked only decision-changing questions.
-- [ ] Questions were asked one at a time.
+- [ ] Questions addressed unresolved choices efficiently without repeating settled decisions.
 - [ ] Each question included a recommended answer.
 - [ ] Accepted decisions and assumptions were recorded in `PROJECT_CONTROL.md`.
 - [ ] Remaining open questions or declined preflight status were recorded when relevant.
 
-## MALTS v1.3.0 preflight points
+## Runtime boundaries
 
 - Distinguish Phase boundaries from per-Attempt envelopes: a failed Attempt terminates only that Attempt, never auto-retries, and never auto-promotes Task/Phase terminal state.
 - Treat external side effects with typed observations and counted units; `UNKNOWN` dispatch/outcome/charge fails closed under finite hard bounds.

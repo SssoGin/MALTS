@@ -1,59 +1,17 @@
-﻿# MALTS 交接说明
+﻿# MALTS 2.0.0 交接
 
-语言：[English](../HANDOFF.md) | [简体中文](HANDOFF.md)
+## 1. 作用与内容
 
-MALTS 使用 handoff 文件，让长任务能在新窗口、中断或 Agent 更换后恢复。
+交接帮助后续执行者理解当前目标、完成证据、下一步和恢复边界。它是按需派生视图，不是执行授权或第二状态库。普通成功回合不必生成交接。
 
-CURRENT workspace contract 中，handoff 是按需派生的 continuation view，不是 lifecycle authority，也不是每次日常启动的必读文件。Project、显式选择的 Phase 和显式 Session control 拥有被摘要的事实。先运行有界 `workspace-entry --task-class CONTEXT_RECOVERY`；只有用户要求或恢复决定认为有用时才读取/刷新 handoff。Staleness 属于 warning，使用精确 state/Phase hash 局部修复；`refresh-maintenance-views --include-existing-handoff` 会从当前 canonical control 重建已有 handoff，不继承旧投影正文、不创建缺失 handoff，已经是当前视图时重复刷新为 no-op。旧 workspace 在显式 CURRENT 重整前保留严格绑定兼容行为。
+包含准确 Task/revision/Phase、相关计划、已观察结果、未决效果、Host/预算/epoch、手工独有内容与有效来源。历史失败与条件性建议保持原语义，不变成待执行指令。
 
-Resource profile handoff 可以引用 Admission ID、locator/capability domain、lease/fencing 证据与 quarantine/reconcile 状态，但不得复制 coordination ledger，也不得暗示 prose 能授予写权限。外部副作用为 `UNKNOWN` 时，即使摘要乐观也仍保持隔离。
+## 2. 保全、预览和发布
 
-## 默认文件名
+通过 handoff.preserve-note/capture-file 保全已选择原文；handoff-preview返回有界事实、部分页标识与source token。预览不证明完整性或授权限。
 
-Agent-facing 默认文件：
+handoff.publish要求准确Task版本、当前来源令牌、现有已审阅输出及精确目标前像；写入前检测漂移，失败保留可恢复状态。输出不存在时，先用另一个明确限定的创建动作，不用盲目重定向。inspect-publication沿原ID核结果。
 
-```text
-PROJECT_HANDOFF.md
-```
+## 3. 续接检查
 
-可选用户-facing 中文镜像：
-
-```text
-项目交接.md
-```
-
-## 规则
-
-- Agent-facing handoff 使用用户或项目的主要叙述语言，同时保留稳定英文字段名和机器代码。
-- 翻译镜像只有在用户明确要求时才创建。
-- handoff 文件中不得写入 secrets、tokens、cookies、passwords、credentials、sensitive memory dumps 或 raw session logs。
-- 公开示例使用占位符。
-- 真实 handoff 文件属于用户项目工作区，不属于 MALTS release repository。
-- 已安装 release package 与 active-generation root 是不可变 runtime input；不得在其中保存实时 handoff 文件。
-
-## 应包含内容
-
-- 生成时间
-- 当前 workspace
-- 当前目标
-- 已完成工作
-- 待处理工作
-- 已执行验证
-- 已知风险
-- 下一步建议
-
-模板见：
-
-```text
-runtime/EN/templates/PROJECT_HANDOFF.template.en.md
-```
-
-## Plan Binding
-
-Active S3/S4 Phase 的交接必须包含 Phase-owned active plan path、revision、raw-byte SHA-256、last trigger/result、launch-review invalidation 与继承的 Session binding。在声称 handoff-ready 前运行只读 `FINAL_DELIVERY` Plan Recheck；若结果 `BLOCKED`，保留该结果与对账动作，不得掩盖漂移。
-
-## Cross-Control Binding
-
-workspace legacy workspace layout 中，`WORK_TASK_REPORT.md` 是 required current projection。`PROJECT_HANDOFF.md` 仍然可选，但存在时，其 `current-phase-binding` section 必须绑定精确 active Phase control SHA-256、normalized boundary SHA-256、Boundary Review ID/SHA-256/mapping/recommendation 与 normalized Phase recovery SHA-256。写入 handoff 后重新运行 `validate`；recovery-sensitive delivery 还要用全新进程运行 `recover`，并要求它返回预期 typed canonical recovery source。
-
-Handoff 是 projection，不是权限或 canonical Phase authority。它不得把成功 review command 转换成 semantic acceptance，不得从 prose 推断 authorization，不得选择最新历史 Session，也不得隐藏 incomplete workspace transaction。
+后续执行者重新核Boot/binding/current Task与实际相关文件。UNKNOWN沿原操作对账；旧完成、PAUSED和停止传输均不证明效果/进程已结清。原文保护、来源与保留用途见[状态合同](V2_STATE_CONTRACT.md)，控制端例见[v2操作](V2_PREVIEW_USAGE.md#v2-handoff)。

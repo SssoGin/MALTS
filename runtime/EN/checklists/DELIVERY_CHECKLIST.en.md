@@ -68,15 +68,15 @@
 - [ ] Low-cost workers produced only candidate documentation changes when available; runtime limitations were recorded when model routing was unavailable.
 - [ ] High-capability or main-controller approval covered critical protocol semantics, final merge, and final risk judgment instead of full mechanical translation.
 - [ ] Candidate documentation changes without required approval were delivered as `Draft` or `Unverified`, not completed work.
-- [ ] For non-trivial starts, the report or `PROJECT_CONTROL` states whether MALTS-native Grill-Me Preflight was offered, accepted, declined, or N/A.
-- [ ] If multi-agent scheduling was used, the user reviewed the launch packet and explicitly replied `确认运行` before dispatch.
+- [ ] Any material decisions and unresolved limits are recorded in their owning control. Preflight status alone does not require a new report, interview or approval.
+- [ ] If multi-agent scheduling was used, the launch contract and corresponding user authorization were verified before dispatch.
 - [ ] If a Codex peer task was used, the delivery record identifies its task/thread ID, parent task, same-directory workspace, effective model/effort evidence, lifecycle, Main decision, and archive result.
 - [ ] Peer-task windows were reused for rework and archived after acceptance or terminal closure; none were left as unmanaged MALTS work.
 - [ ] The work was designed as bounded recoverable rounds, not as a promised fixed one-shot runtime.
 - [ ] At long-task start, the user was asked whether to enable unattended auto-continue.
 - [ ] If the user did not explicitly authorize unattended auto-continue, no unattended automatic running was started or scheduled.
 - [ ] If unattended auto-continue was used, the explicit authorization package, round cap, stop conditions, and report records are present in `PROJECT_CONTROL`.
-- [ ] If unattended auto-continue needed a new multi-agent batch, that batch had its own launch review and `确认运行` confirmation unless already pre-confirmed in the authorization package.
+- [ ] Unattended batches remained within the approved authorization package or obtained new scoped approval before dispatch.
 - [ ] Before final validation claims, task status, acceptance criteria, termination status, and report wording were reconciled against the latest evidence.
 - [ ] Gap-filling changes were checked across Codex, Claude Code, and OpenCode unless the user explicitly scoped the task to fewer tools.
 - [ ] Any unnecessary pending tasks were cancelled, merged, or downgraded.

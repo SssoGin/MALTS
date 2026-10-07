@@ -16,9 +16,12 @@ from pathlib import Path
 from typing import Any
 
 
+READ_ONLY_CAPABILITY_PERMISSIONS = frozenset({'read-files','git-read','tool-invocation'})
+
 USER_CONTRACTS = {
     "lifecycle-invariants": "lifecycle_invariants.schema.json",
     "result-contract": "result_contract.schema.json",
+    "completion-proof": "completion_proof.schema.json",
     "result-event": "result_event.schema.json",
     "result-lineage-projection": "result_lineage_projection.schema.json",
     "phase-boundary-revision": "phase_boundary_revision.schema.json",
@@ -62,7 +65,9 @@ EVIDENCE_STRENGTH = {"D": 1, "C": 2, "B": 3, "A": 4}
 MACHINE_LOCATOR = re.compile(r"^(?:[A-Za-z]:[\/]|[\/]{2}|~[\/]|[A-Za-z][A-Za-z0-9+.-]*://|git@)")
 PRIVATE_PATH_LITERAL = re.compile(r"(?:[A-Za-z]:[\/]|\\)")
 SECRET_ASSIGNMENT = re.compile(r"(?i)(?:api[_-]?key|access[_-]?token|password|secret)\s*[:=]\s*\S+")
-RELEASE_TOOL_NAMES = {"codex": "Codex", "claude-code": "Claude Code", "opencode": "OpenCode"}
+RELEASE_TOOL_NAMES = {"codex": "Codex", "claude-code": "Claude Code", "opencode": "OpenCode", "deepseek-harness": "DeepSeek Harness"}
+# Historical prerequisites retain their original name and digest; not a current execution ID.
+RELEASE_TOOL_NAMES["deepseek-desktop"] = "DeepSeek Desktop"
 RELEASE_HOST_PREREQUISITES = {"windows", "powershell", "python"}
 SEMANTIC_GENERATION_ID = re.compile(
     r"^malts-v(?P<version>(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))"
@@ -91,7 +96,7 @@ RESULT_EVENT_REQUIRED_FIELDS: dict[str, set[str]] = {
 RESULT_EVENT_OPTIONAL_FIELDS: dict[str, set[str]] = {
     "CONTRACT_REVISION_ACCEPTED": {"reason"},
     "LEGACY_SNAPSHOT_IMPORTED": {"reason"},
-    "STATUS_TRANSITION": set(),
+    "STATUS_TRANSITION": {"completion_proof"},
     "AUTHORIZATION_ENVELOPE_GRANTED": {"reason"},
     "AUTHORIZATION_ENVELOPE_REVOKED": set(),
     "ROUND_STARTED": {"reason"},
@@ -1033,14 +1038,14 @@ def _semantic_capability_registry(value: dict[str, Any]) -> list[ContractIssue]:
 def _semantic_capability_descriptor(value: dict[str, Any]) -> list[ContractIssue]:
     issues: list[ContractIssue] = []
     projected = value.get("projected_names", {})
-    names = [projected.get(tool, "") for tool in ("codex", "claude-code", "opencode")]
+    names = list(projected.values())
     if len({str(name).casefold() for name in names}) != 1 or not all(str(name).startswith("malts-") for name in names):
         issues.append(_issue("CAP_DESCRIPTOR_PROJECTION_NAME", "$.projected_names", "All tools require one stable MALTS-prefixed projected name."))
     if set(value.get("supported_tools", [])) != set(projected):
         issues.append(_issue("CAP_DESCRIPTOR_TOOL_COVERAGE", "$.supported_tools", "supported_tools must match projected_names."))
     metadata = value.get("tool_metadata", {})
     if metadata.get("codex", {}).get("include_openai_metadata") is not True or any(
-        metadata.get(tool, {}).get("include_openai_metadata") is not False for tool in ("claude-code", "opencode")
+        metadata.get(tool, {}).get("include_openai_metadata") is not False for tool in projected if tool != "codex"
     ):
         issues.append(_issue("CAP_DESCRIPTOR_TOOL_METADATA", "$.tool_metadata", "Only Codex uses agents/openai.yaml metadata in the W3 projection contract."))
     permission_routes = value.get("permission_routes")
@@ -1052,6 +1057,23 @@ def _semantic_capability_descriptor(value: dict[str, Any]) -> list[ContractIssue
             issues.append(_issue("CAP_DESCRIPTOR_PERMISSION_ROUTE", "$.permission_routes", "Permission route IDs must be unique."))
         if baseline.get("required_permissions") != value.get("required_permissions"):
             issues.append(_issue("CAP_DESCRIPTOR_PERMISSION_ROUTE", "$.permission_routes.baseline", "Baseline permissions must equal required_permissions."))
+        routes=[baseline,*conditional]
+        if any('modes' in route for route in routes):
+            modes=[mode for route in routes for mode in route.get('modes',[])]
+            if (any(not route.get('modes') or 'risk_class' not in route for route in routes) or
+                    len(modes)!=len(set(modes)) or set(modes)!=set(value.get('applicability',{}).get('modes',[]))):
+                issues.append(_issue('CAP_DESCRIPTOR_PERMISSION_MODE','$.permission_routes','Mode routes must partition declared modes and include explicit risk classes.'))
+            for route in routes:
+                ranks={'low':0,'medium':1,'high':2,'critical':3}
+                if ranks.get(route.get('risk_class'),99)>ranks.get(value.get('risks',{}).get('risk_class'),-1):
+                    issues.append(_issue('CAP_DESCRIPTOR_PERMISSION_MODE','$.permission_routes','Mode risk must stay within the baseline ceiling.'))
+                if not set(route.get('required_permissions',[])).issubset(value.get('required_permissions',[])):
+                    issues.append(_issue('CAP_DESCRIPTOR_PERMISSION_MODE','$.permission_routes','Mode permissions must stay within the baseline ceiling.'))
+                if 'review-only' in route.get('modes',[]) and (route.get('durable_write') or
+                        not set(route.get('required_permissions',[])).issubset(READ_ONLY_CAPABILITY_PERMISSIONS)):
+                    issues.append(_issue('CAP_DESCRIPTOR_PERMISSION_MODE','$.permission_routes','Review-only cannot require write or dispatch permissions.'))
+            if baseline.get('risk_class')!=value.get('risks',{}).get('risk_class'):
+                issues.append(_issue('CAP_DESCRIPTOR_PERMISSION_MODE','$.permission_routes.baseline','Baseline risk must equal the capability risk.'))
     levels = set(value.get("verification", {}).get("levels", []))
     status = value.get("verification", {}).get("status")
     required_levels = {
@@ -1637,12 +1659,12 @@ def _semantic_prerequisites(value: dict[str, Any], prefix: str) -> list[Contract
         )
 
     selected_tools = [str(item.get("tool", "")) for item in selected]
-    if _duplicates(selected_tools) or set(selected_tools) != set(RELEASE_TOOL_NAMES):
+    if _duplicates(selected_tools) or set(selected_tools) != set(value.get("supported_tools", [])):
         issues.append(
             _issue(
                 f"{prefix}_PREREQUISITE_TOOL_COVERAGE",
                 "$.minimum_prerequisites",
-                "Selected-tool prerequisites must contain exactly one Codex, Claude Code, and OpenCode row.",
+                "Selected-tool prerequisites must contain exactly one row per declared supported tool.",
             )
         )
     for index, item in enumerate(prerequisites):
@@ -1674,8 +1696,9 @@ def _semantic_generation(value: dict[str, Any]) -> list[ContractIssue]:
             issues.append(_issue("GEN_SEMANTIC_ID", "$.generation_id", "Schema v2 requires a canonical stable or preview semantic generation ID."))
         elif match.group("version") != value.get("version"):
             issues.append(_issue("GEN_ID_VERSION", "$.generation_id", "Semantic generation ID must bind the declared version."))
-    if set(value.get("supported_tools", [])) != {"codex", "claude-code", "opencode"}:
-        issues.append(_issue("GEN_TOOL_COVERAGE", "$.supported_tools", "Generation manifest must cover all three release tools."))
+    supported=set(value.get("supported_tools", []))
+    if not {"codex", "claude-code", "opencode"}.issubset(supported) or not supported.issubset(RELEASE_TOOL_NAMES):
+        issues.append(_issue("GEN_TOOL_COVERAGE", "$.supported_tools", "Generation manifest must cover the base tools and only recognized additional tools."))
     if set(value.get("migration_handlers", [])) != {"A", "B", "C", "D"}:
         issues.append(_issue("GEN_MIGRATION_COVERAGE", "$.migration_handlers", "Generation manifest must declare A-D handlers."))
     issues.extend(_semantic_prerequisites(value, "GEN"))
@@ -1688,8 +1711,9 @@ def _semantic_release(value: dict[str, Any]) -> list[ContractIssue]:
         issues.append(_issue("REL_ID_VERSION", "$.release_id", "release_id must bind the declared version."))
     if set(value.get("supported_platforms", [])) != {"windows"}:
         issues.append(_issue("REL_PLATFORM_COVERAGE", "$.supported_platforms", "Release manifest must declare Windows as the complete platform set."))
-    if set(value.get("supported_tools", [])) != {"codex", "claude-code", "opencode"}:
-        issues.append(_issue("REL_TOOL_COVERAGE", "$.supported_tools", "Release manifest must cover all three release tools."))
+    supported=set(value.get("supported_tools", []))
+    if not {"codex", "claude-code", "opencode"}.issubset(supported) or not supported.issubset(RELEASE_TOOL_NAMES):
+        issues.append(_issue("REL_TOOL_COVERAGE", "$.supported_tools", "Release manifest must cover the base tools and only recognized additional tools."))
     if set(value.get("migration_handlers", [])) != {"A", "B", "C", "D"}:
         issues.append(_issue("REL_MIGRATION_COVERAGE", "$.migration_handlers", "Release manifest must declare A-D handlers."))
     issues.extend(_semantic_prerequisites(value, "REL"))
@@ -1793,8 +1817,8 @@ def _semantic_update_plan(value: dict[str, Any]) -> list[ContractIssue]:
     if value.get("operation") != "uninstall" and release_identity.get("artifact_sha256") != value.get("source_artifact_sha256"):
         issues.append(_issue("TX_RELEASE_ARTIFACT_BINDING", "$.release_identity.artifact_sha256", "Release identity must bind source_artifact_sha256."))
     selected_tools = value.get("tool_targets", [])
-    if not selected_tools or len(selected_tools) > 3 or not set(selected_tools).issubset({"codex", "claude-code", "opencode"}):
-        issues.append(_issue("TX_SELECTED_TOOLS", "$.tool_targets", "A lifecycle plan requires a non-empty supported tool subset of size one through three."))
+    if not selected_tools or len(selected_tools) > len(RELEASE_TOOL_NAMES) or not set(selected_tools).issubset(RELEASE_TOOL_NAMES):
+        issues.append(_issue("TX_SELECTED_TOOLS", "$.tool_targets", "A lifecycle plan requires a non-empty subset of recognized tools."))
     for index, legacy in enumerate(value.get("legacy_roots", [])):
         managed = legacy.get("managed_file_count", 0)
         exact = legacy.get("exact_match_count", 0)
@@ -2108,6 +2132,13 @@ def validate_instance(
         validation_schema = copy.deepcopy(schema)
         validation_schema["properties"]["schema_version"] = {"const": 1}
     issues = validate_against_schema(instance, validation_schema)
+    if contract_id == "result-event" and isinstance(instance, dict):
+        payload = instance.get("payload")
+        if isinstance(payload, dict) and "completion_proof" in payload:
+            if instance.get("event_kind") != "STATUS_TRANSITION" or payload.get("to_status") != "DONE":
+                issues.append(_issue("RC_DONE_PROOF_CONTEXT", "$.payload.completion_proof", "Completion proof is valid only for a DONE transition."))
+            proof_schema = load_json(malts_root / "tools" / USER_CONTRACTS["completion-proof"])
+            issues.extend(validate_against_schema(payload["completion_proof"], proof_schema, "$.payload.completion_proof"))
     if isinstance(instance, dict):
         if contract_id == "result-contract":
             if instance.get("contract_version") == "1":

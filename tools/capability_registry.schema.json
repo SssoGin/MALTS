@@ -22,13 +22,22 @@
       "minLength": 1
     },
     "design_status": {
-      "enum": ["v1.0-target", "active"]
+      "enum": [
+        "v1.0-target",
+        "active"
+      ]
     },
     "registry_scope": {
-      "enum": ["public-contract", "operator-state"]
+      "enum": [
+        "public-contract",
+        "operator-state"
+      ]
     },
     "generated_at": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "format": "date-time"
     },
     "entries": {
@@ -99,10 +108,22 @@
           }
         },
         "capability_kind": {
-          "enum": ["skill", "agent", "tool-adapter", "workflow", "verifier", "checklist"]
+          "enum": [
+            "skill",
+            "agent",
+            "tool-adapter",
+            "workflow",
+            "verifier",
+            "checklist"
+          ]
         },
         "ownership": {
-          "enum": ["malts", "external", "tool", "user"]
+          "enum": [
+            "malts",
+            "external",
+            "tool",
+            "user"
+          ]
         },
         "owner": {
           "type": "string",
@@ -129,7 +150,10 @@
           "minItems": 1,
           "uniqueItems": true,
           "items": {
-            "enum": ["local", "public"]
+            "enum": [
+              "local",
+              "public"
+            ]
           }
         },
         "compatibility": {
@@ -148,19 +172,43 @@
           }
         },
         "source_trust": {
-          "enum": ["unknown", "unverified", "community", "verified", "first-party"]
+          "enum": [
+            "unknown",
+            "unverified",
+            "community",
+            "verified",
+            "first-party"
+          ]
         },
         "review_status": {
-          "enum": ["pending", "static-reviewed", "runtime-verified", "rejected"]
+          "enum": [
+            "pending",
+            "static-reviewed",
+            "runtime-verified",
+            "rejected"
+          ]
         },
         "execution_risk": {
-          "enum": ["low", "medium", "high", "critical"]
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
         },
         "risk_factors": {
           "type": "array",
           "uniqueItems": true,
           "items": {
-            "enum": ["scripts", "write", "network", "credentials", "destructive", "self-modifying", "external-runtime"]
+            "enum": [
+              "scripts",
+              "write",
+              "network",
+              "credentials",
+              "destructive",
+              "self-modifying",
+              "external-runtime"
+            ]
           }
         },
         "exposure_policy": {
@@ -185,7 +233,10 @@
           }
         },
         "last_verified": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "format": "date-time"
         },
         "evidence_refs": {
@@ -203,10 +254,22 @@
     "source": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["type", "locator", "revision", "package_variant", "source_relative_path"],
+      "required": [
+        "type",
+        "locator",
+        "revision",
+        "package_variant",
+        "source_relative_path"
+      ],
       "properties": {
         "type": {
-          "enum": ["package", "git", "plugin", "bundled", "generated"]
+          "enum": [
+            "package",
+            "git",
+            "plugin",
+            "bundled",
+            "generated"
+          ]
         },
         "locator": {
           "type": "string",
@@ -217,7 +280,10 @@
           "minLength": 1
         },
         "package_variant": {
-          "enum": ["local", "public"]
+          "enum": [
+            "local",
+            "public"
+          ]
         },
         "source_relative_path": {
           "type": "string",
@@ -228,7 +294,10 @@
     "content": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["source_sha256", "tree_sha256"],
+      "required": [
+        "source_sha256",
+        "tree_sha256"
+      ],
       "properties": {
         "source_sha256": {
           "type": "string",
@@ -243,7 +312,10 @@
     "descriptor": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["relative_path", "sha256"],
+      "required": [
+        "relative_path",
+        "sha256"
+      ],
       "properties": {
         "relative_path": {
           "type": "string",
@@ -258,19 +330,29 @@
     "interface": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["inputs", "outputs", "required_permissions"],
+      "required": [
+        "inputs",
+        "outputs",
+        "required_permissions"
+      ],
       "properties": {
         "inputs": {
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
-          "items": {"type": "string", "minLength": 1}
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         },
         "outputs": {
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
-          "items": {"type": "string", "minLength": 1}
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         },
         "required_permissions": {
           "type": "array",
@@ -293,16 +375,26 @@
           }
         },
         "permission_routes": {
-          "type": ["object", "null"],
+          "type": [
+            "object",
+            "null"
+          ],
           "additionalProperties": false,
-          "required": ["baseline", "conditional"],
+          "required": [
+            "baseline",
+            "conditional"
+          ],
           "properties": {
-            "baseline": {"$ref": "#/$defs/permissionRoute"},
+            "baseline": {
+              "$ref": "#/$defs/permissionRoute"
+            },
             "conditional": {
               "type": "array",
               "minItems": 1,
               "uniqueItems": true,
-              "items": {"$ref": "#/$defs/permissionRoute"}
+              "items": {
+                "$ref": "#/$defs/permissionRoute"
+              }
             }
           }
         }
@@ -311,31 +403,91 @@
     "permissionRoute": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["route_id", "required_permissions", "durable_write", "requires_confirmation", "description"],
+      "required": [
+        "route_id",
+        "required_permissions",
+        "durable_write",
+        "requires_confirmation",
+        "description"
+      ],
       "properties": {
-        "route_id": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"},
-        "required_permissions": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
-        "durable_write": {"type": "boolean"},
-        "requires_confirmation": {"type": "boolean"},
-        "description": {"type": "string", "minLength": 1}
+        "modes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "single-agent",
+              "preflight",
+              "multi-agent",
+              "release",
+              "handoff",
+              "review-only"
+            ]
+          }
+        },
+        "risk_class": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "route_id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$"
+        },
+        "required_permissions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "durable_write": {
+          "type": "boolean"
+        },
+        "requires_confirmation": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "compatibility": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["platforms", "tools", "protocol_versions", "constraints"],
+      "required": [
+        "platforms",
+        "tools",
+        "protocol_versions",
+        "constraints"
+      ],
       "properties": {
         "platforms": {
           "type": "array",
           "items": {
-            "enum": ["windows", "linux", "macos"]
+            "enum": [
+              "windows",
+              "linux",
+              "macos"
+            ]
           }
         },
         "tools": {
           "type": "array",
           "uniqueItems": true,
           "items": {
-            "enum": ["codex", "claude-code", "opencode"]
+            "enum": [
+              "codex",
+              "claude-code",
+              "opencode",
+              "deepseek-harness",
+              "deepseek-desktop"
+            ]
           }
         },
         "protocol_versions": {
@@ -355,65 +507,136 @@
     "adapter": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["tool", "projection", "locator"],
+      "required": [
+        "tool",
+        "projection",
+        "locator"
+      ],
       "properties": {
         "tool": {
-          "enum": ["codex", "claude-code", "opencode"]
+          "enum": [
+            "codex",
+            "claude-code",
+            "opencode",
+            "deepseek-harness",
+            "deepseek-desktop"
+          ]
         },
         "projection": {
-          "enum": ["native", "bridge", "junction", "overlay", "none"]
+          "enum": [
+            "native",
+            "bridge",
+            "junction",
+            "overlay",
+            "none"
+          ]
         },
         "locator": {
-          "type": ["string", "null"]
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     },
     "dependency": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "type", "required", "source_relative_path"],
+      "required": [
+        "id",
+        "type",
+        "required",
+        "source_relative_path"
+      ],
       "properties": {
         "id": {
           "type": "string",
           "minLength": 1
         },
         "type": {
-          "enum": ["skill", "agent", "tool", "runtime", "file", "service"]
+          "enum": [
+            "skill",
+            "agent",
+            "tool",
+            "runtime",
+            "file",
+            "service"
+          ]
         },
         "required": {
           "type": "boolean"
         },
         "source_relative_path": {
-          "type": ["string", "null"]
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     },
     "exposure": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["default", "tools", "catalog_budget_class", "reason"],
+      "required": [
+        "default",
+        "tools",
+        "catalog_budget_class",
+        "reason"
+      ],
       "properties": {
         "default": {
-          "enum": ["hidden", "advisory", "visible"]
+          "enum": [
+            "hidden",
+            "advisory",
+            "visible"
+          ]
         },
         "tools": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["codex", "claude-code", "opencode"],
+          "required": [
+            "codex",
+            "claude-code",
+            "opencode"
+          ],
           "properties": {
             "codex": {
-              "enum": ["hidden", "advisory", "visible"]
+              "enum": [
+                "hidden",
+                "advisory",
+                "visible"
+              ]
             },
             "claude-code": {
-              "enum": ["hidden", "advisory", "visible"]
+              "enum": [
+                "hidden",
+                "advisory",
+                "visible"
+              ]
             },
             "opencode": {
-              "enum": ["hidden", "advisory", "visible"]
+              "enum": [
+                "hidden",
+                "advisory",
+                "visible"
+              ]
+            },
+            "deepseek-harness": {
+              "enum": [
+                "hidden",
+                "advisory",
+                "visible"
+              ]
             }
           }
         },
         "catalog_budget_class": {
-          "enum": ["core", "standard", "extended", "protected"]
+          "enum": [
+            "core",
+            "standard",
+            "extended",
+            "protected"
+          ]
         },
         "reason": {
           "type": "string",
@@ -424,7 +647,13 @@
     "routing": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["triggers", "task_types", "modes", "conditions", "contraindications"],
+      "required": [
+        "triggers",
+        "task_types",
+        "modes",
+        "conditions",
+        "contraindications"
+      ],
       "properties": {
         "triggers": {
           "type": "array",
@@ -444,7 +673,14 @@
         "modes": {
           "type": "array",
           "items": {
-            "enum": ["single-agent", "preflight", "multi-agent", "release", "handoff", "review-only"]
+            "enum": [
+              "single-agent",
+              "preflight",
+              "multi-agent",
+              "release",
+              "handoff",
+              "review-only"
+            ]
           }
         },
         "conditions": {
@@ -466,10 +702,19 @@
     "lifecycle": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["state", "legacy_aliases"],
+      "required": [
+        "state",
+        "legacy_aliases"
+      ],
       "properties": {
         "state": {
-          "enum": ["candidate", "active", "deprecated", "quarantined", "blocked"]
+          "enum": [
+            "candidate",
+            "active",
+            "deprecated",
+            "quarantined",
+            "blocked"
+          ]
         },
         "legacy_aliases": {
           "type": "array",
@@ -483,10 +728,18 @@
     "rollback": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["strategy", "reference"],
+      "required": [
+        "strategy",
+        "reference"
+      ],
       "properties": {
         "strategy": {
-          "enum": ["restore-previous-lock", "restore-snapshot", "remove-projection", "manual-review"]
+          "enum": [
+            "restore-previous-lock",
+            "restore-snapshot",
+            "remove-projection",
+            "manual-review"
+          ]
         },
         "reference": {
           "type": "string",
@@ -497,16 +750,38 @@
     "projectionPlan": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["tool", "projection", "target", "required", "projected_name", "package_variant", "metadata_type"],
+      "required": [
+        "tool",
+        "projection",
+        "target",
+        "required",
+        "projected_name",
+        "package_variant",
+        "metadata_type"
+      ],
       "properties": {
         "tool": {
-          "enum": ["codex", "claude-code", "opencode"]
+          "enum": [
+            "codex",
+            "claude-code",
+            "opencode",
+            "deepseek-harness",
+            "deepseek-desktop"
+          ]
         },
         "projection": {
-          "enum": ["native", "overlay", "junction", "none"]
+          "enum": [
+            "native",
+            "overlay",
+            "junction",
+            "none"
+          ]
         },
         "target": {
-          "type": ["string", "null"]
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "required": {
           "type": "boolean"
@@ -516,27 +791,58 @@
           "pattern": "^malts-[a-z0-9][a-z0-9-]+$"
         },
         "package_variant": {
-          "enum": ["local", "public"]
+          "enum": [
+            "local",
+            "public"
+          ]
         },
         "metadata_type": {
-          "enum": ["skill-only", "skill-with-openai-metadata"]
+          "enum": [
+            "skill-only",
+            "skill-with-openai-metadata"
+          ]
         }
       }
     },
     "verification": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["level", "status", "tool", "evidence_ref"],
+      "required": [
+        "level",
+        "status",
+        "tool",
+        "evidence_ref"
+      ],
       "properties": {
         "level": {
-          "enum": ["static", "discovery", "invocation", "behavior"]
+          "enum": [
+            "static",
+            "discovery",
+            "invocation",
+            "behavior"
+          ]
         },
         "status": {
-          "enum": ["pending", "pass", "fail", "not-applicable"]
+          "enum": [
+            "pending",
+            "pass",
+            "fail",
+            "not-applicable"
+          ]
         },
         "tool": {
-          "type": ["string", "null"],
-          "enum": ["codex", "claude-code", "opencode", null]
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "codex",
+            "claude-code",
+            "opencode",
+            null,
+            "deepseek-harness",
+            "deepseek-desktop"
+          ]
         },
         "evidence_ref": {
           "type": "string",

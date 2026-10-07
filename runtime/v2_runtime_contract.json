@@ -1,0 +1,14 @@
+{
+  "format": "malts.runtime-compatibility",
+  "version": 1,
+  "core_application_id": 1296125012,
+  "read_schemas": [
+    69
+  ],
+  "write_schemas": [
+    69
+  ],
+  "cli_interface_version": 1,
+  "mcp_application_interface_version": 7,
+  "assurance": "DECLARATION_NOT_RUNTIME_QUALIFICATION"
+}

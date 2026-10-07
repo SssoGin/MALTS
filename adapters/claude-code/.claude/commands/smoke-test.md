@@ -6,7 +6,7 @@ Pre-check: use read-only `workspace-entry`. If no workspace controls exist, sugg
 
 1. Assess: S0 (smoke test, read-only, no file changes). Do not rewrite Project/report state merely to record the assessment.
 2. Show launch review packet with Explorer and Verifier roles.
-3. Wait for explicit `确认运行`.
+3. Verify that the two read-only agents are covered by the user request or existing launch approval; ask only if that scope is not authorized.
 4. Dispatch Explorer: read project structure, list key files, report architecture in SUB_AGENT_REPORT format.
 5. Dispatch Verifier: check Explorer's report for consistency (file existence, path correctness, structural completeness).
 6. Recycle both reports. Reconcile Agent Dispatch Log.

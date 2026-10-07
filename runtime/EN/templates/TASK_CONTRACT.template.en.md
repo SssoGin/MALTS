@@ -42,7 +42,7 @@
 - Launch review reference and approved batch ID:
 - Expected runtime agent ID source: tool-call return / runtime log / N/A
 - Included in launch review packet: Yes / No / N/A
-- User confirmed launch with `确认运行`: Yes / No / N/A
+- User authorization covers this launch scope: Yes / No / N/A
 
 ## Objective
 
@@ -86,7 +86,7 @@
 - [ ] Role names describe responsibility and do not hard-code task difficulty or reasoning effort.
 - [ ] If Agent count is N, effective or verified-fallback binding and effective runtime capacity are recorded.
 - [ ] For protocol, template, checklist, adapter, or documentation gap-filling tasks, Codex, Claude Code, and OpenCode sync scope is clear.
-- [ ] If this task is part of a user-requested multi-agent run, it was shown in the launch review packet and the user confirmed `确认运行`.
+- [ ] This task is covered by the user request or an approved launch batch; authorization is semantic and does not require a fixed confirmation phrase.
 
 ## Permission Level
 

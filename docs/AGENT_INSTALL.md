@@ -1,49 +1,13 @@
-# Agent-Assisted Installation
+# Agent-Assisted MALTS 2.0.0 Installation
 
-This policy applies when an AI Agent helps a user verify, install, update, repair, finalize, recover, or uninstall MALTS.
+## 1. Resolve the target
 
-## Source Selection
+Confirm selected tools/source/roots, applicable instructions, existing installation, personal edits and writers. Do not infer global installation, production migration, account or cost permission. Reuse approved same-scope installation without repeated approvals.
 
-The repository is the primary source. An Agent must not automatically download the optional Release ZIP merely because it is available.
+## 2. Source, plan and execution
 
-Before repository installation or update, the Agent must:
+Use a reviewed repository normally; ZIP only for explicit offline needs. Check VERSION/identity, remote/tag and full source. Follow [Install](INSTALL.md) or [Update](UPDATE.md), inspect targets/classification/preimages/hash and apply authorized plans. Never patch the active generation.
 
-1. Read `MALTS_RELEASE.json` and `VERSION` from the selected repository root.
-2. Verify that their version, release ID, source-tree hash, and file count are internally consistent.
-3. If Git metadata is available, report whether the checked-out tag matches `release_tag`.
-4. Stop if the repository contains unexpected files, cache, `.malts` residue, a reparse point, or an identity mismatch.
+## 3. Verification and delivery
 
-The optional single ZIP is permitted only when the user explicitly chooses an offline/fixed archive path or the verified repository source is unavailable. Verify it with the exact-source `Verify-MALTSBootstrap.ps1` before extraction.
-
-## Required Sequence
-
-1. Read [Install](INSTALL.md), [Lifecycle](LIFECYCLE.md), [Security](SECURITY.md), and the relevant source-specific guidance.
-2. Confirm the selected source: verified repository or explicitly requested verified ZIP.
-3. Ask which tools and roots are in scope; do not infer an unspoken target.
-4. Create a new plan without executing it.
-5. Show the plan path, exact hash, selected roots, destructive actions, user modifications, cleanup, rollback, and stop conditions.
-6. Wait for explicit user authorization of that exact plan.
-7. Execute using the reviewed plan path and exact hash.
-8. Inspect the registry, active version, selected projections, boot pointers, and residue after execution. MALTS v1.1.1+ no longer binds, refreshes, or verifies a machine-global `GLOBAL_BOOT.md`; a pre-existing local file beside the lifecycle root is left untouched and is not part of the installation.
-
-## Authorization Boundary
-
-Reading a repository, validating identity, inspecting a ZIP, or creating a review plan is not authorization to install. Installation, update, repair, finalize, recovery, uninstall, deletion, configuration change, Git mutation, and remote publication each require the user to authorize the concrete action in scope. A `finalize` plan must enumerate its exact retiring target and same-series cleanup paths; it may not be used to delete other versions.
-
-Do not substitute a newer repository or Release package after the plan is shown. Source drift invalidates the plan and requires a new review.
-
-## Verify The v1.5.0 Capability Projection
-
-After install, use a fresh process for each selected tool and verify that `malts-long-project-workspace-init` resolves through the tool-adjacent boot to the canonical Skill. Its capability/bridge description must include Phase and Artifact lifecycle rather than initialization only.
-
-Static projection checks must show the same shared lifecycle contract for Codex, Claude Code, and OpenCode: Phase boundary review/pause/resume/transition, Artifact audit/enrollment/register/promote/supersede/reconcile, `NOT_ENROLLED` compatibility, no implicit Session, and explicit `--apply`. Tool-specific dispatch or configuration text must remain outside that shared contract.
-
-This inspection does not replace G4. G4 requires visible, fresh-process tool invocation and equivalent behavior evidence for all included tools; an unavailable tool is `NOT RUN` or `BLOCKED`, never inferred PASS.
-
-## Privacy and Purity
-
-Do not place local paths, credentials, tokens, user configuration, transaction journals, plans, handoffs, test data, or caches in the repository or the installed version. Keep these as local user state only.
-
-## Discovery Verification
-
-After apply, treat the selected tool's adjacent `MALTS_BOOT.md` as ordinary startup authority. Run `python -B <MALTS_ROOT>\tools\malts_lifecycle.py discover --tool-root <TOOL_ROOT> --lifecycle-root <LIFECYCLE_ROOT>` and require exact agreement with the registry, `active_generation.json`, and active `VERSION`. MALTS v1.1.1+ does not use a machine-global `GLOBAL_BOOT.md`; only the tool-adjacent boot is startup authority. Missing or conflicting evidence fails closed.
+Check actual exit/decision, Boot/discovery, Doctor, selected tool projections and Host reload. Workspace binding/state/Schema compatibility is separate; installation is not adoption or native-model proof. Deliver exact version/artifact, outcomes, entry, recovery materials and unverified items. See [Security](SECURITY.md).

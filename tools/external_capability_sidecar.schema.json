@@ -22,30 +22,119 @@
     "lifecycle_policy"
   ],
   "properties": {
-    "schema_version": {"const": 1},
-    "sidecar_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
-    "capability_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]+$"},
-    "declared_name": {"type": "string", "minLength": 1},
-    "ownership": {"const": "external"},
-    "skill_path": {"type": "string", "minLength": 1},
-    "source_hash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
-    "capability_tags": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
-    "tool_scope": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["codex", "claude-code", "opencode"]}},
-    "risk_class": {"enum": ["low", "medium", "high", "critical"]},
-    "verified_at": {"type": ["string", "null"], "format": "date-time"},
-    "evidence_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
-    "user_aliases": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "schema_version": {
+      "const": 1
+    },
+    "sidecar_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "capability_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]+$"
+    },
+    "declared_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ownership": {
+      "const": "external"
+    },
+    "skill_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_hash": {
+      "type": "string",
+      "pattern": "^[A-Fa-f0-9]{64}$"
+    },
+    "capability_tags": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "tool_scope": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "codex",
+          "claude-code",
+          "opencode",
+          "deepseek-harness",
+          "deepseek-desktop"
+        ]
+      }
+    },
+    "risk_class": {
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ]
+    },
+    "verified_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "evidence_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "user_aliases": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
     "lifecycle_policy": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["discover", "route", "install", "update", "delete", "authorization_ref"],
+      "required": [
+        "discover",
+        "route",
+        "install",
+        "update",
+        "delete",
+        "authorization_ref"
+      ],
       "properties": {
-        "discover": {"const": true},
-        "route": {"const": true},
-        "install": {"const": false},
-        "update": {"const": false},
-        "delete": {"const": false},
-        "authorization_ref": {"type": ["string", "null"]}
+        "discover": {
+          "const": true
+        },
+        "route": {
+          "const": true
+        },
+        "install": {
+          "const": false
+        },
+        "update": {
+          "const": false
+        },
+        "delete": {
+          "const": false
+        },
+        "authorization_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
       }
     }
   }

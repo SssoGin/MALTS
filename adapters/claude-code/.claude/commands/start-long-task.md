@@ -13,12 +13,12 @@ Instructions:
 5. Build the initial task queue.
 6. Assess task type, difficulty, risk, parallelism, independent verification value, context pressure, and recovery needs before recommending sub-agents.
 7. If multi-agent is only a recommendation, explain why and stop before dispatch until the user confirms.
-8. Ask whether the user wants to specify sub-agent models and show the accepted format: `Role=model-id; Role=inherit; default=inherit`.
+8. Reuse user-selected or configured model/effort choices. Ask only about a material unresolved constraint or cost decision.
 9. Show the launch review packet with the overall goal, total plan, planned agents, model names or policies, each agent's task, and each agent's short plan.
-10. Wait for the user's explicit `确认运行` before invoking any sub-agent.
-11. For protocol, template, checklist, adapter, or documentation gap-filling tasks, check Codex, Claude Code, and OpenCode together unless the user explicitly scopes one tool out.
+10. Verify corresponding launch authorization before invoking any sub-agent; reuse a previously approved same-scope batch without requiring a fixed phrase.
+11. For shared changes, inspect affected tool counterparts and update only relevant surfaces; document tool-specific non-applicability.
 12. Treat long work as bounded recoverable rounds, not as a fixed one-shot runtime promise.
-13. Ask whether the user wants to enable unattended auto-continue.
+13. Discuss unattended auto-continue only when requested or needed beyond the active task; do not insert a routine mode question.
 14. Use unattended auto-continue only when `PROJECT_CONTROL.md` records explicit user authorization, scope, stop conditions, round caps, reports, and recovery point.
 15. If the user does not explicitly authorize unattended auto-continue, do not create, schedule, or rely on automatic unattended running.
 16. In a new window or another project folder, use `workspace-entry --task-class CONTEXT_RECOVERY`; escalate to cold recovery only when it blocks or the gate requires it. Do not select reports, handoffs, or historical Sessions by recency.

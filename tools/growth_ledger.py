@@ -232,13 +232,15 @@ def apply_future_validation(
     updated["future_use_validations"].append(embedded)
     outcome = validation.get("outcome")
     severity = validation.get("severity")
+    retired = candidate.get("status") in {"DEPRECATED", "REMOVED", "REJECTED"}
     if outcome == "harmful":
-        updated["status"] = "SUSPENDED" if severity in {"high", "critical"} else "CHALLENGED"
         challenge_ref = f"validation:{validation.get('validation_id')}"
         if challenge_ref not in updated["challenge_refs"]:
             updated["challenge_refs"].append(challenge_ref)
-        updated["status_reason"] = "Harmful future evidence opened a challenge and stopped automatic application."
-    else:
+        if not retired:
+            updated["status"] = "SUSPENDED" if severity in {"high", "critical"} or candidate.get("status") == "SUSPENDED" else "CHALLENGED"
+            updated["status_reason"] = "Harmful future evidence opened a challenge and stopped automatic application."
+    elif not retired and candidate.get("status") not in {"CHALLENGED", "SUSPENDED"}:
         helped = [
             item for item in updated["future_use_validations"]
             if item.get("validation_kind") == "future_use" and item.get("outcome") == "helped"

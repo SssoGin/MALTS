@@ -5,6 +5,14 @@ description: Use after project completion, phase delivery, rework, user correcti
 
 # Skill: Project Retrospective Growth
 
+## Select the current authority
+
+Use the already selected workspace's verified entry. For an adopted v2 workspace or an explicitly selected isolated v2 store, follow the [v2 task workflow](../v2/malts-v2-task-workflow/SKILL.md) and [Growth trial contract](../../docs/V2_PREVIEW_USAGE.md#v2-growth). An explicit read-only retrospective authorizes analysis, not durable recording. Reuse any already approved project-maintenance scope; global rule or Skill application requires its own authorization. Do not initialize, import or reopen a legacy writable ledger for a review.
+
+In v2, bind a project-local proposal to accessible source and reviewed proposal Evidence, with action, check, boundary and applicability. The controller's advertised Growth actions own trial/outcome/validation/retirement; a Worker cannot mint this authority. Different later Tasks and observed outcomes support assessment; declared independence, counts and a VALIDATED state alone do not establish causal improvement or deploy a rule. Keep harmful, neutral and inconclusive results and stop affected reuse when counterevidence or source withdrawal requires it. Preserve evidence and recovery provenance; no deletion or automatic Prompt rewrite follows.
+
+Use the factual review and filtering principles below where relevant. The Markdown destinations, Memory Pipeline, old ledger lifecycle and file procedures below apply only to a workspace whose verified current authority uses that contract; selected v2 work uses its Task services and current states instead. A missing service blocks only that record, not independent analysis or approved work.
+
 ## Purpose
 
 Use this skill to turn project facts, mistakes, successful practices, decisions, and verification methods into reusable future capability without polluting long-term memory.

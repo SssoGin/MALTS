@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+sys.dont_write_bytecode = True
+
 from malts_user_contracts import validate_instance
 import workspace_coordination as coordination_runtime
 
@@ -548,7 +550,13 @@ def assess(
         and reader.bytes_considered <= limits["max_workspace_bytes"]
     )
     if not report["within_fast_path_budget"]:
-        finding("ENTRY_FAST_PATH_BUDGET_EXCEEDED", "BLOCKED", "MAINTENANCE", "Current-state entry exceeded its bounded read budget.", "Use full recovery once, then compact or reconcile current controls without loading history by default.")
+        finding("ENTRY_FAST_PATH_BUDGET_EXCEEDED", "BLOCKED", "MAINTENANCE", "Current-state entry exceeded its bounded read budget; unread state is unverified, not proven corrupt.", "Read the identified current-state files separately within the authorized read scope. Validate affected bindings before writes; do not compact or reconcile merely because of size.")
+        budget_codes = {"ENTRY_FILE_BUDGET_EXCEEDED", "ENTRY_BYTE_BUDGET_EXCEEDED", "ENTRY_FAST_PATH_BUDGET_EXCEEDED"}
+        blocking_findings = [item for item in report["findings"] if item["severity"] == "BLOCKED"]
+        if blocking_findings and all(item["code"] in budget_codes for item in blocking_findings):
+            report["entry_path"] = "BOUNDED_READ_REQUIRED"
+            for item in blocking_findings:
+                item["required_action"] = "Read the identified current-state file separately; budget exhaustion alone does not require repair or full-history recovery. No write authority is granted."
     report["required_gates"] = [gate for gate in GATE_ORDER if gate in required_gates]
     blocked = any(item["severity"] == "BLOCKED" for item in report["findings"])
     warnings = any(item["severity"] == "WARNING" for item in report["findings"])

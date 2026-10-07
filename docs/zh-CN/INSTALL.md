@@ -1,118 +1,51 @@
-﻿# 安装 MALTS
+﻿# 安装 MALTS 2.0.0
 
-MALTS 安装先审阅。第一条命令只写入计划；只有你审阅计划并带上精确的已审阅计划哈希和 `-Apply` 后才会改变文件。
+## 1. 仓库安装（主要路径）
 
-## 前置条件
+已验证安装路径是 Windows，Python 3.11 或更高版本与 PowerShell；推荐 PowerShell 7。v2 受保护内容当前使用 Windows 当前用户 DPAPI。Codex、Claude Code、OpenCode 至少选择一个；DeepSeek Harness 的专用入口见[适配说明](../../adapters/deepseek-harness/README.zh-CN.md)。安装不调用模型，也不自动迁移项目。
 
-- Windows 10 或更高版本
-- PowerShell 5.1 或更高版本；推荐 PowerShell 7
-- Python 3.11 或更高版本
-- Codex、Claude Code、OpenCode 至少之一
-- 位于每个已选工具根目录之外的 lifecycle root
+通常使用[公开仓库](https://github.com/SssoGin/MALTS)的已审阅 checkout。确认 remote、commit/tag 和 `MALTS_RELEASE.json`，其中版本须与 `VERSION` 的 2.0.0 一致。安装器验证精确目录与内容身份；不要在分发目录添加缓存或业务文件。
 
-lifecycle root 保存已安装的 MALTS 版本、registry 状态、计划和事务状态。每个选定工具根目录只接收自己的 adapter 文件和 boot pointer。
+## 2. 先审阅，再执行计划
 
-## 仓库安装（主要路径）
-
-1. 打开仓库根目录。
-2. 读取 `MALTS_RELEASE.json`，确认它的 `version` 与 `VERSION` 相同。
-3. Git 元数据存在时，确认其中的 `release_tag` 与当前检出的 tag 相同。
-4. 创建计划。
+在仓库根目录运行：
 
 ```powershell
-.\scripts\Install-MALTS.ps1 `
-  -RepositoryRoot (Get-Location).Path `
-  -UseDefaultRoots `
-  -Tool Codex
+.\scripts\Install-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool Codex
 ```
 
-使用显式路径：
+三端一起安装可用 `-Tool AllIncluded`；它只包含 Codex、Claude Code 和 OpenCode。使用自选根时传入 `-LifecycleRoot` 及相应 `-ToolRootCodex`、`-ToolRootClaudeCode`、`-ToolRootOpenCode`，并指定不存在的 `-PlanPath`。lifecycle root 必须在工具配置根之外。
+
+第一步只生成计划，输出其路径和 SHA-256。审阅来源、目标、个人内容合并、恢复前像与风险后，把输出的真实值代入：
 
 ```powershell
-.\scripts\Install-MALTS.ps1 `
-  -RepositoryRoot <REPOSITORY_ROOT> `
-  -LifecycleRoot <LIFECYCLE_ROOT> `
-  -Tool Codex `
-  -ToolRootCodex <CODEX_ROOT> `
-  -PlanPath <NEW_PLAN_PATH>
+$plan = '<reviewed-plan-path>'
+$hash = '<reviewed-plan-sha256>'
+.\scripts\Install-MALTS.ps1 -Apply -PlanPath $plan -ExpectedPlanHash $hash
 ```
 
-支持的 `-Tool` 值为 `Codex`、`ClaudeCode`、`OpenCode` 和 `AllIncluded`。
+来源、目标或计划漂移会拒绝。相同已安装内容可返回 `NO_OP`；相同版本的不同内容必须通过 lifecycle 的正式归并及恢复流程，不能覆盖代际目录。
 
-计划写入前，仓库会作为精确来源验证。任何意外文件、缓存、`.malts` 残留、身份文件缺失、版本不一致或源码树哈希不匹配都会在安装前停止。
+## 3. 验证入口
 
-安装版本 ID 使用语义格式：发布版本 `vX.Y.Z` 安装为 `malts-vX.Y.Z`。相同版本且内容完全一致时报告 `NO_OP`；相同版本对应不同内容，或存在未绑定的同名目录时，会在创建 transaction 状态前失败。
-
-## 审阅并执行
-
-计划包含所选根目录、目标版本身份、拟议变更、用户修改分类、迁移或清理动作、回滚与后置验证。执行前必须审阅。
+读取所选工具配置根的 `MALTS_BOOT.md`，解析 `MALTS_ROOT`，再运行：
 
 ```powershell
-.\scripts\Install-MALTS.ps1 `
-  -Apply `
-  -PlanPath <REVIEWED_PLAN_PATH> `
-  -ExpectedPlanHash <REVIEWED_PLAN_SHA256>
+$runtime = '<MALTS_ROOT-from-tool-boot>'
+$toolRoot = '<selected-tool-config-root>'
+python -B "$runtime/tools/malts_lifecycle.py" discover --tool-root $toolRoot
+python -B "$runtime/tools/malts_v2.py" capabilities
 ```
 
-来源、根目录或计划发生变化都会使哈希失效。缺少或不匹配的哈希会在安装前失败。
+discovery 须为 PASS，registry、active pointer 和 VERSION 须一致。`capabilities` 是接口声明；实际 Task 和宿主结果仍须验证。只读 Doctor 方法见[生命周期](LIFECYCLE.md)。重启或重载宿主后，以实际 Skill/MCP 连接核实加载，不能由文件存在推断。
 
-## 可选离线归档
+## 4. 可选离线归档
 
-Release 页面可提供一个名为 `MALTS-<version>.zip` 的可选归档。普通安装不需要它，安装器也绝不会自动下载它。
-
-使用时，从同一已审阅来源或 tag 取得 `scripts/Verify-MALTSBootstrap.ps1`，再验证并解出 ZIP：
+需要离线来源时使用 `MALTS-2.0.0.zip`。从同一审阅来源取得 `scripts/Verify-MALTSBootstrap.ps1`，先检查归档，再显式解出：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\Verify-MALTSBootstrap.ps1 `
-    -ArchivePath .\MALTS-1.5.0.zip `
-  -ExtractOutput <EXTRACTED_RELEASE_ROOT> `
-  -Apply
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.0.zip
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.0.zip -ExtractOutput '<new-extraction-root>' -Apply
 ```
 
-然后从解出的 package 创建标准审阅计划：
-
-```powershell
-<EXTRACTED_RELEASE_ROOT>\lifecycle_artifact\payload\scripts\Install-MALTS.ps1 `
-  -ReleaseRoot <EXTRACTED_RELEASE_ROOT> `
-  -UseDefaultRoots `
-  -Tool Codex
-```
-
-bootstrap verifier 会验证确定性 ZIP 结构、安全路径和解出的不可变 package，随后才写入最终解出目录。
-
-## 验证已安装 Runtime
-
-用 lifecycle root 和每个已选工具根运行只读 doctor：
-
-```powershell
-.\scripts\Invoke-MALTSLifecycle.ps1 `
-  -Command Doctor `
-  -LifecycleRoot <LIFECYCLE_ROOT> `
-  -ToolRootCodex <CODEX_ROOT> `
-  -ToolRootClaudeCode <CLAUDE_CODE_ROOT> `
-  -ToolRootOpenCode <OPENCODE_ROOT>
-```
-
-`doctor` 会报告精确 expected/observed locator、严重度、core trust 与建议命令。它始终只读，不会执行修复。需要 repair 时，必须使用与安装绑定精确一致的可信来源，另行创建 `DoctorRepairPlan` 审阅，再只执行已审阅计划的精确哈希。
-
-lifecycle 操作还会保留有界审计记录（一份当前绑定以及最近的成功、失败/恢复和月度摘要）。详见[生命周期](LIFECYCLE.md)。
-
-## 验证 v1.5.0 Workspace Lifecycle
-
-安装只修改选定的 MALTS lifecycle/tool root；绝不会自动重整、迁移或 enrollment 现有项目 workspace。完成 discovery 验证后，确认已安装 source 报告 `1.5.0`，且暴露 workspace entry、CURRENT reorganization、Phase、coordination 与 Artifact 命令族：
-
-```powershell
-Get-Content -LiteralPath <MALTS_ROOT>\VERSION
-python -B <MALTS_ROOT>\tools\long_workspace.py --help
-python -B <MALTS_ROOT>\tools\long_workspace.py artifact --help
-```
-
-Top-level help 必须包含 Phase boundary、pause/resume、transition、validation、maintenance、compaction、recovery；Artifact help 必须包含 audit、enrollment preview/apply、register、promote、supersede、reconcile。这只是静态安装证据，不等于真实项目 mutation 或 G4 工具运行时证明。
-
-## 首次使用
-
-安装后，每个选定工具通过自己的 `MALTS_BOOT.md` pointer 解析活动已安装版本。不要手动把 runtime 文件复制到项目中；请使用已安装的 `malts-*` Skill 入口。
-
-使用只读发现命令验证绑定。它解析 tool boot，并交叉核对 lifecycle registry、active pointer 与 `VERSION`；MALTS v1.1.1 起不再使用机器全局恢复 boot。任何不一致都会阻止使用。
-
-另见[快速开始](GETTING_STARTED.md)、[生命周期](LIFECYCLE.md)和[安全](SECURITY.md)。
+从解出载荷中的安装脚本传入 `-ReleaseRoot '<extracted-package-root>'`，按同一计划/哈希流程安装。不要直接复制 payload 到活动根。详见[归档说明](RELEASE_ARTIFACT.md)和[快速开始](GETTING_STARTED.md)。

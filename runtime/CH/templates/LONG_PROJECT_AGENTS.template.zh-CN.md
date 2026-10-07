@@ -7,7 +7,7 @@
 - 选择 long-project initializer 表示用户需要长期项目工作区，而不是普通的最小 project-control 骨架。
 - 新工作区只有在 `runtime/workspace_control.json` 已登记首个 Phase 且 `active_phase_id` 指向该 Phase 时才算初始化就绪。
 - 如果根控制文件已存在但 Phase registry 为空，必须报告 `NEEDS_INITIAL_PHASE` 并提出无覆盖迁移；不得报告初始化完成。
-- 必须明确告诉用户当前是否存在 active Session，以及为什么没有创建 Session。
+- 初始化或显式 Session 操作后说明 active Session 状态及创建/未创建原因；普通对话不重复报告。
 
 ## Canonical ownership
 
@@ -73,7 +73,11 @@ canonical recovery authority 固定为：active Session checkpoint；否则 acti
 
 ## Safety
 
-- 将只读审查与状态修改执行分开。
+- 保持明确只读请求的边界。已批准的实施范围覆盖必要本地修改、相关验证与同范围收尾，不重复询问。
 - 不覆盖用户文件，不静默扩面。
 - 未经独立授权，不使用 Git、网络、provider、Agent dispatch、依赖安装或破坏性清理。
 - 不运行自动、周期、后台或普通使用触发的更新检查。
+
+## 验证范围
+
+使用与行为和合同变化相关的检查；源码、工具链及环境绑定仍有效时复用证据。保留 runtime 必需的 plan/resource 检查；不为未变化的普通任务增加全历史读取、全量回归或额外确认。

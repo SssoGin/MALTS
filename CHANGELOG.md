@@ -1,6 +1,32 @@
 # Changelog
 
-All notable public changes to MALTS are documented here.
+
+## 2.0.0 — 2026-10-08
+
+MALTS 2.0.0 provides Task-centered recoverable execution and controlled collaboration/experience management for Codex, Claude Code, OpenCode and DeepSeek Harness.
+
+### Changes
+
+- Project/Phase/Task services and the selected v2 store own current goals, revisions, dependencies and acceptance. Markdown controls/reports/handoffs remain sources or derived views after adoption.
+- Managed operations bind Grants, cumulative budgets, leases and request hashes, recording intent separately from observed effects. Unknown effects are reconciled under their original identity.
+- Current acceptance checks evidence methods/levels, dependencies and managed outputs. Pause/cancel/successor handling and new-epoch restoration preserve uncertainty and consumed allowances.
+- Artifacts, Shared proof, protected evidence/derivatives, guarded handoff publication and bounded Growth trials retain provenance and retirement behavior.
+- English/Chinese guides have been reorganized around installation, actual use, design, recovery and limitations.
+
+### Upgrade
+
+Use a reviewed v2.0.0 repository checkout and the review-first installer/updater. Core reads/writes Schema69 only. Project adoption is explicit; installation does not migrate existing projects. Recovery stays within v2 without restoring legacy write authority. Verify tool-local Boot/discovery and reload native Skill/MCP connections. ZIP is optional for offline installation.
+
+### Limits
+
+Qualification covers recorded representative versions/profiles and declared operations. DeepSeek Harness Desktop uses Windows0.2.0-rc.2; GUI model cancellation is not certified. Real Growth trials include neutral outcomes. An original incomplete baseline observer profile remains failed and is not used as a complete comparator. No universal/cross-Host causal speedup, actual billing/human savings, arbitrary-OS fencing or cross-user DPAPI restoration claim is made.
+
+### 中文
+
+MALTS2.0.0以所选v2状态库和Task服务管理当前目标、版本、依赖与验收；通过授权范围、累计预算、受管操作意图/结果、当前证明、检查点、成果来源、交接与限定成长试用支持可恢复工作。中英文说明按用户用途重写。
+
+升级采用已审阅仓库与精确计划哈希。当前Core只读写Schema69；安装不自动迁移项目，恢复不复活旧写权、旧Grant/Host或已消费额度。重载宿主后核实Boot/Skill/MCP。真实宿主证据限于所用版本/profile；保留B1观察失败、成长中性与unknown，不承诺普遍提速、费用/人工节省、GUI模型取消、任意OS写者互斥或跨用户保护恢复。
+
 
 ## 1.5.0
 

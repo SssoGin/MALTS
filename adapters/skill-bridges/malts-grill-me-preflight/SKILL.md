@@ -1,6 +1,6 @@
 ---
 name: malts-grill-me-preflight
-description: "MALTS Grill-Me Preflight: expose hidden assumptions, goal boundaries, key tradeoffs, and acceptance criteria before non-trivial work."
+description: "MALTS Grill-Me Preflight: clarify material unresolved goals, tradeoffs or acceptance criteria, or run a requested preflight interview."
 ---
 
 # MALTS Skill Bridge

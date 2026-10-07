@@ -1,207 +1,34 @@
-﻿# MALTS 系统说明
+﻿# MALTS 2.0.0 系统概览
 
-语言：[English](../SYSTEM_OVERVIEW.md) | [简体中文](SYSTEM_OVERVIEW.md)
+## 1. 定位与适用场景
 
-本文说明 MALTS 的目的、功能、可选能力和运行边界。它是公开系统说明，不是实现参考。详细设计不变量记录在 [核心设计](CORE_DESIGN.md)。
+MALTS（Multi-Agent Long-Task Scheduling and Growth System）为 AI Agent 的项目工作提供可恢复执行、受控协作与经验管理。它把目标、任务版本、授权、操作结果和验收证据放在同一服务合同中，使接续工作可以从当前事实开始。
 
-## 1. 系统目的
+适用场景包括跨多轮的代码修改、工程迁移、长期调查和文档交付。结果明确、可在一轮内完成的小任务通常无需建立长期状态。MALTS 不替代模型推理、编辑器、Git、CI、密钥管理或用户的决策。
 
-MALTS 是面向由 AI agents 执行或辅助的长期编码任务的可移植 workflow system。它的目的，是让 Agent 工作在有界执行轮次之间保持可恢复、可验证、可交接。
+## 2. 相对 1.5 的变化
 
-MALTS 不要求每个任务都重放初始化流程。已初始化且状态未变化的工作区走有界只读 entry，只加载当前 authority/evidence；完整历史、deep validation、cold recovery、report refresh 与 schema migration 都是显式升级。Project、Phase、Session、机器索引、coordination state 与派生报告具有不同归属，因此局部维护性差异不会变成第二权威或全局停机。
+2.0.0 以 Task 服务和所选状态库管理执行事实。Project 定义整体目标，Phase 定义阶段边界与实际计划，Task 定义可验收工作。Markdown 控制、报告和交接可继续作为来源或阅读视图，但在已采用 v2 的工作区中不再拥有独立写权。
 
-可选 workspace 并发按资源治理。默认仍是单 open Phase 且没有 coordination runtime。显式启用的 profile 可依据 typed path、Artifact、logical record、service、device、environment locator，以及 shared/exclusive/queued/isolation-required capability 接纳不相交 Phase 工作。可过期 lease 与 fencing 拒绝 stale executor；唯一写者与可恢复 journal 保护根状态；不确定外部副作用隔离受影响 domain，直到显式 reconcile。该通用模型适用于软件仓库、文档、数据库、CI/CD、build machine、editor 与 device，Core 不嵌入产品专项规则。
+新增机制包括版本化依赖、Grant 授权范围、累计预算、操作意图与观测分离、当前验收证明、受保护证据、明确暂停/取消/接替、成果关系与受控 Growth。CLI 与 MCP 调用相同领域服务；Skill 提供方法和入口，不授予权限。
 
-系统针对的操作问题是：coding Agents 可以完成有价值的工作，但较长任务容易丢失目标上下文、跳过证据、混入无关修改，或在窗口切换、中断、上下文压缩后难以恢复。MALTS 将这类工作从短暂对话转换为 file-backed operating loop。
+## 3. 能力与证据边界
 
-## 2. 解决的问题
-
-| 问题类型 | 观察到的风险 | MALTS 响应 |
+| 能力 | 当前机制 | 结论边界 |
 |---|---|---|
-| Goal drift | 长对话中任务被隐式改写。 | 保留原始目标、当前理解、排除项、完成定义和验收标准。 |
-| State loss | 不能只靠 chat memory 恢复。 | 将任务状态、决策、验证和恢复记录外部化到文件。 |
-| Weak verification | 没有证据就声称完成。 | 使用 checklist，并在交付前记录验证证据。 |
-| Coordination risk | 多 Agent 或多工作流带来合并和责任缺口。 | 使用适配评估、launch review、scoped contracts、dispatch records 和最终核对。 |
-| Uncontrolled memory growth | 每个纠正都变成永久规则。 | 通过 memory-write process 过滤可复用经验后再持久化。 |
-| Tool fragmentation | 不同 Agent 工具使用不同指令格式。 | 围绕同一核心模型提供 Codex、Claude Code 和 OpenCode adapters。 |
+| 长任务恢复 | 当前版本、检查点、未决操作、备份及新 epoch 恢复 | 恢复不重放未知效果、不恢复旧预算或授权 |
+| 受控执行 | Grant、资源准入、操作 intent/observe、受管文件适配器 | 约束受管接口，不能锁住任意外部 OS 写者 |
+| 验收 | criterion、验证方法、证据等级和当前文件/依赖检查 | 进程退出、历史 COMPLETED 或模型自评不足以证明完成 |
+| 协作 | 明确委派、资源范围、Host 状态、累计预算及集成验收 | 默认单 Agent；并行不自动带来收益 |
+| 成果复用 | owner、版本、来源、关系闭包、Shared 当前证明 | 历史关系可解释，不等于成果目前仍可复用 |
+| 经验改进 | 有来源的候选、限定试用、未来结果、撤销与退役 | 已观察的真实试用有中性结果；不承诺自动改善 |
 
-## 3. 核心运行模型
+## 4. 宿主支持
 
-MALTS 连接三个 loop：
+Codex、Claude Code、OpenCode 和 DeepSeek Harness 均有适配入口。已记录代表性原生任务与恢复证据；它们只覆盖所用版本、profile 和操作。DeepSeek Harness Desktop 的证据来自 Windows 0.2.0-rc.2，覆盖任务、同会话重开、目录终端和关联后端停止/续接；不证明 GUI 模型取消或任意环境隔离。
 
-```text
-Delivery loop:
-goal -> acceptance criteria -> task queue -> execution -> verification -> delivery
+安装、工具发现、原生模型行为和业务效果分别验证。指定模型标签不等于供应商认证的实际模型身份。MALTS 不承诺普遍提速、费用或人工节省；跨用户受保护证据恢复、分布式 fleet、向量记忆与自治发布不属于当前已认证能力。
 
-Scheduling loop:
-state -> bounded round -> optional delegation -> report -> recovery -> next round
+## 5. 使用路径
 
-Growth loop:
-observation -> cause analysis -> reusable lesson -> filtered candidate -> future use
-```
-
-delivery loop 保持工作与用户目标一致。scheduling loop 让长期任务可恢复。growth loop 保留可复用知识，同时避免偶然观察自动变成规则。
-
-## 4. 必需核心能力
-
-以下能力构成系统核心。
-
-### 可恢复项目控制
-
-启用 MALTS 时，`PROJECT_CONTROL.md` 是主要状态文件。它记录：
-
-- original user goal
-- current interpreted goal
-- acceptance criteria
-- task queue
-- file ownership
-- decisions
-- risks and blockers
-- verification records
-- recovery notes
-
-该文件面向下一个 Agent、新窗口，或上下文丢失后的同一 Agent。
-
-### Phase-ready 长期项目初始化
-
-轻量 `malts-project-init` workflow 建立 root project control。专用 `malts-long-project-workspace-init` 还必须建立首个 active Phase 才算初始化完成；其 dry run 包含首个 `PHASE_CONTROL.md`，缺少 Phase 输入时零写入。后续 Phase 和所有 Session 继续显式创建，初始化绝不会自动创建 Session。
-
-旧 root-only 工作区仍可只读诊断，但在不覆盖现有用户文件地登记首个 Phase 前，验证结果必须是 `NEEDS_INITIAL_PHASE`。
-
-### Cross-Control Consistency 与 Typed Recovery
-
-全新 long-project workspace 使用 CURRENT，默认 `single_phase`；受支持的旧布局作为内部兼容输入保持可读，只能通过已审阅、显式、一步、hash-bound 重整到达 CURRENT。Project、Phase 与显式 Session control 各自拥有本层 semantic fact。Workspace runtime 拥有机器 contract/profile/index 与 transaction binding；可选 coordination runtime 拥有 Admission/fencing/quarantine。CURRENT report/handoff 是按需 view，旧输入在重整前保留严格 projection binding。
-
-Validation 分层报告 structural、binding、deterministic-consistency、maintenance-warning 与 advisory-semantic finding。Canonical/authorization/transaction/Admission/fencing/unknown-authority drift 阻断受影响工作；derived-view drift 产生 warning 并局部 reconcile。Recovery 依次选择 active Session checkpoint、primary active Phase recovery、显式绑定 terminal Phase、Project recovery，绝不从最新历史 Session 猜测。Workspace/coordination authority 共享唯一 writer/transaction namespace，并保留 interrupted evidence 直到 exact-hash recovery 成功；Artifact transaction 仍独立。
-
-### 阶段和最终报告
-
-只有用户请求 durable report 或确有材料价值时，`WORK_TASK_REPORT.md` 才呈现阶段/最终交付信息。CURRENT 中它是 derived/non-authoritative 且按需刷新；无变化普通工作不重写它。
-
-### 交接与继续
-
-`PROJECT_HANDOFF.md` 是按需 Agent-facing continuation view。新窗口先运行有界 `workspace-entry`；只有相关时才读取/刷新 handoff，且它绝不替代 canonical control。
-
-### 验证清单
-
-runtime checklists 定义交付和质量检查。它们本身不证明工作正确；它们提供可重复的检查结构和证据记录结构。
-
-### Skills、Templates 和 Checklists
-
-根级 `skills/` 是 MALTS `SKILL.md` workflow 的唯一实现事实源，包含 Grill-Me Preflight、phase-ready long-project workspace initialization、multi-agent scheduling、session handoff、retrospective growth、lightweight single-agent growth 和 project initialization。安装脚本只会在各工具的原生 skill 目录放置 `malts-*` 轻量发现 bridge；bridge 解析 `MALTS_BOOT.md` 后委托共享实现执行。`malts-*` 机器名是 adapter contract 的一部分，确保用户搜索 `/MALTS` 时可以找到所有 MALTS 拥有的原生 skill 入口；`agents/openai.yaml` 提供全大写用户可读 `MALTS ...` 显示名和不重复标题的短描述。
-
-`runtime/EN/templates` 和 `runtime/EN/checklists` 定义 task contracts、reports、handoff files、project control files 和 verification gates 的预期结构。它们补充根级 skill packages，但不改变公开 skill 来源。
-
-## 5. 可选能力
-
-MALTS 有意保持 single-agent first。可选能力只在任务需要时启用。
-
-| 能力 | 默认状态 | 使用场景 | 边界 |
-|---|---|---|---|
-| Grill-Me Preflight | 非琐碎或不清楚的开始时建议 | 需求、成功标准、范围或取舍不清楚 | 只用于澄清；不是子 Agent 分派 |
-| Multi-agent scheduling | 关闭 | 独立探索、验证或并行工作能降低风险或成本 | 需要 launch review 和明确 `确认运行` |
-| Bilingual documentation sync | 关闭 | 项目需要中文公开入口或审阅镜像 | 英文 release docs 仍是默认 runtime source |
-| Memory Pipeline | 可用 | 经验可复用到当前任务之外 | 需要过滤和目标选择 |
-| Adapter instruction templates | 可选 | 受支持 Agent 工具需要记住 MALTS 行为 | 默认受管区块合并会保留区块外用户文本 |
-| 第三方 Skill 安装位置建议 | 可用 | 用户授权安装 Skill 前 | 只分类并建议位置；不自动管理 lifecycle |
-| Git-based recovery | 可选 | source control 可提升回滚或审阅安全性 | MALTS 不要求 Git |
-
-Capability Registry 和 advisory Workflow Router 是已实现的 v1.0 组件。事务 lifecycle 会激活经过验证的 MALTS-owned runtime 内容与工具原生薄发现 projection；第三方 Skill 的发现和 lifecycle 仍不归 MALTS 管理。Router 只提供建议，不调用 Skill、不派发 Agent，也不绕过授权。见 [Capability 与 Skill 治理](CAPABILITY_AND_SKILL_GOVERNANCE.md)。
-
-## 6. 支持的工具 Adapters
-
-MALTS 将核心 workflow 与工具特定安装细节分离。
-
-| Adapter | 主指令文件 | 说明 |
-|---|---|---|
-| Codex | `AGENTS.md` | 提供 Codex-facing operating rules 和 MALTS reminders。 |
-| Claude Code | `CLAUDE.md` | 添加可选 Claude Code agents 和 commands；通过共享 `MALTS_ROOT` 解析 MALTS。 |
-| OpenCode | `AGENTS.md` | 添加 OpenCode-specific configuration 和可选 agent scaffold；通过共享 `MALTS_ROOT` 解析 MALTS。 |
-
-除非变更只适用于某个 runtime，否则 adapter documents 应保持同步。工具差异属于 adapter layer，不应改变 MALTS 核心模型。
-
-每个指令模板都显式标记 MALTS 所拥有的区块。更新时只替换该区块；不存在时追加；存在一段可明确识别的旧 discovery section 时迁移。`Skip` 保持文件完全不变；整份 `Replace` 必须显式选择。
-
-## 7. 典型使用场景
-
-MALTS 适合具有以下一个或多个属性的任务：
-
-- 任务可能超过一个舒适上下文窗口
-- 任务有多个阶段
-- 任务修改多个文件或模块
-- 后续 Agent 可能需要接手
-- 验证证据很重要
-- 需求不清楚，值得先做 preflight clarification
-- 独立审阅或探索能降低风险
-- 纠正中产生值得过滤的可复用经验
-
-示例包括 migrations、带验收标准的 feature implementations、documentation protocol changes、multi-tool adapter updates、release preparation、long bug investigations 和 recovery-sensitive refactors。
-
-## 8. 非目标和边界
-
-MALTS 不做以下事情：
-
-- 运行强制 scheduling service
-- 替代 Agent runtime
-- 替代 source control、CI、package managers、editors 或 permission systems
-- 自动分派子 Agent
-- 把每个任务都变成长任务
-- 在没有验证时保证正确性
-- 认证没有证据的工作
-- 存储 secrets、tokens、sensitive memory dumps 或 raw session logs
-- 覆盖用户对高风险操作的审批
-
-这些边界是系统设计的一部分。它们使 MALTS 保持可移植，并减少职责意外扩张。
-
-## 9. 启用模式
-
-| 模式 | 使用时机 | 必需文件 | 结果 |
-|---|---|---|---|
-| Normal single-agent work | 小而明确、低风险任务 | 默认不需要 | 低开销、直接完成、相关验证 |
-| MALTS single-agent mode | 工作需要可恢复状态或阶段报告 | `PROJECT_CONTROL.md`；通常还会使用 `WORK_TASK_REPORT.md` 和 `PROJECT_HANDOFF.md` | Main Controller 执行，但状态持久化 |
-| MALTS multi-agent mode | delegation 有明确操作价值 | MALTS 状态文件、任务契约和子 Agent 报告 | 带记录责任边界的受控分派 |
-
-默认模式是 normal single-agent work。只有当任务非琐碎、用户启用 MALTS，或工作扩大到需要可恢复状态时，才创建 MALTS 状态文件。
-
-## 10. 公开发布内容
-
-公开发布仓库包含：
-
-- runtime skills
-- templates
-- checklists
-- adapter examples
-- installer script
-- lightweight linting tools
-- design、installation、usage、handoff、security 和 maintenance documentation
-- Simplified Chinese public entry documents under `docs/zh-CN/`
-
-发布仓库不应包含 handoff outputs、project-specific control files、user-specific archives、raw sessions、caches、credentials 或 generated migration packages。
-
-## 11. v1.1 一致性门禁
-
-MALTS v1.1 增加三项关联保护：事件触发的 Plan Recheck 把 active plan bytes 绑定到 owning Phase；受治理的 Codex peer task 保存已批准 model / effort、当前工作区、lifecycle 与归档证据；tool-local discovery 交叉核对 registry、active pointer 与 `VERSION`。三者均先读 / 审阅，并在漂移时 fail closed。
-
-## 12. v1.2.2 Discovery Authority Gate（历史）
-
-v1.2.2 candidate 保留 v1.2.1 的 schema-v1/v2/v3 dispatch、hash-bound review/recovery 与 crash-recoverable workspace transaction domain，并新增 deterministic discovery `authority_paths`，将 active pointer 固定为 `<lifecycle-root>/registry/active_generation.json`；错误的旁路 pointer 永远不会被采用。Operation success 不等于 semantic resolution、persistence 或 authorization。Candidate 不改变 Artifact、payload、VCS、Session creation、update check 与 publication boundary。
-
-## 13. v1.2.3 Release 测试深路径修复
-
-v1.2.3 candidate 修复 release 测试 fixture 复制超出 Windows 路径长度限制的问题：测试套件的 `SOURCE_COPY_IGNORE` 排除私有的 `.release-control/archive` 历史树，与生产 clean-source 分类保持一致；repository-only CI 测试改为对隔离的 clean-source fixture 分类。五个 `WinError 206` 失败已解决，九个套件全绿。本版本没有改变任何 runtime、schema、Artifact、依赖、payload、VCS、更新检查或远程发布行为。
-
-## 14. v1.3.0 Schema v4、Result Contract v2 与 Fast Path
-
-v1.3.0 candidate 将 workspace schema 升级到 v4、Result Contract 升级到 v2：每个受治理 Task 拥有唯一 typed lineage 权威，Phase、Session、report、handoff 与 runtime 只保留绑定与投影。一次 Attempt 失败只终止该 Attempt；`max_authorized_rounds` 是独立运行时 STOP 门。迁移只提供显式冷迁移（`migrate-workspace-v3-to-v4`、`migrate-result-contract-v1-to-v2`）；旧 schema 保持可读。多面写入使用带 lock、journal、preimage 与显式 recovery 的可恢复事务。只读 `scoped-readiness` Fast Path 与显式 marker-owned `refresh-project-instructions` 降低 S0/S1 治理成本，同时不绕过授权与一致性门。
-
-## 15. v1.3.1 历史 Session 迁移修复
-
-v1.3.1 candidate 修复含历史已关闭 Session 的工作区 v3→v4 迁移：已关闭的 Session registry 行被归档进迁移计划，不再因缺少 lease 字段而 v4 schema 校验失败；不伪造 lease/owner 权威，历史 Session 文件保持字节不变，ACTIVE Session 行仍然阻断迁移。
-
-## 16. v1.5.0 CURRENT 工作区治理与高效进入
-
-MALTS 1.5.0 将 Phase 里程碑状态与短期执行 Admission 分离。默认 `single_phase` 不产生协调负担；显式 `resource_admission` 通过 typed locator、能力策略、队列、lease、fencing、陈旧执行者拒绝和资源域级 `UNKNOWN` reconcile 支持多个受治理 OPEN Phase。普通任务通过有界、只读的 `workspace-entry` 进入；只有真实漂移或恢复事件才运行完整历史校验和冷恢复。一步显式重整把受支持旧布局直接整理到 CURRENT，不暴露连续迁移链，也不隐式创建生命周期实体。用户状态呈现与子 Agent 模型推荐同时考虑语言和成本，并保留稳定机器代码与 fail-closed 安全边界。
-
-## 17. 与详细设计的关系
-
-本文说明 MALTS 做什么，以及用户如何评估它。[核心设计](CORE_DESIGN.md) 提供详细 design baseline、operating commitments、task sizing model、project state model、multi-agent protocol、memory pipeline 和 release boundaries。
+从[快速开始](GETTING_STARTED.md)安装并验证入口，按照[使用指南](USAGE.md)选择普通工作或长期工作区。控制端的可执行示例见 [v2 操作说明](V2_PREVIEW_USAGE.md)，机制与验证依据见[核心设计](CORE_DESIGN.md)和[状态合同](V2_STATE_CONTRACT.md)。

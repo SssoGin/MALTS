@@ -1,6 +1,6 @@
 ---
 name: malts-multi-agent-long-task-scheduling
-description: "MALTS Multi-Agent Long-Task Scheduling: run recoverable long-task scheduling after launch review and authorization."
+description: "MALTS scheduling: assess an explicitly requested workflow, or run and recover it within the corresponding authorization."
 ---
 
 # MALTS Skill Bridge

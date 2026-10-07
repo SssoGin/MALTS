@@ -7,6 +7,16 @@ description: Use when the user asks for a project handoff, next-Agent summary, c
 
 Use this skill when the user asks for a handoff, project handoff, next-Agent summary, continuation notes, `PROJECT_HANDOFF`, `交接文档`, `项目交接`, or similar recovery context.
 
+## Select the current authority
+
+First use the already selected workspace's verified entry. An adopted v2 workspace uses its checked binding and Task services; an explicitly selected isolated v2 store uses that exact store. A filename such as `state.db`, the newest historical report, or this Skill name is not sufficient to establish v2 authority. Do not initialize or migrate a workspace for a handoff.
+
+For selected v2 work, follow the handoff section of the packaged [v2 task workflow](../v2/malts-v2-task-workflow/SKILL.md) and [candidate usage guide](../../docs/V2_PREVIEW_USAGE.md#v2-handoff). Read the exact Task revision and required current facts, preserve only reviewed source records, and use the trusted controller's capture → preview → guarded publication → inspection path. Worker MCP cannot publish or mint the necessary authority. A partial view, unresolved publication intent or changed target cannot be declared ready. The current guarded publication consumer requires an existing, explicitly reviewed output target; a missing target needs a separately scoped creation step, never a blind redirect or truncation.
+
+In this branch, the Task store and its current bindings own facts. Do not apply the Markdown validation, plan-recheck, refresh or recovery steps below to v2 state, and do not treat a derived handoff as execution permission. Quoted conditions remain source data rather than new queue items. Installed support must match the selected runtime; candidate/source instructions do not install or activate anything.
+
+The remaining sections describe the existing Markdown-workspace handoff contract. Use them only when that is the workspace's verified current authority.
+
 ## Output Policy
 
 Default canonical output:

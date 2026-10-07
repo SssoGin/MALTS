@@ -8,7 +8,8 @@ param(
     [string] $ToolRootCodex,
     [string] $ToolRootClaudeCode,
     [string] $ToolRootOpenCode,
-    [ValidateSet('codex', 'claude-code', 'opencode')]
+    [string] $ToolRootDeepSeekDesktop,
+    [ValidateSet('codex', 'claude-code', 'opencode', 'deepseek-harness')]
     [string[]] $Tool = @(),
 
     [ValidateSet('install', 'update', 'repair', 'finalize', 'uninstall')]
@@ -68,7 +69,8 @@ function Add-ToolRoots {
     foreach ($entry in @(
         @{ Tool = 'codex'; Name = 'ToolRootCodex'; Value = $ToolRootCodex },
         @{ Tool = 'claude-code'; Name = 'ToolRootClaudeCode'; Value = $ToolRootClaudeCode },
-        @{ Tool = 'opencode'; Name = 'ToolRootOpenCode'; Value = $ToolRootOpenCode }
+        @{ Tool = 'opencode'; Name = 'ToolRootOpenCode'; Value = $ToolRootOpenCode },
+        @{ Tool = 'deepseek-harness'; Name = 'ToolRootDeepSeekDesktop'; Value = $ToolRootDeepSeekDesktop }
     )) {
         if (-not [string]::IsNullOrWhiteSpace($entry.Value)) {
             Add-RequiredValue $Arguments '--tool-root' "$($entry.Tool)=$($entry.Value)"
@@ -76,7 +78,7 @@ function Add-ToolRoots {
         }
     }
     if ($selected -eq 0) {
-        throw "$Command requires at least one of -ToolRootCodex, -ToolRootClaudeCode, or -ToolRootOpenCode."
+        throw "$Command requires at least one tool root (-ToolRootCodex, -ToolRootClaudeCode, -ToolRootOpenCode, or -ToolRootDeepSeekDesktop)."
     }
 }
 
@@ -106,6 +108,7 @@ switch ($Command) {
         Add-OptionalValue $arguments '--out' $OutPath
     }
     'PreviewPlan' {
+        Add-OptionalValue $arguments '--operation' $Operation
         Add-RequiredValue $arguments '--preview-root' $PreviewRoot
         Add-OptionalValue $arguments '--release-root' $ReleaseRoot
         Add-OptionalValue $arguments '--repository-root' $RepositoryRoot

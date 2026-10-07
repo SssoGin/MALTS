@@ -1,32 +1,19 @@
-# Security
+# MALTS 2.0.0 Security and Privacy
 
-## Verify Before Use
+## 1. Source and identity
 
-For repository installation, validate `MALTS_RELEASE.json` and `VERSION` before creating a plan. The repository identity binds the expected user file count and source-tree SHA-256; an unexpected file, cache, `.malts` residue, missing required entry point, or hash mismatch fails closed.
+Verify repository/tag, VERSION, release identity and complete inventory. Verify ZIP before extraction. Discovery compares tool Boot, registry, active pointer and generation identity. Names, printed hashes and old receipts are not current integrity checks.
 
-When Git metadata is available, compare the checked-out tag with the identity file's `release_tag`. This is an additional provenance check; the repository identity remains the package-level source binding.
+## 2. Least permission and protected content
 
-For an explicitly requested offline archive, use `Verify-MALTSBootstrap.ps1` before extraction. It verifies the one ZIP's deterministic structure, safe Windows paths, duplicate/case-colliding members, required package files, isolated extraction, and the immutable package verifier inside the archive.
+Grants constrain actors/resources/effects; services check dependencies, budgets, epoch and admission. MCP clients cannot replace Host-bound fields. Keep secrets out of command arguments; value-free errors do not protect shell history or OS process arguments.
 
-## Installed Provenance Privacy
+Sensitive content/definitions currently use Windows current-user DPAPI with descriptors governing purposes and retention. Encryption does not prove redaction, valid provenance or cross-user restoration. Public repository/ZIP excludes workspace databases, sessions, credentials and private machine paths.
 
-The installed provenance records contain only release hashes, version identity,
-and the source kind (`repository` or `release-package`); they contain no local
-source locator. A legacy record with an absolute source locator is accepted
-only as update input and blocks use until a verified update replaces it.
+## 3. Effects and recovery
 
-## Keep Local Data Local
+Managed updates preserve exact preimages. UNKNOWN is not automatically retried. New-epoch restoration reconciles later work, external effects, budgets and writers. Fencing constrains connected interfaces, not external editors or process liveness.
 
-Do not place credentials, tokens, session data, user-profile paths, private project files, cache directories, generated runtime state, plans, transaction journals, or handoffs inside a MALTS repository or installed version.
+## 4. Retention and reporting
 
-Use environment variables or the selected tool's normal secure configuration mechanism for credentials. Do not put secret values in `PROJECT_CONTROL.md`, `WORK_TASK_REPORT.md`, handoff files, prompts, or command history.
-
-## Review Before Mutation
-
-Installation and update plans are hash-bound. Read the full plan before providing `-Apply` and the exact plan hash. Inspect selected roots, modified files, cleanup, rollback, and post-validation actions.
-
-Do not approve a plan after its source, version, roots, or expected actions have changed. Create a fresh plan instead.
-
-## Report Security Issues
-
-Do not publish secrets in a public issue, discussion, release note, or task log. Use the repository's private security contact or another private channel agreed with the project team.
+Inspect dependencies/recovery value before cleanup. Retain raw acceptance, binding/seals, backups and uncertainty. Report minimal public reproductions through the [repository](https://github.com/SssoGin/MALTS) without secrets, sessions or protected raw evidence. See [State Contract](V2_STATE_CONTRACT.md).

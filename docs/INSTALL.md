@@ -1,118 +1,51 @@
-# Install MALTS
+# Install MALTS 2.0.0
 
-MALTS installation is review-first. The first command writes a plan, and no files are changed until you review the plan and supply its exact hash with `-Apply`.
+## 1. Repository Installation (Primary)
 
-## Prerequisites
+The verified installation path is Windows with Python 3.11+ and PowerShell; PowerShell 7 is recommended. v2 protected content currently uses Windows current-user DPAPI. Select Codex, Claude Code or OpenCode; see the [DeepSeek Harness adapter](../adapters/deepseek-harness/README.md) for its dedicated path. Installation neither calls a model nor migrates projects automatically.
 
-- Windows 10 or later
-- PowerShell 5.1 or later; PowerShell 7 is recommended
-- Python 3.11 or later
-- At least one of Codex, Claude Code, or OpenCode
-- A lifecycle root outside every selected tool root
+Normally use a reviewed checkout of the [public repository](https://github.com/SssoGin/MALTS). Check remote, commit/tag and `MALTS_RELEASE.json`; its version must match VERSION 2.0.0. The installer verifies exact paths/content. Keep caches and business files outside the distribution directory.
 
-The lifecycle root stores installed MALTS versions, registry state, plans, and transaction state. Each selected tool root receives only its adapter files and boot pointer.
+## 2. Plan and execute (review-first)
 
-## Repository Installation (Primary)
-
-1. Open the repository root.
-2. Read `MALTS_RELEASE.json` and confirm its `version` equals `VERSION`.
-3. When Git metadata is present, confirm its `release_tag` matches the checked-out tag.
-4. Create a plan.
+From the repository root:
 
 ```powershell
-.\scripts\Install-MALTS.ps1 `
-  -RepositoryRoot (Get-Location).Path `
-  -UseDefaultRoots `
-  -Tool Codex
+.\scripts\Install-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool Codex
 ```
 
-For explicit paths:
+`-Tool AllIncluded` selects Codex, Claude Code and OpenCode only. For explicit roots, supply `-LifecycleRoot`, matching `-ToolRootCodex`, `-ToolRootClaudeCode`, `-ToolRootOpenCode`, and a new `-PlanPath`. Keep lifecycle root outside tool configuration roots.
+
+The first command only creates a plan and reports its path/SHA-256. Review source, destinations, personal-content merges and recovery preimages, then use the actual reported values:
 
 ```powershell
-.\scripts\Install-MALTS.ps1 `
-  -RepositoryRoot <REPOSITORY_ROOT> `
-  -LifecycleRoot <LIFECYCLE_ROOT> `
-  -Tool Codex `
-  -ToolRootCodex <CODEX_ROOT> `
-  -PlanPath <NEW_PLAN_PATH>
+$plan = '<reviewed-plan-path>'
+$hash = '<reviewed-plan-sha256>'
+.\scripts\Install-MALTS.ps1 -Apply -PlanPath $plan -ExpectedPlanHash $hash
 ```
 
-Supported `-Tool` values are `Codex`, `ClaudeCode`, `OpenCode`, and `AllIncluded`.
+Source, target or plan drift rejects execution. Identical installed content may return `NO_OP`. Different content under the same version needs the formal lifecycle consolidation/recovery path, never a manual generation overwrite.
 
-The repository is validated as an exact source before the plan is written. Any unexpected file, cache, `.malts` residue, missing identity file, version mismatch, or source-tree hash mismatch stops before installation.
+## 3. Verify the entry
 
-Installed version IDs are semantic: a release `vX.Y.Z` installs as `malts-vX.Y.Z`. Reinstalling the same version with identical content reports `NO_OP`; the same version with different content, or an unbound same-name directory, fails before any transaction state is created.
-
-## Review And Execute
-
-The plan contains selected roots, intended version identity, planned changes, user-modification classifications, migration or cleanup actions, rollback, and post-validation checks. Review it before execution.
+Read the selected tool configuration root's `MALTS_BOOT.md`, resolve MALTS_ROOT, then run:
 
 ```powershell
-.\scripts\Install-MALTS.ps1 `
-  -Apply `
-  -PlanPath <REVIEWED_PLAN_PATH> `
-  -ExpectedPlanHash <REVIEWED_PLAN_SHA256>
+$runtime = '<MALTS_ROOT-from-tool-boot>'
+$toolRoot = '<selected-tool-config-root>'
+python -B "$runtime/tools/malts_lifecycle.py" discover --tool-root $toolRoot
+python -B "$runtime/tools/malts_v2.py" capabilities
 ```
 
-Changing the source, roots, or plan invalidates the hash. A missing or mismatched hash fails before installation.
+Require discovery PASS and matching registry, active pointer and VERSION. Capabilities declare interfaces, not native behavior. See [Lifecycle](LIFECYCLE.md) for read-only Doctor. Reload/restart the Host and verify actual Skill/MCP discovery instead of file presence alone.
 
-## Optional Offline Archive
+## 4. Optional Offline Archive
 
-The Release page may offer one optional archive named `MALTS-<version>.zip`. It is not required for normal installation and is never downloaded automatically by the installer.
-
-To use it, obtain `scripts/Verify-MALTSBootstrap.ps1` from the same reviewed source or tag, then verify and extract the ZIP:
+For an offline source, use `MALTS-2.0.0.zip` and obtain `scripts/Verify-MALTSBootstrap.ps1` from the same reviewed source:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\Verify-MALTSBootstrap.ps1 `
-    -ArchivePath .\MALTS-1.5.0.zip `
-  -ExtractOutput <EXTRACTED_RELEASE_ROOT> `
-  -Apply
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.0.zip
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.0.zip -ExtractOutput '<new-extraction-root>' -Apply
 ```
 
-Then create the normal review plan from the extracted package:
-
-```powershell
-<EXTRACTED_RELEASE_ROOT>\lifecycle_artifact\payload\scripts\Install-MALTS.ps1 `
-  -ReleaseRoot <EXTRACTED_RELEASE_ROOT> `
-  -UseDefaultRoots `
-  -Tool Codex
-```
-
-The bootstrap verifier checks deterministic ZIP structure, safe paths, and the extracted immutable package before it writes the final extraction.
-
-## Verify The Installed Runtime
-
-Run the read-only doctor with the lifecycle root and every selected tool root:
-
-```powershell
-.\scripts\Invoke-MALTSLifecycle.ps1 `
-  -Command Doctor `
-  -LifecycleRoot <LIFECYCLE_ROOT> `
-  -ToolRootCodex <CODEX_ROOT> `
-  -ToolRootClaudeCode <CLAUDE_CODE_ROOT> `
-  -ToolRootOpenCode <OPENCODE_ROOT>
-```
-
-`doctor` reports exact expected and observed locators, severity, core trust, and suggested commands. It is always read-only and does not repair anything. If repair is needed, create a separate `DoctorRepairPlan` review using the exact trusted source, then execute only the reviewed plan hash.
-
-Lifecycle operations also keep bounded audit records (one current binding plus recent success, failure/recovery, and monthly summaries). See [Lifecycle](LIFECYCLE.md).
-
-## Verify The v1.5.0 Workspace Lifecycle
-
-Installation changes the selected MALTS lifecycle/tool roots only; it never reorganizes, migrates, or enrolls an existing project workspace. After discovery verification, confirm the installed source reports `1.5.0` and exposes workspace entry, CURRENT reorganization, Phase, coordination, and Artifact command families:
-
-```powershell
-Get-Content -LiteralPath <MALTS_ROOT>\VERSION
-python -B <MALTS_ROOT>\tools\long_workspace.py --help
-python -B <MALTS_ROOT>\tools\long_workspace.py artifact --help
-```
-
-The top-level help must include Phase boundary, pause/resume, transition, validation, maintenance, compaction, and recovery commands. Artifact help must include audit, enrollment preview/apply, register, promote, supersede, and reconcile. This is static installation evidence, not real project mutation or G4 tool-runtime proof.
-
-## First Use
-
-After installation, each selected tool reads its `MALTS_BOOT.md` pointer to resolve the active installed version. Do not copy runtime files into a project manually. Use an installed `malts-*` Skill entry point instead.
-
-Verify the binding with the read-only discovery command. It parses the tool boot and cross-checks the lifecycle registry, active pointer, and `VERSION`; MALTS v1.1.1+ does not use a machine-global recovery boot. Any inconsistency blocks use.
-
-See [Getting Started](GETTING_STARTED.md), [Lifecycle](LIFECYCLE.md), and [Security](SECURITY.md).
+Run the extracted payload's installer with `-ReleaseRoot '<extracted-package-root>'` and the same plan/hash sequence. Do not copy payload into an active generation. See [Release Archive](RELEASE_ARTIFACT.md) and [Getting Started](GETTING_STARTED.md).

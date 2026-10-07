@@ -11,11 +11,14 @@ from __future__ import annotations
 import argparse
 import copy
 import hashlib
+import importlib.util
 import json
+import marshal
 import os
 import re
 import shutil
 import stat
+import struct
 import sys
 import tempfile
 import uuid
@@ -30,7 +33,7 @@ from malts_user_contracts import canonical_plan_hash, validate_instance
 
 
 MALTS_ROOT = Path(__file__).resolve().parents[1]
-TOOLS = ("codex", "claude-code", "opencode")
+TOOLS = ("codex", "claude-code", "opencode", "deepseek-harness")
 PROJECTION_MANIFEST = ".malts-v1-projection.json"
 LEGACY_PROJECTION_MANIFEST = ".malts-managed-files.json"
 REGISTRY_RELATIVE = Path("registry") / "installation_registry.json"
@@ -656,6 +659,9 @@ def preview_tool_environment(
         environment["CODEX_HOME"] = str(tool_root)
     elif tool == "claude-code":
         environment["CLAUDE_CONFIG_DIR"] = str(tool_root)
+    elif tool == "deepseek-harness":
+        environment["DSH_HOME"] = str(tool_root)
+        environment["DSH_AGENTS_HOME"] = str(home_root / ".agents")
     else:
         xdg_data = preview_root / "state" / "opencode" / "data"
         xdg_cache = preview_root / "state" / "opencode" / "cache"
@@ -785,7 +791,7 @@ def _verify_global_boot(context: dict[str, Any], active_generation_root: Path | 
 def _preview_manifest_value(context: dict[str, Any], active_generation_root: Path) -> dict[str, Any]:
     contract = context["preview_contract"]
     return {
-        "schema_version": PREVIEW_CONTRACT_VERSION,
+        "schema_version": contract["schema_version"],
         "mode": "isolated-maintainer-preview",
         "preview_root": contract["preview_root"],
         "lifecycle_root": context["lifecycle_root"],
@@ -799,24 +805,15 @@ def _preview_manifest_value(context: dict[str, Any], active_generation_root: Pat
     }
 
 
-def _write_preview_surfaces(context: dict[str, Any], active_generation_root: Path | None) -> None:
+def _write_preview_surfaces(context: dict[str, Any], active_generation_root: Path | None, *, preflight_only: bool = False) -> None:
     contract = context.get("preview_contract")
     if contract is None:
         return
     if active_generation_root is None:
         raise LifecycleError("TX_PREVIEW_TARGET", "Preview activation requires an active generation root.")
     preview_root = _absolute_preview_root(contract["preview_root"])
-    for tool in context["selected_tools"]:
-        for raw_root in contract["tool_isolation"][tool]["writable_roots"]:
-            writable_root = Path(raw_root)
-            if not _is_inside(preview_root, writable_root):
-                raise LifecycleError("TX_PREVIEW_ROOT_ESCAPE", "Preview writable root escapes isolation.", str(writable_root))
-            _assert_no_reparse(preview_root, writable_root)
-            writable_root.mkdir(parents=True, exist_ok=True)
     boot_path = Path(contract["global_boot"])
     manifest_path = Path(contract["manifest"])
-    if boot_path.exists() or manifest_path.exists():
-        raise LifecycleError("TX_PREVIEW_SURFACE_COLLISION", "Preview boot or manifest already exists.", str(preview_root))
     boot_text = (
         "# MALTS Isolated Maintainer Preview\n\n"
         "This boot is confined to the explicit preview root and is never a global precedence source.\n\n"
@@ -826,8 +823,33 @@ def _write_preview_surfaces(context: dict[str, Any], active_generation_root: Pat
         "```\n\n"
         f"Preview root: `{preview_root}`\n"
     )
-    _atomic_write(boot_path, boot_text.encode("utf-8"))
-    write_json(manifest_path, _preview_manifest_value(context, active_generation_root))
+    outputs = [(boot_path, boot_text.encode('utf-8')),
+               (manifest_path, json_bytes(_preview_manifest_value(context, active_generation_root)))]
+    preimages = contract.get('surface_preimages', {})
+    surface_keys = {boot_path: 'global_boot', manifest_path: 'manifest'}
+    for path, expected in outputs:
+        _assert_no_reparse(preview_root, path)
+        _assert_no_hardlink(path)
+        if path.exists():
+            if not path.is_file():
+                raise LifecycleError('TX_PREVIEW_SURFACE_COLLISION', 'Preview surface is not a regular file.', str(path))
+            observed = path.read_bytes()
+            if observed != expected and sha256_bytes(observed) != preimages.get(surface_keys[path]):
+                raise LifecycleError('TX_PREVIEW_SURFACE_COLLISION', 'Preview surface differs from the bound preimage or output.', str(path))
+        elif surface_keys[path] in preimages:
+            raise LifecycleError('TX_PREVIEW_SURFACE_COLLISION', 'Bound preview surface is missing.', str(path))
+    if preflight_only:
+        return
+    for tool in context["selected_tools"]:
+        for raw_root in contract["tool_isolation"][tool]["writable_roots"]:
+            writable_root = Path(raw_root)
+            if not _is_inside(preview_root, writable_root):
+                raise LifecycleError("TX_PREVIEW_ROOT_ESCAPE", "Preview writable root escapes isolation.", str(writable_root))
+            _assert_no_reparse(preview_root, writable_root)
+            writable_root.mkdir(parents=True, exist_ok=True)
+    for path, expected in outputs:
+        if not path.exists() or path.read_bytes() != expected:
+            _atomic_write(path, expected)
 
 
 def _verify_preview_surfaces(context: dict[str, Any], active_generation_root: Path | None) -> None:
@@ -1161,7 +1183,58 @@ def verify_release_package(root_value: str | Path) -> dict[str, Any]:
     }
 
 
-def verify_installed_generation_envelope(root_value: str | Path) -> dict[str, Any]:
+def _verified_diagnostic_caches(root: Path, manifest: dict[str, Any], records: list[dict[str, Any]]) -> list[str]:
+    """Prove extra current-interpreter caches without loading or executing them.
+
+    Exact non-cache bytes must first match the trusted manifest. Unknown cache
+    layouts/interpreters remain ordinary payload drift. Never used by writers.
+    """
+    tag = sys.implementation.cache_tag
+    pattern = re.compile(r"(.+)\." + re.escape(tag or "") + r"(?:\.opt-([12]))?\.pyc\Z")
+    candidates: list[tuple[dict[str, Any], Path, int]] = []
+    for record in records:
+        path = Path(record["path"])
+        match = pattern.fullmatch(path.name)
+        if tag and path.parent.name == "__pycache__" and match:
+            source = path.parent.parent / (match[1] + ".py")
+            candidates.append((record, source, int(match[2] or 0)))
+    excluded = {record["path"] for record, _, _ in candidates}
+    clean = [record for record in records if record["path"] not in excluded]
+    _verify_user_purity(manifest, clean, str(root / "generation_manifest.json"))
+    by_path = {record["path"]: record for record in clean}
+    for record, relative_source, optimization in candidates:
+        source = root / relative_source
+        cache = root / record["path"]
+        source_record = by_path.get(relative_source.as_posix())
+        if source_record is None or any(_is_reparse(p) for p in (source, cache, cache.parent)):
+            raise LifecycleError("TX_DERIVED_CACHE_UNVERIFIED", "Cache lacks a verified regular source.", str(cache))
+        source_bytes = source.read_bytes()
+        if sha256_bytes(source_bytes) != source_record["sha256"]:
+            raise LifecycleError("TX_DERIVED_CACHE_UNVERIFIED", "Source changed during cache inspection.", str(source))
+        try:
+            # compile produces a code object only; never exec/eval/marshal.loads.
+            code = compile(source_bytes, str(source), "exec", dont_inherit=True, optimize=optimization)
+            body = marshal.dumps(code)
+            with cache.open("rb") as stream:
+                observed = stream.read(len(body) + 17)
+            header = observed[:16]
+            flags = int.from_bytes(header[4:8], "little")
+            if flags == 0:
+                metadata = struct.pack("<II", int(source.stat().st_mtime) & 0xFFFFFFFF, len(source_bytes) & 0xFFFFFFFF)
+            elif flags in (1, 3):
+                metadata = importlib.util.source_hash(source_bytes)
+            else:
+                metadata = b""
+            expected = importlib.util.MAGIC_NUMBER + struct.pack("<I", flags) + metadata + body
+            valid = len(header) == 16 and flags in (0, 1, 3) and observed == expected
+        except (OSError, SyntaxError, ValueError, OverflowError) as exc:
+            raise LifecycleError("TX_DERIVED_CACHE_UNVERIFIED", "Cache cannot be reproduced from verified source.", str(cache)) from exc
+        if not valid or sha256_bytes(observed) != record["sha256"]:
+            raise LifecycleError("TX_DERIVED_CACHE_UNVERIFIED", "Cache bytes do not match verified source and interpreter.", str(cache))
+    return sorted(excluded)
+
+
+def verify_installed_generation_envelope(root_value: str | Path, *, diagnostic_caches: bool = False) -> dict[str, Any]:
     root = _absolute(root_value)
     if not root.is_dir() or _is_reparse(root):
         raise LifecycleError(
@@ -1302,11 +1375,14 @@ def verify_installed_generation_envelope(root_value: str | Path) -> dict[str, An
             str(root),
         )
 
-    _verify_user_purity(
-        generation_manifest,
-        _user_records(root, set(INSTALLED_GENERATION_METADATA)),
-        str(root / "generation_manifest.json"),
-    )
+    records = _user_records(root, set(INSTALLED_GENERATION_METADATA))
+    derived_caches: list[str] = []
+    try:
+        _verify_user_purity(generation_manifest, records, str(root / "generation_manifest.json"))
+    except LifecycleError as exc:
+        if not diagnostic_caches or exc.code != "TX_USER_PURITY_BINDING":
+            raise
+        derived_caches = _verified_diagnostic_caches(root, generation_manifest, records)
 
     return {
         "root": root,
@@ -1316,6 +1392,7 @@ def verify_installed_generation_envelope(root_value: str | Path) -> dict[str, An
         "release_identity_schema_version": release_identity_schema_version,
         "release_identity_provenance": release_identity_provenance,
         "metadata_files": list(INSTALLED_GENERATION_METADATA),
+        "verified_derived_caches": derived_caches,
     }
 
 
@@ -1334,7 +1411,7 @@ def verify_release_root(root_value: str | Path) -> dict[str, Any]:
         "generation_manifest_sha256": verified["generation_manifest_sha256"],
     }
     if set(manifest.get("supported_tools", [])) != set(TOOLS):
-        raise LifecycleError("TX_RELEASE_TOOL_SUPPORT", "The release root must support Codex, Claude Code, and OpenCode.", str(root))
+        raise LifecycleError("TX_RELEASE_TOOL_SUPPORT", "The release root must declare every required MALTS tool projection.", str(root))
     return {"root": root, "manifest": manifest, "artifact": artifact, "identity": identity, "verified": verified}
 
 
@@ -1438,6 +1515,7 @@ def _repository_projection_sources(source: Path, tool: str) -> list[tuple[str, s
         "codex": "adapters/codex/AGENTS.example.md",
         "claude-code": "adapters/claude-code/CLAUDE.example.md",
         "opencode": "adapters/opencode/AGENTS.example.md",
+        "deepseek-harness": "adapters/deepseek-harness/AGENTS.example.md",
     }[tool]
     instruction_target = "CLAUDE.md" if tool == "claude-code" else "AGENTS.md"
     items: list[tuple[str, str, str]] = [(instruction, instruction_target, "managed-block")]
@@ -1445,6 +1523,7 @@ def _repository_projection_sources(source: Path, tool: str) -> list[tuple[str, s
         "codex": source / "adapters" / "codex" / ".codex",
         "claude-code": source / "adapters" / "claude-code" / ".claude",
         "opencode": source / "adapters" / "opencode" / ".opencode",
+        "deepseek-harness": source / "adapters" / "deepseek-harness" / ".dsh",
     }[tool]
     bridge_root = source / "adapters" / "skill-bridges"
     for root in (support_root, bridge_root):
@@ -1495,7 +1574,7 @@ def _build_repository_artifact(repository: dict[str, Any], artifact_root: Path) 
         boot_relative = "files/MALTS_BOOT.template.md"
         boot_path = projection_root / Path(boot_relative)
         boot_path.parent.mkdir(parents=True, exist_ok=True)
-        display = {"codex": "Codex", "claude-code": "Claude Code", "opencode": "OpenCode"}[tool]
+        display = {"codex": "Codex", "claude-code": "Claude Code", "opencode": "OpenCode", "deepseek-harness": "DeepSeek Harness"}[tool]
         boot_path.write_text(
             "# MALTS_BOOT\n\n"
             "SchemaVersion: 2\n"
@@ -1534,6 +1613,7 @@ def _build_repository_artifact(repository: dict[str, Any], artifact_root: Path) 
             {"name": "Codex", "version_constraint": "runtime-probed", "required": True, "applicability": "selected-tool", "tool": "codex"},
             {"name": "Claude Code", "version_constraint": "runtime-probed", "required": True, "applicability": "selected-tool", "tool": "claude-code"},
             {"name": "OpenCode", "version_constraint": "runtime-probed", "required": True, "applicability": "selected-tool", "tool": "opencode"},
+            {"name": "DeepSeek Harness", "version_constraint": "dsh-v0.2.0-rc.2-baseline", "required": True, "applicability": "selected-tool", "tool": "deepseek-harness"},
         ],
         "projection_classification": {
             "public_contract_paths": ["payload/*", "projections/*"],
@@ -1732,7 +1812,10 @@ def _projection_manifest(tool_root: Path, expected_tool: str | None = None) -> d
             "; ".join(issue.render() for issue in issues),
             str(path),
         )
-    if expected_tool is not None and value["tool"] != expected_tool:
+    # Canonical rename may read an existing original projection receipt.
+    # Never rewrite that receipt during planning or allow another tool alias.
+    historical_same_tool = expected_tool == "deepseek-harness" and value["tool"] == "deepseek-desktop"
+    if expected_tool is not None and value["tool"] != expected_tool and not historical_same_tool:
         raise LifecycleError(
             "PROJECTION_TOOL_MISMATCH",
             f"Installed projection manifest declares '{value['tool']}' but this ToolRoot is bound as '{expected_tool}'.",
@@ -2009,6 +2092,37 @@ def _observe_legacy_root(spec: dict[str, Any]) -> dict[str, Any]:
     if not root.is_dir() or _is_reparse(root):
         base.update({"classification": "untrusted", "planned_action": "manual-review", "root_digest": _path_digest(root), "reason": "candidate is not a real non-reparse directory"})
         return base
+    # A tool-root migration can discover another installed v2 lifecycle via
+    # its current Boot. Verify that closed envelope plus its own stable active
+    # registry/pointer; it is retained provenance, never a legacy delete target.
+    if (spec["discovery_sources"] == ["selected-tool-boot"] and
+            root.parent.name == "generations" and (root / "generation_manifest.json").is_file()):
+        try:
+            installed = verify_installed_generation_envelope(root)
+            registry = _load_registry(root.parent.parent)
+            active = [item for item in registry["generations"] if item["state"] == "active"] if registry else []
+            pointer = load_json(_pointer_path(root.parent.parent))
+            expected_pointer = ({"schema_version": 1, "generation_id": active[0]["generation_id"],
+                                 "version": active[0]["version"], "root": active[0]["root"],
+                                 **{key: active[0][key] for key in ("artifact_sha256", "release_id", "release_manifest_sha256",
+                                                                  "release_package_sha256", "generation_manifest_sha256")}}
+                                if len(active) == 1 else None)
+            if (not registry or registry["lifecycle_state"] != "stable" or len(active) != 1 or
+                    registry["active_generation_id"] != root.name or not _same_locator(active[0]["root"], root) or
+                    canonical_json(pointer) != canonical_json(expected_pointer) or
+                    pointer.get("generation_manifest_sha256") != file_sha256(root / "generation_manifest.json") or
+                    pointer.get("artifact_sha256") != installed["generation_manifest"]["artifact_sha256"] or
+                    active[0]["artifact_sha256"] != pointer.get("artifact_sha256") or
+                    not installed["generation_manifest"]["version"].startswith("2.")):
+                raise LifecycleError("TX_PRIOR_LIFECYCLE_BINDING", "Previous installed generation identity is not a stable matching v2 binding.")
+            base.update({"classification": "retained-installed-generation", "planned_action": "preserve",
+                         "manifest_sha256": file_sha256(root / "generation_manifest.json"),
+                         "root_digest": _path_digest(root), "reason": "Verified prior v2 lifecycle retained without cleanup or identity rewrite"})
+            return base
+        except (LifecycleError, KeyError, TypeError) as exc:
+            base.update({"classification": "untrusted", "planned_action": "manual-review",
+                         "root_digest": _path_digest(root), "reason": "Previous v2 lifecycle identity/envelope verification failed"})
+            return base
     try:
         manifest = _load_legacy_projection_manifest(root)
     except LifecycleError as exc:
@@ -2326,7 +2440,10 @@ def _classify_projection_modifications(
             digest = _detected_hash(target)
             if entry["mode"] == "managed-block":
                 profile = _managed_block_profile(target)
-                if profile in {"missing", "user-only", "managed"}:
+                previous = installed_map.get(entry["path"].casefold())
+                if profile == 'user-only' and previous and previous.get('mode') == 'managed-block':
+                    classification, decision = "U4", "fail-closed"
+                elif profile in {"missing", "user-only", "managed"}:
                     classification, decision = ("U0", "replace") if profile == "missing" else ("U1", "merge")
                 else:
                     classification, decision = "U4", "fail-closed"
@@ -2553,7 +2670,7 @@ def _current_generation_records(root: Path, registry: dict[str, Any] | None, ope
         if generation["generation_id"] == target_generation_id:
             continue
         path = Path(generation["root"])
-        retained_for_rollback = operation != "uninstall"
+        retained_for_history = operation != "uninstall"
         records.append(
             {
                 "schema_version": 1,
@@ -2563,11 +2680,11 @@ def _current_generation_records(root: Path, registry: dict[str, Any] | None, ope
                 "locator": str(path),
                 "source_generation": generation["version"],
                 "retire_version": "1.0.0",
-                "action": "preserve" if retained_for_rollback else "delete",
+                "action": "preserve" if retained_for_history else "delete",
                 "ownership_evidence_refs": [f"registry:{generation['generation_id']}", f"sha256:{_path_digest(path)}"],
                 "user_decision_ref": None,
-                "preserve_reason": "retained-generation-for-explicit-rollback" if retained_for_rollback else None,
-                "evidence_refs": ["lifecycle:rollback-retention" if retained_for_rollback else "lifecycle:planned-cleanup"],
+                "preserve_reason": "retained-generation-for-history-and-reviewed-recovery" if retained_for_history else None,
+                "evidence_refs": ["lifecycle:history-retention" if retained_for_history else "lifecycle:planned-cleanup"],
             }
         )
     return records
@@ -2639,6 +2756,28 @@ def _same_generation_disposition(
             )
         return "EXECUTE"
 
+    if (operation == 'finalize' and Path(active['root']) == target
+            and active['version'] == artifact['manifest']['version']
+            and active['version'].split('.')[0] == '2'
+            and not _binding_matches(active, release_identity)):
+        # Explicit reissue is bound to the complete old image by the normal
+        # plan, snapshot, mutex and forward-recovery path. Ordinary update or
+        # repair must never silently reinterpret a reused version identifier.
+        installed = verify_installed_generation_envelope(target)
+        old_context = {'target_generation_id': active['generation_id'],
+                       'target_version': active['version'], 'generation_root': str(target),
+                       'release_identity': active}
+        pointer = _pointer_path(root)
+        if (registry['lifecycle_state'] != 'stable'
+                or sum(item['state'] == 'active' for item in registry['generations']) != 1
+                or not _binding_matches(active, installed['release_identity'])
+                or installed['artifact_identity']['artifact_sha256'] != active['artifact_sha256']
+                or not pointer.is_file()
+                or load_json(pointer) != _expected_pointer(old_context, installed['artifact_identity'])):
+            raise LifecycleError('TX_GENERATION_REPAIR_REQUIRED',
+                                 'Explicit v2 reissue requires the exact stable installed preimage.', str(target))
+        return 'EXECUTE'
+
     if Path(active["root"]) != target or not _binding_matches(active, release_identity):
         raise LifecycleError(
             "TX_GENERATION_CONTENT_CONFLICT",
@@ -2669,8 +2808,12 @@ def _same_generation_disposition(
         pointer_path = _pointer_path(root)
         if not pointer_path.is_file() or load_json(pointer_path) != _expected_pointer(provisional, artifact):
             raise LifecycleError("TX_GENERATION_REPAIR_REQUIRED", "Active-generation pointer is missing or drifted.", str(pointer_path))
-        if registry["lifecycle_state"] != "stable" or len(registry["generations"]) != 1:
-            raise LifecycleError("TX_GENERATION_REPAIR_REQUIRED", "Registry is not in one-generation stable state.", str(_registry_path(root)))
+        # A completed update preserves retiring generations for history.
+        # Only the unique active binding must match this repeated update.
+        if (registry["lifecycle_state"] != "stable"
+                or sum(item["state"] == "active" for item in registry["generations"]) != 1
+                or any(item["state"] not in {"active", "retiring"} for item in registry["generations"])):
+            raise LifecycleError("TX_GENERATION_REPAIR_REQUIRED", "Registry lacks a unique stable active generation and valid retained history.", str(_registry_path(root)))
         _verify_projections(artifact, tool_roots, "update")
         _verify_global_boot(global_boot, target, "update")
     except LifecycleError as exc:
@@ -2820,6 +2963,17 @@ def _validate_planned_write_path_bounds(
             )
 
 
+def _require_v2_runtime_direction(registry: dict[str, Any] | None, target_version: str | None,
+                                  operation: str) -> None:
+    """Historical assets may remain, but an adopted v2 root cannot run v1 again."""
+    if operation == 'uninstall' or not registry:
+        return
+    has_v2 = any(int(item['version'].split('.')[0]) >= 2 for item in registry['generations'])
+    if has_v2 and (target_version is None or int(target_version.split('.')[0]) < 2):
+        raise LifecycleError('TX_LEGACY_RUNTIME_REENTRY',
+                             'A v2 runtime cannot reactivate a legacy generation. Preserve history and recover within v2.')
+
+
 def _make_plan_resolved(
     *,
     operation: str,
@@ -2911,6 +3065,7 @@ def _make_plan_resolved(
     target_generation_id = artifact["manifest"]["generation_id"] if artifact is not None else None
     active_record = next((item for item in registry["generations"] if item["state"] == "active"), None) if registry else None
     target_version = artifact["manifest"]["version"] if artifact is not None else (active_record["version"] if active_record else None)
+    _require_v2_runtime_direction(registry, target_version, operation)
     transaction_root = root / TRANSACTIONS_RELATIVE / operation_id
     release_path = Path(release_identity["release_root"]) if release_identity["release_root"] is not None else None
     legacy_specs = _legacy_root_specs(
@@ -3048,7 +3203,7 @@ def _make_plan_resolved(
     for record in residue_records:
         _validate_contract("residue-tombstone", record)
     expected_cleanup = sorted({record["locator"] for record in residue_records if record["action"] == "delete"}, key=str.casefold)
-    if operation == "finalize":
+    if operation == "finalize" and target_version.split('.')[0] != '2':
         assert target_version is not None and registry is not None
         series = ".".join(target_version.split(".")[:2])
         retiring = [
@@ -3106,12 +3261,13 @@ def _make_plan_resolved(
 def _validate_new_preview_root(
     preview_root_value: str | Path | None,
     protected_roots: Iterable[str | Path],
+    *, require_empty: bool = True,
 ) -> Path:
     preview_root = _absolute_preview_root(preview_root_value)
     if preview_root.exists():
         if not preview_root.is_dir() or _is_reparse(preview_root):
             raise LifecycleError("TX_PREVIEW_ROOT_TYPE", "Preview root must be an absent or empty real directory.", str(preview_root))
-        if any(preview_root.iterdir()):
+        if require_empty and any(preview_root.iterdir()):
             raise LifecycleError("TX_PREVIEW_ROOT_NOT_EMPTY", "Preview root must be empty before an isolated install.", str(preview_root))
     for protected_value in protected_roots:
         protected_raw = Path(str(protected_value))
@@ -3138,10 +3294,19 @@ def _validate_preview_context(context: dict[str, Any]) -> None:
         "schema_version", "mode", "preview_root", "lifecycle_root", "global_boot",
         "manifest", "tool_isolation", "protected_roots",
     }
+    if isinstance(contract, dict) and contract.get('schema_version') == 2:
+        required.add('surface_preimages')
     if not isinstance(contract, dict) or set(contract) != required:
         raise LifecycleError("TX_PREVIEW_CONTRACT", "Preview execution context has an invalid closed shape.")
-    if contract["schema_version"] != PREVIEW_CONTRACT_VERSION or contract["mode"] != "isolated-maintainer-preview":
+    if contract["schema_version"] not in {PREVIEW_CONTRACT_VERSION, 2} or contract["mode"] != "isolated-maintainer-preview":
         raise LifecycleError("TX_PREVIEW_CONTRACT", "Preview execution context has an unsupported version or mode.")
+    if contract['schema_version'] == 2:
+        preimages = contract['surface_preimages']
+        if (context.get('operation') != 'update' or not isinstance(preimages, dict)
+                or set(preimages) != {'global_boot', 'manifest'}
+                or any(not isinstance(value, str) or re.fullmatch(r'[0-9A-F]{64}', value) is None
+                       for value in preimages.values())):
+            raise LifecycleError('TX_PREVIEW_CONTRACT', 'Preview update requires exact surface preimage hashes.')
     preview_root = _absolute_preview_root(contract["preview_root"])
     expected_lifecycle = preview_root / "lifecycle"
     if Path(context["lifecycle_root"]) != expected_lifecycle or contract["lifecycle_root"] != str(expected_lifecycle):
@@ -3174,8 +3339,11 @@ def make_preview_plan(
     tool_isolation_support: dict[str, bool] | None = None,
     operation_id: str | None = None,
     created_at: str | None = None,
+    operation: str = 'install',
 ) -> dict[str, Any]:
-    """Create a zero-write install plan for a fully contained preview artifact."""
+    """Create a zero-write install/update plan for a contained preview artifact."""
+    if operation not in {'install', 'update'}:
+        raise LifecycleError('TX_PREVIEW_OPERATION', 'Preview planning supports install or update only.')
     if (release_root is None) == (repository_root is None):
         raise LifecycleError("TX_SOURCE_INPUT", "Preview install requires exactly one ReleaseRoot or RepositoryRoot.")
     selected = list(TOOLS if tools is None else tools)
@@ -3184,7 +3352,7 @@ def make_preview_plan(
     selected = [tool for tool in TOOLS if tool in selected]
     source_value = repository_root if repository_root is not None else release_root
     protected = [MALTS_ROOT, _absolute(source_value), *(protected_roots or [])]
-    root = _validate_new_preview_root(preview_root, protected)
+    root = _validate_new_preview_root(preview_root, protected, require_empty=operation == 'install')
     if tool_isolation_support is not None and any(tool not in TOOLS for tool in tool_isolation_support):
         raise LifecycleError("TX_TOOL_ROOTS", "Preview isolation support contains an unsupported tool key.")
     isolation: dict[str, Any] = {}
@@ -3203,10 +3371,40 @@ def make_preview_plan(
         "tool_isolation": isolation,
         "protected_roots": normalized_protected,
     }
+    if operation == 'update':
+        # Existing preview identity and surfaces must be proven before granting
+        # replacement of either surface. Never treat an arbitrary nonempty
+        # directory or an incomplete installation as an update baseline.
+        registry = _load_registry(lifecycle_root)
+        if registry is None or registry['lifecycle_state'] != 'stable' or registry['selected_tools'] != selected:
+            raise LifecycleError('TX_PREVIEW_UPDATE_BASELINE', 'Preview update requires a stable baseline and unchanged selected tools.')
+        manifest_path = Path(contract['manifest'])
+        _assert_no_reparse(root, manifest_path)
+        _assert_no_hardlink(manifest_path)
+        manifest = load_json(manifest_path)
+        if manifest.get('schema_version') not in {PREVIEW_CONTRACT_VERSION, 2}:
+            raise LifecycleError('TX_PREVIEW_UPDATE_BASELINE', 'Unsupported prior preview manifest.')
+        previous = next((item for item in registry['generations'] if item['state'] == 'active'), None)
+        if previous is None or classify_generation_id(previous['generation_id'])['kind'] != 'preview':
+            raise LifecycleError('TX_PREVIEW_UPDATE_BASELINE', 'Existing generation is not a preview.')
+        previous_root = _absolute(previous['root'])
+        if not _is_inside(lifecycle_root / 'generations', previous_root):
+            raise LifecycleError('TX_PREVIEW_UPDATE_BASELINE', 'Existing generation escapes the preview.')
+        for tool in selected:
+            discovery = resolve_discovery(isolation[tool]['discovery_root'], lifecycle_root=lifecycle_root)
+            if discovery['generation_id'] != previous['generation_id']:
+                raise LifecycleError('TX_PREVIEW_UPDATE_BASELINE', 'Tool discovery differs from preview registry.')
+        prior_context = {'preview_contract': {**contract, 'schema_version': manifest['schema_version']},
+                         'lifecycle_root': str(lifecycle_root), 'selected_tools': selected,
+                         'tool_roots': {tool: isolation[tool]['discovery_root'] for tool in selected},
+                         'target_generation_id': previous['generation_id'], 'target_version': previous['version']}
+        _verify_preview_surfaces(prior_context, previous_root)
+        contract['schema_version'] = 2
+        contract['surface_preimages'] = {key: file_sha256(Path(contract[key])) for key in ('global_boot', 'manifest')}
     source_kind = "repository" if repository_root is not None else "release-package"
     with _source_artifact_scope(release_root=release_root, repository_root=repository_root) as release:
         return _make_plan_resolved(
-            operation="install",
+            operation=operation,
             lifecycle_root=lifecycle_root,
             tool_roots={tool: isolation[tool]["discovery_root"] for tool in selected},
             release=release,
@@ -3307,8 +3505,17 @@ def _verify_plan_inputs(
     root = _absolute(context["lifecycle_root"])
     if _registry_digest(root) != context["registry_sha256"]:
         raise LifecycleError("TX_INPUT_DRIFT", "Installation registry changed after planning.", str(_registry_path(root)))
+    _require_v2_runtime_direction(_load_registry(root), context['target_version'], plan['operation'])
     if _global_boot_context(root) != context["global_boot"]:
         raise LifecycleError("TX_INPUT_DRIFT", "Configured global boot changed after planning.", context["global_boot"]["locator"])
+    if context.get('preview_contract', {}).get('surface_preimages'):
+        contract = context['preview_contract']
+        for key, expected in contract['surface_preimages'].items():
+            path = Path(contract[key])
+            _assert_no_reparse(Path(contract['preview_root']), path)
+            _assert_no_hardlink(path)
+            if not path.is_file() or file_sha256(path) != expected:
+                raise LifecycleError('TX_INPUT_DRIFT', 'Preview surface changed after planning.', str(path))
     generation_root = Path(context["generation_root"]) if context.get("generation_root") else None
     observed_generation_digest = _path_digest(generation_root) if generation_root is not None else "MISSING"
     if observed_generation_digest != context.get("target_generation_digest", observed_generation_digest):
@@ -3367,6 +3574,14 @@ def _verify_plan_inputs(
             )
         if modification["classification"] == "U4":
             raise LifecycleError("TX_U4_BLOCKED", "U4 safety-critical modification fails closed.", str(path))
+    if artifact is not None:
+        for tool, root_value in context['tool_roots'].items():
+            tool_root = Path(root_value)
+            installed = _projection_manifest(tool_root, tool)
+            previous = {entry['path'].casefold(): entry for entry in installed.get('entries', [])} if installed else {}
+            for entry in artifact['projections'][tool]['entries']:
+                if entry['mode'] == 'managed-block':
+                    _require_owned_managed_markers(_safe_target(tool_root, entry['path']), previous.get(entry['path'].casefold()))
     return artifact
 
 
@@ -3667,6 +3882,88 @@ def _modification_map(modifications: list[dict[str, Any]]) -> dict[str, dict[str
     return result
 
 
+def _check_bound_projection(target: Path, payload: bytes, modification: dict[str, Any]) -> bool:
+    """Accept the reviewed preimage or an already-written result, never drift."""
+    _assert_no_hardlink(target)
+    observed = _path_digest(target)
+    desired = sha256_bytes(payload)
+    expected = _modification_digest_ref(modification)
+    if observed == desired:
+        return False
+    if observed != expected:
+        raise LifecycleError('TX_PROJECTION_DRIFT', 'Projection changed since the reviewed plan; preserve it.', str(target))
+    return True
+
+
+def _write_bound_projection(target: Path, payload: bytes, modification: dict[str, Any]) -> None:
+    if _check_bound_projection(target, payload, modification):
+        _atomic_write(target, payload)
+
+
+def _require_owned_managed_markers(target: Path, previous: dict[str, Any] | None) -> None:
+    # A missing file can be recreated by an explicit repair; an existing file
+    # formerly carrying an owned block cannot silently become a first install.
+    if (previous and previous.get('mode') == 'managed-block' and target.exists()
+            and _managed_block_profile(target) != 'managed'):
+        raise LifecycleError('TX_MANAGED_MARKER',
+                             'Previously managed instruction markers are missing or damaged; preserve and review the file.', str(target))
+
+
+def _projection_payload(artifact, tool, root, entry, active_generation_root, modification, old_entries):
+    target = _safe_target(root, entry['path'])
+    boot_path = _safe_target(root, 'MALTS_BOOT.md')
+    decision = modification["decision"]
+    source = artifact["root"] / "projections" / tool / entry["source"]
+    merge_metadata = None
+    rendered_managed = None
+    if entry["mode"] == "managed-block":
+        _require_owned_managed_markers(target, old_entries.get(entry['path'].casefold()))
+        if decision not in {"replace", "merge"}:
+            raise LifecycleError("TX_PROJECTION_DECISION", "Required managed instruction projection must use replace or merge.", str(target))
+        rendered_managed = _render_managed_block(source.read_bytes(), boot_path, source)
+        payload, merge_metadata = _merge_managed_block(
+            target.read_bytes() if target.is_file() else None,
+            rendered_managed,
+        )
+        previous = old_entries.get(entry["path"].casefold())
+        if previous and previous.get("merge_metadata"):
+            merge_metadata = previous["merge_metadata"]
+    elif entry["mode"] == "boot-pointer":
+        if decision != "replace" or active_generation_root is None:
+            raise LifecycleError("TX_PROJECTION_DECISION", "Boot projection requires replace and an active generation root.", str(target))
+        template = source.read_text(encoding="utf-8-sig")
+        if template.count(ACTIVE_GENERATION_TOKEN) != 1:
+            raise LifecycleError("ARTIFACT_BOOT_POINTER", "Boot projection template token is missing or ambiguous.", str(source))
+        payload = template.replace(ACTIVE_GENERATION_TOKEN, str(_absolute(active_generation_root))).encode("utf-8")
+    else:
+        if decision != "replace":
+            raise LifecycleError("TX_PROJECTION_DECISION", "Required file projection must use replace.", str(target))
+        payload = source.read_bytes()
+    return payload, merge_metadata, rendered_managed
+
+
+def _preflight_projection_set(artifact, active_generation_root, tool_roots, operation, decisions):
+    for tool, root in tool_roots.items():
+        old = _projection_manifest(root, tool)
+        old_entries = {entry['path'].casefold(): entry for entry in old.get('entries', [])} if old else {}
+        desired = artifact['projections'][tool]['entries'] if artifact is not None and operation != 'uninstall' else []
+        for entry in desired:
+            target = _safe_target(root, entry['path'])
+            modification = decisions[os.path.normcase(str(_absolute(target))) ]
+            payload, _, _ = _projection_payload(artifact, tool, root, entry, active_generation_root, modification, old_entries)
+            _check_bound_projection(target, payload, modification)
+        desired_paths = {entry['path'].casefold() for entry in desired}
+        for name, entry in old_entries.items():
+            if name in desired_paths:
+                continue
+            target = _safe_target(root, entry['path'])
+            modification = decisions[os.path.normcase(str(_absolute(target)))]
+            if modification['decision'] != 'preserve' and target.exists():
+                _assert_no_hardlink(target)
+                if _path_digest(target) != _modification_digest_ref(modification):
+                    raise LifecycleError('TX_PROJECTION_DRIFT', 'Retiring projection changed; preserve it.', str(target))
+
+
 def _apply_projections(
     artifact: dict[str, Any] | None,
     generation_id: str | None,
@@ -3676,6 +3973,7 @@ def _apply_projections(
     modifications: list[dict[str, Any]],
 ) -> None:
     decisions = _modification_map(modifications)
+    _preflight_projection_set(artifact, active_generation_root, tool_roots, operation, decisions)
     for tool in tool_roots:
         root = tool_roots[tool]
         root.mkdir(parents=True, exist_ok=True)
@@ -3688,33 +3986,9 @@ def _apply_projections(
         for entry in desired:
             target = _safe_target(root, entry["path"])
             modification = decisions[os.path.normcase(str(_absolute(target)))]
-            decision = modification["decision"]
-            source = artifact["root"] / "projections" / tool / entry["source"]
-            merge_metadata = None
-            rendered_managed = None
-            if entry["mode"] == "managed-block":
-                if decision not in {"replace", "merge"}:
-                    raise LifecycleError("TX_PROJECTION_DECISION", "Required managed instruction projection must use replace or merge.", str(target))
-                rendered_managed = _render_managed_block(source.read_bytes(), boot_path, source)
-                payload, merge_metadata = _merge_managed_block(
-                    target.read_bytes() if target.is_file() else None,
-                    rendered_managed,
-                )
-                previous = old_entries.get(entry["path"].casefold())
-                if previous and previous.get("merge_metadata"):
-                    merge_metadata = previous["merge_metadata"]
-            elif entry["mode"] == "boot-pointer":
-                if decision != "replace" or active_generation_root is None:
-                    raise LifecycleError("TX_PROJECTION_DECISION", "Boot projection requires replace and an active generation root.", str(target))
-                template = source.read_text(encoding="utf-8-sig")
-                if template.count(ACTIVE_GENERATION_TOKEN) != 1:
-                    raise LifecycleError("ARTIFACT_BOOT_POINTER", "Boot projection template token is missing or ambiguous.", str(source))
-                payload = template.replace(ACTIVE_GENERATION_TOKEN, str(_absolute(active_generation_root))).encode("utf-8")
-            else:
-                if decision != "replace":
-                    raise LifecycleError("TX_PROJECTION_DECISION", "Required file projection must use replace.", str(target))
-                payload = source.read_bytes()
-            _atomic_write(target, payload)
+            payload, merge_metadata, rendered_managed = _projection_payload(
+                artifact, tool, root, entry, active_generation_root, modification, old_entries)
+            _write_bound_projection(target, payload, modification)
             installed_entry = {
                 "path": entry["path"],
                 "mode": entry["mode"],
@@ -3802,8 +4076,10 @@ def _verify_projections(artifact: dict[str, Any] | None, tool_roots: dict[str, P
                     raise LifecycleError("TX_POSTVALIDATE", "Rendered managed instruction verification failed.", str(target))
 
 
-def _activate(root: Path, artifact: dict[str, Any] | None, context: dict[str, Any], operation: str, transaction_root: Path) -> None:
+def _activate(root: Path, artifact: dict[str, Any] | None, context: dict[str, Any], operation: str, transaction_root: Path,
+              *, reuse_verified_target: bool = False) -> None:
     registry = _load_registry(root) or _initial_registry(root, _now(), context["selected_tools"])
+    _require_v2_runtime_direction(registry, context['target_version'], operation)
     if operation == "uninstall":
         for item in registry["generations"]:
             if item["state"] == "active":
@@ -3823,7 +4099,10 @@ def _activate(root: Path, artifact: dict[str, Any] | None, context: dict[str, An
     staging = Path(context["staging_root"])
     generations_root = root / "generations"
     generations_root.mkdir(parents=True, exist_ok=True)
-    if target.exists():
+    if reuse_verified_target:
+        verify_installed_generation_envelope(target)
+        _verify_stage(artifact, context['release_identity'], context['source_kind'], target)
+    elif target.exists():
         if operation not in {"repair", "finalize"}:
             raise LifecycleError(
                 "TX_GENERATION_COLLISION",
@@ -3831,7 +4110,8 @@ def _activate(root: Path, artifact: dict[str, Any] | None, context: dict[str, An
                 str(target),
             )
         _remove_managed(generations_root, target)
-    os.replace(staging, target)
+    if not reuse_verified_target:
+        os.replace(staging, target)
     old_records = [item for item in registry["generations"] if item["generation_id"] != context["target_generation_id"]]
     for item in old_records:
         item["state"] = "retiring"
@@ -3849,8 +4129,8 @@ def _activate(root: Path, artifact: dict[str, Any] | None, context: dict[str, An
         "projection_manifests": [f"projection:{tool}:{context['target_generation_id']}" for tool in context["selected_tools"]],
         "created_at": _now(),
     }
-    # Stable updates retain prior immutable generations as retiring records so
-    # rollback remains an explicit, verifiable operation rather than a claim.
+    # Retained generations preserve provenance. Retention does not authorize
+    # reactivating a legacy runtime after v2 adoption.
     registry["generations"] = [*old_records, new_record]
     registry["active_generation_id"] = context["target_generation_id"]
     registry["lifecycle_state"] = "transaction-active"
@@ -3884,7 +4164,23 @@ def _allowed_cleanup_roots(context: dict[str, Any]) -> list[Path]:
     return roots
 
 
-def _obsolete_generation_references(root: Path, context: dict[str, Any]) -> list[dict[str, str]]:
+def _generation_reference_token_kinds(texts, binding):
+    matched_kinds = []
+    for token_kind in ("generation_id", "root"):
+        token = binding[token_kind]
+        if token_kind == "root":
+            normalized = str(token).replace("\\", "/").rstrip("/")
+            pattern = re.compile(re.escape(normalized) + r"(?![A-Za-z0-9._-])", re.IGNORECASE)
+            matched = bool(normalized) and any(pattern.search(value.replace("\\", "/")) for value in texts)
+        else:
+            pattern = re.compile(r"(?<![A-Za-z0-9._-])" + re.escape(token) + r"(?![A-Za-z0-9._-])")
+            matched = bool(token) and any(pattern.search(value) for value in texts)
+        if matched:
+            matched_kinds.append(token_kind)
+    return matched_kinds
+
+
+def _obsolete_generation_references(root: Path, context: dict[str, Any], *, reference_surfaces=None) -> list[dict[str, str]]:
     references: list[dict[str, str]] = []
     bindings = context.get("obsolete_generation_bindings", [])
     if not bindings:
@@ -3904,6 +4200,8 @@ def _obsolete_generation_references(root: Path, context: dict[str, Any]) -> list
                 (f"{tool}-boot", tool_root / "MALTS_BOOT.md"),
             )
         )
+    if reference_surfaces is not None:
+        surfaces = list(reference_surfaces)
     for surface, path in surfaces:
         if not path.is_file():
             continue
@@ -3911,11 +4209,32 @@ def _obsolete_generation_references(root: Path, context: dict[str, Any]) -> list
             text = path.read_text(encoding="utf-8-sig")
         except UnicodeDecodeError as exc:
             raise LifecycleError("TX_OLD_GENERATION_REFERENCE_SCAN", "Managed reference surface is not valid UTF-8.", str(path)) from exc
+        texts = [text]
+        if path.suffix.lower() == ".json":
+            try:
+                def unique_fields(items):
+                    value = {}
+                    for key, item in items:
+                        if key in value:
+                            raise ValueError("Duplicate reference field")
+                        value[key] = item
+                    return value
+                pending = [json.loads(text, object_pairs_hook=unique_fields)]
+                texts = []
+                while pending:
+                    value = pending.pop()
+                    if isinstance(value, str):
+                        texts.append(value)
+                    elif isinstance(value, dict):
+                        pending.extend(value.keys())
+                        pending.extend(value.values())
+                    elif isinstance(value, list):
+                        pending.extend(value)
+            except (ValueError, RecursionError) as exc:
+                raise LifecycleError("TX_OLD_GENERATION_REFERENCE_SCAN", "Managed reference surface is not valid JSON.", str(path)) from exc
         for binding in bindings:
-            for token_kind in ("generation_id", "root"):
-                token = binding[token_kind]
-                if token and token in text:
-                    references.append({"surface": surface, "path": str(path), "token_kind": token_kind, "token": token})
+            for token_kind in _generation_reference_token_kinds(texts, binding):
+                references.append({"surface": surface, "path": str(path), "token_kind": token_kind, "token": binding[token_kind]})
     return references
 
 
@@ -3974,7 +4293,8 @@ def _clean(root: Path, context: dict[str, Any], operation: str, transaction_root
     # Finalization intentionally removes retiring records from the registry in
     # this function.  Scanning before that removal would find those records
     # themselves and falsely block an otherwise safe cleanup.
-    if operation != "finalize":
+    v2_finalize = operation == 'finalize' and context.get('target_version', '').split('.')[0] == '2'
+    if operation != "finalize" or v2_finalize:
         _assert_obsolete_generations_unreferenced(root, context)
     registry = _load_registry(root) or _initial_registry(root, _now(), context["selected_tools"])
     active_id = registry["active_generation_id"]
@@ -3985,7 +4305,7 @@ def _clean(root: Path, context: dict[str, Any], operation: str, transaction_root
                 _remove_managed(root / "generations", path)
         registry["generations"] = []
         registry["lifecycle_state"] = "uninstalled"
-    elif operation == "finalize":
+    elif operation == "finalize" and not v2_finalize:
         retiring = {os.path.normcase(str(_absolute(path))) for path in context["expected_cleanup"]}
         registry["generations"] = [
             item for item in registry["generations"]
@@ -3998,9 +4318,8 @@ def _clean(root: Path, context: dict[str, Any], operation: str, transaction_root
             if path.parent == root / "generations" and path.exists():
                 _remove_managed(root / "generations", path)
     else:
-        # Keep retiring immutable generations registered and on disk.  A later
-        # explicit update selects one as its target to perform a rollback.
-        # Retention cleanup belongs only to an explicit uninstall policy.
+        # Keep immutable historical generations for provenance. Any later
+        # activation must still satisfy the v2-only runtime direction.
         if not any(item["generation_id"] == active_id for item in registry["generations"]):
             raise LifecycleError("TX_ACTIVE_GENERATION_MISSING", "The active generation is absent from the installation registry.")
     registry["updated_at"] = _now()
@@ -5036,6 +5355,7 @@ def _restore_snapshot(root: Path, tool_roots: dict[str, Path], transaction_root:
     snapshot = transaction_root / "snapshot"
     if not snapshot.is_dir():
         return
+    _require_snapshot_runtime_direction(root, transaction_root)
     meta = load_json(snapshot / "snapshot_meta.json")
     generations = root / "generations"
     if generations.exists():
@@ -5153,7 +5473,16 @@ def _archive_failure(root: Path, context: dict[str, Any], journal: dict[str, Any
             _release_lock(root, context["operation_id"])
 
 
+def _require_snapshot_runtime_direction(root: Path, transaction_root: Path) -> None:
+    registry_path = transaction_root / 'snapshot' / 'registry.json'
+    if registry_path.is_file():
+        previous = load_json(registry_path)
+        active = next((item for item in previous['generations'] if item['state'] == 'active'), None)
+        _require_v2_runtime_direction(_load_registry(root), active['version'] if active else None, 'restore')
+
+
 def _rollback(root: Path, context: dict[str, Any], journal: dict[str, Any], envelope: dict[str, Any], transaction_root: Path, *, fault_at: str | None = None) -> dict[str, Any]:
+    _require_snapshot_runtime_direction(root, transaction_root)
     state_before_rollback = journal["state"]
     if journal["state"] not in {"DISCOVER", "LOCK"} and journal["state"] != "ROLLBACK":
         _set_state(transaction_root, journal, "ROLLBACK", evidence="lifecycle:rollback", fault_at=fault_at)
@@ -5188,11 +5517,27 @@ def scan_residue(
     issues: list[dict[str, Any]] = []
     registry = _load_registry(root)
     active: list[dict[str, Any]] = []
+    # A malformed derived projection is a residue finding, not a failure to
+    # inspect core trust. Keep scanning the other tools and core surfaces.
+    # Unknown failures still propagate; the scanner remains FAIL on findings.
+    projections: dict[str, dict[str, Any] | None] = {}
+    for tool, tool_root in normalized_tools.items():
+        try:
+            projections[tool] = _projection_manifest(tool_root, tool)
+        except LifecycleError as exc:
+            if exc.code not in {"PROJECTION_MANIFEST_INVALID", "TX_JSON_INVALID"}:
+                raise
+            projections[tool] = None
+            issues.append({
+                "code": "RS_PROJECTION_INVALID",
+                "path": str(tool_root / PROJECTION_MANIFEST),
+                "cause": exc.code,
+            })
     if registry is None:
         has_managed_install = (root / "generations").is_dir() and any((root / "generations").iterdir())
         has_managed_install = has_managed_install or _pointer_path(root).exists()
         has_managed_install = has_managed_install or any(
-            _projection_manifest(tool_root, tool) is not None
+            projections[tool] is not None or (tool_root / PROJECTION_MANIFEST).exists()
             for tool, tool_root in normalized_tools.items()
         )
         if has_managed_install:
@@ -5272,7 +5617,7 @@ def scan_residue(
                     preserved.append({"path": str(Path(observation["locator"]) / Path(relative)), "owner": "unknown", "reason": "path is outside the trusted legacy manifest"})
 
     for tool, tool_root in normalized_tools.items():
-        manifest = _projection_manifest(tool_root, tool)
+        manifest = projections[tool]
         if registry and registry["lifecycle_state"] == "uninstalled":
             if manifest is not None:
                 issues.append({"code": "RS_PROJECTION_MANIFEST", "path": str(tool_root / PROJECTION_MANIFEST)})
@@ -5329,6 +5674,7 @@ def _execute_plan_with_artifact(
     apply: bool,
     artifact: dict[str, Any] | None,
     fault_at: str | None = None,
+    _runtime_mutex_owned: bool = False,
 ) -> dict[str, Any]:
     plan, context = validate_plan_envelope(envelope)
     artifact = _verify_plan_inputs(plan, context, expected_plan_hash, artifact)
@@ -5345,6 +5691,13 @@ def _execute_plan_with_artifact(
         return {"status": "PASS", "mode": "DRY_RUN", "operation_id": plan["operation_id"], "plan_hash": plan["plan_hash"], "writes_performed": False}
     root = _absolute(context["lifecycle_root"])
     root.mkdir(parents=True, exist_ok=True)
+    if not _runtime_mutex_owned:
+        from v2_runtime_mutex import RuntimeMutex
+        with RuntimeMutex(root):
+            # Revalidate inside exclusion. Abandonment never waives durable
+            # lifecycle transaction/lock checks performed by the normal path.
+            return _execute_plan_with_artifact(envelope,expected_plan_hash,apply=apply,
+                artifact=artifact,fault_at=fault_at,_runtime_mutex_owned=True)
     for relative in ("registry", "generations", "runtime", "state", "user-data"):
         (root / relative).mkdir(parents=True, exist_ok=True)
     transaction_root = _transaction_root(context)
@@ -5354,6 +5707,7 @@ def _execute_plan_with_artifact(
     write_json(_plan_path(transaction_root), envelope)
     journal = _new_journal(plan, _now())
     write_json(_journal_path(transaction_root), journal)
+    v2_activation_started = False
     try:
         _set_state(transaction_root, journal, "DISCOVER", evidence="lifecycle:discover", fault_at=fault_at)
         lock_result = _acquire_lock(root, plan["operation_id"], _now())
@@ -5390,6 +5744,8 @@ def _execute_plan_with_artifact(
             )
         _verify_plan_inputs(plan, context, expected_plan_hash, artifact)
         _set_state(transaction_root, journal, "PREVALIDATE", evidence="lifecycle:prevalidate", fault_at=fault_at)
+        v2_activation_started = (context.get('target_version', '').split('.')[0] == '2'
+                                 and plan['operation'] in {'install', 'update', 'repair', 'finalize'})
         _activate(root, artifact, context, plan["operation"], transaction_root)
         _set_state(transaction_root, journal, "ACTIVATE", evidence="lifecycle:activate", fault_at=fault_at)
         active_generation_root = Path(context["generation_root"]) if context["generation_root"] else None
@@ -5448,6 +5804,12 @@ def _execute_plan_with_artifact(
     except InjectedCrash:
         raise
     except Exception as operation_exc:
+        if v2_activation_started:
+            raise LifecycleError(
+                'TX_V2_FORWARD_RECOVERY_REQUIRED',
+                'V2 activation started; preserve the transaction and reconcile forward. Automatic rollback was not performed.',
+                str(transaction_root),
+            ) from operation_exc
         try:
             current = load_json(_journal_path(transaction_root)) if _journal_path(transaction_root).is_file() else journal
             _rollback(root, context, current, envelope, transaction_root)
@@ -5508,11 +5870,203 @@ def _load_transaction(root: Path, operation_id: str | None = None) -> tuple[Path
 
 
 def recover_transaction(root_value: str | Path, *, operation_id: str | None = None, fault_at: str | None = None) -> dict[str, Any]:
+    from v2_runtime_mutex import RuntimeMutex
+    with RuntimeMutex(_absolute(root_value)):
+        return _recover_transaction_exclusive(root_value,operation_id=operation_id,fault_at=fault_at)
+
+
+def _reviewed_previous_pointer(root: Path, context: dict[str, Any]) -> bytes:
+    snapshot = Path(context['snapshot_root'])
+    registry_path = snapshot / 'registry.json'
+    previous_path = snapshot / 'pointer.json'
+    pointer_path = _pointer_path(root)
+    for base, path in ((snapshot, registry_path), (snapshot, previous_path), (root, pointer_path)):
+        _assert_no_reparse(base, path)
+        _assert_no_hardlink(path)
+    if file_sha256(registry_path) != context['registry_sha256']:
+        raise LifecycleError('TX_RECOVERY_BINDING', 'Original registry snapshot changed.')
+    registry = load_json(registry_path)
+    records = [r for r in registry['generations'] if r['state'] == 'active']
+    previous = load_json(previous_path)
+    if len(records) != 1 or registry['active_generation_id'] != previous['generation_id']:
+        raise LifecycleError('TX_RECOVERY_BINDING', 'Original pointer has no unique registry binding.')
+    for key in ('generation_id', 'version', 'artifact_sha256', 'release_id', 'release_manifest_sha256',
+                'release_package_sha256', 'generation_manifest_sha256'):
+        if previous[key] != records[0][key]:
+            raise LifecycleError('TX_RECOVERY_BINDING', 'Original pointer identity changed.')
+    if not _same_locator(previous['root'], records[0]['root']):
+        raise LifecycleError('TX_RECOVERY_BINDING', 'Original pointer root changed.')
+    data = previous_path.read_bytes()
+    if pointer_path.read_bytes() != data:
+        raise LifecycleError('TX_RECOVERY_BINDING', 'Current pointer is not the reviewed previous pointer.')
+    return data
+
+
+def _verify_postvalidated_v2_target(root: Path, context: dict[str, Any], *, verify_surfaces: bool = True,
+                                  complete_missing_pointer: bool = False) -> None:
+    """Revalidate the bound destination before resuming a v2 installation."""
+    target = Path(context['generation_root'])
+    envelope = verify_installed_generation_envelope(target)
+    manifest = envelope['generation_manifest']
+    if (manifest['generation_id'] != context['target_generation_id'] or
+            manifest['version'] != context['target_version'] or
+            manifest['artifact_sha256'] != context['artifact_sha256']):
+        raise LifecycleError('TX_RECOVERY_BINDING', 'Installed target differs from the recovery plan.')
+    pointer_path = _pointer_path(root)
+    _assert_no_reparse(root, pointer_path)
+    missing_pointer = not pointer_path.exists()
+    if missing_pointer and not complete_missing_pointer:
+        raise LifecycleError('TX_RECOVERY_BINDING', 'Runtime pointer is missing; activation reconciliation is required.')
+    pointer = load_json(pointer_path) if not missing_pointer else None
+    previous_pointer = None
+    if (pointer is not None and complete_missing_pointer
+            and not _binding_matches(pointer, context['release_identity'])):
+        previous_pointer = _reviewed_previous_pointer(root, context)
+    registry = _load_registry(root)
+    active = [item for item in registry['generations'] if item['state'] == 'active']
+    if (len(active) != 1 or registry['active_generation_id'] != context['target_generation_id'] or
+            active[0]['generation_id'] != context['target_generation_id']):
+        raise LifecycleError('TX_RECOVERY_BINDING', 'Active registry differs from the recovery plan.')
+    for record in ([active[0]] if missing_pointer or previous_pointer is not None else [pointer, active[0]]):
+        if (record['artifact_sha256'] != context['artifact_sha256'] or
+                record['version'] != context['target_version'] or
+                record['generation_id'] != context['target_generation_id'] or
+                not _same_locator(record['root'], target)):
+            raise LifecycleError('TX_RECOVERY_BINDING', 'Runtime pointer or registry target changed.')
+        for key in ('release_id', 'release_manifest_sha256', 'release_package_sha256', 'generation_manifest_sha256'):
+            if record[key] != context['release_identity'][key]:
+                raise LifecycleError('TX_RECOVERY_BINDING', 'Runtime release identity changed.')
+    kind = context.get('source_kind', 'release-package')
+    with _source_artifact_scope(
+            release_root=context['release_root'] if kind == 'release-package' else None,
+            repository_root=context.get('repository_root') if kind == 'repository' else None) as source:
+        if source is None or source['artifact']['artifact_sha256'] != context['artifact_sha256']:
+            raise LifecycleError('TX_RECOVERY_BINDING', 'Recovery source differs from the bound artifact.')
+        if verify_surfaces:
+            _verify_projections(source['artifact'], {tool: Path(path) for tool, path in context['tool_roots'].items()}, context['operation'])
+    _verify_global_boot(context['global_boot'], target, context['operation'])
+    if verify_surfaces:
+        _verify_preview_surfaces(context, target)
+    if missing_pointer or previous_pointer is not None:
+        expected = {'schema_version': 1, 'generation_id': context['target_generation_id'],
+                    'version': context['target_version'], 'root': str(target),
+                    'artifact_sha256': context['artifact_sha256']}
+        expected.update({key: context['release_identity'][key] for key in
+                         ('release_id', 'release_manifest_sha256', 'release_package_sha256', 'generation_manifest_sha256')})
+        # Exclusive creation cannot replace a pointer another writer supplied.
+        # An interrupted partial write stays invalid and requires explicit repair.
+        if previous_pointer is not None:
+            if pointer_path.read_bytes() != previous_pointer:
+                raise LifecycleError('TX_RECOVERY_BINDING', 'Pointer changed during forward recovery.')
+            _atomic_write(pointer_path, json_bytes(expected))
+        else:
+            with pointer_path.open('xb') as stream:
+                stream.write(json_bytes(expected))
+                stream.flush()
+                os.fsync(stream.fileno())
+
+
+def _resume_v2_activation_before_registry(root: Path, context: dict[str, Any], transaction: Path) -> None:
+    """Complete activation only while the reviewed registry preimage remains."""
+    if _registry_digest(root) != context['registry_sha256']:
+        raise LifecycleError('TX_RECOVERY_BINDING', 'Registry changed before activation recovery.')
+    pointer = _pointer_path(root)
+    snapshot_pointer = transaction / 'snapshot' / 'pointer.json'
+    snapshot_meta = transaction / 'snapshot' / 'snapshot_meta.json'
+    snapshot_registry = transaction / 'snapshot' / 'registry.json'
+    for base, path in ((root, pointer), (transaction, snapshot_pointer),
+                       (transaction, snapshot_meta), (transaction, snapshot_registry)):
+        _assert_no_reparse(base, path)
+        _assert_no_hardlink(path)
+    meta = load_json(snapshot_meta)
+    if (type(meta.get('pointer_exists')) is not bool or type(meta.get('registry_exists')) is not bool
+            or meta['pointer_exists'] != snapshot_pointer.is_file()
+            or meta['registry_exists'] != snapshot_registry.is_file()):
+        raise LifecycleError('TX_RECOVERY_BINDING', 'Activation snapshot is incomplete or inconsistent.')
+    saved_registry_digest = file_sha256(snapshot_registry) if meta['registry_exists'] else 'MISSING'
+    if saved_registry_digest != context['registry_sha256']:
+        raise LifecycleError('TX_RECOVERY_BINDING', 'Activation snapshot registry differs from the reviewed plan.')
+    original = snapshot_pointer.read_bytes() if snapshot_pointer.is_file() else None
+    observed = pointer.read_bytes() if pointer.is_file() else None
+    if observed != original:
+        raise LifecycleError('TX_RECOVERY_BINDING', 'Pointer changed since the activation snapshot.')
+    kind = context.get('source_kind', 'release-package')
+    with _source_artifact_scope(
+            release_root=context['release_root'] if kind == 'release-package' else None,
+            repository_root=context.get('repository_root') if kind == 'repository' else None) as source:
+        if source is None or source['artifact']['artifact_sha256'] != context['artifact_sha256']:
+            raise LifecycleError('TX_RECOVERY_BINDING', 'Activation recovery source differs.')
+        target = Path(context['generation_root'])
+        reuse_target = target.exists()
+        location = target if reuse_target else Path(context['staging_root'])
+        if reuse_target and context['operation'] == 'finalize':
+            try:
+                _verify_stage(source['artifact'], context['release_identity'], kind, target)
+            except LifecycleError:
+                # Before activation the reviewed older same-version target may
+                # still be present. Replace only its exact snapshotted preimage.
+                saved = transaction / 'snapshot' / 'generations' / target.name
+                _assert_no_reparse(transaction, saved)
+                if (_path_digest(target) != context['target_generation_digest']
+                        or _path_digest(saved) != context['target_generation_digest']):
+                    raise LifecycleError('TX_RECOVERY_BINDING', 'Finalize target or retained preimage changed.')
+                location = Path(context['staging_root'])
+                reuse_target = False
+        verify_installed_generation_envelope(location)
+        _verify_stage(source['artifact'], context['release_identity'], kind, location)
+        _activate(root, source['artifact'], context, context['operation'], transaction,
+                  reuse_verified_target=reuse_target)
+
+
+def _recover_transaction_exclusive(root_value: str | Path, *, operation_id: str | None = None, fault_at: str | None = None) -> dict[str, Any]:
     root = _absolute(root_value)
     transaction_root, envelope, context, journal = _load_transaction(root, operation_id)
     plan = envelope["plan_contract"]
+    _require_v2_runtime_direction(_load_registry(root), context['target_version'], plan['operation'])
     tool_roots = {tool: Path(value) for tool, value in context["tool_roots"].items()}
+    for tool, tool_root in tool_roots.items():
+        installed = _projection_manifest(tool_root, tool)
+        for entry in installed.get('entries', []) if installed else []:
+            if entry.get('mode') == 'managed-block':
+                _require_owned_managed_markers(_safe_target(tool_root, entry['path']), entry)
     state = journal["state"]
+    if (context.get('target_version', '').split('.')[0] == '2'
+            and plan['operation'] in {'install', 'update', 'repair', 'finalize'}
+            and state in {'FAILED', 'ROLLBACK'}):
+        raise LifecycleError('TX_V2_FORWARD_RECOVERY_REQUIRED',
+                             'Preserve the interrupted v2 activation for forward reconciliation.', str(transaction_root))
+    if (state in {'PREVALIDATE', 'ACTIVATE', 'POSTVALIDATE', 'CLEAN', 'COMMIT'} and plan['operation'] in {'install', 'update', 'repair', 'finalize'}
+            and context.get('target_version', '').split('.')[0] == '2'):
+        # Verification failures retain the interrupted transaction. Never fall
+        # back to reactivating a legacy runtime after a v2 target was validated.
+        if state == 'PREVALIDATE':
+            # Activation can finish before its journal update. Require full
+            # target identity before acknowledging that unrecorded transition.
+            if _registry_digest(root) == context.get('registry_sha256'):
+                _resume_v2_activation_before_registry(root, context, transaction_root)
+            _verify_postvalidated_v2_target(root, context, verify_surfaces=False, complete_missing_pointer=True)
+            _set_state(transaction_root, journal, 'ACTIVATE', evidence='recovery:v2-activation-revalidated', fault_at=fault_at)
+            state = 'ACTIVATE'
+        if state == 'ACTIVATE':
+            _verify_postvalidated_v2_target(root, context, verify_surfaces=False)
+            target = Path(context['generation_root'])
+            _write_preview_surfaces(context, target, preflight_only=True)
+            kind = context.get('source_kind', 'release-package')
+            with _source_artifact_scope(
+                    release_root=context['release_root'] if kind == 'release-package' else None,
+                    repository_root=context.get('repository_root') if kind == 'repository' else None) as source:
+                if source is None or source['artifact']['artifact_sha256'] != context['artifact_sha256']:
+                    raise LifecycleError('TX_RECOVERY_BINDING', 'Recovery source changed.')
+                _apply_projections(source['artifact'], context['target_generation_id'], target,
+                                   tool_roots, plan['operation'], plan['user_modifications'])
+            _write_preview_surfaces(context, target)
+        _verify_postvalidated_v2_target(root, context)
+        if state == 'ACTIVATE':
+            _set_state(transaction_root, journal, 'POSTVALIDATE', evidence='recovery:v2-projections-revalidated', fault_at=fault_at)
+            state = 'POSTVALIDATE'
+        if state == 'POSTVALIDATE':
+            _set_state(transaction_root, journal, 'CLEAN', evidence='recovery:v2-target-revalidated', fault_at=fault_at)
+            state = 'CLEAN'
     if state in {"CLEAN", "COMMIT"}:
         if state == "CLEAN":
             cleanup_result = _clean(root, context, plan["operation"], transaction_root)
@@ -5695,7 +6249,7 @@ def doctor(
                     external_required=True,
                 )
             try:
-                installed = verify_installed_generation_envelope(active_root)
+                installed = verify_installed_generation_envelope(active_root, diagnostic_caches=True)
             except LifecycleError as exc:
                 add_mismatch(
                     "DOC_ACTIVE_ENVELOPE_INVALID",
@@ -5709,6 +6263,14 @@ def doctor(
                     external_required=True,
                 )
             else:
+                if installed["verified_derived_caches"]:
+                    add_mismatch(
+                        "DOC_VERIFIED_DERIVED_CACHE", severity="WARNING", surface="active-generation-cache",
+                        expected_locator=active_root, observed_locator=active_root,
+                        expected="no extra derived cache files",
+                        observed=canonical_json(installed["verified_derived_caches"]).decode("utf-8"),
+                        trust_impact="DERIVED_ONLY",
+                    )
                 generation = installed["generation_manifest"]
                 release_identity = installed["release_identity"]
                 expected_binding = {
@@ -6162,7 +6724,7 @@ def _add_tool_root_argument(parser: argparse.ArgumentParser) -> None:
         metavar="TOOL=ABSOLUTE_PATH",
         help=(
             "Repeat --tool-root once per selected tool using a case-sensitive ID: "
-            "codex, claude-code, or opencode."
+            "codex, claude-code, opencode, or deepseek-harness."
         ),
     )
 
@@ -6186,6 +6748,7 @@ def build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--apply", action="store_true")
 
     preview_plan = subparsers.add_parser("preview-plan")
+    preview_plan.add_argument('--operation', choices=('install', 'update'), default='install')
     preview_plan.add_argument("--preview-root")
     preview_plan.add_argument("--release-root")
     preview_plan.add_argument("--repository-root")
@@ -6205,7 +6768,7 @@ def build_parser() -> argparse.ArgumentParser:
     recover = subparsers.add_parser("recover")
     recover.add_argument("--lifecycle-root", required=True)
     recover.add_argument("--operation-id")
-    recover.add_argument("--fault-at", choices=("ROLLBACK", "COMMIT", "AUDIT_WRITE", "AUDIT_PRUNE"))
+    recover.add_argument("--fault-at", choices=("POSTVALIDATE", "CLEAN", "ROLLBACK", "COMMIT", "AUDIT_WRITE", "AUDIT_PRUNE"))
     recover.add_argument("--apply", action="store_true")
 
     scan = subparsers.add_parser("scan")
@@ -6275,6 +6838,7 @@ def main(argv: list[str] | None = None) -> int:
             result = {"status": "PASS", "mode": "APPLY" if args.apply else "DRY_RUN", "writes_performed": args.apply, "plan_hash": envelope["plan_contract"]["plan_hash"], "plan": envelope}
         elif args.command == "preview-plan":
             envelope = make_preview_plan(
+                operation=args.operation,
                 preview_root=args.preview_root,
                 release_root=args.release_root,
                 repository_root=args.repository_root,
@@ -6305,7 +6869,18 @@ def main(argv: list[str] | None = None) -> int:
             if not args.apply:
                 root = _absolute(args.lifecycle_root)
                 transaction_root, envelope, context, journal = _load_transaction(root, args.operation_id)
-                result = {"status": "PASS", "mode": "DRY_RUN", "writes_performed": False, "operation_id": context["operation_id"], "current_state": journal["state"], "planned_recovery": "resume-commit" if journal["state"] in {"CLEAN", "COMMIT"} else "rollback"}
+                state = journal['state']
+                v2_forward = (context.get('target_version', '').split('.')[0] == '2'
+                              and envelope['plan_contract']['operation'] in {'install', 'update', 'repair', 'finalize'})
+                if state in {'CLEAN', 'COMMIT'}:
+                    recovery_mode = 'resume-commit'
+                elif v2_forward and state in {'PREVALIDATE', 'ACTIVATE', 'POSTVALIDATE'}:
+                    recovery_mode = 'resume-forward'
+                elif v2_forward and state in {'FAILED', 'ROLLBACK'}:
+                    recovery_mode = 'manual-forward-reconciliation'
+                else:
+                    recovery_mode = 'rollback'
+                result = {"status": "PASS", "mode": "DRY_RUN", "writes_performed": False, "operation_id": context["operation_id"], "current_state": state, "planned_recovery": recovery_mode}
             else:
                 result = recover_transaction(args.lifecycle_root, operation_id=args.operation_id, fault_at=args.fault_at)
                 result["mode"] = "APPLY"

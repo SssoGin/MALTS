@@ -5,19 +5,20 @@ description: Initialize or structurally refresh MALTS-aware project instructions
 
 # MALTS Project Init
 
-Initialize a workspace with project-level Agent instructions and MALTS control files while preserving the user's execution gate: read-only discovery first, plan second, explicit authorization third, writes last.
+Initialize or refresh project instructions and MALTS controls within the user's request and approved scope. Inspect the target and explain the intended change; reuse existing authorization for the necessary local implementation and verification.
 
-## Non-Negotiable Gate
+## Authorization and continuation
 
-- Treat read-only inspection as allowed.
-- Before any file write, edit, delete, move, dependency install, generated artifact, long-running service, git state change, remote write, or sub-agent dispatch, show a concrete plan and wait for explicit user authorization.
-- Accept authorization only when it responds to the latest concrete plan and uses words such as "执行", "确认执行", "确认", "继续", "直接做", "都做了", `确认运行`, or an equivalent explicit approval.
-- If the user only asks what init does, whether it is needed, or how it differs from Claude Code `/init`, answer without writing files.
-- If additional work is discovered outside the approved plan, stop and ask for a new authorization.
+- Inspection, explanation and plan-only requests remain read-only. An implementation or initialization request authorizes the necessary local work within its stated goal and scope.
+- Interpret authorization by meaning and conversation context. Do not require a fixed phrase or a second response to a newly restated plan when the scope is already approved.
+- Preserve unrelated user content. Explain the concrete touch set and validation, then continue approved work. Pause only the affected action for a material unresolved decision, scope expansion or an external/destructive effect not already authorized.
+- Git mutation, publication, paid requests, credentials, Agent dispatch and unattended operation still require corresponding authorization; the initializer does not grant them.
 
 ## Invocation Boundary
 
 This Skill is an initializer and structural-maintenance workflow, not a per-task startup ritual.
+
+First identify the selected workspace contract. For an already adopted v2 workspace, verify its binding through the selected runtime's `tools/malts_v2.py workspace --workspace <root>` and continue with `skills/v2/malts-v2-task-workflow/SKILL.md`. Do not apply the Markdown-control initialization steps below to that store or rebuild a legacy writable authority. A missing/conflicting v2 binding requires the v2 recovery path, not fallback initialization. For explicitly selected new v2 setup, follow the candidate usage guide's actual initialization sequence; this legacy control initializer does not create a v2 store. The workflow below remains for an explicitly selected pre-adoption control workspace. A native v2 store is entered with `workspace --workspace <state-directory>`; no migration binding is fabricated. `NATIVE_WORKSPACE` distinguishes TASK_ONLY from LONG_PROJECT and reports phase_ready. For a new long project, finish the explicit Project/Phase setup and check phase_ready before treating initialization as complete; do not create a Session or Artifact automatically.
 
 - First setup, missing project controls, an explicit instruction refresh, or a major lifecycle/profile change may use the full workflow below.
 - An already initialized long workspace uses `malts-long-project-workspace-init`'s read-only `workspace-entry` path for ordinary unchanged work. Do not reread all initialization templates, recreate files, or refresh timestamps merely because a new task arrived.
@@ -44,8 +45,6 @@ For MALTS-enabled project initialization, read the shared skills, templates, and
 
 ```text
 <MALTS_ROOT>\README.md
-<MALTS_ROOT>\skills\grill-me-preflight\SKILL.md
-<MALTS_ROOT>\skills\multi-agent-long-task-scheduling\SKILL.md
 <MALTS_ROOT>\skills\malts-project-init\SKILL.md
 <MALTS_ROOT>\runtime\EN\templates\PROJECT_CONTROL.template.en.md
 <MALTS_ROOT>\runtime\EN\checklists\QUALITY_GATE.en.md
@@ -89,13 +88,13 @@ For a Simplified Chinese user or Chinese-facing workspace:
 
 ### 3. Offer Preflight When Appropriate
 
-For non-trivial project starts, offer MALTS-native Grill-Me Preflight from:
+When the user requests an interview or a material decision gap remains after inspection, use MALTS-native Grill-Me Preflight from:
 
 ```text
 <MALTS_ROOT>\skills\grill-me-preflight\SKILL.md
 ```
 
-Explain briefly that it exposes hidden assumptions, goal boundaries, tradeoffs, and acceptance criteria. Do not auto-run it. Skip for S0/S1 work where the goal and verification path are already clear. Record `offered`, `accepted`, `declined`, or `N/A` in `PROJECT_CONTROL.md` when it is created or updated.
+Ask a concrete missing question directly, or offer a structured interview for several connected choices. If the goal and acceptance criteria are clear, use `N/A` without interrupting the task, regardless of size. Load the preflight skill only for this branch and the scheduling skill only for corresponding authorized delegation; neither is a routine initialization prerequisite. Record material decisions in the existing control.
 
 ### 4. Present The Plan
 
@@ -113,7 +112,7 @@ Before writing, state:
 - The selected `NarrativeLanguage`, `StableSchemaLanguage`, and `TemplateRoute`.
 - Verification checks to run after writing.
 
-Then stop and wait for explicit authorization unless it has already been given for this exact plan.
+Continue when the current request or prior approval already covers this plan. Ask only about a new permission boundary or an unresolved choice that materially changes the result.
 
 ### 5. Write Project Files After Authorization
 
@@ -138,9 +137,9 @@ Do not create separate `DECISION_LOG.md`, `RISKS.md`, `LAUNCH_REVIEW.md`, `QUALI
 
 Keep `AGENTS.md` concise and project-specific. Include:
 
-- A top-priority answer/execution separation gate if not already present. For Chinese users or Chinese-facing workspaces, write this gate in Simplified Chinese or bilingual form, including non-authorization examples, the rule that authorization must respond to the latest concrete plan, scope limits, and violation recovery.
+- Project-specific boundaries and acceptance expectations. Inherit the current host/user authorization policy; do not copy generic approval prose, fixed confirmation phrases or a latest-plan reapproval requirement into each project. If no applicable policy exists, state briefly that read-only requests stay read-only and approved local work continues within scope.
 - Default Simplified Chinese response preference, while preserving code, commands, paths, variables, and proper nouns.
-- For Chinese-facing projects, Simplified Chinese visible headings and project-specific explanatory prose; do not copy the English adapter example wholesale into the project file.
+- For Chinese-facing projects, use Simplified Chinese or bilingual form for project-specific instructions; inherit the authorization policy without restating a generic gate or copying the English adapter wholesale.
 - Project facts discovered from the workspace.
 - Build, test, lint, and verification commands only when verified.
 - Default write scope: unless the user explicitly authorizes a source project path or other external path, state-changing writes are limited to the initialized workspace and the files named in the approved plan.
@@ -151,7 +150,7 @@ Keep `AGENTS.md` concise and project-specific. Include:
 - Requirement that each fact has one owner: root `PROJECT_CONTROL.md` for Project facts, Phase control for Phase facts, and explicit Session control for bounded-session facts.
 - Requirement that `WORK_TASK_REPORT.md` is an on-demand derived view in CURRENT contract, not a daily write gate or a competing authority. Preserve legacy workspace layout's stricter compatibility binding until explicitly migrated.
 - Requirement to avoid full translated mirrors unless explicitly requested; Chinese narrative can live inside `WORK_TASK_REPORT.md`.
-- Rule that no sub-agent dispatch happens until a launch review is shown and the user replies `确认运行`.
+- Agent dispatch requires a clear task contract and corresponding user authorization. Reuse an approved same-scope launch batch; no fixed confirmation phrase is required.
 - Rule that unattended auto-continue requires explicit authorization and recording.
 - Handoff and migration-package rules only if relevant to this project or inherited from the global boot rules.
 
@@ -211,9 +210,9 @@ After writing, run read-only checks:
 - Confirm `PROJECT_CONTROL.md` exists when the plan included MALTS state.
 - Confirm `WORK_TASK_REPORT.md` exists only when the plan included the on-demand view, or record that it was intentionally left untouched.
 - Confirm optional translated mirrors exist only when explicitly requested, or that they were intentionally not generated.
-- Confirm `AGENTS.md` contains the execution gate and MALTS discovery pointer.
+- Confirm `AGENTS.md` has the MALTS discovery pointer and project-specific boundaries without introducing a second authorization policy.
 - Confirm `AGENTS.md` records default write scope and the source-project boundary rule when a separate source project or external path was provided.
-- Confirm Chinese-facing `AGENTS.md` content includes the full authorization gate in Simplified Chinese or bilingual form, not only an English summary.
+- Confirm project-specific instructions use the selected narrative language and respect the inherited authorization policy without duplicating it.
 - Confirm the selected initialization language profile is recorded and the canonical control/report files use the matching localized template route.
 - Confirm all required `MALTS:section` markers remain present in `PROJECT_CONTROL.md`.
 - Confirm current MALTS version metadata matches the active `<MALTS_ROOT>\VERSION`.

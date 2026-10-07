@@ -566,6 +566,8 @@ def _apply_v2_event(
     projection: dict[str, Any],
     model: dict[str, Any],
     contract_sha256: str,
+    completion_observations: dict[str, str] | None = None,
+    historical_replay: bool = False,
 ) -> list[dict[str, str]]:
     issues = _event_payload_issues(event, projection)
     issues.extend(_authorization_issues(contract, event, projection, contract_sha256))
@@ -581,8 +583,22 @@ def _apply_v2_event(
         allowed = _transition_map(model, "task_state_machine").get(payload["from_status"], set())
         if payload["to_status"] not in allowed:
             return [_v2_issue("RC_TRANSITION_INVALID", "$.payload.to_status", f"Invalid Task transition {payload['from_status']} -> {payload['to_status']}.")]
+        if payload["to_status"] == "DONE" and _is_current_result_contract(contract) and not historical_replay:
+            from result_completion import evaluate_completion
+            states = {f"attempt:{key}": value for key, value in projection.get("attempt_states", {}).items()}
+            states.update({f"invocation:{key}": value for key, value in projection.get("invocation_states", {}).items()})
+            if projection.get("unresolved_side_effects") or projection.get("recovery_required") or projection.get("coordination_quarantine_ids"):
+                states["recovery"] = "UNKNOWN"
+            completion_issues = evaluate_completion(contract, contract_sha256, payload.get("completion_proof"), completion_observations or {}, states)
+            if completion_issues:
+                return [_v2_issue(code, "$.payload.completion_proof", "Completion evidence does not satisfy the current contract.") for code in completion_issues]
         projection["task_status"] = payload["to_status"]
         projection["terminal_status"] = payload["to_status"] if payload["to_status"] in V2_TERMINAL_TASK_STATUSES else None
+        if payload["to_status"] == "DONE" and _is_current_result_contract(contract):
+            projection["completion_evidence_state"] = (
+                "EVIDENCE_RECORDED" if isinstance(payload.get("completion_proof"), dict)
+                else "HISTORICAL_DECLARED"
+            )
     elif kind == "AUTHORIZATION_ENVELOPE_GRANTED":
         envelope = copy.deepcopy(payload["authorization_envelope"])
         if envelope["contract_revision_id"] != contract["revision_id"] or envelope["contract_revision_sha256"] != contract_sha256 or envelope["phase_boundary_revision_id"] != contract["accepted_phase_boundary"]["revision_id"] or envelope["phase_boundary_revision_sha256"] != contract["accepted_phase_boundary"]["sha256"]:
@@ -782,6 +798,8 @@ def _is_event_capable_result_contract(contract: dict[str, Any]) -> bool:
 
 def _public_projection(value: dict[str, Any]) -> dict[str, Any]:
     public = copy.deepcopy(value)
+    if public.get("task_status") == "DONE":
+        public.setdefault("completion_evidence_state", "HISTORICAL_DECLARED")
     for internal_key in (
         "authorization_envelopes", "attempt_states", "invocation_states",
         "request_intents", "request_intent_records", "observed_requests", "observed_request_intents", "event_hashes",
@@ -871,7 +889,7 @@ def _semantic_batch_issues(
             pending_round = False
         elif kind == "ATTEMPT_COMPLETED":
             pending_attempt_exit = True
-        event_issues = _apply_v2_event(contract, event, projection, model, contract_sha256)
+        event_issues = _apply_v2_event(contract, event, projection, model, contract_sha256, historical_replay=True)
         if event_issues:
             return event_issues
         projection["event_hashes"][event["event_id"]] = _sha256(event)
@@ -995,7 +1013,12 @@ def _committed_chain_issues(
             }
             replay["rebuild_inputs"].append({"role": "RESULT_EVENT", "path": event_path, "sha256": event_hash})
     replay["projected_at"] = committed[-1]["recorded_at"]
-    if _public_projection(replay) != public:
+    replay_public = _public_projection(replay)
+    # Older projections carry no evidence classification. They remain readable
+    # only as declarations; missing metadata must not imply verified completion.
+    if replay_public.get("completion_evidence_state") == "HISTORICAL_DECLARED" and "completion_evidence_state" not in public:
+        public["completion_evidence_state"] = "HISTORICAL_DECLARED"
+    if replay_public != public:
         return [_v2_issue("RC_LINEAGE_STALE", "$", "Projection does not exactly match semantic replay of the committed event chain.")]
     return issues
 
@@ -1007,6 +1030,25 @@ def apply_event_batch_v2(
     committed_events: list[dict[str, Any]] | None = None,
     malts_root: Path = MALTS_ROOT,
     contract_sha256: str | None = None,
+    completion_observations: dict[str, str] | None = None,
+) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    """Accept new events; historical recovery cannot disable completion checks."""
+    return _apply_event_batch(
+        contract, events, projection, committed_events, malts_root,
+        contract_sha256, completion_observations,
+    )
+
+
+def _apply_event_batch(
+    contract: dict[str, Any],
+    events: list[dict[str, Any]],
+    projection: dict[str, Any] | None = None,
+    committed_events: list[dict[str, Any]] | None = None,
+    malts_root: Path = MALTS_ROOT,
+    contract_sha256: str | None = None,
+    completion_observations: dict[str, str] | None = None,
+    *,
+    _historical_replay: bool = False,
 ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
     """Pure, all-or-nothing v2 event replay/application. It performs no I/O."""
 
@@ -1115,7 +1157,7 @@ def apply_event_batch_v2(
             pending_round = False
         elif kind == "ATTEMPT_COMPLETED":
             pending_attempt_exit = True
-        event_issues = _apply_v2_event(contract, event, base, model, effective_contract_sha256)
+        event_issues = _apply_v2_event(contract, event, base, model, effective_contract_sha256, completion_observations, _historical_replay)
         if event_issues:
             return None, {"decision": "DENIED", "issues": event_issues}
         event_path = f"task-state/{contract['task_id']}/events/{event['sequence']}-{event['event_id']}.json"
@@ -1180,13 +1222,14 @@ def rebuild_lineage_projection_v2(
         while end < len(committed_events) and committed_events[end].get("operation_id") == operation_id:
             end += 1
         group = committed_events[index:end]
-        projection, decision = apply_event_batch_v2(
+        projection, decision = _apply_event_batch(
             contract,
             group,
             projection,
             accepted,
             malts_root,
             effective_contract_sha256,
+            _historical_replay=True,
         )
         if projection is None:
             return None, decision

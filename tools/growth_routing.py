@@ -57,7 +57,8 @@ def classify_growth_route(request: dict[str, Any]) -> dict[str, Any]:
     """Classify one final-delivery Growth decision without writing durable state."""
     if not isinstance(request, dict):
         raise GrowthRoutingError("GRT_INPUT: request must be an object")
-    trivial = _require_bool(request, "trivial")
+    # Keep validating the legacy input; task complexity alone is not evidence.
+    _require_bool(request, "trivial")
     retrospective_authorized = _require_bool(request, "retrospective_authorized")
     retrospective_declined = _require_bool(request, "retrospective_declined")
     high_impact = _require_bool(request, "high_impact")
@@ -84,18 +85,18 @@ def classify_growth_route(request: dict[str, Any]) -> dict[str, Any]:
     elif retrospective_authorized:
         route = "RETROSPECTIVE_AUTHORIZED"
         reason = "A full retrospective is explicitly authorized."
+    elif not signals and not high_impact:
+        route = "NO_OUTPUT"
+        reason = "No concrete Growth signal or high-impact evidence is present."
     elif retrospective_declined:
         route = "LIGHT_REPORT"
         reason = "A full retrospective was declined; keep the bounded L1 result without repeating the recommendation."
     elif high_impact or RETROSPECTIVE_SIGNALS.intersection(signals):
         route = "RETROSPECTIVE_RECOMMENDED"
         reason = "Repeated, high-impact, delivery, or phase-level evidence warrants a retrospective recommendation."
-    elif trivial and not signals:
-        route = "NO_OUTPUT"
-        reason = "Trivial work has no Growth signal."
     else:
         route = "LIGHT_REPORT"
-        reason = "Non-trivial work or a concrete signal requires a short no-write L1 Growth Review."
+        reason = "A concrete signal warrants a short no-write L1 Growth Review."
 
     durable_write_authorized = route == "RETROSPECTIVE_AUTHORIZED" and project_write_authorized
     l3_confirmation_required = global_promotion_requested and not global_promotion_authorized
@@ -118,7 +119,7 @@ def classify_growth_route(request: dict[str, Any]) -> dict[str, Any]:
         # Execution is a separate L2/L3 command, even when the caller has
         # already supplied the required authorization.
         "full_retrospective_execution": False,
-        "full_retrospective_authorized": durable_write_authorized,
+        "full_retrospective_authorized": route == "RETROSPECTIVE_AUTHORIZED",
         "creates_workspace_entities": False,
         "starts_background_process": False,
     }

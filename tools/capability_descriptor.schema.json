@@ -26,54 +26,177 @@
     "verification"
   ],
   "properties": {
-    "schema_version": {"const": 1},
-    "capability_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]+$"},
-    "skill_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]+$"},
-    "declared_name": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]+$"},
+    "schema_version": {
+      "const": 1
+    },
+    "capability_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]+$"
+    },
+    "skill_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]+$"
+    },
+    "declared_name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]+$"
+    },
     "projected_names": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["codex", "claude-code", "opencode"],
+      "required": [
+        "codex",
+        "claude-code",
+        "opencode"
+      ],
       "properties": {
-        "codex": {"type": "string", "pattern": "^malts-[a-z0-9][a-z0-9-]+$"},
-        "claude-code": {"type": "string", "pattern": "^malts-[a-z0-9][a-z0-9-]+$"},
-        "opencode": {"type": "string", "pattern": "^malts-[a-z0-9][a-z0-9-]+$"}
+        "codex": {
+          "type": "string",
+          "pattern": "^malts-[a-z0-9][a-z0-9-]+$"
+        },
+        "claude-code": {
+          "type": "string",
+          "pattern": "^malts-[a-z0-9][a-z0-9-]+$"
+        },
+        "opencode": {
+          "type": "string",
+          "pattern": "^malts-[a-z0-9][a-z0-9-]+$"
+        },
+        "deepseek-harness": {
+          "type": "string",
+          "pattern": "^malts-[a-z0-9][a-z0-9-]+$"
+        }
       }
     },
-    "display_name": {"type": "string", "pattern": "^MALTS .+$", "minLength": 7},
-    "short_description": {"type": "string", "minLength": 25, "maxLength": 96},
+    "display_name": {
+      "type": "string",
+      "pattern": "^MALTS .+$",
+      "minLength": 7
+    },
+    "short_description": {
+      "type": "string",
+      "minLength": 25,
+      "maxLength": 96
+    },
     "triggers": {
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
-      "items": {"type": "string", "minLength": 1}
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
     },
     "applicability": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["task_types", "modes", "conditions", "contraindications"],
+      "required": [
+        "task_types",
+        "modes",
+        "conditions",
+        "contraindications"
+      ],
       "properties": {
-        "task_types": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "task_types": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
         "modes": {
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
-          "items": {"enum": ["single-agent", "preflight", "multi-agent", "release", "handoff", "review-only"]}
+          "items": {
+            "enum": [
+              "single-agent",
+              "preflight",
+              "multi-agent",
+              "release",
+              "handoff",
+              "review-only"
+            ]
+          }
         },
-        "conditions": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
-        "contraindications": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+        "conditions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "contraindications": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
       }
     },
-    "inputs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
-    "outputs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "inputs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
     "risks": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["risk_class", "factors", "forbidden_effects"],
+      "required": [
+        "risk_class",
+        "factors",
+        "forbidden_effects"
+      ],
       "properties": {
-        "risk_class": {"enum": ["low", "medium", "high", "critical"]},
-        "factors": {"type": "array", "uniqueItems": true, "items": {"enum": ["scripts", "write", "network", "credentials", "destructive", "self-modifying", "external-runtime"]}},
-        "forbidden_effects": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+        "risk_class": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "factors": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "scripts",
+              "write",
+              "network",
+              "credentials",
+              "destructive",
+              "self-modifying",
+              "external-runtime"
+            ]
+          }
+        },
+        "forbidden_effects": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
       }
     },
     "required_permissions": {
@@ -99,14 +222,21 @@
     "permission_routes": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["baseline", "conditional"],
+      "required": [
+        "baseline",
+        "conditional"
+      ],
       "properties": {
-        "baseline": {"$ref": "#/$defs/permissionRoute"},
+        "baseline": {
+          "$ref": "#/$defs/permissionRoute"
+        },
         "conditional": {
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
-          "items": {"$ref": "#/$defs/permissionRoute"}
+          "items": {
+            "$ref": "#/$defs/permissionRoute"
+          }
         }
       }
     },
@@ -115,12 +245,36 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "type", "required", "source_relative_path"],
+        "required": [
+          "id",
+          "type",
+          "required",
+          "source_relative_path"
+        ],
         "properties": {
-          "id": {"type": "string", "minLength": 1},
-          "type": {"enum": ["skill", "agent", "tool", "runtime", "file", "service"]},
-          "required": {"type": "boolean"},
-          "source_relative_path": {"type": ["string", "null"]}
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "type": {
+            "enum": [
+              "skill",
+              "agent",
+              "tool",
+              "runtime",
+              "file",
+              "service"
+            ]
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "source_relative_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
         }
       }
     },
@@ -128,36 +282,89 @@
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
-      "items": {"enum": ["codex", "claude-code", "opencode"]}
+      "items": {
+        "enum": [
+          "codex",
+          "claude-code",
+          "opencode",
+          "deepseek-harness",
+          "deepseek-desktop"
+        ]
+      }
     },
     "package_variants": {
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
-      "items": {"enum": ["local", "public"]}
+      "items": {
+        "enum": [
+          "local",
+          "public"
+        ]
+      }
     },
     "tool_metadata": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["codex", "claude-code", "opencode"],
+      "required": [
+        "codex",
+        "claude-code",
+        "opencode"
+      ],
       "properties": {
-        "codex": {"$ref": "#/$defs/toolMetadata"},
-        "claude-code": {"$ref": "#/$defs/toolMetadata"},
-        "opencode": {"$ref": "#/$defs/toolMetadata"}
+        "codex": {
+          "$ref": "#/$defs/toolMetadata"
+        },
+        "claude-code": {
+          "$ref": "#/$defs/toolMetadata"
+        },
+        "opencode": {
+          "$ref": "#/$defs/toolMetadata"
+        },
+        "deepseek-harness": {
+          "$ref": "#/$defs/toolMetadata"
+        }
       }
     },
     "verification": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["status", "levels", "evidence_refs"],
+      "required": [
+        "status",
+        "levels",
+        "evidence_refs"
+      ],
       "properties": {
-        "status": {"enum": ["unverified", "static-validated", "discovered", "invocation-verified", "behavior-verified", "reverify-required"]},
+        "status": {
+          "enum": [
+            "unverified",
+            "static-validated",
+            "discovered",
+            "invocation-verified",
+            "behavior-verified",
+            "reverify-required"
+          ]
+        },
         "levels": {
           "type": "array",
           "uniqueItems": true,
-          "items": {"enum": ["static", "discovery", "invocation", "behavior"]}
+          "items": {
+            "enum": [
+              "static",
+              "discovery",
+              "invocation",
+              "behavior"
+            ]
+          }
         },
-        "evidence_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+        "evidence_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
       }
     }
   },
@@ -165,17 +372,58 @@
     "permissionRoute": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["route_id", "required_permissions", "durable_write", "requires_confirmation", "description"],
+      "required": [
+        "route_id",
+        "required_permissions",
+        "durable_write",
+        "requires_confirmation",
+        "description"
+      ],
       "properties": {
-        "route_id": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"},
+        "modes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "single-agent",
+              "preflight",
+              "multi-agent",
+              "release",
+              "handoff",
+              "review-only"
+            ]
+          }
+        },
+        "risk_class": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "route_id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$"
+        },
         "required_permissions": {
           "type": "array",
           "uniqueItems": true,
-          "items": {"$ref": "#/$defs/permission"}
+          "items": {
+            "$ref": "#/$defs/permission"
+          }
         },
-        "durable_write": {"type": "boolean"},
-        "requires_confirmation": {"type": "boolean"},
-        "description": {"type": "string", "minLength": 1}
+        "durable_write": {
+          "type": "boolean"
+        },
+        "requires_confirmation": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "permission": {
@@ -197,10 +445,17 @@
     "toolMetadata": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["projection_type", "include_openai_metadata"],
+      "required": [
+        "projection_type",
+        "include_openai_metadata"
+      ],
       "properties": {
-        "projection_type": {"const": "native"},
-        "include_openai_metadata": {"type": "boolean"}
+        "projection_type": {
+          "const": "native"
+        },
+        "include_openai_metadata": {
+          "type": "boolean"
+        }
       }
     }
   }

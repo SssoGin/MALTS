@@ -8,7 +8,7 @@
 - [ ] The completion criteria are clear.
 - [ ] Non-goals and exclusions are respected.
 - [ ] Later user changes have been checked.
-- [ ] For non-trivial task or project starts, MALTS-native Grill-Me Preflight was offered, accepted/declined/N/A was recorded, and accepted decisions were reflected in `PROJECT_CONTROL`.
+- [ ] Material decision gaps were resolved. Preflight was used only when requested or useful for connected choices; clear tasks continued without a routine interview. Record material decisions in the existing owner control.
 
 ## Scope And Ownership
 
@@ -70,7 +70,7 @@
 - [ ] If the user requested multi-agent mode, the launch review packet was shown before dispatch.
 - [ ] The launch review packet listed the overall goal, total plan, each planned agent, model name or model policy, task, and short plan.
 - [ ] The user was asked whether they wanted to specify sub-agent models and was shown the accepted model specification format.
-- [ ] The user explicitly replied `确认运行` before any real sub-agent dispatch.
+- [ ] Corresponding user authorization exists before real sub-agent dispatch; reuse an already approved same-scope batch.
 - [ ] Any model/scope/batch changes during review were reflected in task contracts before dispatch.
 - [ ] Launch review reference and approved batch ID are recorded in the Result Contract before dispatch.
 - [ ] `requested`, `recommended`, `configured`, and `effective` route selections are recorded separately.
@@ -93,7 +93,7 @@
 - [ ] `PROJECT_CONTROL` records allowed scope, prohibited operations, multi-agent permission, model policy, round/time caps, stop conditions, and report requirements.
 - [ ] Each unattended round persisted only material owner-local recovery/state deltas; an on-demand work report was refreshed only when the authorization package required it.
 - [ ] Stop conditions were checked before starting another unattended round.
-- [ ] Any new multi-agent batch not pre-confirmed in the authorization package stopped for launch review and `确认运行`.
+- [ ] A launch batch outside the approved authorization package obtained a new scoped approval before dispatch.
 
 ## Deliverable Integrity
 

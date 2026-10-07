@@ -1,13 +1,21 @@
-﻿---
+---
 name: multi-agent-long-task-scheduling
-description: Use when the user explicitly enables multi-agent long-task scheduling, or when a complex long task needs recoverable state, task contracts, sub-agent dispatch, verification, and delivery control.
+description: Assess, run, or recover an explicitly requested MALTS long-task scheduling workflow. Multiple files, potential parallelism, or architecture discussion alone do not trigger scheduling.
 ---
 
 # Skill: Multi-Agent Long-Task Scheduling
 
+## Select the current authority
+
+First use the selected workspace's verified entry. An adopted v2 workspace or explicitly selected isolated v2 store uses the [v2 task workflow](../v2/malts-v2-task-workflow/SKILL.md) and [controller Host protocol](../../docs/V2_PREVIEW_USAGE.md#v2-collaboration). Do not initialize or migrate because parallelism looks possible. Review-only work changes no state; an authorized single-Agent continuation creates no dispatch. Multi-Agent execution needs corresponding existing or newly granted scope, a qualified actual Host adapter and available cumulative budget.
+
+For v2 dispatch, the trusted controller prepares the exact Task revision/strategy and budget-bound contract, supplies matching effect Grants, launches once and polls the original dispatch. Worker tools remain Task/Run-bound; they cannot launch successors, mint Grants or accept their own active dispatch. Dependencies require current applicable evidence; accepted local outputs do not prove integration. A cancellation acknowledgement, root-process exit, expired lease or transport failure does not prove all writers stopped or unresolved effects vanished. Reconcile original Host/effect identities before authorized takeover, preserving consumed budget and late-result provenance. If the selected Host cannot establish the required isolation or quiescence, use the approved serialized/isolated alternative or report the specific unresolved requirement.
+
+The fit assessment and authorization principles below remain useful. The Markdown Project/Phase/Session templates, legacy routing/dispatch records and control-file procedures below are only for a verified pre-adoption workspace; do not create a second writable authority for v2. Consult the selected runtime's actual capabilities rather than treating this Skill or an adapter declaration as native Host qualification.
+
 ## Purpose
 
-Use this skill to make long, complex, or interruption-prone projects recoverable, verifiable, mergeable, and deliverable. MALTS is single-agent first. Multi-agent work is a controlled division-of-work mechanism enabled only when needed; every real sub-agent dispatch requires an explicit launch review first.
+Use this skill for a requested scheduling assessment, execution workflow, or recovery of an approved scheduling run. MALTS is single-agent first. Multi-agent work is a controlled division-of-work mechanism enabled only when needed; every real sub-agent dispatch requires an explicit launch review first.
 
 This skill does not exist to spawn more agents. It exists to reduce loss of control.
 
@@ -15,18 +23,24 @@ This skill does not exist to spawn more agents. It exists to reduce loss of cont
 
 Use this skill only when one of these is true:
 
-- The user explicitly enables MALTS, long-task mode, or multi-agent long-task scheduling.
-- The task is multi-stage, multi-file, or likely to exceed a comfortable single-session context.
-- Independent exploration, implementation, or verification can run in parallel without file conflicts.
-- The project needs recoverable state, batch execution, growth/memory records, and acceptance-ready delivery.
+- The user explicitly requests recoverable long-task scheduling, or the current request continues that approved workflow.
+- The user requests an assessment or launch plan for multi-agent coordination; use the read-only branch below.
+- A previously authorized MALTS scheduling run needs recovery or reconciliation.
 
 Do not use this skill when:
 
 - The task is small enough for the main controller to finish directly.
-- Requirements are unclear.
-- The verification method is unclear.
-- Subtask boundaries cannot be defined.
 - The scheduling cost is higher than the likely benefit.
+
+Unclear requirements, verification methods, or subtask boundaries prevent dispatch, not already authorized fact-finding or a requested assessment. Ordinary maintenance in an opted-in workspace uses its current-set entry and existing controls without invoking this scheduler.
+
+## Select the applicable branch
+
+- **review-only / REVIEW_ONLY:** Read the supplied goal and necessary current evidence, use Multi-Agent Fit Assessment, and return benefits, coordination costs, unresolved material decisions and a proposed scope. Do not create/update controls, run dispatch routing, prepare durable Agent logs, or dispatch. Completion is the requested assessment, not a launched workflow; stop this Skill after that result.
+- **single-agent / SINGLE_AGENT_RUN:** Continue the authorized long task in the Main Controller. Reuse existing Project/Phase controls and their plan; create controls only when setup is actually requested and needed. Skip sub-agent contracts, routing, launch packets, dispatch and recycling steps. Verify the work and persist material recovery deltas under the normal workspace contract.
+- **multi-agent / DISPATCH_AGENTS:** Follow the execution and dispatch sections with the approved launch scope, required permissions, resource ownership and effective route evidence. Existing same-scope authorization remains usable.
+
+The capability descriptor's permission routes separate these branches. Resolver eligibility is advice, not a grant or proof of execution. The workflow and checklist below apply only to steps used by the selected branch; do not read every template or checklist for an assessment.
 
 ## Multi-Agent Fit Assessment
 
@@ -37,8 +51,8 @@ Before suggesting or enabling multi-agent scheduling, classify the task by type 
 | S0 trivial | One command, one small answer, formatting, translation, or simple lookup | Stay single-agent. Do not suggest multi-agent. |
 | S1 contained | One file or one narrow behavior with clear verification | Stay single-agent with lightweight growth. |
 | S2 moderate | Several files, uncertain cause, or useful independent verification, but still manageable in one round | Prefer single-agent; suggest multi-agent only if read-only exploration or verification can reduce risk. |
-| S3 complex | Multi-stage, multi-module, interruption-prone, or likely to exceed comfortable context | Suggest preparing a multi-agent launch review packet. Do not dispatch before `确认运行`. |
-| S4 high-risk or unclear | Ambiguous requirements, unclear verification, security/permissions/dependencies/build config/long-term rules, or destructive operations | Stop for clarification or approval first. Use Planner/Explorer/Verifier only after confirmation; Worker requires explicit scope. |
+| S3 complex | Multi-stage, multi-module, interruption-prone, or likely to exceed comfortable context | Prepare a bounded launch plan when delegation helps. Dispatch only within corresponding user authorization; reuse an already approved batch. |
+| S4 high-risk or unclear | Material uncertainty or a real security, data, permission or external-effect boundary | Investigate discoverable facts first. Continue independent approved work; pause only the affected action for missing decision-changing information or authorization. A dependency, build-config or long-term-rule edit is not an automatic stop. |
 
 Positive signals for suggesting multi-agent:
 
@@ -55,15 +69,15 @@ Negative signals:
 - Merge cost is likely higher than execution benefit.
 - The main controller can complete the next step faster and more safely.
 
-When the task is a good candidate, tell the user why and offer to prepare the launch review packet. Phrase the recommendation as a checkpoint, for example: "This task is a multi-agent candidate because it needs independent exploration and verification. I recommend preparing a launch review packet; no sub-agent will be dispatched unless you reply `确认运行`."
+When delegation would help and is not yet authorized, briefly explain its purpose, scope and cost and request that authorization. If the user already approved the same launch scope, prepare the required contracts and proceed without another confirmation.
 
 ## MALTS-Native Grill-Me Preflight
 
-Before implementation on S2/S3/S4 work, new projects, design-heavy tasks, migrations, workflow/protocol changes, or unclear requirements, offer `skills/grill-me-preflight/SKILL.md` as a MALTS-native clarification gate.
+Use `skills/grill-me-preflight/SKILL.md` when the user requests an interview or inspection leaves a material unresolved decision. Complexity levels, multiple files and project starts do not automatically trigger it.
 
-Explain that it exposes hidden assumptions, goal boundaries, key tradeoffs, and acceptance criteria before implementation, reducing rework and requirement mismatch. Do not auto-run it; ask the user first.
+Ask a concrete decision-changing question directly. Offer a structured interview only when several connected decisions need it; reuse the current request when the user already asked for that interview.
 
-This preflight is not multi-agent dispatch and does not require `确认运行`. Skip it for S0/S1 tasks where the goal and verification path are already clear. If accepted, ask one decision-changing question at a time, include a recommended answer, and record accepted decisions and assumptions in `PROJECT_CONTROL.md`.
+When goals and acceptance criteria are clear, proceed without a preflight offer at any complexity level. Group independent questions when useful and sequence dependent questions. Keep real delegation authorization separate; an interview does not grant it.
 
 ## Runtime Document Loading
 
@@ -98,14 +112,14 @@ This preflight is not multi-agent dispatch and does not require `确认运行`. 
 10. Process serves delivery; do not keep scheduling after the core goal is complete.
 11. Do not claim multi-agent validation unless sub-agent task contracts were dispatched and sub-agent reports were recycled.
 12. Do not claim a sub-agent ran unless the real runtime dispatch mechanism was used and recorded.
-13. Sub-agent routing is provider-neutral, explicit, and cost-aware: if the user provides no override, derive a recommendation from task complexity, uncertainty, risk, audit importance, budget, latency, and verified runtime profiles. Do not default to inheriting the Main Controller. Record requested, recommended, configured, and effective routes separately without inventing effective evidence.
+13. Sub-agent routing is provider-neutral and respects the user-selected model/effort and established host configuration. Use the verified configured route when it meets the task contract. Recommend a different route only for a concrete capability, cost or hard-constraint reason; record requested/configured/effective evidence without inventing runtime identity.
 14. Role describes responsibility, not difficulty. Select model and effort from task complexity, risk, budget, runtime support, and evidence; do not hard-code an effort merely because a lane is called Planner, Worker, or Verifier.
-15. When the user asks to use multi-agent mode, ask whether they want to specify sub-agent model and effort choices, explain the specification format, show the launch review packet, and wait for explicit `确认运行` before dispatching any sub-agent.
-16. For any gap-filling update to protocols, templates, checklists, adapters, or docs, check and synchronize Codex, Claude Code, and OpenCode together unless the user explicitly scopes one tool out.
+15. Reuse already specified model/effort choices and same-scope delegation authorization. Explain optional route choices only when unresolved choices materially affect the result or budget; do not routinely ask the user to choose a model or repeat a launch confirmation.
+16. For shared protocol, template, checklist, adapter or documentation changes, inspect the affected Codex, Claude Code, OpenCode and EN/CH surfaces. Update only affected counterparts and record a tool-specific non-applicability without requiring a new exception approval.
 17. Long-task continuity is implemented through the smallest authoritative current set. If context saturation, compaction, interruption, or handoff risk appears, persist the material delta in its owning Project/Phase/Session record before expanding work; refresh a report/handoff only when requested or materially useful.
 18. Report task/Phase outcomes to the user, but do not rewrite a durable work report for a round with no material reporting delta. CURRENT reports are on-demand derived views; legacy workspace compatibility bindings remain strict until explicit reorganization. Render user-facing status in the user's explicit language, then the workspace `NarrativeLanguage`, then English fallback. Chinese output includes Chinese meaning plus the stable English code in full-width parentheses.
 19. Do not promise a fixed one-shot runtime such as "guaranteed 8 hours." Design long work as recoverable rounds.
-20. At long-task start, ask whether the user wants to enable unattended auto-continue. It requires explicit authorization recorded in `PROJECT_CONTROL.md`; without that authorization, unattended auto-running is forbidden and the system must stop at user checkpoints.
+20. Continuing the currently authorized task is distinct from scheduled or unattended execution. Do not ask an unattended-mode question at every start. Enable unattended operation only when the user requested or approved it and its scope, bounds and recovery mechanism are recorded.
 21. If unattended continuation needs a new multi-agent batch that was not already reviewed and confirmed, stop and ask for the normal launch review confirmation.
 22. Standalone task or tool artifacts must keep their boundary explicit. Do not register a one-off artifact as a system entry, shared tool, or index item unless the user asks for that scope.
 23. Cross-window continuation starts with read-only `workspace-entry --task-class CONTEXT_RECOVERY` and its bounded current-set paths. Escalate to cold `recover` only when entry blocks or the gate is recovery-sensitive. Do not load a report, handoff, or full history merely because it exists, and never select the latest historical Session by time or list order.
@@ -124,17 +138,17 @@ This preflight is not multi-agent dispatch and does not require `确认运行`. 
 
 ## Workflow
 
-1. Read the user goal and current EN runtime documents.
-2. Create or update `PROJECT_CONTROL.md`.
+1. Read the user goal, the current-set entry result and only the EN references needed by the selected branch.
+2. Reuse existing canonical controls; initialize or update only what the authorized execution actually needs.
 3. Lock the user original goal field.
 4. Define completion criteria and acceptance criteria.
 5. Build or refresh the task queue.
-6. Ask whether the user wants to enable unattended auto-continue and record the answer in `PROJECT_CONTROL.md`.
-7. Offer MALTS-native Grill-Me Preflight for non-trivial or unclear starts, unless it is clearly N/A, and record offered/accepted/declined/N/A.
+6. If the request actually includes unattended operation, reuse its authorization package or obtain the missing authorization for that operation. Otherwise continue the current task without an unattended-mode prompt.
+7. Resolve only material remaining decisions; use Preflight if requested or useful for connected choices, otherwise continue with N/A. Record decisions only in their existing owner control.
 8. Run the Multi-Agent Fit Assessment and decide whether to stay single-agent, suggest multi-agent, or ask for clarification.
-9. Ask whether the user wants to override any sub-agent model or effort and show the accepted format. If they do not, use the cost-aware route planner and verified runtime catalog; inheritance is allowed only when the parent route exactly satisfies the recommended class/model/effort and policy permits it.
+9. Use the specified or configured model and effort when they satisfy the approved contract. Resolve only material gaps; routine route selection does not require a separate user interview.
 10. Prepare task contracts and a user-visible launch review packet. When the selected Phase owns a plan, require a `BEFORE_LAUNCH_REVIEW` Plan Recheck against its current bytes/revision/scope; a previously recorded trigger is evidence, not an equality precondition. For legacy workspace layout, retain strict report/handoff consistency checks.
-11. Wait for the user's explicit `确认运行`.
+11. Verify that the launch scope is covered by the user request or an existing approval. Obtain permission only if that authorization is missing or the launch expands it.
 12. Dispatch only READY tasks with clear task contracts after confirmation.
 13. Record each real dispatch in the Agent Dispatch Log, including runtime agent ID and model policy when available.
 14. Recycle sub-agent reports.
@@ -144,9 +158,9 @@ This preflight is not multi-agent dispatch and does not require `确认运行`. 
 18. Run quality gate and delivery checks.
 19. Update only the authoritative control that owns a material state delta; do not mirror Phase/Session facts into `PROJECT_CONTROL.md`.
 20. Update the canonical recovery record before context compaction, interruption, or handoff risk; refresh derived views only on demand.
-21. Record growth candidates.
-22. Make growth visible to the user: report the review level, reusable lesson if any, and whether the lesson stayed local, became a candidate, or passed the memory-write checklist.
-23. Route filtered decisions and growth results through the MALTS Memory Pipeline.
+21. Review concrete Growth signals or an explicitly requested retrospective; ordinary success alone does not require a candidate or report.
+22. If a Growth review ran, report its useful result and whether it stayed local, became a candidate, or passed the applicable memory-write checks.
+23. Route actual, filtered Growth results through the MALTS Memory Pipeline only within its authorization.
 24. If a long-term memory target or optional external memory tool is unavailable, preserve the candidate locally in project state or the work task report and do not claim a completed long-term write.
 25. For protocol, template, checklist, adapter, or documentation gap-filling tasks, verify whether the same fix must be applied to Codex, Claude Code, and OpenCode.
 26. Provide or refresh `WORK_TASK_REPORT.md` only when the user requests a durable report or a material delivery/recovery need justifies it. In CURRENT contract it is a derived non-authoritative view; use the user's or project's primary language for narrative content, keep English status/evidence fields stable, and create a full translated mirror only when explicitly requested.
@@ -172,24 +186,26 @@ Use `TASK_CONTRACT.template.en.md` for dispatch.
 Before any real dispatch, the main controller must present a launch review packet to the user. It must include:
 
 - Overall goal and total plan.
-- A direct question asking whether the user wants to specify any sub-agent model or effort.
-- Provider-neutral override instructions, for example: `implementation=model-id@medium; verification=model-id@max`. Omitted lanes receive cost-aware recommendations, not automatic Main Controller inheritance.
+- The applicable user-selected or configured model/effort and any material unresolved route choice; ask a question only when the decision is needed.
+- Provider-neutral route details when needed, for example `implementation=model-id@medium; verification=model-id@max`. Omitted choices use the established configuration if it satisfies the contract.
 - Planned dispatch order or parallel batches.
 - Each planned responsibility lane's task objective, short plan, permission level, requested/recommended/configured/effective model-and-effort evidence, and whether the choice is user-specified, inherited, configured, or a verified fallback.
 - Any runtime limitation, such as an inherited model whose exact name is not exposed.
-- A clear statement that no sub-agent will be dispatched until the user replies `确认运行`.
+- The authorization reference for the launch scope, including whether an existing approval already covers this batch.
 
 For Claude Code, OpenCode, or any non-Codex runtime, record the runtime-specific visible sub-agent invocation, transcript, command output, or log reference. Do not invent a dispatch proof or model override that the installed runtime does not expose.
 
-In Codex, native `spawn_agent` is the preferred visible dispatch proof when its interface can satisfy the approved model and effort contract. If the user does not specify a model or effort, configure the verified profile selected by the cost-aware recommendation when the interface supports it; do not silently inherit the Main Controller. If the interface cannot configure the recommendation, record `unsupported` or a policy-approved verified fallback. User-specified hard routes fail closed on mismatch. Configured values remain separate from effective values returned or otherwise observed.
+In Codex, native `spawn_agent` is the preferred dispatch surface when it can satisfy the approved contract. Reuse the user-selected or configured model and effort; valid inheritance is allowed when the runtime supports it and no hard constraint is violated. Record unsupported constraints and request a decision only when necessary. Configured values remain separate from observed effective values.
 
 ### Codex Peer-Task Route
 
 When native sub-agent dispatch cannot satisfy a user-approved hard model or effort constraint, Codex may use a user-visible peer task only if the official Codex task/thread interface exposes the requested route. The Codex task/thread API is the execution surface; MALTS supplies authorization, task contracts, evidence, lifecycle, recovery, acceptance, and archival governance. This is not native `spawn_agent`, and its dispatch record must say `codex-peer-task` with `delegation_mode=peer-task`.
 
+Follow the host's separate-task authorization contract. If it requires an explicit user request to create or fork a visible task, general delegation approval or a model constraint is not a substitute. The user-approved launch scope must cover that visible task and any later archival action.
+
 Apply these rules:
 
-1. Prefer the current task workspace: fork the calling task with same-directory/current-project semantics. Never hard-code a workspace name such as `MALTSWork_01`; resolve and record the current task's actual workspace and verify the peer task reports the same directory.
+1. Resolve the current project and follow the host's workspace default or the user's explicit choice. Use a same-directory fork only when requested and permitted; do not override a host's default isolated worktree by assumption. Never hard-code a workspace name. Record and verify the actual assigned directory and its relationship to the source project.
 2. Create a user-visible task, give it a descriptive title, then send the bounded task contract through the official follow-up interface with the approved model and effort override. The task remains user-owned and visible in the Codex sidebar.
 3. Record requested, recommended, configured, and effective route evidence separately. A successful task creation or configured override alone is not effective-use proof; capture returned task metadata, in-task/runtime evidence, working directory, and usage evidence.
 4. A hard model, effort, delegation, or no-fallback constraint fails closed on mismatch or unavailable effective evidence. Do not silently fall back to native spawn, inherited/default routing, another model, another workspace, or a projectless task.
@@ -247,7 +263,7 @@ Every resource Admission and any incomplete workspace transaction remains indepe
 ### Anti-Patterns
 
 - Dispatching only Workers and calling it multi-agent.
-- Having the same agent verify its own work.
+- Claiming independent Agent verification when the same Agent performed both work and review; ordinary single-agent tests and self-review remain valid evidence within their limits.
 - Treating Planner as mandatory when the Main Controller already has a verified plan.
 - Running Memory Curator before Verifier has confirmed delivery.
 
@@ -263,7 +279,7 @@ Every resource Admission and any incomplete workspace transaction remains indepe
 
 Before relying on a model, effort, fallback, or N-agent capacity, record all four route selections: `requested`, `recommended`, `configured`, and `effective`. Keep the runtime effort ID, normalized reasoning tier, and display label separate because runtimes may expose different IDs for similar labels.
 
-Create `agent-task-requirements` for each lane and run the deterministic recommendation in `agent_route_planner.py` against `runtime/agent-routing/model_effort_policy.json` plus current verified runtime/model-profile evidence. The default policy maps mechanical work toward `ECONOMY`, bounded implementation toward `BALANCED`, architecture or recovery-sensitive work toward `ADVANCED`, and high-importance independent verification toward `FLAGSHIP`. These are cost/risk classes, not fixed vendor models. `max` requires a high-risk/high-value reason or an explicit hard user override. Inheritance is not the default and is legal only on an exact policy match.
+Create `agent-task-requirements` for actual delegated lanes. Reuse the user-selected or established configured route when it satisfies the approved hard constraints. Run `agent_route_planner.py` against `runtime/agent-routing/model_effort_policy.json` and verified runtime/model-profile evidence when a material route or policy decision remains. Its `ECONOMY`, `BALANCED`, `ADVANCED` and `FLAGSHIP` classes are cost/risk recommendations, not permission to override the user's model or effort. Preserve approved hard policy and budget constraints; inheritance is usable when its effective evidence and approved requirements match. Missing or conflicting hard requirements need a focused decision, not an automatic fallback.
 
 Classify each route as one of `effective_verified`, `fallback_verified`, `configured_unverified`, `static_binding`, `inherited`, `unsupported`, or `unknown`. Configuration, CLI help, and interface discovery are not proof of effective use. Only direct behavior/return/log evidence plus usage evidence may support `effective_verified` or `fallback_verified`.
 
@@ -309,22 +325,14 @@ If a task fails:
 
 ## High-Risk Operations
 
-Require confirmation or a safety mechanism before:
-
-- Deleting files.
-- Changing permissions.
-- Changing dependencies.
-- Changing build configuration.
-- Overwriting configuration.
-- Touching authentication, secrets, or security-sensitive code.
-- Changing long-term rules such as `AGENTS.md`, `CLAUDE.md`, or global skills.
+Check the operation's actual effects against the approved scope and relevant data, credential, concurrency and recovery requirements. A backup or other safety mechanism does not grant permission. Destructive operations, permission or credential changes, global-rule edits and external effects require their corresponding authorization. Routine dependency, build or configuration edits already inside the approved task do not create a new approval gate by filename alone. Pause only the action whose scope, authorization or safe preconditions remain unresolved.
 
 ## Documentation Sync Cost Policy
 
 - For ordinary EN/CH documentation sync, start with scripts or structured checks for file pairs, heading gaps, path/version drift, and key protocol terms.
 - Use low-cost model/agent workers only to generate candidate translations, gap fills, and formatting patches when the runtime supports model choice; otherwise record the inherited/default runtime limitation.
 - Low-cost workers cannot approve, merge, or mark critical protocol semantics as verified.
-- Keep high-capability model/agent or main-controller review focused on critical protocol semantics: `确认运行`, unattended execution, permissions, long-term memory, cross-tool sync, sub-agent dispatch/model policy, safety boundaries, final merge approval, and final risk judgment.
+- Keep high-capability model/agent or main-controller review focused on critical protocol semantics: scope-based launch authorization, unattended execution, permissions, long-term memory, cross-tool sync, sub-agent dispatch/model policy, safety boundaries, final merge approval, and final risk judgment.
 - Work reports must record source files, target files, sync direction, model/cost strategy, script check results, low-cost candidate scope, high-capability/main-controller approval scope, and unreviewed risks.
 - If high-capability/main-controller approval is missing for critical semantics, mark the result `Draft` or `Unverified`; do not mark it done.
 - Do not claim low-cost processing or high-capability review unless the runtime evidence or manual review actually occurred.
@@ -345,7 +353,7 @@ Require confirmation or a safety mechanism before:
 - When a task creates, deletes, moves, renames, or changes the purpose of a folder, record whether the folder is a project/system entry, a trial-run workspace, a user-facing deliverable, or a standalone task artifact.
 - Standalone task artifacts stay in their own directory and are documented locally. They are not added to global `README`, handoff indexes, `tools/`, or adapter docs unless the user explicitly asks to promote them.
 - If a directory becomes a system entry, shared tool, adapter asset, or documented workflow location, update the relevant index and usage docs before delivery.
-- If a project workspace accidentally contains global skills or tool install copies, first verify the correct Agent global paths, promote or copy missing items there if appropriate, then remove or document the project copies. Do not leave unexplained agent-style skill folders in a task workspace.
+- If a workspace contains unexpected Skill or installation copies, identify their owner, intended scope and current references. Preserve legitimate project-specific Skills. Global promotion, installation/synchronization and removal are separate actions requiring a concrete target and corresponding authorization; otherwise record the finding and preserve the content.
 - At recovery time, the host first loads applicable instructions, then runs `workspace-entry` and reads its returned bounded current-set paths: runtime current binding, selected/primary Phase, active Session only when one exists, and required coordination state. Project control is loaded by an explicit Project-level, review, or recovery gate; reports/handoffs are loaded only for reporting/handoff work or an explicit recovery need. Continue only from verified current facts; do not fall back to the newest historical Session.
 
 ## Runtime Duration And Round-Based Continuity
@@ -359,7 +367,7 @@ Require confirmation or a safety mechanism before:
 
 ## Unattended Auto-Continue
 
-At long-task start, ask whether the user wants to enable unattended auto-continue. It is allowed only when the user explicitly authorized it and `PROJECT_CONTROL.md` contains the authorization package. Without explicit authorization, do not start, schedule, or rely on unattended automatic running.
+Discuss unattended auto-continue only when it is requested or materially needed beyond the current active task. Reuse an existing matching authorization package. Without that authorization, do not schedule or start unattended execution; continue the already approved active task normally.
 
 The authorization package must include:
 
@@ -384,9 +392,9 @@ Allowed unattended work:
 Stop and ask the user when:
 
 - A new multi-agent launch needs review and was not already confirmed.
-- Model, tool, scope, dependency, permission, or long-term rule changes are needed.
-- A high-risk operation is needed.
-- Verification fails and there are multiple plausible repair paths.
+- A proposed model, tool, dependency, scope, permission or long-term-rule change would exceed the approved action/resource/budget boundary or violate a hard constraint. Ordinary implementation choices inside that boundary can proceed.
+- A high-risk operation lacks the required authorization, verified preconditions or recovery evidence.
+- Verification fails and the remaining repair choice would materially change requirements, permissions, cost or irreversible effects. Otherwise diagnose and retry safely within the approved scope.
 - The goal conflicts with later user input or cannot map to acceptance criteria.
 - Recovery state is missing or inconsistent.
 
@@ -412,11 +420,11 @@ At delivery, report:
 - [ ] Completion definition exists.
 - [ ] Task queue exists.
 - [ ] File ownership is clear.
-- [ ] MALTS-native Grill-Me Preflight was offered for non-trivial or unclear starts, or N/A was recorded.
-- [ ] At long-task start, the user was asked whether to enable unattended auto-continue and the answer was recorded.
+- [ ] Material decision gaps were resolved; Preflight was used only when requested or needed. A clear task proceeded without a routine interview.
+- [ ] Unattended operation, if used, has explicit matching authorization; no routine mode question interrupted active approved work.
 - [ ] Sub-agent tasks have contracts.
 - [ ] Launch review packet was shown after the user requested multi-agent mode.
-- [ ] User explicitly replied `确认运行` before any real dispatch.
+- [ ] Each real dispatch is covered by the corresponding user request or approved batch; no fixed confirmation phrase is required.
 - [ ] Each real dispatch is recorded with dispatch mechanism, agent ID when available, and model policy.
 - [ ] Each recycled sub-agent result is recorded before merge.
 - [ ] Dispatch logs, task contracts, reports, and feedback logs agree before claiming validation.

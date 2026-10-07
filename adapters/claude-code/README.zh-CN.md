@@ -1,74 +1,15 @@
-﻿# Claude Code 适配器
+﻿# MALTS 2.0.0 与 Claude Code
 
-此适配器从已验证的 MALTS 安装使用，提供 Claude Code 项目所需的指令模板、角色定义和命令指引。
+## 入口与职责
 
-## 工作区启动合同
+本适配提供宿主原生指令与工作流发现。共享v2服务拥有Task状态、授权范围、证据和恢复；.claude/MALTS_BOOT.md定位安装根，discovery交叉核registry、active pointer、identity与VERSION。
 
-Claude Code 不得为每个普通任务重新运行 `malts-long-project-workspace-init`。已有工作区运行只读 `workspace-entry`，只读取返回的有界 current set；只有新 scope、Phase 变化、真实安全漂移或显式 recovery 才升级。CURRENT contract report/handoff 是按需 derived view，不是启动门。默认 `single_phase` 不创建 coordination state；显式 `resource_admission` 下，每条写入通道必须在 mutation 前核验 Admission、当前 Phase hash、lease、fencing token 与 quarantine state。
+## 安装与使用
 
-本 adapter 与 Codex、OpenCode 暴露相同 Core/schema 合同。Slash command 与 prompt 不授予 mutation authority，不能 fence 绕过 MALTS 的工具，也不静默迁移旧 workspace。
+按[安装](../../docs/zh-CN/INSTALL.md)和[使用](../../docs/zh-CN/USAGE.md)操作。重载宿主验证实际Skill/MCP；标记区外个人内容保留。新长期工作区需Phase-ready，已采用工作区沿当前binding和Task服务继续。
 
-## 通过生命周期安装
 
-1. 先验证下载包，再解包。
-2. 为 Claude Code 工具根创建并审阅生命周期计划。
-3. 只执行已审阅计划的精确 hash。
 
-生命周期会把 Claude Code 投影写入所选工具根，并记录精确 generation 身份。不要手工复制适配器文件。
+## 验证范围与限制
 
-## 预览验证
-
-preview launch 必须把 preview 内的 Claude Code discovery root 作为
-`CLAUDE_CONFIG_DIR`，并使用 preview 内的 `HOME`、`USERPROFILE`、`APPDATA`、
-`LOCALAPPDATA`、`TEMP` 和 `TMP`。启动全新且有界的 Claude Code 进程，验证它发现
-预期 `malts-v<version>-preview.<sequence>` 和一个代表性 `malts-*` Skill。当前进程
-cache 不能作为证据。
-
-无法证明进程隔离时，报告 Claude Code `BLOCKED`；绝不回退真实 Claude Code root。
-未用真实工具集成验证的预览会被如实记录，不能视为完整合格。
-
-## 诊断与验证
-
-按场景用隔离或已安装 Claude Code root 运行 lifecycle `Doctor`。Doctor 只读，报告
-精确 boot/投影漂移，不修复 adapter。任何 repair 都需要独立可信
-`DoctorRepairPlan`、精确 plan hash 审阅、transaction 执行，以及新的全新进程发现
-检查。
-
-正常 discovery 从 Claude Code 相邻的 `MALTS_BOOT.md` 开始，再要求 registry、
-精确的 `<lifecycle-root>/registry/active_generation.json` pointer、generation
-identity 与 active `VERSION` 完全一致。使用
-`discover.authority_paths.active_generation_pointer` 作为 pointer 定位，
-不得探测旁路的 `<lifecycle-root>/active_generation.json`。MALTS v1.1.1 起不再
-使用机器全局 `GLOBAL_BOOT.md`。缺失、格式错误、reparse-point、过期或
-split-brain 状态均为 `BLOCKED`，不得 fallback 到其他 root。
-
-long-project Phase 存在 active plan 时，应在既定 launch、write-scope、delegated-return、
-verifier、recovery、rollback 与 final-delivery 边界运行只读 `plan-recheck`。Codex 专用的
-`codex-peer-task` route 不是可移植 Claude Code API；应使用 Claude Code 的可见 native
-dispatch，并保留等价 route、return、acceptance 与 closure evidence。
-
-## Workspace lifecycle contract
-
-`MALTS_WORKSPACE_LIFECYCLE_CONTRACT: 1`
-
-`MALTS_WORKSPACE_CONSISTENCY_CONTRACT: 1`
-
-- Phase 审阅与转换命令：`phase-boundary-review`、`pause-phase`、`resume-phase`、`plan-phase-transition`、`apply-phase-transition`。
-- Boundary review operation success 不等于 semantic resolution、persistence 或 authorization。使用 exact-hash、dry-run-first 的 `migrate-consistency-records`、`record-phase-boundary-review` 与 `reconcile-consistency-records`。
-- 全新工作区使用 CURRENT，默认 `single_phase`；受支持的旧布局保持可读，只能通过显式一步重整到达 CURRENT。`resource_admission` 必须 opt-in。CURRENT `WORK_TASK_REPORT.md`/handoff view 按需生成；旧布局在重整前保持严格 projection binding。
-- 用户未指定 model/effort 时，MALTS 根据任务复杂度、不确定性、风险、审计价值、额度、延迟和 runtime 能力推荐并验证 route；不默认继承 Main Controller。只有存在已记录的高风险/高价值依据或用户硬约束时才使用 `max`。
-- 面向用户的 lifecycle/status 文字依次采用用户明确语言、`NarrativeLanguage`、英文 fallback。中文输出同时显示中文含义和稳定英文代码，例如 `已返回（RETURNED）`；机器字段和状态代码保持英文。
-- Safety-critical canonical/authorization/transaction/Admission/fencing/unknown-effect drift 阻断受影响工作。Recovery 禁止选择最新历史 Session，固定使用 active Session、primary active Phase、显式绑定 terminal Phase、Project authority。
-- Workspace/coordination authority 共享 `runtime/workspace_transaction.lock.json`、`runtime/workspace_transactions/` 与 `WS_TRANSACTION_*`，并执行锁后 preimage 复核。Typed locator、capability mode、lease、fencing、queue、quarantine 与显式 reconcile 治理 resource-profile 写入；Artifact transaction 保持独立。
-- Artifact 命令：`artifact audit`、`artifact enrollment-preview`、`artifact enrollment-apply`、`artifact register`、`artifact promote`、`artifact supersede`、`artifact reconcile`。
-- Artifact contract 默认 `NOT_ENROLLED`。Invariant: no implicit Session.
-- 状态修改默认 dry-run，只有显式 `--apply` 才执行；不会移动/删除 payload、调用 VCS 或递归扫描未声明目录。
-- Project 只保留紧凑 lifecycle pointer；详细记录属于对应 Phase、Session、Shared 或 Archive registry。
-
-## 包含的运行时材料
-
-- `CLAUDE.example.md`：项目使用的 MALTS managed instruction block。
-- `.claude/agents/`：可选的 MALTS 角色定义。
-- `.claude/commands/`：启动、验证、复盘和 smoke check 指引。
-
-参见[用户安装指南](../../docs/INSTALL.md)与[用户使用指南](../../docs/USAGE.md)。
+2.1.207固定隔离profile有原生Task/冷恢复证据，不外推任意工具或模型。配置、安装、实际执行身份和业务验收分别判断。默认单Agent，委派、费用和发布按对应授权；未知效果及暂停/取消Host在续接前对账。

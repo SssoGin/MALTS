@@ -14,6 +14,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
+sys.dont_write_bytecode = True
+
 from resource_locators import (
     LocatorError,
     find_conflicts,

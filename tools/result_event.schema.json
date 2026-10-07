@@ -5,152 +5,860 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "event_version", "lineage_id", "task_id", "phase_id", "sequence", "event_id", "operation_id",
-    "event_kind", "recorded_at", "previous_event", "contract_revision", "phase_boundary_revision",
-    "actor", "session_lease_id", "payload", "evidence_refs", "execution_authority"
+    "event_version",
+    "lineage_id",
+    "task_id",
+    "phase_id",
+    "sequence",
+    "event_id",
+    "operation_id",
+    "event_kind",
+    "recorded_at",
+    "previous_event",
+    "contract_revision",
+    "phase_boundary_revision",
+    "actor",
+    "session_lease_id",
+    "payload",
+    "evidence_refs",
+    "execution_authority"
   ],
   "properties": {
-    "event_version": {"const": 2},
-    "lineage_id": {"$ref": "#/$defs/id"},
-    "task_id": {"$ref": "#/$defs/id"},
-    "phase_id": {"$ref": "#/$defs/id"},
-    "sequence": {"type": "integer", "minimum": 1},
-    "event_id": {"$ref": "#/$defs/id"},
-    "operation_id": {"$ref": "#/$defs/id"},
-    "event_kind": {"$ref": "#/$defs/eventKind"},
-    "recorded_at": {"type": "string", "format": "date-time"},
-    "previous_event": {"$ref": "#/$defs/nullableBinding"},
-    "contract_revision": {"$ref": "#/$defs/revisionBinding"},
-    "phase_boundary_revision": {"$ref": "#/$defs/boundaryBinding"},
-    "actor": {"$ref": "#/$defs/actor"},
-    "session_lease_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
-    "payload": {"$ref": "#/$defs/payload"},
-    "evidence_refs": {"$ref": "#/$defs/stringArray"},
-    "execution_authority": {"$ref": "#/$defs/executionAuthority"}
-  },
-  "$defs": {
-    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
-    "sha256": {"type": "string", "pattern": "^[A-F0-9]{64}$"},
-    "relativeJsonPath": {"type": "string", "pattern": "^(?![A-Za-z]:|[/\\\\]|.*(?:^|[/\\\\])\\.\\.(?:[/\\\\]|$)).+\\.json$"},
-    "stringArray": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
-    "eventKind": {"enum": ["CONTRACT_REVISION_ACCEPTED", "LEGACY_SNAPSHOT_IMPORTED", "STATUS_TRANSITION", "AUTHORIZATION_ENVELOPE_GRANTED", "AUTHORIZATION_ENVELOPE_REVOKED", "ROUND_STARTED", "ATTEMPT_PLANNED", "ATTEMPT_STARTED", "ATTEMPT_COMPLETED", "INVOCATION_PLANNED", "INVOCATION_STARTED", "INVOCATION_COMPLETED", "EXTERNAL_REQUEST_INTENT_RESERVED", "EXTERNAL_REQUEST_OBSERVED", "USAGE_OBSERVED", "RECOVERY_OBSERVATION", "CORRECTION_APPENDED"]},
-    "taskStatus": {"enum": ["DRAFT", "PREFLIGHT", "AWAITING_INITIAL_AUTHORIZATION", "AUTHORIZED", "PLANNING", "EXECUTING", "VERIFYING", "REPLANNING", "AWAITING_ATTEMPT_AUTHORIZATION", "FINALIZING", "DONE", "PARTIAL", "BLOCKED", "FAILED"]},
-    "attemptState": {"enum": ["PLANNED", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED", "NOT_RUN", "UNKNOWN"]},
-    "invocationState": {"enum": ["PLANNED", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED", "NOT_RUN", "UNKNOWN"]},
-    "dispatchAssessment": {"enum": ["NOT_APPLICABLE", "CONFIRMED_NOT_SENT", "CONFIRMED_SENT", "UNKNOWN"]},
-    "observationCompleteness": {"enum": ["COMPLETE", "PARTIAL", "UNKNOWN"]},
-    "outcomeState": {"enum": ["NOT_APPLICABLE", "NOT_OBSERVED", "SUCCEEDED", "FAILED", "UNKNOWN"]},
-    "chargeState": {"enum": ["NOT_APPLICABLE", "NOT_OBSERVED", "CONFIRMED_NONE", "CONFIRMED_CHARGED", "UNKNOWN"]},
-    "countedUnit": {"enum": ["ROUNDS", "ATTEMPTS", "INVOCATIONS", "REQUEST_INTENTS", "TOKENS", "COST_UNITS", "ELAPSED_SECONDS", "CONCURRENCY"]},
-    "nullableBinding": {
-      "type": ["object", "null"],
-      "additionalProperties": false,
-      "required": ["path", "sha256"],
-      "properties": {"path": {"$ref": "#/$defs/relativeJsonPath"}, "sha256": {"$ref": "#/$defs/sha256"}}
+    "event_version": {
+      "const": 2
     },
-    "revisionBinding": {
-      "type": "object", "additionalProperties": false,
-      "required": ["revision_id", "path", "sha256"],
-      "properties": {"revision_id": {"$ref": "#/$defs/id"}, "path": {"$ref": "#/$defs/relativeJsonPath"}, "sha256": {"$ref": "#/$defs/sha256"}}
+    "lineage_id": {
+      "$ref": "#/$defs/id"
     },
-    "boundaryBinding": {
-      "type": "object", "additionalProperties": false,
-      "required": ["revision_id", "sha256"],
-      "properties": {"revision_id": {"$ref": "#/$defs/id"}, "sha256": {"$ref": "#/$defs/sha256"}}
+    "task_id": {
+      "$ref": "#/$defs/id"
+    },
+    "phase_id": {
+      "$ref": "#/$defs/id"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "event_id": {
+      "$ref": "#/$defs/id"
+    },
+    "operation_id": {
+      "$ref": "#/$defs/id"
+    },
+    "event_kind": {
+      "$ref": "#/$defs/eventKind"
+    },
+    "recorded_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "previous_event": {
+      "$ref": "#/$defs/nullableBinding"
+    },
+    "contract_revision": {
+      "$ref": "#/$defs/revisionBinding"
+    },
+    "phase_boundary_revision": {
+      "$ref": "#/$defs/boundaryBinding"
     },
     "actor": {
-      "type": "object", "additionalProperties": false,
-      "required": ["kind", "id"],
-      "properties": {"kind": {"enum": ["MAIN_CONTROLLER", "DELEGATED_AGENT", "MIGRATION", "SYSTEM_RECOVERY"]}, "id": {"$ref": "#/$defs/id"}}
+      "$ref": "#/$defs/actor"
+    },
+    "session_lease_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "payload": {
+      "$ref": "#/$defs/payload"
+    },
+    "evidence_refs": {
+      "$ref": "#/$defs/stringArray"
+    },
+    "execution_authority": {
+      "$ref": "#/$defs/executionAuthority"
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[A-F0-9]{64}$"
+    },
+    "relativeJsonPath": {
+      "type": "string",
+      "pattern": "^(?![A-Za-z]:|[/\\\\]|.*(?:^|[/\\\\])\\.\\.(?:[/\\\\]|$)).+\\.json$"
+    },
+    "stringArray": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "eventKind": {
+      "enum": [
+        "CONTRACT_REVISION_ACCEPTED",
+        "LEGACY_SNAPSHOT_IMPORTED",
+        "STATUS_TRANSITION",
+        "AUTHORIZATION_ENVELOPE_GRANTED",
+        "AUTHORIZATION_ENVELOPE_REVOKED",
+        "ROUND_STARTED",
+        "ATTEMPT_PLANNED",
+        "ATTEMPT_STARTED",
+        "ATTEMPT_COMPLETED",
+        "INVOCATION_PLANNED",
+        "INVOCATION_STARTED",
+        "INVOCATION_COMPLETED",
+        "EXTERNAL_REQUEST_INTENT_RESERVED",
+        "EXTERNAL_REQUEST_OBSERVED",
+        "USAGE_OBSERVED",
+        "RECOVERY_OBSERVATION",
+        "CORRECTION_APPENDED"
+      ]
+    },
+    "taskStatus": {
+      "enum": [
+        "DRAFT",
+        "PREFLIGHT",
+        "AWAITING_INITIAL_AUTHORIZATION",
+        "AUTHORIZED",
+        "PLANNING",
+        "EXECUTING",
+        "VERIFYING",
+        "REPLANNING",
+        "AWAITING_ATTEMPT_AUTHORIZATION",
+        "FINALIZING",
+        "DONE",
+        "PARTIAL",
+        "BLOCKED",
+        "FAILED"
+      ]
+    },
+    "attemptState": {
+      "enum": [
+        "PLANNED",
+        "RUNNING",
+        "SUCCEEDED",
+        "FAILED",
+        "CANCELLED",
+        "NOT_RUN",
+        "UNKNOWN"
+      ]
+    },
+    "invocationState": {
+      "enum": [
+        "PLANNED",
+        "RUNNING",
+        "SUCCEEDED",
+        "FAILED",
+        "CANCELLED",
+        "NOT_RUN",
+        "UNKNOWN"
+      ]
+    },
+    "dispatchAssessment": {
+      "enum": [
+        "NOT_APPLICABLE",
+        "CONFIRMED_NOT_SENT",
+        "CONFIRMED_SENT",
+        "UNKNOWN"
+      ]
+    },
+    "observationCompleteness": {
+      "enum": [
+        "COMPLETE",
+        "PARTIAL",
+        "UNKNOWN"
+      ]
+    },
+    "outcomeState": {
+      "enum": [
+        "NOT_APPLICABLE",
+        "NOT_OBSERVED",
+        "SUCCEEDED",
+        "FAILED",
+        "UNKNOWN"
+      ]
+    },
+    "chargeState": {
+      "enum": [
+        "NOT_APPLICABLE",
+        "NOT_OBSERVED",
+        "CONFIRMED_NONE",
+        "CONFIRMED_CHARGED",
+        "UNKNOWN"
+      ]
+    },
+    "countedUnit": {
+      "enum": [
+        "ROUNDS",
+        "ATTEMPTS",
+        "INVOCATIONS",
+        "REQUEST_INTENTS",
+        "TOKENS",
+        "COST_UNITS",
+        "ELAPSED_SECONDS",
+        "CONCURRENCY"
+      ]
+    },
+    "nullableBinding": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/relativeJsonPath"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "revisionBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revision_id",
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "revision_id": {
+          "$ref": "#/$defs/id"
+        },
+        "path": {
+          "$ref": "#/$defs/relativeJsonPath"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "boundaryBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revision_id",
+        "sha256"
+      ],
+      "properties": {
+        "revision_id": {
+          "$ref": "#/$defs/id"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "MAIN_CONTROLLER",
+            "DELEGATED_AGENT",
+            "MIGRATION",
+            "SYSTEM_RECOVERY"
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        }
+      }
     },
     "fencingToken": {
-      "type": "object", "additionalProperties": false,
-      "required": ["domain_id", "epoch"],
-      "properties": {"domain_id": {"$ref": "#/$defs/id"}, "epoch": {"type": "integer", "minimum": 1}}
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "domain_id",
+        "epoch"
+      ],
+      "properties": {
+        "domain_id": {
+          "$ref": "#/$defs/id"
+        },
+        "epoch": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
     },
     "executionAuthority": {
-      "type": "object", "additionalProperties": false,
-      "required": ["profile", "admission_id", "actor_id", "phase_control_sha256", "fencing_tokens"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "admission_id",
+        "actor_id",
+        "phase_control_sha256",
+        "fencing_tokens"
+      ],
       "properties": {
-        "profile": {"enum": ["NONE", "RESOURCE_ADMISSION"]},
-        "admission_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
-        "actor_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
-        "phase_control_sha256": {"type": ["string", "null"], "pattern": "^[A-F0-9]{64}$"},
-        "fencing_tokens": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/fencingToken"}}
+        "profile": {
+          "enum": [
+            "NONE",
+            "RESOURCE_ADMISSION"
+          ]
+        },
+        "admission_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        },
+        "actor_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        },
+        "phase_control_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[A-F0-9]{64}$"
+        },
+        "fencing_tokens": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/fencingToken"
+          }
+        }
       }
     },
     "coordinationReconcileRef": {
-      "type": "object", "additionalProperties": false,
-      "required": ["quarantine_id", "event_path", "event_sha256"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "quarantine_id",
+        "event_path",
+        "event_sha256"
+      ],
       "properties": {
-        "quarantine_id": {"$ref": "#/$defs/id"},
-        "event_path": {"type": "string", "pattern": "^runtime[/\\\\]workspace_coordination_events[/\\\\][A-Za-z0-9][A-Za-z0-9._-]{0,127}\\.json$"},
-        "event_sha256": {"$ref": "#/$defs/sha256"}
+        "quarantine_id": {
+          "$ref": "#/$defs/id"
+        },
+        "event_path": {
+          "type": "string",
+          "pattern": "^runtime[/\\\\]workspace_coordination_events[/\\\\][A-Za-z0-9][A-Za-z0-9._-]{0,127}\\.json$"
+        },
+        "event_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
       }
     },
     "usage": {
-      "type": "object", "additionalProperties": false,
-      "required": ["rounds", "attempts", "invocations", "request_intents", "physical_requests", "tokens", "cost_units", "elapsed_seconds", "concurrency"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rounds",
+        "attempts",
+        "invocations",
+        "request_intents",
+        "physical_requests",
+        "tokens",
+        "cost_units",
+        "elapsed_seconds",
+        "concurrency"
+      ],
       "properties": {
-        "rounds": {"type": "integer", "minimum": 0}, "attempts": {"type": "integer", "minimum": 0},
-        "invocations": {"type": "integer", "minimum": 0}, "request_intents": {"type": "integer", "minimum": 0}, "physical_requests": {"type": "integer", "minimum": 0},
-        "tokens": {"type": "integer", "minimum": 0}, "cost_units": {"type": "number", "minimum": 0},
-        "elapsed_seconds": {"type": "number", "minimum": 0}, "concurrency": {"type": "integer", "minimum": 0}
+        "rounds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "attempts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "invocations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "request_intents": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "physical_requests": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cost_units": {
+          "type": "number",
+          "minimum": 0
+        },
+        "elapsed_seconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "concurrency": {
+          "type": "integer",
+          "minimum": 0
+        }
       }
     },
     "limit": {
-      "type": "object", "additionalProperties": false,
-      "required": ["unit", "maximum"],
-      "properties": {"unit": {"$ref": "#/$defs/countedUnit"}, "maximum": {"type": ["number", "null"], "minimum": 0}}
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unit",
+        "maximum"
+      ],
+      "properties": {
+        "unit": {
+          "$ref": "#/$defs/countedUnit"
+        },
+        "maximum": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
     },
     "authorizationEnvelope": {
-      "type": "object", "additionalProperties": false,
-      "required": ["envelope_id", "authorization_ref", "contract_revision_id", "contract_revision_sha256", "phase_boundary_revision_id", "phase_boundary_revision_sha256", "allowed_operations", "scope_locators", "granted_at", "effective_after_event_sequence", "expires_at", "session_lease_id", "limits", "allowed_risk_classes", "allowed_side_effect_classes", "issuer", "evidence_refs"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "envelope_id",
+        "authorization_ref",
+        "contract_revision_id",
+        "contract_revision_sha256",
+        "phase_boundary_revision_id",
+        "phase_boundary_revision_sha256",
+        "allowed_operations",
+        "scope_locators",
+        "granted_at",
+        "effective_after_event_sequence",
+        "expires_at",
+        "session_lease_id",
+        "limits",
+        "allowed_risk_classes",
+        "allowed_side_effect_classes",
+        "issuer",
+        "evidence_refs"
+      ],
       "properties": {
-        "envelope_id": {"$ref": "#/$defs/id"}, "authorization_ref": {"type": "string", "minLength": 1},
-        "contract_revision_id": {"$ref": "#/$defs/id"}, "contract_revision_sha256": {"$ref": "#/$defs/sha256"},
-        "phase_boundary_revision_id": {"$ref": "#/$defs/id"}, "phase_boundary_revision_sha256": {"$ref": "#/$defs/sha256"},
-        "allowed_operations": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["ROUND_STARTED", "ATTEMPT_STARTED", "INVOCATION_STARTED", "EXTERNAL_REQUEST_INTENT_RESERVED"]}}, "scope_locators": {"$ref": "#/$defs/stringArray"},
-        "granted_at": {"type": "string", "format": "date-time"}, "effective_after_event_sequence": {"type": "integer", "minimum": 0},
-        "expires_at": {"type": ["string", "null"], "format": "date-time"}, "session_lease_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
-        "limits": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/limit"}},
-        "allowed_risk_classes": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["low", "medium", "high", "critical"]}}, "allowed_side_effect_classes": {"$ref": "#/$defs/stringArray"},
-        "issuer": {"$ref": "#/$defs/actor"}, "evidence_refs": {"$ref": "#/$defs/stringArray"}
+        "envelope_id": {
+          "$ref": "#/$defs/id"
+        },
+        "authorization_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "contract_revision_id": {
+          "$ref": "#/$defs/id"
+        },
+        "contract_revision_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "phase_boundary_revision_id": {
+          "$ref": "#/$defs/id"
+        },
+        "phase_boundary_revision_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "allowed_operations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "ROUND_STARTED",
+              "ATTEMPT_STARTED",
+              "INVOCATION_STARTED",
+              "EXTERNAL_REQUEST_INTENT_RESERVED"
+            ]
+          }
+        },
+        "scope_locators": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "granted_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "effective_after_event_sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expires_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "session_lease_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        },
+        "limits": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/limit"
+          }
+        },
+        "allowed_risk_classes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ]
+          }
+        },
+        "allowed_side_effect_classes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "issuer": {
+          "$ref": "#/$defs/actor"
+        },
+        "evidence_refs": {
+          "$ref": "#/$defs/stringArray"
+        }
       }
     },
     "dispatchSummary": {
-      "type": "object", "additionalProperties": false,
-      "required": ["dispatch_assessment", "observation_completeness", "confirmed_request_count_min", "confirmed_request_count_max", "outcome_state", "charge_state", "direct_evidence_refs"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dispatch_assessment",
+        "observation_completeness",
+        "confirmed_request_count_min",
+        "confirmed_request_count_max",
+        "outcome_state",
+        "charge_state",
+        "direct_evidence_refs"
+      ],
       "properties": {
-        "dispatch_assessment": {"$ref": "#/$defs/dispatchAssessment"}, "observation_completeness": {"$ref": "#/$defs/observationCompleteness"},
-        "confirmed_request_count_min": {"type": "integer", "minimum": 0}, "confirmed_request_count_max": {"type": ["integer", "null"], "minimum": 0},
-        "outcome_state": {"$ref": "#/$defs/outcomeState"}, "charge_state": {"$ref": "#/$defs/chargeState"},
-        "direct_evidence_refs": {"$ref": "#/$defs/stringArray"}
+        "dispatch_assessment": {
+          "$ref": "#/$defs/dispatchAssessment"
+        },
+        "observation_completeness": {
+          "$ref": "#/$defs/observationCompleteness"
+        },
+        "confirmed_request_count_min": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "confirmed_request_count_max": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "outcome_state": {
+          "$ref": "#/$defs/outcomeState"
+        },
+        "charge_state": {
+          "$ref": "#/$defs/chargeState"
+        },
+        "direct_evidence_refs": {
+          "$ref": "#/$defs/stringArray"
+        }
       }
     },
     "payload": {
-      "type": "object", "additionalProperties": false,
+      "type": "object",
+      "additionalProperties": false,
       "properties": {
-        "reason": {"type": "string", "minLength": 1}, "from_status": {"$ref": "#/$defs/taskStatus"}, "to_status": {"$ref": "#/$defs/taskStatus"},
-        "revision_id": {"$ref": "#/$defs/id"}, "source_contract_path": {"$ref": "#/$defs/relativeJsonPath"}, "source_contract_sha256": {"$ref": "#/$defs/sha256"},
-        "legacy_status": {"type": "string", "minLength": 1}, "legacy_usage": {"$ref": "#/$defs/usage"}, "legacy_recovery_ref": {"type": "string", "minLength": 1},
-        "authorization_envelope": {"$ref": "#/$defs/authorizationEnvelope"}, "envelope_id": {"$ref": "#/$defs/id"},
-        "provider_retry_bound_proven": {"type": "boolean"}, "physical_request_limit": {"type": ["integer", "null"], "minimum": 1},
-        "round_id": {"$ref": "#/$defs/id"}, "attempt_id": {"$ref": "#/$defs/id"}, "invocation_id": {"$ref": "#/$defs/id"},
-        "attempt_state": {"$ref": "#/$defs/attemptState"}, "invocation_state": {"$ref": "#/$defs/invocationState"},
-        "plan_ref": {"type": "string", "minLength": 1}, "dispatch_summary": {"$ref": "#/$defs/dispatchSummary"},
-        "request_intent_id": {"$ref": "#/$defs/id"}, "observed_request_id": {"$ref": "#/$defs/id"}, "provider_locator": {"type": "string", "minLength": 1},
-        "side_effect_class": {"type": "string", "minLength": 1}, "idempotency_key_ref": {"type": "string", "minLength": 1},
-        "provider_request_id_ref": {"type": ["string", "null"], "minLength": 1}, "sent_at": {"type": ["string", "null"], "format": "date-time"},
-        "response_at": {"type": ["string", "null"], "format": "date-time"}, "idempotency_replay": {"type": "boolean"},
-        "outcome_state": {"$ref": "#/$defs/outcomeState"}, "charge_state": {"$ref": "#/$defs/chargeState"},
-        "physical_request_bound_proven": {"type": "boolean"}, "usage_delta": {"$ref": "#/$defs/usage"},
-        "target_event_id": {"$ref": "#/$defs/id"}, "target_event_sha256": {"$ref": "#/$defs/sha256"},
-        "observation": {"type": "string", "minLength": 1}, "affected_fields": {"$ref": "#/$defs/stringArray"},
-        "unresolved_side_effects": {"type": "boolean"}, "recovery_required": {"type": "boolean"},
-        "coordination_quarantine_id": {"$ref": "#/$defs/id"},
-        "reconciled_quarantine_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
-        "coordination_reconcile_refs": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/coordinationReconcileRef"}}
+        "completion_proof": {
+          "$ref": "#/$defs/completionProof"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "from_status": {
+          "$ref": "#/$defs/taskStatus"
+        },
+        "to_status": {
+          "$ref": "#/$defs/taskStatus"
+        },
+        "revision_id": {
+          "$ref": "#/$defs/id"
+        },
+        "source_contract_path": {
+          "$ref": "#/$defs/relativeJsonPath"
+        },
+        "source_contract_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "legacy_status": {
+          "type": "string",
+          "minLength": 1
+        },
+        "legacy_usage": {
+          "$ref": "#/$defs/usage"
+        },
+        "legacy_recovery_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "authorization_envelope": {
+          "$ref": "#/$defs/authorizationEnvelope"
+        },
+        "envelope_id": {
+          "$ref": "#/$defs/id"
+        },
+        "provider_retry_bound_proven": {
+          "type": "boolean"
+        },
+        "physical_request_limit": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "round_id": {
+          "$ref": "#/$defs/id"
+        },
+        "attempt_id": {
+          "$ref": "#/$defs/id"
+        },
+        "invocation_id": {
+          "$ref": "#/$defs/id"
+        },
+        "attempt_state": {
+          "$ref": "#/$defs/attemptState"
+        },
+        "invocation_state": {
+          "$ref": "#/$defs/invocationState"
+        },
+        "plan_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dispatch_summary": {
+          "$ref": "#/$defs/dispatchSummary"
+        },
+        "request_intent_id": {
+          "$ref": "#/$defs/id"
+        },
+        "observed_request_id": {
+          "$ref": "#/$defs/id"
+        },
+        "provider_locator": {
+          "type": "string",
+          "minLength": 1
+        },
+        "side_effect_class": {
+          "type": "string",
+          "minLength": 1
+        },
+        "idempotency_key_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "provider_request_id_ref": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "sent_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "response_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "idempotency_replay": {
+          "type": "boolean"
+        },
+        "outcome_state": {
+          "$ref": "#/$defs/outcomeState"
+        },
+        "charge_state": {
+          "$ref": "#/$defs/chargeState"
+        },
+        "physical_request_bound_proven": {
+          "type": "boolean"
+        },
+        "usage_delta": {
+          "$ref": "#/$defs/usage"
+        },
+        "target_event_id": {
+          "$ref": "#/$defs/id"
+        },
+        "target_event_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "observation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "affected_fields": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "unresolved_side_effects": {
+          "type": "boolean"
+        },
+        "recovery_required": {
+          "type": "boolean"
+        },
+        "coordination_quarantine_id": {
+          "$ref": "#/$defs/id"
+        },
+        "reconciled_quarantine_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        },
+        "coordination_reconcile_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/coordinationReconcileRef"
+          }
+        }
+      }
+    },
+    "completion_hash": {
+      "type": "string",
+      "pattern": "^[A-Fa-f0-9]{64}$"
+    },
+    "completion_strings": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "completion_verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "criterion_id",
+        "result",
+        "evidence_level",
+        "evidence_refs",
+        "artifact_ids"
+      ],
+      "properties": {
+        "criterion_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "result": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "NOT_RUN",
+            "TODO"
+          ]
+        },
+        "evidence_level": {
+          "enum": [
+            "A",
+            "B",
+            "C",
+            "D"
+          ]
+        },
+        "evidence_refs": {
+          "$ref": "#/$defs/completion_strings"
+        },
+        "artifact_ids": {
+          "$ref": "#/$defs/completion_strings"
+        }
+      }
+    },
+    "completion_artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_id",
+        "sha256"
+      ],
+      "properties": {
+        "artifact_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/completion_hash"
+        }
+      }
+    },
+    "completionProof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_sha256",
+        "verification",
+        "artifacts",
+        "remaining_work"
+      ],
+      "properties": {
+        "contract_sha256": {
+          "$ref": "#/$defs/completion_hash"
+        },
+        "verification": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/completion_verification"
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/completion_artifact"
+          }
+        },
+        "remaining_work": {
+          "$ref": "#/$defs/completion_strings"
+        }
       }
     }
   }

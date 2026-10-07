@@ -1,9 +1,17 @@
 ﻿---
 name: single-agent-lightweight-growth
-description: Use by default during normal single-agent work to keep growth continuous but cheap, without enabling full multi-agent scheduling.
+description: Review concrete correction, verification, recovery, or reusable-method signals from single-agent work, or an explicitly requested retrospective. Ordinary success without a signal needs no Growth report.
 ---
 
 # Skill: Single-Agent Lightweight Growth
+
+## Select the current authority
+
+Use the selected workspace's verified entry; a filename or historical report does not select v2. Do not initialize or migrate for a Growth signal. For a checked adopted or explicitly selected isolated v2 store, use the [v2 task workflow](../v2/malts-v2-task-workflow/SKILL.md) and its [authorized Growth trial](../../docs/V2_PREVIEW_USAGE.md#v2-growth) contract. Without a concrete signal or requested review, remain silent and write nothing. Analysis is not permission for a durable proposal, trial, deployment or global rule.
+
+The v2 Task store owns candidate/source/outcome identities and current access. Record a candidate only within the existing approved project scope using the actual controller action catalog; never fall back to a Markdown ledger because an interface is absent. Protected Worker Evidence needs a reviewed derivative before Growth reuse. Later use must bind its own Task, matching Grant and current candidate evidence; restoration, retrieval and validation do not restore authorization. Counterevidence or withdrawn source access stops affected reuse, not unrelated work. Native model effectiveness remains a separate qualification.
+
+The sections below describe the pre-adoption Markdown workflow and its analysis principles. Its file destinations, Plan Recheck and ledger operations apply only when that is the workspace's verified current authority; use the v2 interfaces above for selected v2 work.
 
 ## Purpose
 
@@ -13,14 +21,14 @@ This is the default growth mode.
 
 ## Trigger
 
-Use for all normal tasks unless multi-agent long-task scheduling is explicitly enabled.
+Use when single-agent work produces a concrete Growth signal or the user requests a retrospective. Task complexity alone does not trigger Skill loading or reporting.
 
 ## Growth Routing Gate
 
-After verification and before final delivery, perform one in-context L1 routing decision. This is a no-write lifecycle check, not a user-confirmation-gated Skill invocation.
+When triggered, after verification and before final delivery, perform one in-context L1 routing decision. This check writes nothing and needs no additional confirmation. Do not load the full Growth workflow solely to establish that an ordinary successful task has no signal.
 
-- A trivial task with no signal returns `NO_OUTPUT` and stays silent.
-- A non-trivial task, user correction, verification reversal, recovery, failure, or reusable method returns `LIGHT_REPORT` with a short user-visible result.
+- With no concrete signal or high-impact evidence, return `NO_OUTPUT` regardless of task complexity, unless a retrospective is explicitly requested or already authorized.
+- User correction, verification reversal, recovery, tool-fact conflict, or a materially reusable method returns `LIGHT_REPORT` with a short user-visible result.
 - Repeated failure, rework, phase/long-task completion, delivery failure, or high-impact evidence returns `RETROSPECTIVE_RECOMMENDED`; recommend Standard or Major review but do not start it automatically.
 - An explicitly requested retrospective or an already authorized retrospective returns `RETROSPECTIVE_AUTHORIZED`; any L2/L3 durable write remains separately authorization-gated.
 - An applicable blocked Plan Recheck returns `BLOCKED`; Growth never bypasses a plan, boundary, safety, unknown-effect, or transaction gate.
@@ -42,7 +50,7 @@ Growth analysis may be continuous, but durable growth writes are permission-boun
 1. Execute the user's task normally.
 2. Verify before claiming completion.
 3. At the end, briefly check whether the task produced a high-signal event: user correction, verification reversal, repeated failure, rework, recovery/rollback, a materially successful method, or a tool-fact/assumption conflict.
-4. If no meaningful signal exists, do not create a growth file.
+4. If no meaningful signal exists and no retrospective is authorized, stay silent: no Growth file, empty report, or repeated request for review. High-impact evidence remains a review signal.
 4a. If no durable control or reporting delta exists, do not rewrite `PROJECT_CONTROL.md`, `WORK_TASK_REPORT.md`, `PROJECT_HANDOFF.md`, Phase/Session controls, runtime indexes, or timestamps merely to record that nothing changed.
 5. Under L1, analyze the signal in memory and report only a temporary candidate when useful.
 6. Under an explicit L2 authorization, record the candidate only in the declared project surface and run the anti-pollution gate.
@@ -53,7 +61,7 @@ Growth analysis may be continuous, but durable growth writes are permission-boun
 11. High-risk candidates also require an independent review or negative/counterexample test.
 12. Harmful evidence moves the candidate to `CHALLENGED`; severe harmful evidence moves it to `SUSPENDED` and stops automatic application.
 13. Any L3 proposal or write requires a separate user confirmation even when the memory checklist passes.
-14. For non-trivial tasks, user corrections, recovery rounds, or failures, include the short user-facing Growth Routing result in final delivery; a report-only entry does not satisfy this visibility requirement.
+14. For a signal-triggered or explicitly authorized review, include the short user-facing Growth Routing result in final delivery; a file-only entry does not satisfy this visibility requirement. A declined retrospective must not generate repeated recommendations.
 15. When the task runs inside an active S3/S4 MALTS Phase with a bound plan, run the matching read-only Plan Recheck event before a new write scope, after a user goal change or failure/recovery, and before final delivery. Do not create a plan or authorization from this lightweight growth workflow; `BLOCKED` stops the gated action and `N/A` is valid only when the Phase does not require a plan.
 
 ## Lightweight Growth Triggers
@@ -94,18 +102,7 @@ Growth review:
 
 For `NO_OUTPUT`, show no empty Growth template. For a Chinese user, render Chinese meaning plus the route code, for example `轻量成长复核（LIGHT_REPORT）`.
 
-For non-trivial or recovery tasks, include this short report even when no long-term write is made:
-
-```md
-Growth review:
-- Review level: Light
-- Reusable experience found: Yes / No
-- Next-time change:
-- Memory write decision: Do not write / Local candidate / Proposed after checklist / Local fallback because target unavailable
-- Promotion decision: None / Local only / Proposed for GLOBAL_MEMORY / Written to GLOBAL_MEMORY
-- Future-use status: Not started / Validating / Two independent future tasks passed / Challenged / Suspended
-- Original event counted as future use: No
-```
+When reporting a candidate, add future-use or challenge status only when relevant; the original event never counts as independent future-use validation. Use one concise report rather than duplicate templates.
 
 ## Checklist
 
@@ -120,7 +117,7 @@ Growth review:
 - [ ] The original triggering event was not counted as a future use.
 - [ ] Harmful evidence opens a challenge; severe evidence suspends automatic use.
 - [ ] Failed or unavailable memory writes were preserved as local candidates instead of claimed as completed.
-- [ ] The user-facing report includes the growth result when the task is non-trivial or recovery-related.
+- [ ] A real signal or authorized retrospective receives a concise result; ordinary no-signal success produces no Growth report.
 
 ## Fast Path growth
 

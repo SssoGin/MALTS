@@ -16,6 +16,7 @@ from typing import Any, Mapping, Sequence
 sys.dont_write_bytecode = True
 
 from malts_user_contracts import load_json, validate_instance
+from resource_locators import legacy_lease_conflict
 
 
 MALTS_ROOT = Path(__file__).resolve().parent.parent
@@ -109,12 +110,11 @@ def _lane_issues(contract: dict[str, Any], lanes: Any, malts_root: Path = MALTS_
 
 
 def _conflicts(candidate: dict[str, Any], selected: list[dict[str, Any]]) -> bool:
-    candidate_leases = {lease["locator"]: lease["access"] for lease in candidate["leases"]}
     for lane in selected:
         for lease in lane["leases"]:
-            access = candidate_leases.get(lease["locator"])
-            if access is not None and (access == "write" or lease["access"] == "write"):
-                return True
+            for proposed in candidate["leases"]:
+                if legacy_lease_conflict(proposed, lease):
+                    return True
     return False
 
 
@@ -159,6 +159,16 @@ def _route_index_from_score(score: int, thresholds: Mapping[str, Any]) -> int:
     return 0
 
 
+def _profile_eligible(profile: Mapping[str, Any], required_capabilities: set[str], effort: str) -> bool:
+    return (
+        profile.get("runtime_verified") is True
+        and effort in profile.get("reasoning_efforts", [])
+        and required_capabilities.issubset(set(profile.get("capabilities", [])))
+        and profile.get("delegation_behavior", {}).get("supported") == "supported"
+        and "sub-agent" in profile.get("delegation_behavior", {}).get("modes", [])
+    )
+
+
 def _profile_candidates(
     profiles: Sequence[Mapping[str, Any]],
     route: Mapping[str, Any],
@@ -169,13 +179,9 @@ def _profile_candidates(
     cost_order = {"low": 0, "medium": 1, "high": 2, "unknown": 3}
     candidates = [
         profile for profile in profiles
-        if profile.get("runtime_verified") is True
+        if _profile_eligible(profile, required_capabilities, effort)
         and profile.get("base_capability_tier") in tier_order
         and profile.get("cost_class") in route["allowed_cost_classes"]
-        and effort in profile.get("reasoning_efforts", [])
-        and required_capabilities.issubset(set(profile.get("capabilities", [])))
-        and profile.get("delegation_behavior", {}).get("supported") == "supported"
-        and "sub-agent" in profile.get("delegation_behavior", {}).get("modes", [])
     ]
     return sorted(
         candidates,
@@ -281,7 +287,7 @@ def recommend_model_route(
     selected_profile: Mapping[str, Any] | None = None
     requested_model = requested["model_id"]
     if requested_model is not None:
-        exact = [profile for profile in profiles if profile.get("model_id") == requested_model and effort in profile.get("reasoning_efforts", [])]
+        exact = [profile for profile in profiles if profile.get("model_id") == requested_model and _profile_eligible(profile, required_capabilities, effort)]
         if requested["model_constraint"] == "HARD":
             if not exact:
                 issues.append(_issue("AR_HARD_MODEL_UNAVAILABLE", "$.task_requirements.requested_route.model_id", "The hard-requested model/effort is absent from the verified model catalog."))

@@ -21,7 +21,7 @@
     "workspace_schema_version": {"type": ["integer", "null"], "minimum": 1},
     "profile": {"enum": ["single_phase", "resource_admission", "legacy_v4", "unsupported", "unknown"]},
     "task_class": {"enum": ["READ_ONLY", "LOW_RISK", "WRITE_EXISTING_SCOPE", "NEW_WRITE_SCOPE", "HIGH_RISK", "CONTEXT_RECOVERY"]},
-    "entry_path": {"enum": ["FAST_PATH", "INITIALIZATION_REQUIRED", "PHASE_REQUIRED", "FULL_RECOVERY_REQUIRED", "MIGRATION_REQUIRED"]},
+    "entry_path": {"enum": ["FAST_PATH", "INITIALIZATION_REQUIRED", "PHASE_REQUIRED", "FULL_RECOVERY_REQUIRED", "MIGRATION_REQUIRED", "BOUNDED_READ_REQUIRED"]},
     "decision": {"enum": ["PROCEED", "PROCEED_WITH_WARNINGS", "REVIEW_REQUIRED", "BLOCKED"]},
     "primary_phase_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
     "selected_phase_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},

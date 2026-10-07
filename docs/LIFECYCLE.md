@@ -1,189 +1,31 @@
-# MALTS Lifecycle
+# MALTS 2.0.0 Lifecycle
 
-The lifecycle engine turns a verified MALTS source into immutable installed versions. One local registry identifies the active version; each selected Agent tool receives only its projection and a boot pointer.
+## 1. Two lifecycles
 
-Installation lifecycle and project-workspace lifecycle are separate boundaries. Installing or activating a generation never silently reorganizes a workspace. Any supported legacy workspace or Result input reaches CURRENT through one direct `reorganize-workspace` or `reorganize-result-contract` transaction with a dry run, exact source/Phase/coordination hashes, fixed timestamp, review and authorization references, explicit apply, and recoverable journal. There is no public intermediate-version or downgrade chain. Reorganization creates no unrelated Phase, Session, Agent, Artifact, Workspace, or background service.
+Installation lifecycle owns immutable generations, projections, registry, plans and transactions. Project lifecycle owns Project/Phase/Task, effects, evidence and recovery. Installation does not adopt/rebuild projects; project backup does not replace installation snapshots.
 
-The active installed generation remains immutable evidence and must not be patched in place. Workspace coordination journals share the workspace authority lock but remain project runtime state; they are not lifecycle registry state. Candidate generation, activation, repository commit/push/tag, and public Release are still distinct authorization gates.
+## 2. Plans and consolidation
 
-## Core Invariants
+Use review-first Install/Update scripts normally. Invoke-MALTSLifecycle.ps1 exposes Plan, PreviewPlan, Execute, Recover, Inspect, Scan, Doctor and DoctorRepairPlan for install/update/repair/finalize/uninstall. Inspect current help for exact parameters.
 
-- A version comes from one verified repository source or one explicitly verified extracted release package.
-- Installed payload bytes remain immutable after activation.
-- Installed provenance stores only its source kind and hash-bound identities; it never stores a package, repository, or machine path.
-- Exactly one version is active after a successful install or update.
-- A plan is persisted, reviewable, and bound to an exact SHA-256.
-- Execution accepts only the exact reviewed plan and observed preconditions.
-- Tool roots outside the selected set are not modified.
-- Unknown or user-owned files are preserved or block the operation; they are not silently removed.
+Finalize consolidates the same version with preserved target snapshots and exact inputs; it is not an arbitrary overwrite. Planning does not mutate installation. Execute requires reviewed PlanPath/ExpectedPlanHash. Preview in a new isolated root checks source/projections/postconditions before normal-target execution. Transactions own recovery; never patch journals or delete locks to bypass checks.
 
-## Source Modes
+## 3. Discovery and diagnosis
 
-| Source | Normal use | Validation |
-|---|---|---|
-| Repository | Default install and update path | `MALTS_RELEASE.json`, `VERSION`, exact source-tree inventory, required user entry points, and safe repository topology. |
-| Extracted release package | Explicit offline/fixed archive path | Closed `release_manifest.json`, release inventory, inner lifecycle artifact, and package identity. |
-
-The optional ZIP is an archive delivery mechanism, not a third lifecycle source. Bootstrap verification extracts it into the second source mode.
-
-## Semantic Version Identity And Migration
-
-Stable versions use `malts-v<version>` and isolated preview versions use
-`malts-v<version>-preview.<positive-sequence>`. The release builder and
-lifecycle engine call the same identity function. An exact stable identity
-already installed is an explicit `NO_OP`; the same ID with different content,
-or an unbound directory with that name, fails before transaction or lock state
-is created.
-
-Legacy IDs such as `malts-1.0.0-<hash>` are recognized migration inputs. The
-new semantic version is staged and prevalidated first. Registry, active
-pointer, global boot, and selected tool projections switch transactionally;
-the legacy version is removed only after post-validation proves zero
-authoritative old references. A crash at any state recovers to one terminal
-committed or rolled-back result.
-
-## Operations
-
-| Operation | Purpose | Source required |
-|---|---|---|
-| `install` | Create and activate a first version. | Repository or extracted package |
-| `update` | Stage and activate a newer verified version. | Repository or extracted package |
-| `repair` | Reconcile selected projections with the active version. | Repository or extracted package |
-| `finalize` | Explicitly reissue one stable version by replacing its retiring target and removing only reviewed retiring generations from the same major/minor series. | Repository or extracted package; existing v1 lifecycle state |
-| `uninstall` | Remove MALTS-owned projections and registry state under the reviewed plan. | Active installation only |
-| `recover` | Resume or roll back an interrupted transaction. | Existing lifecycle state |
-
-## Review-First Plans
-
-The user lifecycle scripts create a plan first. A plan includes the source identity, selected roots, target version identity, writes, removals, user-modification classification, legacy migration or residue actions, rollback, and post-validation checks.
-
-Execution requires the same plan file and its exact `plan_hash`. Source or environment drift fails before mutation.
-
-`finalize` is not an ordinary update or an automatic retention policy. It is used only after review has established that unpublished interim generations in the same major/minor series must be retired. The target generation must already be a registered retiring generation; an active, unbound, cross-series, or user-modified target fails closed. Its plan enumerates every destructive replacement and cleanup path, snapshots the complete pre-state, and recovery either restores that state or records a failure bundle without replacing the restored current-binding receipt.
-
-## Preview Verification
-
-New runtime-affecting versions are verified in an explicit absolute preview
-root before they can be considered for a real installation. The preview root
-must not be a drive root, reparse point, source/runtime root, or an
-ancestor/descendant of any protected root. Preview lifecycle, registry, global
-boot, and every selected tool's config, home, cache, and temp roots stay below
-that boundary.
-
-Create a zero-write preview plan, review it, then persist and execute only its
-exact hash:
+Resolve runtime through tool Boot; discovery compares registry, active pointer, identity and VERSION. Doctor is read-only trust/drift diagnosis. Inspect lists installation state; Scan lists residue, not deletion permission:
 
 ```powershell
-.\scripts\Invoke-MALTSLifecycle.ps1 `
-  -Command PreviewPlan `
-  -PreviewRoot <ABSOLUTE_PREVIEW_ROOT> `
-  -ReleaseRoot <PREVIEW_RELEASE_ROOT> `
-  -ProtectedRoot <REAL_LIFECYCLE_ROOT> `
-  -Tool codex,claude-code,opencode `
-  -OutPath <NEW_PREVIEW_PLAN_PATH> `
-  -Apply
+.\scripts\Invoke-MALTSLifecycle.ps1 -Command Doctor -LifecycleRoot '<existing-lifecycle-root>' -ToolRootCodex '<codex-config-root>'
 ```
 
-Fresh Codex, Claude Code, and OpenCode processes must discover the preview version through process-local isolated roots. If isolation cannot be proved, the operation is blocked; it never falls back to a real root. A preview that was not verified with real tool integration is recorded as such and cannot be treated as fully qualified.
+Supply all actual roots for shared three-tool installation. Harness uses its separate lifecycle and the existing ToolRootDeepSeekDesktop parameter, which maps to current deepseek-harness identity, not a legacy identity.
 
-## Doctor And Repair Trust
+## 4. v2 recovery
 
-`Doctor` returns a closed `lifecycle-doctor-report` with exact locators, expected/observed evidence, severity, core trust, and suggested commands. It is always read-only. Derived boot or projection drift can be scoped from a locally consistent active version; tampered payload, manifest, registry, or pointer state requires an exact verified external source matching the installed binding.
+Resume exact Task/Run for ordinary pause. Disaster recovery verifies adopted binding/epoch, backup and writers. Verify then restore to a new root, keep quarantine and reconcile subsequent work, UNKNOWN, budgets and resources. Missing receipts do not prove non-execution. Recovery revives no old Grant/Host/consumed allowance or legacy runtime.
 
-`DoctorRepairPlan` is a separate review step. A local active-version recommendation is non-executable. A verified exact source may produce a normal hash-bound repair plan, but execution still requires `Execute -Apply` with the reviewed plan hash and retains normal snapshot/rollback/post-validation behavior.
+## 5. Retention and cleanup
 
-## Versions And Boot Pointers
+Preserve active generation, registry, state, binding/seals, original acceptance, uncertain effects and required snapshots. Age, candidate names and terminal labels do not prove deletability. Inspect references, ownership, complete size and alternate recovery. Follow user/Host file policy; recoverable failure preserves the original.
 
-The lifecycle root contains immutable version directories, registry state, transaction journals, audit evidence, and residue records. Each selected tool receives a small projection plus `MALTS_BOOT.md`, which resolves the active version at use time.
-
-Do not copy a physical version path into a project control file. Resolve the boot pointer first and read the active `VERSION` when current runtime information is needed.
-
-Public Python CLI entrypoints suppress bytecode writes before importing MALTS-local modules, so ordinary read-only startup cannot create `__pycache__` or `.pyc` files inside an immutable installed generation. Examples still use `python -B` as defense in depth; installed-generation purity and Doctor checks fail closed on any generated cache residue.
-
-For a legacy long-project workspace that contains an old physical version
-path in its generated `PROJECT_CONTROL.md`, inspect the migration first:
-
-```powershell
-python -B .\tools\long_workspace.py refresh-runtime-references --workspace <PROJECT_WORKSPACE>
-```
-
-Apply it only after reviewing the returned plan:
-
-```powershell
-python -B .\tools\long_workspace.py refresh-runtime-references --workspace <PROJECT_WORKSPACE> --apply
-```
-
-The command changes only the generated version-source metadata line. A static
-version reference makes `validate` fail with `WS_STALE_RUNTIME_REFERENCE`;
-it must be refreshed or manually reviewed rather than being silently ignored
-or rewritten outside that generated line.
-
-Older installed versions can retain a legacy absolute source locator only
-so a verified update can replace them. They remain readable for migration, but
-installation purity checks fail closed until the update creates a redacted
-current record.
-
-## Bounded Audit Retention
-
-Lifecycle audit state has a closed schema and fixed ownership rules. It keeps:
-
-- one current active-binding receipt, or none after uninstall
-- the newest 20 compact successful-operation receipts
-- the newest 10 complete failure/recovery plan-and-journal bundles
-- one compact summary for each of the newest 12 calendar months
-
-Incomplete recoverable transactions are never pruned. A new record is written safely before an exact name/hash-bound prune list is applied. Unknown names, hash drift, reparse points, forbidden version/package/ZIP/payload copies, or cleanup failures are preserved and block a stable or zero-residue result. Audit write and prune recovery are idempotent.
-
-For the one older audit layout written before this retention contract, migration recognizes only its exact closed v1 envelope, plan, context, and terminal journal shapes. It verifies the original plan/context hashes and operation / artifact / journal bindings, then preserves the source bytes under `state/audit/legacy-pre-retention/<operation_id>/`. It never fabricates a newer version identity. Missing or extra fields, hash drift, reparse points, unmatched archive content, and all unrecognized files remain blocking.
-
-Recognized standard legacy plan/journal pairs compact into current receipts using the version identity already bound by their `release_identity`; a missing derived plan field is never treated as a new identity. If a normal failure occurs after `COMMIT`, the journaled snapshot rollback remains an explicit recovery path. A recovered stable active registry also receives a current binding receipt before strict audit validation can pass.
-
-## Recovery And Residue
-
-Interrupted operations are journaled. Recovery checks the journal, registry, active pointer, versions, selected projections, and managed residue before claiming a stable state.
-
-The engine distinguishes MALTS-owned paths from user-owned or uncertain paths. It removes only verified MALTS-owned residue under the reviewed plan; ambiguous paths are preserved or require an explicit user decision.
-
-## Workspace Phase And Artifact Lifecycle
-
-### Phase boundary and state
-
-Every current Phase records its milestone, in-scope and out-of-scope work, exit criteria, carry-over policy, and boundary-review triggers. `phase-boundary-review` is read-only and classifies a proposed goal/touch set without granting write authorization. Its compatibility `status` and `operation_status` describe command execution only; read `review_outcome`, `candidate_mapping`, `recommendation`, and `persisted` separately. Only `record-phase-boundary-review` persists the structured review, and that record is not authorization for later work. `PAUSED` preserves ownership and recovery evidence; an explicitly selected PAUSED Phase may run read-only `plan-recheck` before `resume-phase`, but PASS grants no execution authority. Pause/resume use a stable boundary Review ID, not an evidence path; the evidence path stays in its separate field. `resume-phase` requires fresh boundary, plan, exact hash, and authorization references. Cross-Phase transition uses a persisted `plan-phase-transition` followed by hash-bound `apply-phase-transition`; `SUPERSEDED` is terminal and carry-over provenance is bidirectional. The primary `active_phase_id` stays scalar; only `resource_admission` may also retain additional `OPEN` Phases.
-
-### Cross-control consistency and recovery authority
-
-Fresh long-project workspaces use exact CURRENT with default `single_phase`; supported legacy layouts remain readable internal compatibility inputs and are never silently rewritten by entry, validation, recovery, maintenance, installation update, or active-generation switching. `resource_admission` is explicit opt-in and is never inferred from multiple directories, tools, Agents, or user prose.
-
-The selected `PHASE_CONTROL.md` owns Boundary Review, plan, queue/evidence, and Phase recovery; an active Session owns its checkpoint. Machine workspace state owns schema/profile/index and transaction bindings. Coordination state owns Admissions, capability queues, fencing, and quarantine. In CURRENT contract, report and existing handoff are on-demand derived views whose drift is a warning; legacy workspace layout retains required current report/lineage and checked optional handoff bindings. Validation reports structural, binding, deterministic-consistency, maintenance-warning, and advisory-semantic findings separately.
-
-`reorganize-workspace` and `reorganize-result-contract` are the only public reorganization paths. They are dry-run-first and bind authority, operation ID, review/authorization references, one fixed timestamp, and exact expected hashes. Legacy parsers and consistency repair helpers remain internal compatibility adapters rather than user-facing migration steps. Workspace and coordination authority writes share `runtime/workspace_transaction.lock.json`, `runtime/workspace_transactions/`, one `WS_TRANSACTION_*` domain, a unique writer, and post-lock preimage checks. An incomplete journal is retained until exact-hash recovery succeeds; failed recovery keeps its evidence. Artifact transaction paths and `ART_TRANSACTION_*` codes are unchanged.
-
-Canonical recovery selection is active Session checkpoint, otherwise active Phase recovery, otherwise an explicitly bound terminal Phase, otherwise Project recovery. It never chooses the latest historical Session by timestamp or registry order.
-
-### Artifact enrollment and ownership
-
-Artifact lifecycle is optional. Project owns only `NOT_ENROLLED`/`ENROLLED` state and compact Shared/Archive pointers. A Phase or explicit bounded Session owns its local Artifact rows; Shared owns current reusable authority and Archive owns cold/superseded history. Runtime snapshots cache locations and counts but never override canonical Markdown.
-
-`artifact audit` is read-only and bounded to current declared controls. `artifact enrollment-preview` proposes the exact enrollment/index changes. Only `artifact enrollment-apply` with a unique operation ID and explicit `--apply` enrolls the workspace. Legacy directories are observations, not authority; missing declared indexes fail closed and are not recreated implicitly.
-
-### Mutation, close, and recovery
-
-Register, promote, supersede, and reconcile are dry-run by default. Applied mutation holds one workspace lock, writes a persisted hash-bound journal, re-reads full-state preconditions, stages exact replacements, and either commits every declared control or restores exact original bytes. An identical retry is a no-op success; competing writers, stale locks/journals, changed bytes, duplicate authority, cycles, or incomplete references fail safely.
-
-Artifact mutation never moves/deletes payloads or invokes VCS. It never creates a Session. Closing an enrolled Phase or Session with an `UNRESOLVED` row is blocked. `recover` reports exact stale transaction review actions and follows only owner/Shared/Archive pointers needed by the current recovery chain; it does not recursively scan large payload trees.
-
-### Compatibility and non-goals
-
-Supported legacy workspace layouts remain readable until explicit one-hop CURRENT reorganization. Reorganization never silently rewrites an input, never exposes intermediate layouts, and rolls back original bytes or enters evidence-backed reconcile when interrupted. Safe duplicate-marker cleanup remains limited to empty duplicate sections; non-empty duplicates or ambiguous legacy review semantics fail closed. Workspace coordination adds no automatic update check, heartbeat/background watcher, project-wide payload hash, directory organizer, product-specific rule, or remote publication. G4 still requires real Codex, Claude Code, and OpenCode invocation; component/projection tests alone are not G4.
-
-## Ordinary Startup Discovery
-
-Each tool starts from its own adjacent `MALTS_BOOT.md`, whose schema is exactly one absolute `MALTS_ROOT:` line. MALTS v1.1.1+ does not use or create a machine-global `GLOBAL_BOOT.md`. The read-only `discover` command verifies tool boot, stable registry state, the sole active record, the exact `<lifecycle-root>\\registry\\active_generation.json` pointer, active `VERSION`, and version identity. Its PASS result exposes `authority_paths.active_generation_pointer` so callers do not guess a sibling `<lifecycle-root>\\active_generation.json`. It computes no full-tree hash during ordinary startup and writes nothing. Missing, malformed, stale, or conflicting authoritative surfaces fail closed.
-
-See [Install](INSTALL.md), [Update](UPDATE.md), and [Security](SECURITY.md).
-
-### v1.3.0 lifecycle additions
-
-- Cold workspace/Result migrations are explicit dry-run/apply operations and are never triggered by ordinary init/validate/recover/update.
-- Workspace control transactions use `runtime/workspace_transaction.lock.json` and `runtime/workspace_transactions/`; Artifact and global lifecycle transactions remain separate domains.
-- Plan Recheck-only updates preserve the exact recovery summary, next action, and evidence references.
+Installation cleanup requires its reviewed lifecycle plan; never directly clean the active immutable generation. Recovery retention can grow disk usage without a fixed-space guarantee. See [State Contract](V2_STATE_CONTRACT.md) and [Update](UPDATE.md).

@@ -6,29 +6,65 @@
   "projected_names": {
     "codex": "malts-single-agent-lightweight-growth",
     "claude-code": "malts-single-agent-lightweight-growth",
-    "opencode": "malts-single-agent-lightweight-growth"
+    "opencode": "malts-single-agent-lightweight-growth",
+    "deepseek-harness": "malts-single-agent-lightweight-growth"
   },
   "display_name": "MALTS Single-Agent Lightweight Growth",
-  "short_description": "Default no-write Growth check after task verification",
-  "triggers": ["finalize a normal single-agent task", "user corrected the agent", "verification reversed a conclusion", "a failure, rework, recovery, or reusable method was observed", "record an authorized project-local growth candidate"],
+  "short_description": "Review concrete Growth signals or an authorized retrospective",
+  "triggers": [
+    "user corrected the agent",
+    "verification reversed a conclusion",
+    "a failure, rework, recovery, or reusable method was observed",
+    "perform an explicitly requested retrospective",
+    "record an authorized project-local growth candidate"
+  ],
   "applicability": {
-    "task_types": ["growth-routing-l1", "growth-signal", "single-agent-learning", "project-memory"],
-    "modes": ["single-agent", "review-only"],
-    "conditions": ["A concrete useful check, failure, correction, or reusable practice was observed."],
-    "contraindications": ["The observation contains secrets or lacks concrete evidence."]
+    "task_types": [
+      "growth-routing-l1",
+      "growth-signal",
+      "single-agent-learning",
+      "project-memory"
+    ],
+    "modes": [
+      "single-agent",
+      "review-only"
+    ],
+    "conditions": [
+      "A concrete useful check, failure, correction, or reusable practice was observed, or a retrospective was explicitly requested."
+    ],
+    "contraindications": [
+      "The observation contains secrets or lacks concrete evidence."
+    ]
   },
-  "inputs": ["observed event", "fact evidence", "authorized project-local destination"],
-  "outputs": ["L1 in-memory analysis", "authorized L2 project-local growth record only for a real signal", "separate L3 proposal"],
+  "inputs": [
+    "observed event",
+    "fact evidence",
+    "authorized project-local destination"
+  ],
+  "outputs": [
+    "L1 in-memory analysis",
+    "authorized L2 project-local growth record only for a real signal",
+    "separate L3 proposal"
+  ],
   "risks": {
     "risk_class": "low",
     "factors": [],
-    "forbidden_effects": ["Do not persist L1 analysis.", "Do not write L2 without exact authorization.", "Do not update reports or controls when no meaningful signal or state change occurred.", "Do not perform L3 writes without separate confirmation."]
+    "forbidden_effects": [
+      "Do not persist L1 analysis.",
+      "Do not write L2 without exact authorization.",
+      "Do not update reports or controls when no meaningful signal or state change occurred.",
+      "Do not perform L3 writes without separate confirmation."
+    ]
   },
-  "required_permissions": ["read-files"],
+  "required_permissions": [
+    "read-files"
+  ],
   "permission_routes": {
     "baseline": {
       "route_id": "L1",
-      "required_permissions": ["read-files"],
+      "required_permissions": [
+        "read-files"
+      ],
       "durable_write": false,
       "requires_confirmation": false,
       "description": "In-context final-delivery classification only; no durable write."
@@ -36,14 +72,20 @@
     "conditional": [
       {
         "route_id": "L2",
-        "required_permissions": ["read-files", "write-project-files"],
+        "required_permissions": [
+          "read-files",
+          "write-project-files"
+        ],
         "durable_write": true,
         "requires_confirmation": true,
         "description": "Project-local candidate maintenance requires exact project authorization."
       },
       {
         "route_id": "L3",
-        "required_permissions": ["read-files", "write-global-state"],
+        "required_permissions": [
+          "read-files",
+          "write-global-state"
+        ],
         "durable_write": true,
         "requires_confirmation": true,
         "description": "System promotion requires a separate explicit confirmation."
@@ -51,16 +93,41 @@
     ]
   },
   "dependencies": [],
-  "supported_tools": ["codex", "claude-code", "opencode"],
-  "package_variants": ["local", "public"],
+  "supported_tools": [
+    "codex",
+    "claude-code",
+    "opencode",
+    "deepseek-harness"
+  ],
+  "package_variants": [
+    "local",
+    "public"
+  ],
   "tool_metadata": {
-    "codex": {"projection_type": "native", "include_openai_metadata": true},
-    "claude-code": {"projection_type": "native", "include_openai_metadata": false},
-    "opencode": {"projection_type": "native", "include_openai_metadata": false}
+    "codex": {
+      "projection_type": "native",
+      "include_openai_metadata": true
+    },
+    "claude-code": {
+      "projection_type": "native",
+      "include_openai_metadata": false
+    },
+    "opencode": {
+      "projection_type": "native",
+      "include_openai_metadata": false
+    },
+    "deepseek-harness": {
+      "projection_type": "native",
+      "include_openai_metadata": false
+    }
   },
   "verification": {
     "status": "static-validated",
-    "levels": ["static"],
-    "evidence_refs": ["test:T-SK-W3-DESC-006"]
+    "levels": [
+      "static"
+    ],
+    "evidence_refs": [
+      "test:T-SK-W3-DESC-006"
+    ]
   }
 }

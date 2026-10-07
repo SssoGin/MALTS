@@ -1,56 +1,23 @@
-﻿# 可选 Release 归档
+﻿# MALTS 2.0.0 发布归档
 
-GitHub Release 可能为 MALTS 提供一个可选离线归档。它是固定离线副本的便利交付，不是普通 Agent 协助安装的必需条件。
+## 1. 仓库与可选 ZIP
+
+正常安装和更新来自已审阅的[公开仓库](https://github.com/SssoGin/MALTS)。正式Release提供一个MALTS上传文件 `MALTS-2.0.0.zip`；平台自动生成的源码归档是另外的链接。离线、存档或仓库不可用时才需要该ZIP，安装器不自动下载。
+
+## 2. 内容和验证
+
+ZIP包括不可变lifecycle artifact、精确清单/manifest和用户发布说明。repository-only文件不进入安装payload。闭合清单、内容哈希、路径/碰撞检查和安全解压用于发现新增、缺失或改动。
+
+从同一可信来源取得Verify-MALTSBootstrap.ps1，先只读核验，再用不存在的ExtractOutput和Apply解出。安装使用ReleaseRoot和审阅计划哈希；不要直接覆盖代际。命令见[安装](INSTALL.md)。
+
+## 3. 判断边界
+
+包体验证证明内容/身份，不证明实际模型任务或整体业务效果。安装、宿主和项目验收有各自依据。同版本归并用准确artifact身份区分；历史包和回执保持原时间/版本，不为新发布改写。见[生命周期](LIFECYCLE.md)。
 
 ## 一个可选 Release ZIP
 
-每个 Release 最多上传一个 MALTS 资产：
+闭合包包含 RELEASE_NOTES.md、release/artifact manifest 和精确文件清单。核验后以实际条目定位文件，不假设平台生成源码归档具有相同结构。
 
-```text
-MALTS-<version>.zip
-```
+### 从解出的归档安装
 
-ZIP 是自包含的，内含：安装使用的不可变 release package、其 package 清单、`RELEASE_NOTES.md`，以及解出后所需的 runtime 模板、adapter、Skill 和用户工具。
-
-不上传独立 checksum 或 transport 文件。归档 SHA-256 可以在 Release 正文中公布，作为额外的交付通道检查，但它不是第二个必需下载文件。
-
-GitHub 还可能显示自动生成的 `Source code (zip)` 与 `Source code (tar.gz)` 链接。它们是平台生成的源码快照，不是这里定义的可选离线归档。
-
-## 解压前验证
-
-从与 ZIP 相同的已审阅来源或精确 source tag 取得 `scripts/Verify-MALTSBootstrap.ps1`，然后运行：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\Verify-MALTSBootstrap.ps1 `
-  -ArchivePath .\MALTS-1.5.0.zip
-```
-
-验证并解出到新位置：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\Verify-MALTSBootstrap.ps1 `
-  -ArchivePath .\MALTS-1.5.0.zip `
-  -ExtractOutput <EXTRACTED_RELEASE_ROOT> `
-  -Apply
-```
-
-验证器只接受预期的 `MALTS-<version>.zip` 名称。它会验证确定性 ZIP 结构、安全 Windows 路径、重复或大小写冲突成员、必需外层 release 文件、隔离解出，以及通过包内生命周期验证器验证闭合不可变 package。
-
-## 从解出的归档安装
-
-bootstrap 验证后，明确使用解出的 release root：
-
-```powershell
-<EXTRACTED_RELEASE_ROOT>\lifecycle_artifact\payload\scripts\Install-MALTS.ps1 `
-  -ReleaseRoot <EXTRACTED_RELEASE_ROOT> `
-  -UseDefaultRoots `
-  -Tool Codex
-```
-
-这仍会先创建审阅计划。归档不会绕过计划哈希或用户授权边界。
-
-## 归档内容
-
-ZIP 只包含安装和使用 MALTS 所需的内容。本机状态、用户数据和项目文件绝不会被包含。
-
-另见[安装](INSTALL.md)、[安全](SECURITY.md)和[Agent 协助安装](AGENT_INSTALL.md)。
+使用解出的 payload 安装器及 ReleaseRoot。归档不会绕过计划哈希、用户内容合并检查或实际安装后验证。
