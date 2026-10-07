@@ -1,43 +1,144 @@
-# MALTS 2.0.0
+# MALTS
 
-[简体中文](README.zh-CN.md) · [Getting Started](docs/GETTING_STARTED.md) · [Usage](docs/USAGE.md) · [Core Design](docs/CORE_DESIGN.md)
+**Multi-Agent Long-Task Scheduling and Growth System**
 
-MALTS (Multi-Agent Long-Task Scheduling and Growth System) provides recoverable execution, controlled collaboration and experience management for AI Agent project work. Goals, task revisions, permission scopes, observed effects and acceptance evidence share one service contract, enabling accurate continuation after interruption.
+[English](README.md) · [简体中文](README.zh-CN.md) · [Getting Started](docs/GETTING_STARTED.md) · [Usage](docs/USAGE.md)
 
-## Where it fits
+MALTS is an operating framework for AI Agent project work. It connects goal clarification, planning, execution, verification, handoff and learning into a continuous process. Use it when work exceeds one prompt, one context window or one uninterrupted run, so an Agent can continue from project records after a new conversation, a change of executor or a failure.
 
-Use MALTS for work spanning turns, migrations, investigations and documentation delivery. Small, clear tasks can follow project rules directly. Single Agent is the default; delegation, background execution, installation and publication each require appropriate scope. MALTS does not replace models, editors, Git, CI or human decisions.
+One Agent is the default executor. When independent investigation, implementation or verification helps, explicitly authorized Agents can share the work. The main Agent remains responsible for integration, acceptance and delivery. The same goals, stages, verification and recovery methods apply to both modes.
 
-## Core capabilities in 2.0.0
+The current version is **2.0.0**. This page describes MALTS as a complete system; version-specific changes and upgrade implications are in the [Changelog](CHANGELOG.md).
 
-| Capability | User-visible behavior |
+## Problems it addresses
+
+Agents can complete useful local work, but long projects need continuity. Goals must remain visible, completed work must stay distinct from pending work, interrupted effects must not be repeated blindly, and separate contributions must be integrated and checked.
+
+| Problem | MALTS response |
 |---|---|
-| Task services and versioned dependencies | Continue from current goals/plans/revisions instead of competing summaries |
-| Controlled operations | Grants, cumulative budgets, admission and intent/observation constrain managed effects |
-| Current acceptance and recovery | Check actual evidence; reconcile unknown effects without replay or renewed allowances |
-| Artifacts, handoff and experience | Preserve lineage/manual content, verify present eligibility and bound/retire trials |
-| Four Hosts and two languages | Codex, Claude Code, OpenCode and DeepSeek Harness adapters with English/Chinese guides |
+| Goals and constraints fade in a long conversation | Preserve goals, exclusions, decisions and acceptance; revisit material changes |
+| A new window cannot identify where to continue | Keep stage progress, task results, checkpoints and recovery materials |
+| Files exist without proving the user requirement | Define completion and check actual outputs with evidence |
+| Agents duplicate work, conflict or leave integration unowned | Separate responsibilities/resources and retain one integration/acceptance owner |
+| Lessons are lost or an accident becomes a permanent rule | Select sourced experience, trial it later and retain ineffective/harmful outcomes |
+| Agent tools have different configuration and entrypoints | Provide shared workflows with tool-specific adapters and native permission boundaries |
 
-v2 gives the selected store/Task services execution authority. Adopted workspaces retain Markdown sources and on-demand report/handoff views. Core reads/writes Schema69 only. Old-project adoption is explicit, without automatic migration or legacy write revival. See [Changelog](CHANGELOG.md) for upgrade implications.
+## The complete MALTS workflow
 
-## Start using it
+### 1. Establish goals and completion
 
-Obtain a reviewed v2.0.0 checkout from the [public repository](https://github.com/SssoGin/MALTS). Use Windows, Python3.11+ and PowerShell; PowerShell7 is recommended. Create an installation plan:
+Define the output, permitted changes, protected material and acceptance. Resolve material uncertainty before implementation. Continue ordinary work already covered by user permission without repeated approval for routine details.
+
+### 2. Organize projects, stages and tasks
+
+A long project has stages with goals, scope and deliverables. Tasks represent executable, acceptable work and retain dependencies. This keeps the overall goal and the current work visible and gives each iteration a finite ending.
+
+### 3. Execute with recoverable progress
+
+Start from the current task and relevant inputs instead of rereading history. Preserve decisions, results and necessary checkpoints. After failure or interruption, establish what occurred and what is uncertain before repairing or continuing.
+
+### 4. Use multiple Agents when appropriate
+
+Delegate separable investigation, implementation or verification with explicit goals, inputs, edit scope, outputs and verification responsibilities. Consider invocation budgets, shared resources and integration costs. Continue with one Agent when there is no useful separation.
+
+### 5. Verify, deliver and hand off
+
+Completion follows actual outputs and applicable checks. Create durable reports when useful/requested and on-demand handoff views for a new window or executor. Preserve manual notes, unresolved issues and exact next steps. Reading views do not replace current project facts.
+
+### 6. Select and validate reusable experience
+
+Corrections, failed verification, recovery or a useful method can trigger a review. Lightweight review first decides whether anything merits recording; material/repeated issues can justify deeper retrospectives. A scoped candidate is tried in later work before promotion, and ineffective/harmful or unsupported experience can be withdrawn. Ordinary success needs no Growth report.
+
+## Choose a workflow
+
+Workflows are delivered as Skills: method packages an Agent can discover and use. Name the workflow and your goal in a normal conversation.
+
+| Need | Workflow | Result |
+|---|---|---|
+| Establish basic records for work spanning turns | [Project Init](skills/malts-project-init/SKILL.md) · malts-project-init | Project entry, goals, acceptance and current state |
+| Resolve material goals/tradeoffs before implementation | [Preflight](skills/grill-me-preflight/SKILL.md) · malts-grill-me-preflight | Evidence-based clarification and remaining decisions |
+| Establish long work or review real stage/structure changes | [Long Workspace](skills/malts-long-project-workspace-init/SKILL.md) · malts-long-project-workspace-init | Stage/task structure and recovery entry |
+| Continue, verify or recover current work | [Task Workflow](skills/v2/malts-v2-task-workflow/SKILL.md) · malts-v2-task-workflow | Current task and relevant operational methods |
+| Continue in a new window or with another Agent | [Handoff](skills/session-handoff/SKILL.md) · malts-session-handoff | Accurate facts, preserved notes and continuation guidance |
+| Review a stage, rework or important experience | [Retrospective](skills/project-retrospective-growth/SKILL.md) · malts-project-retrospective-growth | Sourced advice or an authorized trial |
+| Check for a lesson after ordinary work | [Lightweight Growth](skills/single-agent-lightweight-growth/SKILL.md) · malts-single-agent-lightweight-growth | Brief advice or no output without a signal |
+| Carry out approved multi-Agent work | [Scheduling](skills/multi-agent-long-task-scheduling/SKILL.md) · malts-multi-agent-long-task-scheduling | Roles, resources, budgets, checkpoints and integration responsibility |
+
+## Typical scenarios
+
+**Code migrations over several rounds.** Preserve the target and compatibility requirements, organize modules into stages/tasks, verify each result and continue from accepted work after interruption.
+
+**Ongoing investigation.** Retain observed facts, rejected hypotheses and next experiments to avoid repeated research after changing windows; use reproduction and validation to assess a repair.
+
+**Team or multi-Agent execution.** Separate modules, alternatives or independent verification while protecting shared edits; the main Agent integrates dependencies and accepts the final result.
+
+**Documentation and research delivery.** Preserve sources, decisions, chapter ownership and acceptance, then check factual support, links and coherence across the complete deliverable.
+
+**Recovery-sensitive engineering.** Keep exact project state/backups and identify what occurred, what remains uncertain and what the next executor can do.
+
+## Start using MALTS
+
+The verified installation path uses Windows and Python3.11+; PowerShell7 is recommended. Supported Agent tools are Codex, Claude Code, OpenCode and DeepSeek Harness, which should already be usable.
+
+Obtain the selected version from the [public repository](https://github.com/SssoGin/MALTS). From its root, create an installation plan:
 
 ```powershell
 .\scripts\Install-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool Codex
 ```
 
-Review targets/recovery, then apply the exact plan hash per [Installation](docs/INSTALL.md). Read tool-local Boot, discover and reload the Host to verify Skills/MCP. Follow [Getting Started](docs/GETTING_STARTED.md) to select current work or establish a long workspace.
+Review source, destinations, existing content and recovery, then apply the reported plan hash per [Installation](docs/INSTALL.md). Follow tool instructions for the three-tool selection or DeepSeek Harness. See [Update](docs/UPDATE.md) for an existing installation.
 
-## Evidence and limits
+Once installation and actual Host loading are verified, start naturally:
 
-Recorded representative task/recovery, permission/transaction, installation and bounded collaboration/Growth evidence covers declared versions/profiles. DeepSeek Harness Desktop evidence is Windows0.2.0-rc.2; GUI model cancellation is uncertified. Real Growth trials include neutral outcomes. No universal speedup, money/human savings, arbitrary-OS exclusion or cross-user protected-restoration guarantee is made.
+> Use MALTS for this module migration. Inspect the project, define scope and acceptance, implement and verify in stages, and preserve recoverable progress after interruption. Decide commit/publication separately.
 
-Installation, process exit and historical COMPLETED are not business acceptance. See [Core Design](docs/CORE_DESIGN.md) for mechanisms and evidence boundaries.
+Or continue existing work:
 
-## Documentation and layout
+> Continue this MALTS project's current task. Check progress, accepted results and unresolved issues, then proceed from the correct next step without reinitializing.
 
-[Overview](docs/SYSTEM_OVERVIEW.md) · [Update](docs/UPDATE.md) · [Lifecycle](docs/LIFECYCLE.md) · [v2 Operations](docs/V2_PREVIEW_USAGE.md) · [State Contract](docs/V2_STATE_CONTRACT.md) · [Handoff](docs/HANDOFF.md) · [Security](docs/SECURITY.md)
+See [Getting Started](docs/GETTING_STARTED.md) for a runnable first example and exact setup/verification.
 
-skills/ contains workflows, runtime/ contracts and EN/CH templates, tools/ services/CLI, adapters/ Host integration, scripts/ user lifecycle entrypoints, and docs/ guides. See [MIT License](LICENSE) and [Third-Party Notices](THIRD_PARTY_NOTICES.md).
+## How the current version improves the system
+
+2.0.0 retains MALTS's overall process while strengthening state, execution and verification:
+
+- **Clear current progress.** Shared services preserve/check projects, stages and tasks, bind task/plan revisions and separate reading reports from current state.
+- **Reliable interruption handling.** Separate preparation, actual execution and observed results. Investigate uncertainty instead of repeating effects or resetting consumed budgets.
+- **Stronger completion.** Check requirements, outputs, dependencies and evidence instead of trusting historical completion labels.
+- **Explicit collaboration and reuse.** Bind work, resources and budgets; preserve provenance and current eligibility for artifacts, handoffs and experience.
+- **More complete tool integration and guidance.** Add DeepSeek Harness and organize English/Chinese installation, usage, design and upgrade documentation.
+
+Continue using the goal–execution–verification–recovery–review process. Project adoption, compatibility and recovery implications are explained in [Update](docs/UPDATE.md).
+
+## Support and boundaries
+
+MALTS organizes project work; reasoning, tools, repositories, editors and user decisions remain with their respective systems. Selecting a workflow does not automatically enable delegation, background work, paid calls or publication.
+
+Code, installation and representative native-task/recovery evidence exist, without a guarantee that every task succeeds or universal speed/money savings. Recorded DeepSeek Harness Desktop evidence uses Windows0.2.0-rc.2; see its [adapter guide](adapters/deepseek-harness/README.md). See [Security](docs/SECURITY.md) for protected restoration and external-tool boundaries.
+
+## Documentation map
+
+| Topic | Reading |
+|---|---|
+| The complete system and its applicability | [System Overview](docs/SYSTEM_OVERVIEW.md) |
+| Installation and first work | [Getting Started](docs/GETTING_STARTED.md), [Install](docs/INSTALL.md) |
+| Daily work, long projects, collaboration and learning | [Usage](docs/USAGE.md) |
+| Interruption, handoff, upgrades and recovery | [Handoff](docs/HANDOFF.md), [Update](docs/UPDATE.md), [Lifecycle](docs/LIFECYCLE.md) |
+| Mechanisms and design tradeoffs | [Core Design](docs/CORE_DESIGN.md) |
+| Skills, capabilities and experience reuse | [Governance](docs/CAPABILITY_AND_SKILL_GOVERNANCE.md) |
+| Controller commands and exact protocols | [Operations](docs/V2_PREVIEW_USAGE.md), [State Contract](docs/V2_STATE_CONTRACT.md) |
+| Safety, offline package and languages | [Security](docs/SECURITY.md), [Archive](docs/RELEASE_ARTIFACT.md), [Languages](docs/BILINGUAL_DOCS.md) |
+| Current and historical version changes | [Changelog](CHANGELOG.md) |
+
+## Repository contents
+
+```text
+skills/       Project, long-task, collaboration, handoff and Growth workflows
+runtime/      Runtime contracts, English/Chinese templates and checklists
+adapters/     Tool integration and native entrypoints
+tools/        State, execution, verification and recovery tools
+scripts/      Installation, updates and installation lifecycle
+docs/         System, usage, design and technical references
+```
+
+MALTS uses the [MIT License](LICENSE). Some Agent methods draw on [andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills) and [mattpocock/skills](https://github.com/mattpocock/skills); they are not runtime dependencies and their authors do not endorse this project. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

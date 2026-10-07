@@ -1,4 +1,6 @@
-# MALTS 2.0.0 Release Archive
+# MALTS Release Archive
+
+This is part of the complete MALTS system documentation. Current implementation/version is2.0.0; workflow context is in [System Overview](SYSTEM_OVERVIEW.md) and [Usage](USAGE.md).
 
 ## 1. Repository and optional ZIP
 

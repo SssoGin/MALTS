@@ -1,4 +1,6 @@
-﻿# MALTS 2.0.0 能力与 Skill 治理
+﻿# MALTS 能力与 Skill 治理
+
+本页属于MALTS整体系统说明，当前版本与实现为2.0.0。工作过程见[系统说明](SYSTEM_OVERVIEW.md)和[使用指南](USAGE.md)，本页只展开对应主题。
 
 ## 1. 区分方法、能力与权限
 

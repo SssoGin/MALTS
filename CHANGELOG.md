@@ -1,32 +1,34 @@
 # Changelog
 
-
 ## 2.0.0 — 2026-10-08
 
-MALTS 2.0.0 provides Task-centered recoverable execution and controlled collaboration/experience management for Codex, Claude Code, OpenCode and DeepSeek Harness.
+MALTS connects goal clarification, project planning, execution, verification, recovery, handoff and experience management for AI Agent work. Single Agent is the default; approved multi-Agent work uses explicit responsibilities with one owner for integration and delivery.
 
-### Changes
+### What changed
 
-- Project/Phase/Task services and the selected v2 store own current goals, revisions, dependencies and acceptance. Markdown controls/reports/handoffs remain sources or derived views after adoption.
-- Managed operations bind Grants, cumulative budgets, leases and request hashes, recording intent separately from observed effects. Unknown effects are reconciled under their original identity.
-- Current acceptance checks evidence methods/levels, dependencies and managed outputs. Pause/cancel/successor handling and new-epoch restoration preserve uncertainty and consumed allowances.
-- Artifacts, Shared proof, protected evidence/derivatives, guarded handoff publication and bounded Growth trials retain provenance and retirement behavior.
-- English/Chinese guides have been reorganized around installation, actual use, design, recovery and limitations.
+- **Current project progress is more precise.** Project, stage and task services maintain goals, plans, dependencies and acceptance together. Reports and handoffs are reading views instead of competing state records.
+- **Interruption and recovery are more explicit.** Preparation, execution intent and observed effects are separate. Unknown outcomes retain their identity for reconciliation; restoration does not replay effects or replenish consumed budgets.
+- **Completion and reuse receive current checks.** Acceptance checks requirements, outputs, dependencies and evidence. Artifacts, handoffs and experience retain provenance and current applicability; superseded or withdrawn material cannot silently resume reuse.
+- **Collaboration and learning share the same project process.** Roles/resources/budgets support controlled delegation. Experience is proposed, tried in later tasks and retained or withdrawn according to observed outcomes.
+- **Tool coverage and guidance have been extended.** DeepSeek Harness joins Codex, Claude Code and OpenCode adapters. English/Chinese documentation now describes the complete MALTS system with these improvements integrated into the relevant workflows.
 
-### Upgrade
+### Upgrading
 
-Use a reviewed v2.0.0 repository checkout and the review-first installer/updater. Core reads/writes Schema69 only. Project adoption is explicit; installation does not migrate existing projects. Recovery stays within v2 without restoring legacy write authority. Verify tool-local Boot/discovery and reload native Skill/MCP connections. ZIP is optional for offline installation.
+Use the reviewed repository and installation/update plans. Installation enables the chosen tools and does not automatically adopt existing projects. Existing projects need their explicit adoption/compatibility review; recovery stays in the current system. Technical store format is Schema69. Verify actual tool discovery/loading after updating. The ZIP is optional for offline use.
 
-### Limits
+### Support and limitations
 
-Qualification covers recorded representative versions/profiles and declared operations. DeepSeek Harness Desktop uses Windows0.2.0-rc.2; GUI model cancellation is not certified. Real Growth trials include neutral outcomes. An original incomplete baseline observer profile remains failed and is not used as a complete comparator. No universal/cross-Host causal speedup, actual billing/human savings, arbitrary-OS fencing or cross-user DPAPI restoration claim is made.
+Evidence covers recorded representative versions/profiles and operations. DeepSeek Harness Desktop evidence uses Windows0.2.0-rc.2; GUI model cancellation is not certified. Experience trials include neutral outcomes. No universal success, speedup, actual money/human savings, arbitrary external-writer control or cross-user protected restoration guarantee is made. See the system, design and tool guides for applicable boundaries.
 
-### 中文
+### 中文说明
 
-MALTS2.0.0以所选v2状态库和Task服务管理当前目标、版本、依赖与验收；通过授权范围、累计预算、受管操作意图/结果、当前证明、检查点、成果来源、交接与限定成长试用支持可恢复工作。中英文说明按用户用途重写。
+MALTS将目标澄清、项目规划、执行、验证、恢复、交接与经验积累连接为完整工作过程，默认单Agent；有价值且已授权的分工由主Agent整合并负责交付。
 
-升级采用已审阅仓库与精确计划哈希。当前Core只读写Schema69；安装不自动迁移项目，恢复不复活旧写权、旧Grant/Host或已消费额度。重载宿主后核实Boot/Skill/MCP。真实宿主证据限于所用版本/profile；保留B1观察失败、成长中性与unknown，不承诺普遍提速、费用/人工节省、GUI模型取消、任意OS写者互斥或跨用户保护恢复。
+2.0.0改进当前进度管理、中断后的操作核实、完成判定、成果复用、交接与经验试用，并新增DeepSeek Harness适配。现行中英文文档以MALTS整体功能组织，把新增改进放入对应章节。
 
+升级使用已审阅仓库及准确安装/更新计划；安装不会自动迁移项目，旧项目采用需要明确审阅，恢复不重复未知效果或补充已消费预算。技术状态格式为Schema69；更新后核实工具实际发现和加载。离线ZIP为可选来源。
+
+原生验证限于所用版本和条件，DeepSeek Harness Desktop为Windows0.2.0-rc.2，GUI模型取消未认证。经验试用保留中性结果，不能推导普遍成功率、提速或实际费用/人工节省；外部工具控制和跨用户恢复有明确限制。
 
 ## 1.5.0
 

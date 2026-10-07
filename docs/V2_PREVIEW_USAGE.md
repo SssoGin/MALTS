@@ -1,4 +1,6 @@
-# MALTS 2.0.0 v2 Operations
+# MALTS Controller Operations
+
+This is part of the complete MALTS system documentation. Current implementation/version is2.0.0; workflow context is in [System Overview](SYSTEM_OVERVIEW.md) and [Usage](USAGE.md).
 
 The filename preserves existing links; this page describes the current formal interface, not a requirement to use previews. Core format is Schema69. Select the verified runtime/state. Controller examples require an authorized new demonstration directory; normal users should start with installed Skills.
 

@@ -1,57 +1,83 @@
-# MALTS 2.0.0 Usage
+# Using MALTS in a Project
 
-## 1. Select a mode
+This guide follows a project from start to delivery. Current version is 2.0.0. See [Installation](INSTALL.md) and [Operations](V2_PREVIEW_USAGE.md) for exact setup and controller protocols. Ordinary users can select workflows in natural language.
 
-Single Agent is the default. Keep simple work under project rules; use Project/Phase/Task for persistent recovery and delegate only with explicit scope and separable responsibilities. Adopted v2 workspaces use service state. Inspect a non-adopted workspace's existing contract without automatic migration.
+## 1. Choose a working mode
 
-| Situation | Native Skill | Result and boundary |
-|---|---|---|
-| Lightweight setup | `malts-project-init` | Applicable entry/goals, no implicit collaboration |
-| Material goal/tradeoff ambiguity | `malts-grill-me-preflight` | Read-only clarification, no new permission |
-| New long workspace/structural change | `malts-long-project-workspace-init` | Stage boundaries; v2 setup must be Phase-ready |
-| Current v2 Task/topic | `malts-v2-task-workflow` | Bounded context and task/phase/artifact/recovery contracts |
-| Continuation view | `malts-session-handoff` | On-demand preserved notes, preview and guarded publication |
-| Retrospective | `malts-project-retrospective-growth` | Evidence-based advice or authorized trial |
-| Lightweight post-verification check | `malts-single-agent-lightweight-growth` | No signal means no action; global edits need their own scope |
-| Approved collaboration | `malts-multi-agent-long-task-scheduling` | Roles, budgets, resources and integration acceptance |
+Small, clear work can follow project rules directly. Preserve basic project records when decisions span turns; use a long workspace across stages/windows/executors. Use scheduling for approved separable investigation, implementation or verification. Scale, recovery value and actual resources determine the method.
 
-## 2. Entry and plans
+Example: “Use MALTS for this migration, inspect current behavior, define compatibility/acceptance and implement in stages. Allow project edits/checks; do not commit or publish.”
 
-Verify Boot/discovery and binding, then inspect the current queue and exact Task. Ordinary entry queries facts without full-history scans or implicit Run/Session/Agent/Artifact creation. For plan changes, compare goals, boundaries and actual plan bytes, then revise affected bindings only.
+## 2. Clarify goals, scope and acceptance
 
-Task scope must be a subset of Phase in_scope and must not intersect out_of_scope. Use `phase.bind-task` for the current Task revision. Revision bindings are exact; a matching plan hash proves content, not execution permission. New native long workspaces require `init`, `project.define`, `phase.define`, `phase.set-active`, then `phase_ready=true`.
+Define outputs, permitted edits, protected material and stopping conditions. Inspect discoverable facts first; use malts-grill-me-preflight for material uncertainty. Separate facts, advice and pending decisions. Analysis alone does not edit the project.
 
-## 3. Permission and execution
+For example, replace an ambiguous repair goal with preserved interface behavior, a reproduced fault, relevant normal-behavior checks and actual outputs. The example itself grants no permission.
 
-Reuse applicable user authorization. MCP clients cannot mint Grants or replace Host-bound fields; controllers record existing scope. Check Grant, budget, dependencies, admission and uncertain effects before execution. A request dry run checks shape only and does not evaluate readiness; reviewed `--apply` invokes services.
+## 3. Establish or enter a project
 
-Managed updates preserve old bytes and bind current SHA-256. Writes, real calls, installation, delegation and publication use their respective approved scopes. See [v2 Operations](V2_PREVIEW_USAGE.md) for requests and response fields.
+Use malts-project-init for applicable entry/goals/basic records and malts-long-project-workspace-init for a first executable long-project stage. Complete setup requires phase_ready=true, not merely init or empty directories.
 
-## 4. Acceptance, pause and recovery
+For existing work, verify instructions, installation, binding and current tasks without reinitialization. Read goals/plans/dependencies/accepted results/uncertain effects and relevant history only as needed. Technical Phase/task revisions use phase.bind-task; exact parameters belong to installed workflows/controllers.
 
-Check business outputs, then record evidence matching each criterion's method/level. `task.accept` still checks current revisions, dependencies, operations and Hosts. Use `verification.rework` before repairing a VERIFYING task. `task-verify` preserves history. One completed Task does not finish a larger user goal.
+## 4. Plan finite stages/tasks
 
-During pause, create no new effects; inspect pending operations and Hosts. Reconcile UNKNOWN under the original identity. Cancellation acknowledgements and PAUSED do not prove process exit. Recovery checks epoch, checkpoints, consumed budgets and subsequent work, without reviving legacy authority, Grants or Hosts.
+Stages define goal/scope/delivery/acceptance; tasks define results, inputs, dependencies and checks. Close a stage against its actual criteria and remaining work; new goals create explicit stages instead of activating historical plans.
 
-## 5. Collaboration and reuse
+Split into checkable outputs, not merely activity lists. Sequence dependent work and assess independent work for parallel value. Revisit affected plans/revisions after material changes while continuing independent authorized work.
 
-Declare separable resources, actual Host capabilities and cumulative budgets. Workers return outputs/uncertainties; controllers verify integration. Configuration is not effective-identity/isolation proof.
+## 5. Execute, verify and preserve progress
 
-Artifacts retain ownership, revisions, relationships and current Shared proof. Growth requires sourced proposals, bounded trials and future observations; retain neutral/harmful outcomes and retirement. Handoffs preserve manual notes and compare source tokens/target preimages before publication. See the [State Contract](V2_STATE_CONTRACT.md), [Skill Governance](CAPABILITY_AND_SKILL_GOVERNANCE.md) and [Handoff](HANDOFF.md).
+Complete relevant edits/checks and preserve useful decisions/results/checkpoints without routine reports/timestamp rewrites. Resolve routine choices and continue necessary authorized steps.
 
-## 6. Diagnostics
+Actual results outrank ratings/labels. Check behavior for code, facts/references for documents, real entry/content for installation. A partial check cannot accept a larger goal. Reuse valid unchanged evidence and recheck only affected claims/risks.
 
-| Result | Meaning and action |
+Current implementation separates business requirements from file integrity. Use verification.rework before repairing a task under verification. task-verify rechecks current proof; CURRENT_EVIDENCE_VALID supports its declared task scope only.
+
+## 6. Pause and continue
+
+Check exact tasks/progress/results, whether effects occurred and whether relevant processes stopped. UNKNOWN means uncertain effect, not failure/non-execution. Reconcile the original identity rather than retrying blindly.
+
+Pause requests, pause states and process exit are distinct. Continue with checkpoints/current plans/remaining budgets; a new window/restoration does not replenish allowance. Preserve necessary backup and later work. See [Lifecycle](LIFECYCLE.md) and [State Contract](V2_STATE_CONTRACT.md).
+
+## 7. Delegate when useful
+
+Use malts-multi-agent-long-task-scheduling to inspect separation, shared resources, Host capabilities and cost. Define goals/inputs/edit scopes/budgets/outputs/acceptance for each delegation. Prepare reviewable decisions where authorization is missing while continuing unrelated work.
+
+The main Agent retains integration responsibility. Workers return outputs/checks/uncertainties; the controller accepts after execution settlement. Worker success, file existence and model agreement do not finish the project.
+
+Separate modules and independent integration review can help; shared files/sequential dependencies need serialization or explicit coordination. Background/unattended execution has its own scope.
+
+## 8. Artifacts, reports and handoffs
+
+Artifacts retain stage ownership, revisions, sources and relationships. Sharing checks current content/eligibility; invalidated artifacts remain historical. Cleanup separately assesses references/recovery.
+
+Durable reports describe outputs/proof/remaining work/limits when needed. Use malts-session-handoff to preserve unique manual notes and create an on-demand current view for another window/executor. Handoffs create no permission and never overwrite newer facts.
+
+## 9. Review and accumulate experience
+
+Use malts-single-agent-lightweight-growth for meaningful correction/verification/recovery/method signals; no signal means no output. Use malts-project-retrospective-growth for material stages, repeated failure or requested review.
+
+Record sources, applicable problems, actions, checks and exclusions. Project recording/trials use existing permission; global rule/Skill edits have separate scope. Current growth.propose/trial/outcome/validate/retire manage later assessments. Retain neutral/harmful/unknown and retirement.
+
+A helpful check can be tried in suitable future work; one success does not justify imposing it on every project forever.
+
+## 10. Finish a bounded round
+
+Compare actual deliverables with original goals. Separate implementation, applicable verification, unknowns and unfinished work. Preserve recovery materials after acceptance and deliver useful results. New features/material tradeoffs do not silently expand closure.
+
+Explain what changed, how to use it, how it was checked and remaining limits. Continue required work and stop when the goal is fulfilled; report/test counts are not quality.
+
+## 11. Entry and diagnostics
+
+Workflows provide current methods. Controllers can query workspace, governance-context, task-queue, context and task-verify. Read-only queries do not initialize/grant execution; request preview does not prove readiness.
+
+| Result | Next action |
 |---|---|
-| `NOT_APPLIED` / `NOT_EVALUATED` | No execution/readiness proof |
-| `NO_LONGER_PROVEN` | Current evidence invalid; inspect inputs and preserve history |
-| `RECOVERY_REQUIRED` / `UNKNOWN` | Reconcile the original effect; do not invent a new ID |
-| `STALE_PROCESS` | Loaded code differs from active declaration; reload through the Host |
-| `GRANT_SCOPE_MISMATCH` | Inspect exact resource/effect scope through the controller |
-| `LIFECYCLE_TRANSACTION_OR_RECOVERY_PENDING` | Settle the original transaction, never delete its lock blindly |
+| NOT_APPLIED | Preview only; inspect scope/readiness before execution |
+| NO_LONGER_PROVEN | Inspect changed inputs/evidence and preserve history |
+| UNKNOWN / RECOVERY_REQUIRED | Reconcile the original effect and preserve the scene |
+| STALE_PROCESS | Reload normally and reverify entry |
+| Permission/resource mismatch | Inspect existing scope, exact targets and writers through the controller |
 
-See [System Overview](SYSTEM_OVERVIEW.md) for support and limitations.
-
-## Historical assets and adoption
-
-A workspace not yet adopted into v2 is a source for explicit reviewed adoption, not a second v2 writer. Inspect its existing facts, writers, uncertain effects and backup, then use the v2 adoption contract. Do not run legacy initialization/reorganization against an adopted workspace. Current long-project setup requires phase_ready=true and the current Project/Phase/Task services.
+See [Operations](V2_PREVIEW_USAGE.md) and [System Overview](SYSTEM_OVERVIEW.md).

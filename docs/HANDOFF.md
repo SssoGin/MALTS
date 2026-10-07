@@ -1,4 +1,6 @@
-# MALTS 2.0.0 Handoff
+# MALTS Handoff
+
+This is part of the complete MALTS system documentation. Current implementation/version is2.0.0; workflow context is in [System Overview](SYSTEM_OVERVIEW.md) and [Usage](USAGE.md).
 
 ## 1. Purpose and content
 

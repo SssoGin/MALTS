@@ -1,37 +1,49 @@
-# Getting Started with MALTS 2.0.0
+# Getting Started with MALTS
 
-## 1. Install and verify
+Install MALTS and start a project using the current2.0.0 release. Ordinary users work through Agent workflows; exact controller protocols are in [Operations](V2_PREVIEW_USAGE.md).
 
-Follow [Installation](INSTALL.md): review a repository source, create a plan, apply its exact hash, read tool-local Boot and run discovery. Require matching version/generation/registry, then reload the Host and verify actual native Skill/MCP connections.
+## 1. Prepare tools and source
 
-## 2. Start from the goal
+The verified path uses Windows, Python3.11+ and PowerShell; PowerShell7 is recommended. Ensure Codex, Claude Code, OpenCode or DeepSeek Harness already works. Obtain the selected version from the [repository](https://github.com/SssoGin/MALTS). Installation enables discovery; project setup preserves your work.
 
-Tell the Agent the goal, allowed edits and acceptance, for example: “Use MALTS for this module migration; inspect the current project, preserve user data, implement and verify; decide commit/publication separately.”
+## 2. Install and verify loading
 
-Existing workspaces start with applicable instructions, binding and current Task. Select `malts-long-project-workspace-init` for new long work or `malts-grill-me-preflight` for material ambiguity. Simple tasks need no persistent store. Selecting a Skill does not authorize delegation, paid calls or publication.
-
-## 3. Inspect current state
-
-Substitute actual discovery/binding outputs:
+From the repository:
 
 ```powershell
-$runtime = '<verified-MALTS_ROOT>'
-$workspace = '<selected-workspace>'
-python -B "$runtime/tools/malts_v2.py" workspace --workspace $workspace
-$state = '<verified-state-dir>'
-python -B "$runtime/tools/malts_v2.py" governance-context --state-dir $state --project-id '<project-id>'
-python -B "$runtime/tools/malts_v2.py" task-queue --state-dir $state --project-id '<project-id>'
-python -B "$runtime/tools/malts_v2.py" context --state-dir $state --task-id '<task-id>'
+.\scripts\Install-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool Codex
 ```
 
-Queries are read-only, create no Session/Agent/Artifact and grant no execution. A native v2 workspace selects its state directory explicitly; an adopted workspace resolves the business root's binding.
+Review source, destinations, existing-content treatment and recovery, then substitute actual output values:
 
-## 4. Finish a first task
+```powershell
+.\scripts\Install-MALTS.ps1 -Apply -PlanPath '<plan-path>' -ExpectedPlanHash '<plan-sha256>'
+```
 
-The controller defines goal/scope/criteria and existing permission/budget, executes, checks actual outputs and accepts with appropriate evidence. `task-verify` must return `CURRENT_EVIDENCE_VALID` before relying on current completion. Business acceptance still covers the user's goal.
+See [Install](INSTALL.md) for tool/root selection, offline use and entry checks. Reload the Agent tool and verify actual workflow/tool availability, not file existence alone.
 
-For an executable isolated file demonstration, see [v2 Operations](V2_PREVIEW_USAGE.md#v2-start). It calls no model and proves no business benefit. A long workspace also needs a current Project definition, actual plan and ACTIVE Phase; successful `init` is not `phase_ready=true`.
+## 3. Define a goal with an ending
 
-## 5. Continue after interruption
+Example: “Use MALTS for this module migration. Inspect behavior, preserve goals/compatibility, organize stages, implement and verify. Edit this project only and protect data; decide commit/publication separately.”
 
-Continue the same Task/Operation/Run after inspecting UNKNOWN effects, Hosts, checkpoint, revisions and budgets. Create handoffs on demand; do not reinitialize to continue. See [Usage](USAGE.md), [Handoff](HANDOFF.md) and [Lifecycle](LIFECYCLE.md).
+Select preflight for material ambiguity, project-init for basic multi-turn records and long-project-workspace-init for stages/recovery. Workflows add no delegation, cost or publication permission.
+
+## 4. Establish finite project work
+
+A new long project defines overall goal, first stage, tasks and acceptance. Require phase_ready=true; init/store creation alone is insufficient. Existing projects inspect current progress/tasks/results/uncertainty without reinitialization. Task workflows provide current methods without requiring internal IDs in every user request.
+
+## 5. Execute and assess results
+
+Agents complete scoped work and check actual outputs. Assess original goals, check coverage and remaining limits. File existence, exit and completion labels are insufficient. Preserve useful decisions/checkpoints and create reports/handoffs/reviews by purpose. task-verify CURRENT_EVIDENCE_VALID proves its declared task scope, with business evidence separate.
+
+## 6. Continue after interruption
+
+Request current tasks/checkpoints, preserved results, unsettled effects/executors and exact next work. Reconcile UNKNOWN without blind replay. Recovery retains consumption. Use handoff for a successor. See [Handoff](HANDOFF.md) and [Lifecycle](LIFECYCLE.md).
+
+## 7. Delegate or review when needed
+
+Use scheduling for explicitly authorized separable work; the main Agent integrates/accepts. Corrections, failed checks and useful methods can justify lightweight Growth; material stages/requested reviews can justify retrospectives. No-signal success creates no empty report or global rule.
+
+## 8. Runnable example and further reading
+
+Controllers can run the [isolated file example](V2_PREVIEW_USAGE.md#v2-start) to verify creation/acceptance/backup. It installs/calls no model, proves no general benefit and requires a new directory. It is TASK_ONLY, not complete long setup. See [Usage](USAGE.md), [Overview](SYSTEM_OVERVIEW.md) and [Design](CORE_DESIGN.md).
