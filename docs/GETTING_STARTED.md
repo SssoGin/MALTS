@@ -1,10 +1,10 @@
 # Getting Started with MALTS
 
-Begin with the product model, choose your Host/source, review installation, then start or continue the project. The established onboarding sequence remains stable.
+To begin, select an installed Agent tool and a verified MALTS source, review an installation plan, check native loading, then define a bounded project goal. Current version: **2.0.0**.
 
 ## 1. Understand the Model
 
-MALTS preserves goals, current progress, evidence and recovery across finite project work. Single Agent is the normal path; collaboration and experience review are selected by actual need. It is one complete product, currently **2.0.0**.
+MALTS preserves goals, current progress, evidence and recovery across finite project work. Single Agent is the normal path; collaboration and experience review are selected by actual need. The current implementation is **2.0.0**.
 
 ### Initialization Versus Ordinary Entry
 
@@ -17,6 +17,10 @@ The verified path uses Windows, Python3.11+ and PowerShell; PowerShell7 is recom
 ## 3. Verify the Repository Source
 
 Review remote/ref, VERSION and MALTS_RELEASE.json. Use the exact reviewed 2.0.0 tree; main guide revisions and the original tagged archive can differ while retaining the same version. See [Install](INSTALL.md) for inventory verification.
+
+Run the installation entry from the actual reviewed repository root. Keep credentials, project outputs and caches outside that distribution tree. The release identity binds exact user/repository-only inventories, so a modified or incomplete source must be corrected before planning.
+
+If you need a reproducible historical release, use its tag/verified archive. If you need the amended current guides, select the reviewed main commit and inspect its own identity. In either case, version equality alone is not content equality; retain the actual source commit/hash in the installation evidence.
 
 ## 4. Create an Installation Plan
 
@@ -33,6 +37,10 @@ Select one or several Hosts. Harness uses the dedicated Plan/Execute procedure i
 ## 5. Review and Execute
 
 Review source, destinations, personal-content treatment, recovery and exact reported hash before applying. Then verify the selected Boot/discovery and Doctor, reload native workflows/MCP and distinguish installation from project adoption.
+
+Check that the plan selects the intended lifecycle/tool roots and preserves personal content. Use the reported plan path/hash rather than copy an example's placeholders. Plan creation is preparation; execute is the actual effect. A no-op is appropriate only when identity/content are already identical.
+
+After activation, use the selected tool's MALTS_BOOT_PATH or adjacent Boot to discover the runtime and run Doctor. Reload the Host and inspect actual workflow/tool discovery. Only then start project work; a successfully written adapter file does not establish that the current process loaded it.
 
 ## 6. Start a Project
 

@@ -25,6 +25,16 @@ The archive does not bypass the plan-hash requirement, ownership merges or postc
 
 Read the verified manifest: the closed package contains public RELEASE_NOTES.md, manifests/inventories and the immutable lifecycle artifact. Repository-only Git/CI/identity files are outside the installed user payload.
 
+The outer release manifest and inventory bind the complete package, including RELEASE_NOTES.md and the inner lifecycle_artifact. The inner artifact manifest/inventory bind the actual user payload and its generation identity. Verify both boundaries: matching an inner file alone cannot certify that the outer archive has no added or missing entries.
+
+Installation treats the extracted release root as a fixed verified source and installs only its declared user payload. Git/CI and repository identity remain repository-only material. Safe extraction checks paths and collisions before final output, and a new destination avoids silently mixing the package with unrelated existing files.
+
+If a package is unavailable or its verification fails, do not substitute a similarly named directory. Use another reviewed source through its proper verification path. A valid package proves its content identity, not the outcome of a model task or the user's complete project.
+
 ## What Is Not in the Archive
 
 Project databases, user configuration, credentials, raw sessions, private controls, caches, tests and local acceptance bodies are excluded. A later same-version main guide amendment does not replace the original archive/tag; its identity remains historical and explicit.
+
+Exclusion is part of the distribution contract. A source checkout can contain maintainer controls and tests that are useful locally but have no place in the installed/public payload. Public projection uses exact classification, not a broad directory copy.
+
+Likewise, update/recovery evidence generated after publication remains local to its owning workspace. It should identify the public artifact rather than be inserted into the old ZIP. This preserves the distinction between package content at release time and later observed installation/project results.

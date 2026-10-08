@@ -1,6 +1,6 @@
 # Multi-Agent Long-Task Scheduling and Growth System
 
-MALTS helps AI Agents deliver finite project goals, continue across interruptions, coordinate authorized work and evaluate reusable experience. Single Agent is the default; current implementation is **2.0.0**. This document keeps the established product-design sections and incorporates current mechanisms without treating a new version as a separate product.
+MALTS (Multi-Agent Long-Task Scheduling and Growth System) organizes AI-agent project work around goals, checkable results, recoverable execution and assessed experience. The default executor is one Agent; approved collaboration uses the same project and acceptance model. The current implementation is **2.0.0**.
 
 ## Workspace authority, entry, and concurrency
 
@@ -14,7 +14,7 @@ Concurrency uses declared resources, current admissions, leases and fencing: a s
 
 ## Design Baseline
 
-This document explains MALTS as a complete product. Its established sections cover delivery, recoverable scheduling and experience improvement; new capabilities are added within those sections or as explicit extensions. The current released implementation is **2.0.0**.
+Long work can separate user intent, external effects and acceptance evidence across execution rounds. MALTS persists these facts and binds their revisions and provenance so a successor can distinguish completed work, eligible next work and uncertain effects. Scheduling, recovery and experience use depend on the same facts rather than deriving separate completion standards.
 
 The design baseline is:
 
@@ -48,6 +48,12 @@ Growth: observed facts -> cause/applicability -> reviewed proposal -> future tri
 | Lessons grow into noise | Sourced candidates, bounded trials and withdrawal | Where a method applies and whether future evidence supports it |
 
 For example, a repository migration can use one delivery goal, compatibility checks for each stage, an explicit continuation point, and a later trial of a useful check. It does not need four separate workflow products or a mandatory group of Agents.
+
+The transformations in these loops have different inputs and obligations. Planning consumes a goal and constraints and produces proposed executable work. Execution consumes the current task, eligible inputs and existing authorization, and produces actual effects. Verification compares those effects with criteria. Acceptance records that comparison for the specified revision. Recovery does not repeat the original plan automatically: it first determines which effects occurred and which inputs are still current.
+
+This separation prevents two common errors. First, an executor cannot redefine an acceptance criterion after implementing an easier result without an explicit revision. Second, a successor cannot equate a missing success message with non-execution. For a failed connection after a file update, the relevant question is whether current bytes and the original operation observation establish the result; a new request may otherwise repeat the effect.
+
+Growth uses the event as a source for a proposal, then requires later eligible observations to judge that proposal. An original correction and a future trial therefore have different evidentiary roles. The design permits learning from a failure while keeping that failure visible in delivery and recovery.
 
 ## System Definition and Scope
 
@@ -107,6 +113,12 @@ The core provides common contracts. Workflows tell an Agent how to use them for 
 
 The Capability Registry is metadata over sources and tool overlays, not another Skill repository. Portability, Host compatibility, exposure, review and execution permission are different decisions. An advisory router cannot execute a Skill, mint permission or change discovery. See [Capability and Skill Governance](CAPABILITY_AND_SKILL_GOVERNANCE.md).
 
+The boundaries correspond to different failure modes. A workflow can misunderstand a requirement even when a service transaction is correct; a Host can lose a process while the stored intent remains durable; an intact database can refer to changed business files. Each layer must therefore verify its own inputs instead of using another layer's success as proof.
+
+The implementation places domain services behind a common request dispatcher (`tools/v2_service.py`). CLI and MCP expose these contracts through different permission surfaces. A controller can prepare authorized state changes, while a Host-bound worker endpoint exposes only its configured action set and binds its project/actor identity. Sharing a domain service does not make those two entry points interchangeable authorities.
+
+One canonical Skill body reduces conflicting copies of operating rules. Native discovery bridges still differ because the four Hosts have different configuration/loading conventions. When discovery fails, inspect the bridge, target runtime and actual Host loading separately; copying another tool's files into the root does not resolve the identity chain.
+
 ## Activation Model
 
 | Mode | When useful | Expected behavior |
@@ -135,6 +147,12 @@ Every task should receive a fit-for-process assessment before procedural overhea
 
 The Agent should explain the expected operational value of multi-agent work before recommending it. If the value is unclear, the execution should remain single-agent.
 
+Choose the level from the work's dependencies, uncertainty, reversibility and recovery value, not the number of files alone. A mechanical rename across many files may stay bounded; a single credential or database migration can require high-risk planning. The classification affects how much context, persistence and verification are useful; it does not issue permissions.
+
+For a module migration, a useful task boundary might be “preserve this public interface while replacing its implementation, with these compatibility checks.” “Read five files” and “write a report” are activities and become standalone tasks only when their output is independently needed. Splitting too finely increases coordination and acceptance bookkeeping without improving the user's result.
+
+If the next step needs a missing decision, stop that dependency and continue separable approved work. For example, uncertain deployment credentials can block deployment while documentation and local verification continue. The same principle prevents one unresolved external effect from being interpreted as permission to restart the entire project.
+
 ## Project State Model
 
 Projects define overall/global acceptance, stages bounded delivery, tasks executable outputs. Each accepts proof of its own scope. Task success does not close a stage; stage closure does not finish ongoing maintenance.
@@ -148,6 +166,12 @@ Current executable state is persisted through the selected services, not by edit
 ### Long-Workspace Cross-Control Consistency
 
 Before adoption, a workspace follows its verified legacy contract. Adoption explicitly maps original definitions and history into the selected v2 authority and preserves bindings/source seals. Once adopted, do not run legacy Markdown write commands or restore legacy authority. Missing bindings require current recovery, not silent reinitialization.
+
+Versioning makes the meaning of a result explicit. If Task A revision 1 was accepted against interface X, and revision 2 changes the required interface, the old evidence remains historical rather than accepting the new definition. A dependent Task must bind the predecessor revision it actually relies on; choosing “the latest result” without checking that relation can change the dependency silently.
+
+The state model distinguishes definition, execution and presentation. Definitions identify intended work and criteria; Operations record requests and observed effects; evidence records support acceptance; reports present selected facts to a reader. A handoff can summarize all four but owns none of them. This prevents an edited narrative or translation from replacing execution facts.
+
+Plans remain readable project files, but a Phase binds their exact SHA-256. The hash detects byte changes; it does not decide whether the plan is sensible. The controller must still review changed goals, scope, inputs and acceptance, then revise the affected contract and explicitly rebind tasks. See [State Contract](V2_STATE_CONTRACT.md).
 
 ## Artifact Matrix
 
@@ -172,6 +196,12 @@ Release templates are starting points. Real project artifacts belong in the user
 
 The current store additionally records Project/Phase/Task definitions, operations and evidence. Business deliverables remain separate from reports and control records. Artifact ownership, revision and reuse eligibility are maintained through the selected Artifact service. Project-specific outputs never belong inside the installed generation.
 
+A record's location and its responsibility are separate. The state store holds execution facts; a business output such as code or a report is checked at its actual path; an evidence body is retained under its owner/purpose; a template helps draft material but supplies no observed result. Avoid treating all of these as interchangeable “project files.”
+
+Artifact metadata binds content identity, ownership and lineage. Promoting an Artifact to Shared adds a reviewed reuse purpose/scope and qualification; it does not move the payload or make its sensitive content public. A path that happens to be shared by two tasks is not sufficient evidence of a qualified Shared result.
+
+Retirement and recovery can require retaining an output that is no longer current. Before deletion, inspect transitive references and whether another verified source can reconstruct the required bytes. Superseded content may be the only preimage for an interrupted update. The Artifact relation graph therefore informs cleanup but cannot authorize it.
+
 ## Bounded Runtime Flow
 
 1. Read the current user goal, applicable instructions and the actual target.
@@ -187,11 +217,23 @@ The current store additionally records Project/Phase/Task definitions, operation
 
 MALTS supplies recoverable rounds; it does not extend a context window or automatically watch and save every conversation. Persistence must correspond to the actual effect and checkpoint.
 
+A bounded round has a concrete output and a stopping condition. The controller selects the next eligible task, compares relevant inputs with its contract, executes within scope and records what can be observed. It then evaluates the required check, rather than writing a success label as a substitute. An unresolved effect or decision is itself a checkpoint state, not completed progress.
+
+The durable checkpoint needs enough facts to resume safely: exact task/plan revisions, observed outputs, pending effects, remaining dependencies, the relevant Host and consumed allowance. It need not duplicate every tool message. Persisting only “continue implementation” is insufficient when a file write or provider request may already have occurred.
+
+Valid unchanged evidence can be reused, but its dependencies must remain unchanged. Editing user prose needs affected content/reference checks; changing transaction or permission behavior needs corresponding runtime checks. This makes verification follow risk instead of either rerunning everything or assuming every old result remains valid.
+
 ## Context And Continuity
 
 Persist material progress before context exhaustion, compaction, interruption, executor changes or unresolved collaboration creates a risk of losing facts. A continuation must identify the current goal, exact task revision, relevant outputs, failed checks, unknown effects, writers and next eligible action.
 
 Re-enter through current discovery/binding and selected task context. Read a handoff only when it is relevant to this continuation; do not load full history or select a historical Session by recency. If chat and current evidence disagree, investigate the actual state. A summary cannot certify non-execution or repair an incomplete effect.
+
+The successor reconstructs a chain of facts, not the previous Agent's confidence. Start from the selected installation and workspace binding, then locate the current task and checkpoint. Check actual files or service outcomes when those facts decide whether a next action is safe. Historical documents are consulted for a named question, such as why an interface was retained; they are not blanket instructions to rerun a month of work.
+
+Two interruptions require different responses. If a request was prepared but no effect intent was committed, the current operation contract determines whether it can proceed. If intent exists and the receipt is missing, preserve uncertainty and reconcile the original identity. Reconstructing a pleasing summary does not settle that distinction.
+
+Unique manual observations must survive generated-view refresh. A user note about an external editor or a migration decision can be relevant even when it is not a structured field. Preserve it as source data, identify its provenance, and compare current facts before interpreting it as an action.
 
 ## Optional Multi-Agent Scheduling
 
@@ -238,6 +280,12 @@ Delegation declares goals, inputs, scope, outputs, budgets and verification. Edi
 
 The main Agent checks actual integration. Agreement, success returns and reports are insufficient. Pause/cancel/successor/exit are distinct; uncertainty and consumed allowances survive new rounds.
 
+The scheduling decision depends on both responsibility and resource independence. Independent code review can use a read-only verifier even when implementation must remain serial. Two workers changing separate modules may still share a generated manifest, editor session or database, requiring serialization or a qualified coordination profile.
+
+Prepare a context packet containing the exact requirement, relevant inputs, ownership, allowed effects, budget, output and acceptance. Do not send complete history merely because delegation exists. At return, verify the artifact and required checks against the contract, integrate it with other changes, and only then accept the task. The controller retains responsibility for cross-module behavior.
+
+Parallel execution is a hypothesis about useful separation, not a performance guarantee. Compare completion, verification, integration and repair costs under the actual workload before claiming benefit. A model rating or agreement between workers is not independent business verification.
+
 ## Task Contracts And Recovery
 
 A ready task identifies its goal, inputs, allowed/prohibited scope, dependencies, resource ownership, expected output, verification method, budget and any hard Host/model constraints. The controller checks that the current revisions and actual files match that contract.
@@ -245,6 +293,12 @@ A ready task identifies its goal, inputs, allowed/prohibited scope, dependencies
 Returned reports must identify observed outputs, checks, failures and limitations. Reject off-scope or unsupported completion claims; integrate the actual artifact before accepting it. A report's favorable language is not acceptance.
 
 Continue an exact paused Task/Run when its checkpoint, dependencies, pending effects, Host state and budget permit. An interrupted operation is reconciled under its original identity. Restoration uses a new epoch and retains consumed allowances; it revives no old Grant, Host or acceptance and does not restore legacy runtime authority.
+
+Consider a task that updates a configuration file. Its contract identifies the file, required value, current preimage, protected content and the check after writing. An operation binds those parameters to a request hash. If the process stops after intent, the next executor checks that original operation and the observed file; it does not create a second update with a new ID just because the first return message was lost.
+
+Rework also preserves responsibility. A rejected output should identify the unsatisfied criterion and current bytes. Reduce or clarify the task where needed, but do not call a partial result complete or erase the failure. Revisions change the executable contract, while the old request and evidence remain available to explain what happened.
+
+Budgets constrain cumulative effects. Consumption and uncertain use survive pause, new windows and restoration. Recovering state therefore includes accounting for post-backup work and Host observations, not only replacing a database file.
 
 ## Verification And Delivery
 
@@ -276,6 +330,12 @@ If verification is incomplete, the delivery record must state the limitation exp
 Record content, ownership, revision, provenance and dependencies separately. Verify current sharing eligibility; old references cannot silently promote superseded/retired artifacts to new content.
 
 Reports explain outputs/evidence; handoffs explain current state/unresolved work/next steps. Derive them on demand and preserve manual content. Publication compares sources/preimages instead of overwriting newer facts. Old hashes do not certify edited reading copies.
+
+Verification must connect a claim to the input it tested. For a code change, file integrity establishes which bytes were checked, while behavior tests establish the interface or output requirement. For a document, source evidence supports factual claims and a link check supports references; neither alone proves that the explanation is sufficient for the user. Installation proof establishes content/entry, while native execution and business acceptance remain separate.
+
+An acceptance record binds the task revision and required criterion. If a relevant dependency changes, preserve the historical record and assess current proof again. Current verification can report NO_LONGER_PROVEN without retroactively declaring the original check fabricated. This is how the system distinguishes historical validity from present applicability.
+
+Delivery reports should state the actual result, how it is used, what was checked and material remaining limits. They should not substitute counts of tests, updates or reports for evidence. A task may be closed only for its declared scope; wider incomplete goals remain visible.
 
 ## Growth System
 
@@ -309,6 +369,12 @@ Review begins from actual correction, failed verification, recovery, repeated is
 Candidates specify sources, applicability, actions, checks and withdrawal. The original event proposes a candidate but is not future-use proof. Later tasks need eligible/comparable evidence. Preserve failed/neutral/unknown outcomes; counterevidence/source withdrawal stops affected reuse.
 
 Project recording, trials and global Skill/rule changes have separate permission scopes. Encryption does not authorize public/Growth use; reviewed derivatives and purposes remain necessary. The design supports controlled improvement without presuming benefit.
+
+A reusable proposal needs an action with an applicable trigger and a way to detect harm. “Check schema compatibility before restore” can be a candidate if a real incident supports it; “always do more testing” is too broad to define a trial. Specify the task class, Host/profile, failure signature when relevant, intended behavior, evidence and rollback/withdrawal conditions.
+
+The proposal event and later outcome cannot be merged into one proof. A trial binds the approved operation and its actual request hash; future evidence must represent the eligible workload and independent observations required by the assessment. Replaying one favorable result is not another sample. Neutral and harmful outcomes constrain continued use just as positive ones support a bounded claim.
+
+Global application is a separate decision. Even a validated project candidate does not automatically rewrite a Skill, Prompt or personal rule. Preserve the source lineage and assess the maintenance cost and scope before authorizing a durable destination. The current implementation manages proposals, trials, assessment and retirement; it does not establish automatic productivity improvement.
 
 ## MALTS Memory Pipeline
 
@@ -350,6 +416,10 @@ A multi-agent round should be judged by whether uncertainty decreased, verificat
 Costs include preparation/execution/wait/integration/verification/repair, not only response time. Account for coordination in parallel comparisons; smaller reference sets alone do not prove model token savings.
 
 Bounded reads, valid-evidence reuse and risk-specific checks control overhead. Budgets retain consumption across recovery. Each round ends at a real deliverable, decision, checkpoint or failure condition; complete the goal without unlimited side branches.
+
+A smaller initial reading set reduces the material requested at entry; it does not measure the model's actual reading or provider token accounting. Additional reasoning, tool observations, repetition and integration can offset an apparent reduction. Report observed costs only under their actual collection method and workload.
+
+Use a finite completion definition to control iteration: identify the required result and evidence, resolve defects that affect that result, and defer new core capabilities through an explicit decision. Once the agreed result and relevant checks are complete, further polishing needs a concrete unresolved concern. This prevents governance work from becoming an open-ended task independent of the user's objective.
 
 ## Safety And Permissions
 
@@ -394,9 +464,17 @@ This boundary keeps the system reusable across machines, teams, and Agent runtim
 
 ## MVP Implementation Phases
 
-This section preserves the historical implementation sequence, not a current pending queue: establish goals/templates/checklists; package the common workflows; add native tool adapters; automate structural and installation checks; observe real delivery, recovery and experience use.
+The minimum delivery comprises an operating model, executable workflows, native adapters, deterministic checks and observed use. These components have dependencies: a workflow needs a defined goal/recovery model; an adapter must resolve its canonical workflow; installation must qualify the exact content; behavior observations must identify the installed implementation and profile.
 
-Later releases added lifecycle transactions, explicit Phase/Artifact governance and current task services. DeepSeek Harness extends the adapter set to four. Current requirements and completion come from the selected Project/Phase/Task and valid evidence, not this historical sequence. The version history is in [CHANGELOG](../CHANGELOG.md).
+| Component | Role | Verification obligation |
+|---|---|---|
+| Goal/state model and templates | Define intent, outputs and recoverable facts | Ownership, scope and current bindings |
+| Canonical Skills | Select the method for the actual goal | Trigger, inputs, permission boundaries and references |
+| Four native adapters | Connect Host loading/tools to the common core | Exact source/projection, discovery and profile |
+| Lifecycle and checks | Install/recover qualified content | Plan hash, preimages, transactions and postchecks |
+| Observed project work | Establish a result under real conditions | Business acceptance, interruption and applicable limitations |
+
+Component completion and whole-product acceptance remain separate. Each observation must name its scope; neither static metadata nor a synthetic file example certifies every Host's model behavior. Current implementation/qualification relationships are described in the following acceptance and mechanism sections.
 
 ## Acceptance Standard
 
@@ -467,6 +545,12 @@ Each tool's `MALTS_BOOT.md` identifies an immutable generation. Discovery checks
 Exact Schema/hash binding improves auditability at the cost of explicit upgrade/adoption/recovery. Protected evidence reduces accidental propagation but limits cross-user recovery. Retained recovery originals support repair and explanation without a bounded-disk-space guarantee. Diagnostic inventories do not authorize deletion.
 
 Skills use bounded routing and `task`, `phase`, `artifact`, `recovery` topics. A smaller reference set does not prove actual model reading behavior or token savings.
+
+The mechanism can be followed through an actual managed-file task: task.revise defines the output and criterion; phase.bind-task identifies the applicable plan; an existing Grant and budget permit operation.prepare; a qualified file adapter commits intent and observes the effect; verification establishes the requested proof; task.accept records acceptance after effects and Hosts settle. Each step rejects a mismatch at its own boundary.
+
+This sequence trades some explicit state management for inspectable recovery. A service cannot infer an external business result merely because a file adapter succeeded, and a model cannot bypass a failed boundary with a rewritten summary. When a step is blocked, inspect its value-free error code and the current contract instead of guessing another action name or widening the endpoint.
+
+The maintained action contracts can be queried through capabilities. Detailed procedures and examples are in [Controller Operations](V2_PREVIEW_USAGE.md), with [State Contract](V2_STATE_CONTRACT.md) defining the current format and authority boundaries.
 
 ## Verification Scope And Limitations
 

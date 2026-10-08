@@ -1,6 +1,6 @@
 # Use MALTS in a Project
 
-This guide follows a complete project from goal to delivery, retaining the established entry, setup, workflow, control and safety sections. Current version is **2.0.0**. Users may select work in natural language; exact controller protocols are in [Operations](V2_PREVIEW_USAGE.md).
+Project work begins with a checkable goal and continues through planning, execution, verification and delivery. MALTS workflows preserve the facts needed for interruption, collaboration and future review. Current version: **2.0.0**; controller protocols are in [Operations](V2_PREVIEW_USAGE.md).
 
 ## Enter an existing workspace
 
@@ -9,6 +9,12 @@ Use malts-project-init for applicable entry/goals/basic records and malts-long-p
 For existing work, verify instructions, installation, binding and current tasks without reinitialization. Read goals/plans/dependencies/accepted results/uncertain effects and relevant history only as needed. Technical Phase/task revisions use phase.bind-task; exact parameters belong to installed workflows/controllers.
 
 For an adopted workspace, controllers can verify the binding with the runtime's `malts_v2.py workspace --workspace '<workspace>'`, then inspect governance-context/task-queue and the exact context. Read only relevant current facts. These queries do not grant execution. A pre-adoption workspace follows its verified contract; old long_workspace commands are not a v2 write route.
+
+Continue from the current task and its remaining criteria. Compare the selected plan/dependencies with actual output identities, and inspect any UNKNOWN effect before retrying the associated work. Do not run an initializer just because the conversation changed.
+
+For a read-only question, read the relevant context and files without defining a new Phase or creating managed execution records. For approved new work, identify whether it changes the current boundary and revise/create the appropriate Phase/task through services. A historical planned stage is not selected automatically because it has a similar name.
+
+If binding is missing or inconsistent, preserve the workspace and inspect its adoption/recovery source. Do not delete the binding or initialize over the directory to make entry succeed. The required next action depends on the actual failure, not an assumed empty project.
 
 ## Start a project
 
@@ -23,6 +29,21 @@ For example, replace an ambiguous repair goal with preserved interface behavior,
 Stages define goal/scope/delivery/acceptance; tasks define results, inputs, dependencies and checks. Close a stage against its actual criteria and remaining work; new goals create explicit stages instead of activating historical plans.
 
 Split into checkable outputs, not merely activity lists. Sequence dependent work and assess independent work for parallel value. Revisit affected plans/revisions after material changes while continuing independent authorized work.
+
+A practical request can specify result and exclusions together:
+
+> Use MALTS to migrate this module. Preserve the public interface and user data, identify the compatibility checks, implement the approved change and deliver the evidence. Work in this project; deployment and publication are outside this request.
+
+The Agent first inspects current behavior and project instructions. A useful plan separates the compatibility definition, implementation and integrated checks. It names the result each stage should produce instead of turning every file read into another milestone.
+
+| Work | Output | Acceptance question |
+|---|---|---|
+| Establish current behavior | Reviewed interface/input baseline | Is the requested compatibility defined? |
+| Implement the change | Actual updated module | Does it meet the scoped behavior? |
+| Verify integration | Observed checks on the resulting input/output | Are required interactions still correct? |
+| Deliver | Result, use and remaining limits | Does the whole request have required proof? |
+
+This example is a decomposition pattern, not a prescribed queue for every project. Use the first active Phase only when long-workspace setup is selected; small work can complete without that overhead.
 
 ## Choose the right workflow
 
@@ -55,6 +76,12 @@ Compare actual deliverables with original goals. Separate implementation, applic
 
 Explain what changed, how to use it, how it was checked and remaining limits. Continue required work and stop when the goal is fulfilled; report/test counts are not quality.
 
+Define a check by its claim, input and expected observation. For code, include relevant normal behavior and the identified fault; for documentation, inspect completeness for its audience, sources, examples and links. Repeating a file-hash check cannot establish semantic correctness.
+
+When a check fails, keep the failing observation, diagnose the affected cause and rework the actual result. In VERIFYING mode, use verification.rework before further execution. After acceptance, task-verify assesses the current proof and can preserve historical acceptance while reporting that changed input is no longer proven.
+
+At delivery, distinguish implemented, verified, unavailable, failed and explicitly deferred items. State a narrower verified result if that is what the evidence supports; do not silently reduce the original goal to that subset. New requirements and major tradeoffs are separate scope decisions.
+
 ## Diagnose Without Changing State
 
 Workflows provide current methods. Controllers can query workspace, governance-context, task-queue, context and task-verify. Read-only queries do not initialize/grant execution; request preview does not prove readiness.
@@ -79,6 +106,12 @@ Artifacts retain stage ownership, revisions, sources and relationships. Sharing 
 
 Durable reports describe outputs/proof/remaining work/limits when needed. Use malts-session-handoff to preserve unique manual notes and create an on-demand current view for another window/executor. Handoffs create no permission and never overwrite newer facts.
 
+A Phase boundary describes what this stage delivers and what belongs elsewhere. Revise it when acceptance or material scope changes, then bind the affected task revisions to the reviewed plan. Pausing is a control transition; it does not itself demonstrate that a native writer stopped.
+
+Register an Artifact with its actual owner/content/revision and dependencies. Promotion to Shared requires reviewed reuse scope and current qualification. Use current advertised services, such as artifact.register, artifact.promote and artifact.reconcile; do not infer an action name from a status such as SUPERSEDED.
+
+Before retirement or cleanup, check whether the result remains an input, a transitive dependency or a required recovery preimage. A file can be unnecessary for the next task yet still required to settle an interrupted earlier effect. Path relocation/deletion and metadata reconciliation have different responsibilities.
+
 ## Safety defaults
 
 Default to one Agent, least necessary scope, exact targets and meaningful verification. Reuse approved same-scope actions. Do not derive delegation, provider cost, background work, publishing or destructive effects from Skill selection. Preserve personal content, recovery sources and unknown effects.
@@ -92,6 +125,12 @@ A material plan/goal change requires the affected current Phase/Task revision an
 Check exact tasks/progress/results, whether effects occurred and whether relevant processes stopped. UNKNOWN means uncertain effect, not failure/non-execution. Reconcile the original identity rather than retrying blindly.
 
 Pause requests, pause states and process exit are distinct. Continue with checkpoints/current plans/remaining budgets; a new window/restoration does not replenish allowance. Preserve necessary backup and later work. See [Lifecycle](LIFECYCLE.md) and [State Contract](V2_STATE_CONTRACT.md).
+
+Preserve the current checkpoint and inspect both managed pending effects and actual Host state. A pause request can remain pending while an operation settles. A process can stop without a business result, and a business effect can occur without its receipt; evaluate those facts separately.
+
+Resume the original eligible run when its contract permits. If successor execution is needed, use the reviewed current task/Host route and retain original consumption and uncertain effects. Do not create a replacement run solely to make pending state disappear.
+
+For a file update interrupted after intent, compare the original request/preimage and actual current bytes through the qualified reconciliation path. For an external editor/provider effect without a qualified observation, preserve the unknown and obtain relevant evidence before repeating it. See [State Contract](V2_STATE_CONTRACT.md).
 
 ## Delegate When Useful
 

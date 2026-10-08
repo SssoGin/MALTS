@@ -1,10 +1,14 @@
 # Update MALTS
 
-Update the selected MALTS installation while preserving project work and personal configuration. The established update, ownership, diagnosis and recovery sections apply to the whole product.
+An update selects verified source content and changes the chosen installation through a reviewed transaction. The updater preserves project work and user-owned configuration according to its plan; it does not select a new goal or migrate projects automatically. Current version: **2.0.0**.
 
 ## Before Updating
 
 Inspect the installed identity, intended source, workspace binding, user edits, relevant writers and pending effects. Preserve recovery materials. The updater does not pull Git and performs no automatic repository selection, automatic ZIP download, provider call or implicit project migration. Current version remains **2.0.0**.
+
+Compare the active source kind/hash, intended repository/package identity and actual selected tool roots. Identify whether a normal version update or same-version content consolidation is needed. Preserve required transaction snapshots and project backups for their different recovery purposes.
+
+Check relevant writers and unsettled effects before changing shared installations. Do not use PAUSED or a missing response as process-stop evidence. A documentation-only update may reuse unchanged runtime behavior results, but the new payload identity, instructions and installed correspondence require current checks.
 
 ## Repository Update Review
 
@@ -58,6 +62,12 @@ Verify and safely extract the selected fixed archive, use its ReleaseRoot and th
 
 Do not apply a whole-file replacement merely because an adapter changed. Cleanup is separate from update and assesses ownership, references and recovery. Preserve unknown objects and necessary snapshots.
 
+U1 applies to recognizable mixed-ownership instruction blocks: update MALTS content while keeping personal prose outside the markers. U3 covers edited or ambiguous files that cannot be automatically classified as safe replacement; resolve the specific ownership/treatment rather than relabel them U0. U4 preserves the fail-closed boundary for unsafe or sensitive conflicts.
+
+Snapshot availability is a recovery facility, not permission to discard unreviewed user edits. Review merge results and reload the actual Host. Do not restore an entire older configuration solely because one generated bridge needs repair; that can remove later user changes.
+
+Retained generations, snapshots and evidence can remain after update because they serve recovery/history. Audit or Scan before a separate cleanup decision. Neither version age nor successful activation proves those originals are unnecessary.
+
 ## Diagnose Before Repair
 
 Use read-only Doctor for all roots sharing the selected lifecycle; diagnose Harness separately. Inspect core trust before choosing a repair source. DoctorRepairPlan prepares a review; Execute uses the reviewed hash. Do not edit journals/locks or change permissions to bypass a failed precondition.
@@ -65,6 +75,12 @@ Use read-only Doctor for all roots sharing the selected lifecycle; diagnose Harn
 ## Update Workspace Controls
 
 Installation does not adopt projects. Before v2 adoption, review current facts, mappings, writers, unknown effects and backups. Adopted workspaces use current task services; preserve binding/source-seals and do not run old Markdown initialization/reorganization writes. Current Core reads/writes Schema69 only; changing a version field is not a development-store migration.
+
+Adoption must preserve the original goal, current stage/task obligations, retained outputs and unresolved effects. The mapping should identify imported historical claims separately from current verified acceptance. A legacy DONE row is not promoted into current business proof just because import parsed successfully.
+
+Verify the adopted binding, selected state root and epoch before current services operate. Preserve both historical source seals and any post-adoption work. If a store becomes unavailable, use reviewed current forward-recovery contracts with explicit gaps; do not remove the adoption markers to restart legacy writes.
+
+Installation restoration and project restoration need not have the same destination or journal. Recover each using its own identity and then check their correspondence. An installation transaction never silently grants fresh project budgets or acceptance.
 
 ## Recovery
 

@@ -1,6 +1,6 @@
 # MALTS System Overview
 
-MALTS is one product for goal-directed delivery, recoverable scheduling and assessed experience. Current release is **2.0.0**. This overview keeps the established purpose/capabilities/adapters/scenarios sections.
+MALTS preserves project goals, current progress, observed results and recovery information across AI-agent execution rounds. It combines delivery, optional collaboration and evidence-based experience use through shared project/task contracts. Current version: **2.0.0**.
 
 ## 1. System Purpose
 
@@ -11,6 +11,12 @@ Long work exceeds one prompt, context window or uninterrupted run. Migrations, i
 ## 2. Problems Addressed
 
 Long projects risk rewritten goals, lost progress, premature completion, shared-edit conflicts and unsupported lessons. MALTS therefore preserves intent/acceptance, separates current state from history, makes effects recoverable/checkable, assigns integration responsibility and assesses experience through future facts. Existing data/tools and user decisions remain inputs and boundaries.
+
+A long project can fail even when each local action looks reasonable. Requirements may be summarized incompletely; a successor may repeat an already performed operation; a worker may optimize its own task while breaking an integration constraint; and a favorable lesson may be applied where its original condition no longer exists.
+
+MALTS addresses these failures by retaining the original/current goal, binding plans and dependencies to revisions, observing effects under stable identities, verifying outputs against criteria and retaining experience applicability. These mechanisms improve inspectability and continuation; their existence does not by itself establish a statistical improvement in project success.
+
+The user therefore reviews both the artifact and the completion claim: does the output meet the requested goal, do the checks cover that claim, and are remaining limits explicit? A large collection of reports cannot answer these questions without actual evidence.
 
 ## 3. Core Operating Model
 
@@ -60,6 +66,12 @@ Light review responds to actual signals; without one it produces no empty report
 
 Canonical Skills organize the workflow; templates help draft goals, task contracts, reports and handoffs; checklists inspect delivery and proposed memory writes. They support the project rather than introducing another state or permission source.
 
+These capabilities cooperate in one delivery. For a module migration, the Project records the preserved interface and deployment exclusion; a Phase defines a bounded migration stage; tasks bind analysis, implementation and checks; operations record actual changes; evidence supports their acceptance; a handoff identifies remaining compatibility work; and a review may propose a later method trial.
+
+The user does not need to manually create every record. The selected workflow/controller supplies the actual service operations and explains the useful result. A record is required when its recovery, execution or verification contract needs it, rather than because every turn must produce a document.
+
+Project-level acceptance remains wider than any one task. Implementation, local verification, installed entry and native Host behavior are different evidence layers. The controller must identify which layer a result establishes and what still remains for the user's whole goal.
+
 ## 5. Optional Capabilities
 
 Single Agent fits clear/concentrated work or strong sequential dependencies. Multiple Agents can help independent exploration, modules, verification or justified parallel work.
@@ -87,6 +99,16 @@ Choose any of the four installation entries in [Install](INSTALL.md). AllInclude
 
 Code changes across modules; engineering migration with compatibility checks; investigations that span windows; finite document/research delivery; explicit independent review; continuation after interruption. In each case, preserve an actual result and stopping condition rather than maximize tasks or Agents.
 
+| Scenario | Persistent information that matters | Suitable ending |
+|---|---|---|
+| Interface migration | Compatibility constraints, predecessor/output revisions and checks | Agreed interface behavior verified |
+| Investigation | Reproduction inputs, observations, rejected hypotheses and next experiment | Supported cause/result or explicit unresolved question |
+| Document delivery | Audience, factual sources, chapter requirements and review limits | Required explanation and references checked |
+| Interrupted execution | Original operation, current bytes/results, checkpoint and Host/budget state | Uncertainty reconciled before dependent continuation |
+| Independent review | Exact artifact, review criterion and integration responsibility | Observed issues resolved or explicitly retained |
+
+Use lightweight project work when the goal is bounded and recoverable within one round. Long-workspace governance is useful when stages and dependencies need persistent authority. The same product can therefore serve different task sizes without requiring identical ceremonies.
+
 ## 8. Non-Goals And Boundaries
 
 Recorded evidence includes domain/permission/transaction/files/recovery/installation, representative native tasks and bounded collaboration/Growth observations. Each proves its own layer. Preserve the original incomplete baseline failure and neutral real Growth trials.
@@ -110,6 +132,10 @@ The reusable system comprises Skills, runtime templates/checklists, deterministi
 Technical entities are Project, Phase and Task; exact fields belong in the [State Contract](V2_STATE_CONTRACT.md). Historical assets support reviewed adoption without a second writable authority. Installation and project adoption are separate; recovery stays in the current system.
 
 The v1 releases established goals, recovery files, templates and lifecycle governance. The current task service makes revisions, effects and acceptance durable without changing the product purpose. Historical release details remain in [CHANGELOG](../CHANGELOG.md), not a new current task queue.
+
+The current runtime preserves the original operating objectives while assigning executable facts to the selected store. User-authored plans and handoffs remain valuable narrative inputs; task services make their relevant revision and effect relationships explicit. The change concerns how state is enforced, not a requirement to discard project knowledge.
+
+Migration is an explicit ownership change. Review mappings, writers, uncertain effects and backup before adopting an older workspace. Once adopted, the current binding/source seals identify that boundary and legacy Markdown writes cannot become another current authority. See [Update](UPDATE.md) for installation versus adoption.
 
 ## 12. Relationship To Detailed Design
 

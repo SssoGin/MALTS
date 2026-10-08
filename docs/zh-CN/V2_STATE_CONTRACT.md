@@ -1,6 +1,6 @@
 ﻿# MALTS 状态与服务合同
 
-本页属于MALTS整体系统说明，当前版本与实现为2.0.0。工作过程见[系统说明](SYSTEM_OVERVIEW.md)和[使用指南](USAGE.md)，本页只展开对应主题。
+状态合同将目标、任务版本、权限、操作、证据和恢复绑定所选工作区。CLI 与 MCP 经不同宿主权限界面调用同一领域服务。当前实现：**2.0.0**。
 
 ## 1. 格式、入口与权威
 
@@ -23,11 +23,29 @@
 
 Phase 定义绑定当前 Project revision、实际 plan_ref/plan_sha256。Task scope 是 Phase in_scope 的子集；每份 Task revision 绑定准确 Phase revision。计划或验收语义变化须通过正式 revision 和相关依赖重绑定，不能直接编辑数据库。
 
+定义和观察具有不同生命周期。修订任务改变意图与条件，旧操作仍记录原版本下请求/执行的工作。不能仅改标签将证据转给新含义。
+
+阶段所属将任务版本绑定当前阶段版本和计划，依赖绑定准确前置版本。发生变化时，先核受影响绑定和剩余工作，再准入新效果。与总读最新行的平面队列不同，该关系使结果实际使用的版本可检查。
+
+叙述内容可在机器库外，例如真实计划文件，但适用版本绑定其字节。哈希核身份，不核业务充分性；控制端须分别审阅计划/条件与服务字段验证。
+
 ## 3. Task 与操作状态
 
 Task 状态包括 READY、RUNNING、VERIFYING、WAITING、PAUSED、RECOVERY_REQUIRED、COMPLETED 和 CANCELLED。具体转换由服务前置条件决定，不靠标签推导可执行性。Task 修改只对可修订状态执行；未决效果先对账。
 
 Operation 准备绑定 Grant、actor、resource、effect、parameters、request_hash、lease 和 epoch。提交 intent 后效果可能发生；observed 记录已知结果，UNKNOWN 保持不确定。prepared 操作不能作为已执行证据。重放要求相同身份与内容；不得用新 ID 重复未知效果。
+
+操作次序区分准备与允许产生效果：
+
+```text
+PREPARED -> INTENT_RECORDED -> OBSERVED  （已知成功观察）
+                            -> FAILED   （已知报告失败）
+                            -> UNKNOWN  （效果仍不确定）
+```
+
+仅保持 PREPARED 的请求可取消为未执行。提交意图后，取消不能消除效果发生可能。已知失败仍需实际观察，不是普遍回滚证明。UNKNOWN 保留原操作，并使受管 lease/资源保持隔离直至对账。
+
+相同重放可返回历史判断而不再执行效果，应核请求身份与预期哈希，不能换主体/参数或新 operation ID 作为重试捷径。受管 create/read/update 适配器自行处理意图与观察，调用者不应先为其提交不相关手工意图。
 
 ## 4. 授权、预算与并发
 
@@ -35,17 +53,39 @@ MCP 的 project、actor、authority 等 Host-bound 字段由配置提供，客�
 
 预算维护累计消费，恢复不补充额度。Host dispatch 还受能力、预算和资源准入约束。租约和 fencing 只约束受管消费者；任意外部编辑器/进程须另行核静止。
 
+准入将身份与效果相连：当前任务版本、主体准确 Grant、资源/效果、依赖、操作预算和当前资源身份。提交意图产生 epoch/fence lease，执行适配器使用前重新核 token 与真实资源；传输连接本身不提供这些事实。
+
+预算统计已提交意图并保留累计使用。新 Run、改呈现或恢复备份都不能清零；额度修订是具有当前前置的明确审阅策略变化，也不能抹去已有消耗。
+
+Lease 绑定所属、epoch、fence、到期，续租是明确动作。到期阻止旧受管执行，却不证明外部进程停止或效果撤销。共享编辑器/服务/设备须另有实际写者边界。
+
 ## 5. 文件适配器
 
 `operation.create-file` 独占创建，不能覆盖现有文件。`operation.read-file` 需要 prepare parameters 的准确 `tool='read-file'` 和 granted relative `path`；读取也可产生控制记录，因此不等同普通只读上下文。
 
 Windows `operation.update-file` 需要 `tool`、`path`、`content`、`expected_sha256` 和完整 `preimage_policy`。原文受保护保全；当前字节和写后结果均核查。冲突/UNKNOWN 通过 `operation.reconcile-update` 或经新范围授权的 repair plan 处理，不能盲目换 ID。
 
+| 适配器 | 目标规则 | 准备/结果边界 |
+|---|---|---|
+| create-file | 准确相对新文件 | 独占新建，已有目标拒绝 |
+| read-file | 已存在且被授权的相对文件 | Prepare 含 tool/path，结果为观察字节/哈希 |
+| update-file | 已存在的准确相对文件 | 当前 SHA-256、UTF-8 新正文及受保护前像策略 |
+
+读取的 max_bytes/max_characters 属执行限制，不是准备参数。缺 tool/path 时不能猜宽泛资源。更新应读取宿主提供的完整当前 preimage policy 模板，摘要标签不是完整描述符。
+
+更新保护比较独占打开文件与 expected_sha256，保全前像、写入并检查新字节。当前内容改变时保留原操作，使用对应对账/修复合同。受管字节结果不证明构建通过，也不证明编辑器/网络操作发生。
+
 ## 6. 验证与当前完成
 
 criterion 必须是闭合字段 `criterion_id`、`description`、`hard`、`verification_method`、`minimum_evidence_level`。Evidence 绑定准确 Task revision、criterion、当前 epoch 的 OBSERVED 操作及描述符；方法和最低等级须匹配。
 
 `verification.begin` 要求依赖、Host 和操作结清，进入 VERIFYING 后拒绝新执行。`verification.rework` 保留历史并使旧依据失效。`task.accept` 使用同一边界；`task-verify` 只读返回当前证明。Phase/Project 完成需各自验收与当前任务闭包，不能由一个任务或单元测试替代。
+
+所有硬条件须有满足方法/等级的证据。调用者声明的 review 不能仅因 JSON 写 PASS 成为独立验证。verification.managed-files 提供固定有界文件完整性方法/等级，任务业务行为需另有证据。
+
+验证模式在验收前结清依赖、操作和受管宿主，检查期间拒绝新效果。Rework 返回可执行工作并使之前当前依据失效，不抹历史。小任务可通过同一边界原子验收。
+
+阶段完成核当前计划、硬条件、任务所属/当前验收及成果引用闭包；项目完成聚合自身要求。空阶段或单个文件验收不完成更大范围。当前证明查询须区分历史重放和 CURRENT_EVIDENCE_VALID。
 
 ## 7. 证据、成果与 Growth
 
@@ -58,6 +98,12 @@ Artifact 关系图、回收前依赖、Shared 当前内容与 owner 独立检查
 交接预览返回来源令牌、有界事实、部分页和所选手工原文。受控发布需现有且已审阅的目标、精确前像及来源一致；目标不存在需另行限定创建。交接不授权限、不成为第二事实源。
 
 备份覆盖 DB、blob 和合同声明的资源，Host journal 与安装事务有独立保留责任。restore 使用已核验备份、新目录及新 epoch，保持隔离，核后续成果、外部效果和预算后才恢复。跨用户保护解密尚未认证。原库不可读的前向恢复也必须证明采用链和缺口，不能伪造 missing receipt 为无效果。
+
+source_token 检测交接快照呈现的所属事实，不是全部业务依赖哈希或文件 compare-and-swap token。选定备注保留审阅来源身份，但预览不重新验证所有原文件；发布因此同时需要当前 token 检查及准确目标前像保护。
+
+备份验证核声明数据/资源；恢复写新的所选目标和 epoch，之后对账备份后的工作。记录缺失不能证明 Provider 调用或宿主启动未发生，填补缺口时保留原回执、隔离和消耗。
+
+Host journal 和安装快照具有不同所属，恢复任务库不能代替它们。准入后继前另核对应关系和真实进程状态。
 
 ## 9. 保留与诊断
 
