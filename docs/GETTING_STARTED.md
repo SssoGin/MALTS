@@ -16,7 +16,7 @@ The verified path uses Windows, Python3.11+ and PowerShell; PowerShell7 is recom
 
 ## 3. Verify the Repository Source
 
-Review remote/ref, VERSION and MALTS_RELEASE.json. Use the exact reviewed 2.0.0 tree; main guide revisions and the original tagged archive can differ while retaining the same version. See [Install](INSTALL.md) for inventory verification.
+Review remote/ref, VERSION and MALTS_RELEASE.json. Use the exact reviewed 2.0.0 tree; the current MALTS ZIP identifies its exact source revision and digest in the Release notes, while platform source archives follow their tag. See [Install](INSTALL.md) for inventory verification.
 
 Run the installation entry from the actual reviewed repository root. Keep credentials, project outputs and caches outside that distribution tree. The release identity binds exact user/repository-only inventories, so a modified or incomplete source must be corrected before planning.
 

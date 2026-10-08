@@ -18,7 +18,7 @@ MALTS 的已验证路径使用 Windows、Python3.11或更高版本及PowerShell�
 
 ## 3. 验证仓库来源
 
-审阅 remote/ref、VERSION 和 MALTS_RELEASE.json，使用准确审阅的 2.0.0 树。main 指南修订与原标签归档可不同但同版本。清单核验见[安装](INSTALL.md)。
+审阅 remote/ref、VERSION 和 MALTS_RELEASE.json，使用准确审阅的 2.0.0 树。现行 MALTS ZIP 的来源修订和校验值见 Release 说明，平台源码归档则对应其标签。清单核验见[安装](INSTALL.md)。
 
 从实际已审阅仓库根运行安装入口，凭据、项目输出和缓存置于分发树外。发布身份绑定准确用户/仓库专用清单，来源被修改或不完整时先纠正，再规划。
 

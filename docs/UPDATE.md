@@ -48,7 +48,7 @@ An identical installed source can return NO_OP. Different bytes under the same s
 
 ## Optional Offline Archive Update
 
-Verify and safely extract the selected fixed archive, use its ReleaseRoot and the same plan/hash sequence. Harness uses its dedicated generic lifecycle entry. The original archive retains its original documentation; the repository supplies later same-version guide updates. See [Release Archive](RELEASE_ARTIFACT.md).
+Verify and safely extract the selected fixed archive, use its ReleaseRoot and the same plan/hash sequence. Harness uses its dedicated generic lifecycle entry. Choose the current archive by its stated source commit and digest; a retained older package remains historical input and must not be presented as the latest guides. See [Release Archive](RELEASE_ARTIFACT.md).
 
 ## User Modifications And Cleanup
 

@@ -92,7 +92,7 @@ Do not replace a meaningful failure with a manual file copy or a success label. 
 
 ## Optional Offline Archive
 
-The Release's optional `MALTS-2.0.0.zip` preserves its original tagged content. Later same-version documentation amendments on `main` do not rewrite that immutable archive. Use the repository for current guides; use the archive when you explicitly need its fixed offline input.
+The current Release attachment is `MALTS-2.0.0.zip`. A same-version reissue has its own qualified package, source commit and SHA-256 in the Release notes. Verify the exact downloaded revision before offline installation. GitHub-generated source archives refer to the fixed tag and are separate from this MALTS-uploaded package.
 
 ```powershell
 .\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.0.zip
