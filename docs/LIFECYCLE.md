@@ -28,7 +28,7 @@ Personal instruction files have mixed ownership. Only marked MALTS sections are 
 | Reviewed repository | Normal installation/update | VERSION, MALTS_RELEASE.json, exact inventory, source-tree identity and topology |
 | Verified extracted package | Explicit fixed/offline input | Closed release/artifact manifests, inventories and hashes |
 
-ZIP is the delivery form of the second source, not an automatic download or an alternative to source verification. A reissued 2.0.0 ZIP is qualified against its stated source commit and content identity; platform source archives remain bound to their fixed Git tag.
+ZIP is the delivery form of the second source, not an automatic download or an alternative to source verification. A reissued 2.0.0 ZIP is qualified against its stated source commit and content identity; platform source archives follow the current version tag, which must match the qualified archive source.
 
 Repository verification checks the declared user paths plus the repository-only identity/Git/CI files. It rejects missing, changed or unexpected public content. Installation extracts only user payload paths; repository metadata is not installed into the generation.
 
@@ -44,7 +44,7 @@ For a reviewed same-version correction, the current v2 `finalize` path preserves
 
 The version identifies a release line; the content hash identifies the exact qualified tree. These serve different purposes. Retaining 2.0.0 for a documentation correction is compatible with a new source-tree hash, but the installed identity must be updated through the formal transaction rather than pretending the old artifact contains new bytes.
 
-For current v2 finalization, planning records the existing target and its snapshot before replacement. It does not implicitly retire every old version or scan the drive for cleanup. Review any planned writes/removals and the snapshot paths against the actual selected lifecycle. The original tag is preserved; retained original packages and receipts remain attached to their original contents. A replacement hosted ZIP receives a new qualified receipt and source identity.
+For current v2 finalization, planning records the existing target and its snapshot before replacement. It does not implicitly retire every old version or scan the drive for cleanup. Review any planned writes/removals and the snapshot paths against the actual selected lifecycle. For an explicitly authorized tag correction, retain the original annotated object under a historical reference, then align the current version tag and package to the qualified source. Retained original packages/receipts keep their original identities; new tag/package observations receive a new receipt.
 
 A preview has its own declared identity and roots. Preview success qualifies those paths and checks; activation of a normal target still requires its own exact plan/preconditions. Reusing a preview hash as a production plan is not valid.
 

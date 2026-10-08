@@ -20,7 +20,7 @@ Review remote/ref, VERSION and MALTS_RELEASE.json. Use the exact reviewed 2.0.0 
 
 Run the installation entry from the actual reviewed repository root. Keep credentials, project outputs and caches outside that distribution tree. The release identity binds exact user/repository-only inventories, so a modified or incomplete source must be corrected before planning.
 
-If you need a reproducible historical release, use its tag/verified archive. If you need the amended current guides, select the reviewed main commit and inspect its own identity. In either case, version equality alone is not content equality; retain the actual source commit/hash in the installation evidence.
+For historical reproduction, use the recorded commit or preserved historical reference and its verified package. For current guides, select the qualified current main/version tag and inspect the matching package identity. In either case, version equality alone is not content equality; retain the actual source commit/hash in the installation evidence.
 
 ## 4. Create an Installation Plan
 

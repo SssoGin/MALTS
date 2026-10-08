@@ -44,7 +44,7 @@ Plan -Apply saves a plan only. Review its hash, then use the Execute command fro
 
 ## Version Migration And Collision Handling
 
-An identical installed source can return NO_OP. Different bytes under the same semantic version require the reviewed current-v2 finalize transaction, preserving target snapshots and the exact source binding. Do not patch the generation, delete it first, change VERSION to bypass a collision or rewrite the old publication. A main documentation revision remains distinct from the original v2.0.0 tag/ZIP.
+An identical installed source can return NO_OP. Different bytes under the same semantic version require the reviewed current-v2 finalize transaction, preserving target snapshots and the exact source binding. Do not patch the generation, delete it first, change VERSION to bypass a collision or rewrite the old publication. Retained original packages/tag snapshots remain historical. Current main, the version tag and Release package must identify the reviewed current source; preserve old receipts instead of rewriting them to match the new revision.
 
 ## Optional Offline Archive Update
 

@@ -92,7 +92,7 @@ UseDefaultRoots 为前三端选择 ~/.codex、~/.claude、~/.config/opencode，�
 
 ## 可选离线归档
 
-现行 Release 附件为 `MALTS-2.0.0.zip`。同版本重新发布对应独立核验包，来源提交和 SHA-256 见 Release 说明；离线安装前核准确下载修订。GitHub 自动源码归档对应固定标签，与 MALTS 上传包分别核验。
+现行 Release 附件为 `MALTS-2.0.0.zip`。同版本重新发布对应独立核验包，来源提交和 SHA-256 见 Release 说明；离线安装前核准确下载修订。GitHub 自动源码归档对应现行版本标签。现行标签、核验仓库和 MALTS 上传包应标识同一来源修订，但归档布局不同。
 
 ```powershell
 .\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.0.zip

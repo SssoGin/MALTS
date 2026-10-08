@@ -33,7 +33,7 @@ If a package is unavailable or its verification fails, do not substitute a simil
 
 ## What Is Not in the Archive
 
-Project databases, user configuration, credentials, raw sessions, private controls, caches, tests and local acceptance bodies are excluded. A same-version hosted ZIP refresh is a new immutable package qualified against its source commit. Preserve prior packages and receipts as history, publish the new digest/receipt, and keep the original tag unchanged. The current MALTS ZIP and GitHub-generated source archives may therefore identify different source revisions.
+Project databases, user configuration, credentials, raw sessions, private controls, caches, tests and local acceptance bodies are excluded. A same-version hosted ZIP refresh is a new immutable package qualified against its source commit. Preserve prior packages/receipts and the original tag object as history, and publish the current digest/receipt. When a same-version alignment is explicitly authorized, the current tag and both GitHub-generated source archives must identify the same qualified commit as the MALTS ZIP. Source archives contain the repository tree; the MALTS ZIP additionally has its distribution manifests and lifecycle layout.
 
 Exclusion is part of the distribution contract. A source checkout can contain maintainer controls and tests that are useful locally but have no place in the installed/public payload. Public projection uses exact classification, not a broad directory copy.
 
