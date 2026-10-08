@@ -58,8 +58,46 @@ A preview has its own declared identity and roots. Preview success qualifies tho
 | finalize | Explicit reviewed same-version consolidation with preserved preimages |
 | uninstall | Remove only planned MALTS-owned integration/state |
 | recover | Inspect and settle an interrupted lifecycle transaction |
+| retire-plan / retire-execute | Review and recycle explicitly selected inactive generations, then remove their registry records |
+| retire-recover | Reconcile a pending retirement from stored receipts without repeating uncertain recycling |
 
 `Invoke-MALTSLifecycle.ps1` exposes Plan, PreviewPlan, Execute, Recover, Inspect, Scan, Doctor and DoctorRepairPlan. Check current help before constructing a plan. No operation grants publication or project-migration permission.
+
+### Retiring unused generations
+
+Ordinary updates retain earlier generations. Once they have no current entry or recovery dependency, an explicitly requested retirement can remove selected `retiring` generations. It rejects the active generation, unregistered identities, incomplete tool coverage, changed images and references from current managed entries. The installation must be healthy before planning.
+
+Use the Python lifecycle CLI for this optional operation. Supply the discovered lifecycle root and **every tool registered to that root**, then select exact generation IDs. For example, a root serving Codex, Claude Code and OpenCode uses:
+
+```powershell
+python .\tools\malts_lifecycle.py retire-plan `
+  --lifecycle-root '<discovered lifecycle root>' `
+  --tool-root 'codex=<Codex configuration root>' `
+  --tool-root 'claude-code=<Claude Code configuration root>' `
+  --tool-root 'opencode=<OpenCode configuration root>' `
+  --generation-id '<inactive retiring generation ID>' `
+  --out .\retirement.json --apply
+```
+
+Review the exact target paths, counts, bytes, current-entry checks and `plan_hash`. `retire-plan --apply` only saves the plan. `retire-execute` requires that hash, an independently approved local PowerShell recycler, its reviewed SHA-256 and an explicit PowerShell 7 executable. The recycler contract is `Recycle-Bin-Only.ps1`: validation must return `VALIDATED`; execution must return `RECYCLED_VERIFIED` with matching original-path and recovery metadata. This capability is qualified for Windows. MALTS provides no permanent-deletion fallback and does not empty the Recycle Bin.
+
+```powershell
+python .\tools\malts_lifecycle.py retire-execute `
+  --plan .\retirement.json --expected-plan-hash '<reviewed plan hash>' `
+  --recycle-helper '<approved recycler .ps1>' `
+  --expected-helper-sha256 '<reviewed recycler SHA-256>' `
+  --powershell '<PowerShell 7 executable>' --apply
+```
+
+The runtime mutex excludes other lifecycle writes. A durable retirement journal and original registry are retained under `runtime/generation-retirements/<operation-id>`. Registry records are removed only after verified recycling; active payload, pointer and tool projections are checked for unchanged bytes. A helper failure stops the operation. Pending retirement blocks ordinary lifecycle mutation until reconciled.
+
+After interruption, use `retire-recover --lifecycle-root '<root>' --operation-id '<id>'` to inspect intent, and add `--apply` for reconciliation. Recovery can commit a recorded verified recycle receipt or abort a fully preserved preflight-only attempt. It never repeats an uncertain recycle effect. Missing or incomplete recovery evidence remains `RECOVERY_REQUIRED`; restoring a directory from the Recycle Bin does not by itself register or activate it.
+
+### 清理不再使用的安装代际
+
+普通更新保留旧代际。有明确清理授权、且旧代际没有当前入口或必要恢复依赖时，可通过 Python 生命周期 CLI 的 `retire-plan`、`retire-execute` 清理指定的 `retiring` 代际。必须提供该生命周期根注册的全部工具；活动代际、未注册对象、内容变化和当前入口仍引用的对象会被拒绝。计划绑定精确路径、统计、哈希和安装状态，执行使用独立核准的回收站脚本，取得 `RECYCLED_VERIFIED` 后才移除对应注册记录，不手工修改活动代际或注册表，不清空回收站。
+
+退役记录和原注册表保存在 `runtime/generation-retirements/<operation-id>`。失败或中断后使用 `retire-recover` 对账；无 `--apply` 时不写入。恢复只处理已保存的有效回收证据，不重复执行结果未知的清理。该功能当前验证范围为 Windows 和上述回收脚本接口；隔离、永久删除及自动恢复注册不在此接口范围内。
 
 ## Review-First Plans
 

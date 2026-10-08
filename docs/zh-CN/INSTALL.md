@@ -135,3 +135,7 @@ python -B "$runtime/tools/malts_v2.py" workspace --workspace '<project-workspace
 ## 首次使用
 
 按目标选择已安装工作流：项目设置、长期工作区、当前任务、交接、复盘或已授权协作。普通进入不创建无关实体。先读[快速开始](GETTING_STARTED.md)，再读[使用指南](USAGE.md)。Harness 加载及配置限制见[适配说明](../../adapters/deepseek-harness/README.md)。
+
+## 可选的旧代际清理
+
+安装和普通更新保留旧代际。清理不再使用的 `retiring` 代际须单独明确请求，通过[生命周期退役流程](LIFECYCLE.md#清理不再使用的安装代际)核对精确目标、当前引用和回收脚本，取得恢复证据后才移除注册记录。活动版本和项目状态保持；不能直接删除已注册目录来代替退役，也不自动清空回收站或改用永久删除。

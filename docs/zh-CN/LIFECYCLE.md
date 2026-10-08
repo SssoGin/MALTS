@@ -58,6 +58,40 @@ ZIP 是第二种来源的交付形式，不自动下载，也不免除核验。�
 | finalize | 保留前像的明确同版本归并 |
 | uninstall | 仅移除计划内 MALTS 所属适配/状态 |
 | recover | 检查并结清中断生命周期事务 |
+| retire-plan / retire-execute | 审阅并回收指定的非活动代际，再移除对应注册记录 |
+| retire-recover | 根据已保存回执对账，不重复结果未知的回收 |
+
+### 清理不再使用的安装代际
+
+普通更新保留旧代际。有明确清理授权、且旧代际没有当前入口或必要恢复依赖时，可通过 Python 生命周期 CLI 清理指定的 `retiring` 代际。必须提供该生命周期根注册的全部工具；活动代际、未注册对象、重复选择、内容变化和当前入口仍引用的对象会被拒绝。规划前安装应处于健康状态。
+
+以下示例适用于同时服务 Codex、Claude Code 和 OpenCode 的根；按 discovery 结果填写位置，不复制历史物理路径。DeepSeek Harness 的独立根只提供其实际注册的工具。
+
+```powershell
+python .\tools\malts_lifecycle.py retire-plan `
+  --lifecycle-root '<discovery 返回的生命周期根>' `
+  --tool-root 'codex=<Codex 配置根>' `
+  --tool-root 'claude-code=<Claude Code 配置根>' `
+  --tool-root 'opencode=<OpenCode 配置根>' `
+  --generation-id '<不再使用的 retiring 代际 ID>' `
+  --out .\retirement.json --apply
+```
+
+检查输出中的精确目标路径、文件／目录数、字节数、当前入口核查和 `plan_hash`。此处 `--apply` 只保存计划。执行要求计划哈希、独立核准的本地回收脚本、其核准 SHA-256 和明确的 PowerShell 7 可执行文件：
+
+```powershell
+python .\tools\malts_lifecycle.py retire-execute `
+  --plan .\retirement.json --expected-plan-hash '<已审阅计划哈希>' `
+  --recycle-helper '<已核准的回收脚本 .ps1>' `
+  --expected-helper-sha256 '<已核准脚本 SHA-256>' `
+  --powershell '<PowerShell 7 可执行文件>' --apply
+```
+
+回收脚本使用 `Recycle-Bin-Only.ps1` 接口：预检必须返回 `VALIDATED`，执行必须返回 `RECYCLED_VERIFIED`，并核对原路径和恢复元数据。MALTS 取得有效回收证据后才移除对应注册记录。活动载荷、指针和工具投影的字节保持，运行互斥锁排除其他生命周期写入。不自动清空回收站，也不以永久删除绕过失败。
+
+退役记录和原注册表保存在 `runtime/generation-retirements/<operation-id>`。中断后使用 `retire-recover --lifecycle-root '<根>' --operation-id '<ID>'` 检查意图，添加 `--apply` 才对账写入。恢复可提交已保存的有效回收回执，或终止完整保留原像的预检失败；不重复结果未知的清理。未决退役阻止普通生命周期写入，证据不足时保留 `RECOVERY_REQUIRED`。
+
+当前验证范围为 Windows 和上述回收脚本接口。隔离、永久删除和自动恢复注册不在此接口范围内；从回收站恢复目录不等于已经重新注册或激活该代际。
 
 `Invoke-MALTSLifecycle.ps1` 提供 Plan、PreviewPlan、Execute、Recover、Inspect、Scan、Doctor、DoctorRepairPlan。构建计划前查看当前帮助；这些操作不产生发布或项目迁移授权。
 

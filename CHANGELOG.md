@@ -11,6 +11,7 @@ MALTS connects goal clarification, project planning, execution, verification, re
 - **Completion and reuse receive current checks.** Acceptance checks requirements, outputs, dependencies and evidence. Artifacts, handoffs and experience retain provenance and current applicability; superseded or withdrawn material cannot silently resume reuse.
 - **Collaboration and learning share the same project process.** Roles/resources/budgets support controlled delegation. Experience is proposed, tried in later tasks and retained or withdrawn according to observed outcomes.
 - **Tool coverage and guidance have been extended.** DeepSeek Harness joins Codex, Claude Code and OpenCode adapters. English/Chinese documentation now describes the complete MALTS system with these improvements integrated into the relevant workflows.
+- **Unused installation generations can be retired explicitly.** Reviewed plans select exact inactive `retiring` generations, verify current-entry references and preserved active bytes, recycle through an independently approved helper, and remove registry records only after verified recovery evidence. Pending retirement is journaled; reconciliation never repeats an unknown effect. This optional capability is qualified for Windows and does not change the 2.0.0 version or automatically delete update history.
 
 ### Upgrading
 
@@ -25,6 +26,8 @@ Evidence covers recorded representative versions/profiles and operations. DeepSe
 MALTS将目标澄清、项目规划、执行、验证、恢复、交接与经验积累连接为完整工作过程，默认单Agent；有价值且已授权的分工由主Agent整合并负责交付。
 
 2.0.0改进当前进度管理、中断后的操作核实、完成判定、成果复用、交接与经验试用，并新增DeepSeek Harness适配。现行中英文文档以MALTS整体功能组织，把新增改进放入对应章节。
+
+同版本维护补充显式旧代际退役：选择不再使用的 `retiring` 代际，核对当前引用和活动安装字节，通过独立核准的回收脚本取得有效恢复证据后移除注册记录。中断后按退役记录对账，不重复结果未知的清理。该功能当前限于 Windows；普通更新仍保留历史，不自动清空回收站或改为永久删除，版本保持 2.0.0。
 
 升级使用已审阅仓库及准确安装/更新计划；安装不会自动迁移项目，旧项目采用需要明确审阅，恢复不重复未知效果或补充已消费预算。技术状态格式为Schema69；更新后核实工具实际发现和加载。离线ZIP为可选来源。
 

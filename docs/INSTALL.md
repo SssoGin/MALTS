@@ -135,3 +135,9 @@ An adopted result must have a verified binding before current task services are 
 ## First Use
 
 Use the installed MALTS workflow matching your goal: project setup, long-workspace setup, current tasks, handoff, review or approved collaboration. Ordinary entry creates no unrelated entities. Start with [Getting Started](GETTING_STARTED.md), then [Usage](USAGE.md). For Harness-specific loading and profile limits, see the [adapter guide](../adapters/deepseek-harness/README.md).
+
+## Optional Cleanup Of Old Generations
+
+Installation and ordinary updates retain earlier generations. To remove an unused `retiring` generation, use the explicit Python CLI retirement workflow in [Lifecycle](LIFECYCLE.md#retiring-unused-generations). It verifies the exact inactive target and approved recycler before removing its registry record; the active version and project state are preserved. It does not empty the Recycle Bin or fall back to permanent deletion.
+
+旧安装代际的清理是独立的显式操作，不随更新自动执行。操作步骤及失败恢复见[生命周期说明](LIFECYCLE.md#清理不再使用的安装代际)；不能直接删除已注册的目录来代替退役流程。

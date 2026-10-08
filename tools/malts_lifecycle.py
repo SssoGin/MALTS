@@ -2996,6 +2996,8 @@ def _make_plan_resolved(
     if not ID_PATTERN.fullmatch(operation_id):
         raise LifecycleError("TX_OPERATION_ID", "operation_id has an invalid format.")
     root = _absolute(lifecycle_root)
+    from lifecycle_retirement import assert_idle as assert_retirement_idle
+    assert_retirement_idle(sys.modules[__name__], root)
     normalized_tools = _normalize_tool_roots(tool_roots)
     for tool_root in normalized_tools.values():
         if _is_inside(root, tool_root) or _is_inside(tool_root, root):
@@ -5691,6 +5693,8 @@ def _execute_plan_with_artifact(
         return {"status": "PASS", "mode": "DRY_RUN", "operation_id": plan["operation_id"], "plan_hash": plan["plan_hash"], "writes_performed": False}
     root = _absolute(context["lifecycle_root"])
     root.mkdir(parents=True, exist_ok=True)
+    from lifecycle_retirement import assert_idle as assert_retirement_idle
+    assert_retirement_idle(sys.modules[__name__], root)
     if not _runtime_mutex_owned:
         from v2_runtime_mutex import RuntimeMutex
         with RuntimeMutex(root):
@@ -6808,13 +6812,53 @@ def build_parser() -> argparse.ArgumentParser:
     verify_release.add_argument("--release-root", required=True)
     verify_repository = subparsers.add_parser("verify-repository")
     verify_repository.add_argument("--repository-root", required=True)
+
+    retirement_plan = subparsers.add_parser("retire-plan")
+    retirement_plan.add_argument("--lifecycle-root", required=True)
+    _add_tool_root_argument(retirement_plan)
+    retirement_plan.add_argument("--generation-id", action="append", required=True)
+    retirement_plan.add_argument("--operation-id")
+    retirement_plan.add_argument("--out")
+    retirement_plan.add_argument("--apply", action="store_true")
+    retirement_execute = subparsers.add_parser("retire-execute")
+    retirement_execute.add_argument("--plan", required=True)
+    retirement_execute.add_argument("--expected-plan-hash", required=True)
+    retirement_execute.add_argument("--recycle-helper", required=True)
+    retirement_execute.add_argument("--expected-helper-sha256", required=True)
+    retirement_execute.add_argument("--powershell", required=True)
+    retirement_execute.add_argument("--apply", action="store_true")
+    retirement_recover = subparsers.add_parser("retire-recover")
+    retirement_recover.add_argument("--lifecycle-root", required=True)
+    retirement_recover.add_argument("--operation-id", required=True)
+    retirement_recover.add_argument("--apply", action="store_true")
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        if args.command == "plan":
+        if args.command.startswith("retire-"):
+            import lifecycle_retirement as retirement
+            engine = sys.modules[__name__]
+            if args.command == 'retire-plan':
+                retirement = retirement.make_plan(engine, lifecycle_root=args.lifecycle_root,
+                    tool_roots=_parse_tool_roots(args.tool_root), generation_ids=args.generation_id,
+                    operation_id=args.operation_id)
+                if args.out and args.apply:
+                    destination = _absolute(args.out)
+                    if destination.exists():
+                        raise LifecycleError('RETIRE_PLAN_EXISTS', 'The retirement plan destination already exists.', str(destination))
+                    write_json(destination, retirement)
+                result = {'status': 'PASS', 'mode': 'APPLY' if args.apply else 'DRY_RUN',
+                    'writes_performed': bool(args.out and args.apply), 'plan': retirement,
+                    'plan_hash': retirement['plan_hash']}
+            elif args.command == 'retire-execute':
+                result = retirement.execute_plan(engine, load_json(_absolute(args.plan)), args.expected_plan_hash,
+                    helper=args.recycle_helper, helper_sha256=args.expected_helper_sha256,
+                    powershell=args.powershell, apply=args.apply)
+            else:
+                result = retirement.recover(engine, args.lifecycle_root, args.operation_id, apply=args.apply)
+        elif args.command == "plan":
             overrides = load_json(_absolute(args.modification_overrides)) if args.modification_overrides else None
             envelope = make_plan(
                 operation=args.operation,
