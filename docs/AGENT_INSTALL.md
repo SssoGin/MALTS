@@ -1,15 +1,27 @@
-# Agent-Assisted MALTS Installation
+# Agent-Assisted Installation
 
-This is part of the complete MALTS system documentation. Current implementation/version is2.0.0; workflow context is in [System Overview](SYSTEM_OVERVIEW.md) and [Usage](USAGE.md).
+An Agent can inspect and execute the user’s approved MALTS installation/update. Current version is **2.0.0**; inspection does not expand the authorization.
 
-## 1. Resolve the target
+## Source Selection
 
-Confirm selected tools/source/roots, applicable instructions, existing installation, personal edits and writers. Do not infer global installation, production migration, account or cost permission. Reuse approved same-scope installation without repeated approvals.
+Choose the reviewed public repository normally; ZIP only for an explicit fixed/offline need. Verify actual version, identity, remote/ref and inventory. Select Codex, Claude Code, OpenCode and/or the separate DeepSeek Harness lifecycle.
 
-## 2. Source, plan and execution
+## Required Sequence
 
-Use a reviewed repository normally; ZIP only for explicit offline needs. Check VERSION/identity, remote/tag and full source. Follow [Install](INSTALL.md) or [Update](UPDATE.md), inspect targets/classification/preimages/hash and apply authorized plans. Never patch the active generation.
+Read applicable instructions and live target; discover existing installation; identify personal edits and relevant writers; create a reviewable source/target/hash plan; execute within approved scope; verify actual result, Boot, Doctor and native reload. See [Install](INSTALL.md) and [Update](UPDATE.md).
 
-## 3. Verification and delivery
+## Authorization Boundary
 
-Check actual exit/decision, Boot/discovery, Doctor, selected tool projections and Host reload. Workspace binding/state/Schema compatibility is separate; installation is not adoption or native-model proof. Deliver exact version/artifact, outcomes, entry, recovery materials and unverified items. See [Security](SECURITY.md).
+Reuse the approved same-scope batch without repeated confirmation. Installation does not grant project adoption, provider calls, account changes, dispatch or publication. Ask only for material missing target/scope decisions after discoverable facts and concrete preparation.
+
+## Capability Projection Verification
+
+MALTS native bridges and marked instructions resolve the shared implementation. Check actual Skills/MCP after reload, not just configuration/file presence. AllIncluded selects three; Harness uses ToolRootDeepSeekDesktop and its dedicated lifecycle. Native behavior proof remains separate.
+
+## Privacy and Purity
+
+Preserve user content outside marked blocks and unknown ownership. Never copy private machine paths, credentials, journals or raw sessions into the public tree. Do not patch immutable installations or weaken exact identity checks.
+
+## Discovery Verification
+
+Require matching tool Boot, registry, pointer, identity and VERSION. Verify workspace binding separately and deliver the actual version/content identity, observed checks, recovery location and limits. See [Security](SECURITY.md).

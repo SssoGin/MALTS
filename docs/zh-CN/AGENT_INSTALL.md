@@ -1,15 +1,27 @@
-﻿# Agent 协助安装 MALTS
+﻿# Agent 协助安装
 
-本页属于MALTS整体系统说明，当前版本与实现为2.0.0。工作过程见[系统说明](SYSTEM_OVERVIEW.md)和[使用指南](USAGE.md)，本页只展开对应主题。
+Agent 可核查并执行用户已批准的 MALTS 安装/更新。当前版本 **2.0.0**，检查不扩大授权。
 
-## 1. 核实目标
+## 来源选择
 
-确认用户选定的工具、来源和现有根；读取适用项目指令，检查是否已有安装、个人修改或相关writer。不要推断全局安装、生产迁移、账号或费用授权。已批准同范围安装不逐步重问。
+通常选择已审阅公开仓库，仅在明确固定/离线需要时使用 ZIP。核版本、身份、remote/ref 和清单，选择 Codex、Claude Code、OpenCode，或独立 DeepSeek Harness 生命周期。
 
-## 2. 来源、计划与执行
+## 必要次序
 
-通常使用已审阅仓库；ZIP仅用于明确离线需要。验证VERSION/MALTS_RELEASE.json、remote/tag与完整来源。按[安装](INSTALL.md)或[更新](UPDATE.md)生成计划，检查准确目标、修改分类、恢复前像和hash，再执行已授权计划。不可手改活动代际。
+读取适用指令和实际目标，发现已有安装，识别个人修改和相关写者，生成可审阅的来源/目标/哈希计划，在授权内执行，再核实际结果、Boot、Doctor 及原生重载。见[安装](INSTALL.md)、[更新](UPDATE.md)。
 
-## 3. 验证与交付
+## 授权边界
 
-核实际exit/decision、Boot/discovery、Doctor、四端中本次所选投影及宿主重载。项目binding/state/Schema兼容另核；安装不等于工作区已采用或模型行为通过。交付精确版本/artifact、操作结果、入口、恢复材料和未验证项。见[安全](SECURITY.md)。
+同范围已批准批次不重复确认。安装不授权项目采用、Provider 调用、账号修改、派发或公开发布。自行查明事实并完成具体准备，只问实质缺少的目标/范围决定。
+
+## 能力投影核验
+
+原生桥接与标记指令指向共享实现，重载后核真实 Skill/MCP，不能只看配置/文件。AllIncluded 选择三端；Harness 使用 ToolRootDeepSeekDesktop 及独立生命周期。原生行为证据另行说明。
+
+## 隐私与纯净性
+
+保全标记块外用户内容和所属未知对象，不将个人机器路径、凭据、journal 或原会话复制到公开树。不手改不可变安装或弱化准确身份核验。
+
+## Discovery 核验
+
+核工具 Boot、registry、pointer、identity 和 VERSION 一致，工作区 binding 单独核。交付说明真实版本/内容身份、实际检查、恢复位置及限制。见[安全](SECURITY.md)。

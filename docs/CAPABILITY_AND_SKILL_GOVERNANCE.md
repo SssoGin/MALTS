@@ -1,65 +1,75 @@
-# MALTS Capability and Skill Governance
+# Capability And Skill Governance
 
-This is part of the complete MALTS system documentation. Current implementation/version is2.0.0; workflow context is in [System Overview](SYSTEM_OVERVIEW.md) and [Usage](USAGE.md).
+This guide retains the source, registry, trust, exposure, routing and lifecycle sections used since the initial MALTS product design.
 
-## 1. Method, capability and permission
+## 1. Status And Purpose
 
-Skills describe methods, capabilities describe actual Host facilities, and Grants record authorized actors/resources/effects. Skill installation, tool advertisements, configuration and model upgrades do not enlarge permission or prove actual calls.
+Capability governance explains what a workflow can use, which sources are reviewed and how native exposure differs from execution permission. It applies to the whole product, currently **2.0.0**. It is not a third-party package manager.
 
-## 2. Goal-directed routing
+## 2. One Physical Source, One Metadata View
 
-Verify project instructions, runtime and selected workspace. The v2 router selects task/phase/artifact/recovery instead of loading history for one question. Task execution reads bounded context and relevant references. Complexity/multiple files alone do not authorize delegation, unattended work or migration.
+A portable Skill has one reviewed physical source. Registry/catalog records refer to identity, revision, hash, compatibility and exposure rather than copying bodies into competing repositories. Thin native MALTS bridges resolve the shared runtime.
 
-## 3. Instructions and Hosts
+## 3. Current Release Boundary
 
-Shared core generates marked MALTS instructions; tool-local Boot identifies the actual runtime. Codex, Claude Code, OpenCode and DeepSeek Harness retain native loading/configuration rules. Preserve manual content and applicable project/current user instructions. Another tool's reference file is not automatically the active entry.
+The distribution supplies canonical workflows, metadata schemas, lint/router utilities, native projections and current Task services. A declared capability or configuration is not observed Host behavior or user authorization. See [Overview](SYSTEM_OVERVIEW.md).
 
-MCP exposes Host-approved actions only. Read-only endpoints mint no Grants; write endpoints still check service preconditions. Effective model/effort requires observable evidence separate from requested labels.
+## 4. Target Governance Layers
 
-## 4. Growth and global changes
+Separate physical source, metadata, review/trust, Host compatibility, exposure and runtime authorization. Current v2 Grants bind actors/resources/effects; Skills provide methods. A router cannot override the Host’s policy or current task contract.
 
-Experience uses sourced proposals, bounded trials, comparable future results, withdrawal and retirement. Encryption is not Growth eligibility; approved purposes and reviewed lineage remain necessary. Neutral outcomes remain neutral. DEPRECATED/REMOVED/REJECTED cannot be resurrected by late outcomes.
+## 5. Registry Data Contract
 
-Global Skill/rule/plugin changes require their own authorization; project advice cannot create it. Evaluate actual behavior and benefit before changing methods instead of adding permanent prompts for every mistake. See [Core Design](CORE_DESIGN.md) and [v2 Operations](V2_PREVIEW_USAGE.md#v2-growth).
+Registry descriptors identify sources and declared applicability/dependencies. Source trust, review state and execution risk remain distinct. tools/capability_registry.schema.json and capability_descriptor.schema.json define the exact data; do not infer new fields or rights from prose.
 
-## One Physical Source, One Metadata View
+### 5.1 Capability Descriptor And External Sidecar
 
-A reviewed portable Skill has one physical source. Registry entries reference source/revision/hashes and compatibility rather than copying its body.
+A native descriptor describes owned content. An external sidecar records third-party provenance/compatibility without editing that content; tools/external_capability_sidecar.schema.json defines it.
 
-## Capability Descriptor And External Sidecar
+## 6. Trust, Review, And Execution Risk
 
-A descriptor records native content identity. An external sidecar describes third-party material without editing its files. Both keep provenance, dependencies and exposure declarations explicit.
+Trusted provenance does not prove safe behavior. A reviewed method does not authorize an effect. Preserve current source identity and allowlisted purposes; sensitive evidence requires reviewed lineage, not relabeling as public or Growth content.
 
-## Trust, Review, And Execution Risk
+## 7. Exposure And Catalog Gate
 
-Source trust, review state and execution risk are separate fields. Trusted provenance does not prove safe behavior; a reviewed method does not authorize an effect.
+Expose only currently eligible compatible entries. Disabled, revoked or incompatible material stays excluded. A high ranking cannot make an entry eligible, install it or authorize execution.
 
-## Exposure And Catalog Gate
+## 8. Advisory Router Contract
 
-Catalog exposure requires the current eligibility checks. Visibility is not execution permission. Disabled, revoked or incompatible material remains excluded instead of being made eligible by a routing score.
+The router ranks eligible candidates and reports reasons without calling a Skill, changing discovery, granting permission or accepting a task. Current task workflows select task/phase/artifact/recovery topics and read only relevant contracts.
 
-## Advisory Router Contract
+### 8.1 Generated Catalog And Resolver
 
-The capability router ranks eligible candidates and reports reasons. Its advice neither accepts a Task nor executes a tool, changes permission or overrides the selected Host policy.
+Generated metadata is a source-derived view; resolve exact current identity and hashes.
 
-## Generated Catalog And Resolver
+### 8.2 Isolated Native Projection
 
-Generated metadata is a view of reviewed source identities. Resolve current content and hashes; stale catalogs require regeneration/verification, not manual eligibility edits.
+Projection declares ownership and input identity; check native discovery in an isolated selected profile.
 
-## Isolated Native Projection
+### 8.3 W3 Verification Boundary
 
-Native projections are tool-specific derivatives with declared ownership and input identity. Test their discovery in a selected isolated profile. A configured projection is not real-tool behavior proof.
+Static component/projection evidence, installation checks and actual native tasks support their own scopes. Historical W3 checks are not retroactively full Host qualification.
 
-## W3 Verification Boundary
+## 9. Third-Party Skill Placement Decision
 
-Historical W3 evidence covers static components and isolated projections only. Later installation and native Task evidence retain their own dates/inputs; no earlier scope is retroactively enlarged.
+For example, a reviewed Codex portable source can live at `~/.agents/skills/<skill-name>`; compatibility and loading still require verification. Use actual Host loading rules and explicit user intent; do not silently duplicate a portable source into all tools. MALTS lifecycle owns MALTS projections only.
 
-## Third-Party Skill Placement Decision
+### Existing Skill Consolidation
 
-Use the Host loading rules and one canonical source. A Codex portable Skill can use ~/.agents/skills/<skill-name>; generated tool views must not create conflicting bodies. MALTS is not a third-party package manager.
+Inspect source identities, user edits, references and recovery before any relocation/removal. Catalog membership grants no cleanup authority.
 
-## Public Projection And Private State
+## 10. Update And Lifecycle Safety
 
-Share eligible portable content only. Keep project credentials, journals, evidence bodies and user configuration out of catalogs and distribution. Exposure does not authorize copying private state.
+Preserve personal content outside marked MALTS blocks. Plan and apply verified source updates transactionally; reload native Hosts and verify actual discovery. Codex, Claude Code, OpenCode and DeepSeek Harness retain their loading conventions. See [Lifecycle](LIFECYCLE.md).
 
-Native tool-specific roots are ~/.codex/skills/<skill-name>, ~/.claude/skills/<skill-name> and ~/.config/opencode/skills/<skill-name>. Select the destination from actual Host loading and explicit user intent; do not duplicate a portable source silently.
+## 11. Public Projection And Private State
+
+Publish eligible reusable content only. Keep credentials, user configuration, task databases, journals and raw evidence out of catalog/distribution. Exposure is not permission to copy private state.
+
+## 12. Adoption Sequence
+
+Inspect the actual installation/workspace; select the needed workflow; check current sources and Host facilities; prepare reviewed effects only within existing authority; verify their observed results. Do not auto-adopt a workspace, install a plugin or launch an Agent from a recommendation.
+
+## 13. Acceptance Criteria
+
+Check source identity and schema, dependency closure, current eligibility, intended native exposure and observed operation separately. Report missing/unavailable checks. Requested model/effort and effective execution identity are separate. Global Skill/rule changes need their own scope; neutral/harmful Growth outcomes remain valid outcomes.

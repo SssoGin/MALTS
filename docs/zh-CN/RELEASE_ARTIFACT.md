@@ -1,25 +1,30 @@
-﻿# MALTS 发布归档
+﻿# 可选发布归档
 
-本页属于MALTS整体系统说明，当前版本与实现为2.0.0。工作过程见[系统说明](SYSTEM_OVERVIEW.md)和[使用指南](USAGE.md)，本页只展开对应主题。
-
-## 1. 仓库与可选 ZIP
-
-正常安装和更新来自已审阅的[公开仓库](https://github.com/SssoGin/MALTS)。正式Release提供一个MALTS上传文件 `MALTS-2.0.0.zip`；平台自动生成的源码归档是另外的链接。离线、存档或仓库不可用时才需要该ZIP，安装器不自动下载。
-
-## 2. 内容和验证
-
-ZIP包括不可变lifecycle artifact、精确清单/manifest和用户发布说明。repository-only文件不进入安装payload。闭合清单、内容哈希、路径/碰撞检查和安全解压用于发现新增、缺失或改动。
-
-从同一可信来源取得Verify-MALTSBootstrap.ps1，先只读核验，再用不存在的ExtractOutput和Apply解出。安装使用ReleaseRoot和审阅计划哈希；不要直接覆盖代际。命令见[安装](INSTALL.md)。
-
-## 3. 判断边界
-
-包体验证证明内容/身份，不证明实际模型任务或整体业务效果。安装、宿主和项目验收有各自依据。同版本归并用准确artifact身份区分；历史包和回执保持原时间/版本，不为新发布改写。见[生命周期](LIFECYCLE.md)。
+仓库是 MALTS 常规安装/更新来源，可选固定归档服务于离线或归档使用；当前发布版本 **2.0.0**。
 
 ## 一个可选 Release ZIP
 
-闭合包包含 RELEASE_NOTES.md、release/artifact manifest 和精确文件清单。核验后以实际条目定位文件，不假设平台生成源码归档具有相同结构。
+正式 Release 有一个 MALTS 上传附件 MALTS-2.0.0.zip。GitHub 自动源码归档是平台另行链接；安装器不自动下载 ZIP。
 
-### 从解出的归档安装
+## 解压前核验
 
-使用解出的 payload 安装器及 ReleaseRoot。归档不会绕过计划哈希、用户内容合并检查或实际安装后验证。
+从匹配审阅来源取得 Verify-MALTSBootstrap.ps1，解压前核验：
+
+```powershell
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.0.zip
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.0.zip -ExtractOutput '<new-extraction-root>' -Apply
+```
+
+检查闭合清单、哈希、安全路径/碰撞和包体身份。完整性证明这些字节，不证明原生模型或业务结果。
+
+## 从解出的归档安装
+
+归档不会绕过计划哈希、所属合并或后置检查。使用载荷生命周期入口和解压包 ReleaseRoot，再审阅/执行准确计划哈希。Harness 选择独立生命周期及 ToolRootDeepSeekDesktop。不能直接复制至活动代际。见[安装](INSTALL.md)。
+
+## 归档内容
+
+读取经核验 manifest：闭合包包含公开 RELEASE_NOTES.md、manifest/清单和不可变生命周期载荷。仓库专用 Git/CI/identity 文件不进入安装用户载荷。
+
+## 归档不包含的内容
+
+排除项目数据库、用户配置、凭据、原会话、私有控制、缓存、测试及本地验收正文。后续同版本 main 指南修订不替换原归档/标签；其历史身份保持明确。

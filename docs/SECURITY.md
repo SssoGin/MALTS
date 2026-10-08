@@ -1,21 +1,27 @@
-# MALTS Security and Privacy
+# Security
 
-This is part of the complete MALTS system documentation. Current implementation/version is2.0.0; workflow context is in [System Overview](SYSTEM_OVERVIEW.md) and [Usage](USAGE.md).
+Security and privacy apply to the whole MALTS workflow, installation and distribution. Current version: **2.0.0**.
 
-## 1. Source and identity
+## Verify Before Use
 
-Verify repository/tag, VERSION, release identity and complete inventory. Verify ZIP before extraction. Discovery compares tool Boot, registry, active pointer and generation identity. Names, printed hashes and old receipts are not current integrity checks.
+Check actual repository/ref, VERSION, release identity and closed inventories. Verify ZIP before extraction; discover the installed runtime through the tool Boot and registry/pointer. Names and old receipts are not current integrity checks.
 
-## 2. Least permission and protected content
+## Installed Provenance Privacy
 
-Grants constrain actors/resources/effects; services check dependencies, budgets, epoch and admission. MCP clients cannot replace Host-bound fields. Keep secrets out of command arguments; value-free errors do not protect shell history or OS process arguments.
+Installed provenance binds source kind and content identity without exposing maintainer machine/source paths. Public repository/archive exclude private controls, databases, sessions, credentials and local evidence. Generic placeholder/current-user examples are not an invitation to publish real paths.
 
-Sensitive content/definitions currently use Windows current-user DPAPI with descriptors governing purposes and retention. Encryption does not prove redaction, valid provenance or cross-user restoration. Public repository/ZIP excludes workspace databases, sessions, credentials and private machine paths.
+## Keep Local Data Local
 
-## 3. Effects and recovery
+Sensitive definitions/content use Windows current-user DPAPI and descriptors for owner, sensitivity, allowed purposes and retention. Encryption is not redaction or cross-user recovery proof. Derivatives require reviewed lineage and eligible purposes; withdrawal stops dependent reuse.
 
-Managed updates preserve exact preimages. UNKNOWN is not automatically retried. New-epoch restoration reconciles later work, external effects, budgets and writers. Fencing constrains connected interfaces, not external editors or process liveness.
+## Review Before Mutation
 
-## 4. Retention and reporting
+Grants bind actors/resources/effects and current task revisions; services check dependency, budget, epoch and admission. Preserve preimages. UNKNOWN effects are reconciled under original identities, not blindly retried. Managed fencing does not exclude arbitrary external editors. Protect secrets from shell arguments/history as well as output.
 
-Inspect dependencies/recovery value before cleanup. Retain raw acceptance, binding/seals, backups and uncertainty. Report minimal public reproductions through the [repository](https://github.com/SssoGin/MALTS) without secrets, sessions or protected raw evidence. See [State Contract](V2_STATE_CONTRACT.md).
+## Retention And Recovery
+
+Preserve binding/source-seals, original acceptance, uncertain effects and required backups. Age and candidate names are insufficient for cleanup. Restore within current v2 and reconcile later work/consumption; do not revive old permission.
+
+## Report Security Issues
+
+Send a minimal redacted reproduction through the [repository](https://github.com/SssoGin/MALTS). Never include keys, raw sessions or protected evidence bodies. See [State Contract](V2_STATE_CONTRACT.md).

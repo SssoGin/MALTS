@@ -1,65 +1,75 @@
-﻿# MALTS 能力与 Skill 治理
+﻿# 能力与技能治理
 
-本页属于MALTS整体系统说明，当前版本与实现为2.0.0。工作过程见[系统说明](SYSTEM_OVERVIEW.md)和[使用指南](USAGE.md)，本页只展开对应主题。
+本文沿用 MALTS 初期产品设计中的来源、Registry、信任、暴露、路由及生命周期栏目。
 
-## 1. 区分方法、能力与权限
+## 1. 状态与目的
 
-Skill说明如何工作；capability说明宿主实际能执行什么；Grant记录已有授权允许谁对哪项资源做什么。安装Skill、工具广告、配置或模型升级都不自动增加执行权限，也不能证明实际调用有效。
+能力治理解释工作流可使用什么、来源是否经审阅，以及原生暴露与执行权限的区别。适用于整个产品，当前 **2.0.0**，不承担第三方包管理。
 
-## 2. 按目标选择工作流
+## 2. 一个物理源，一个元数据视图
 
-先解析当前项目规则、运行根与所选工作区。当前 v2 router按 task、phase、artifact、recovery选一项专题，避免为了一个问题加载整套历史。Task执行只读当前上下文，必要时载入执行参考；复杂度或多文件本身不触发委派、无人值守或迁移。
+可移植 Skill 保持一份经审阅物理来源。Registry/catalog 引用身份、版本、哈希、兼容和暴露，不复制实现形成竞争仓库；轻量原生 MALTS 入口解析共享运行时。
 
-## 3. 指令与宿主适配
+## 3. 当前发布边界
 
-共享核心生成MALTS受管指令，工具自己的Boot提供真实运行定位。Codex、Claude Code、OpenCode和DeepSeek Harness保持各自配置与加载规则。用户手工区、最近适用项目指令与明确本轮要求保留。不同工具的参考文件不自动成为当前入口。
+分发提供标准工作流、元数据 schema、lint/router 工具、原生投影和当前任务服务。能力声明或配置不是实际宿主行为或用户授权。见[概览](SYSTEM_OVERVIEW.md)。
 
-MCP只广告Host允许的动作；只读端不能mint Grant，write端也不能越过服务前置条件。实际模型/effort需要可观察证据；请求标签和真实身份分开。
+## 4. 目标治理层
 
-## 4. Growth 与全局变更
+分开物理来源、元数据、审阅/信任、宿主兼容、暴露和运行授权。v2 Grant 绑定主体/资源/效果，Skill 提供方法；路由器不能覆盖宿主策略或当前任务合同。
 
-经验以有来源提案、限定trial、未来可比结果、反证停用与退役管理。加密原文不等于可用于成长，需明确用途及经审阅的派生来源。neutral保持中性，不自动推广；DEPRECATED/REMOVED/REJECTED不得由迟到记录复活。
+## 5. Registry 数据合同
 
-全局Skill、长期规则或插件修改仍须对应授权；项目范围内建议不产生这种权限。方法变更先用当前行为和实际收益判断，不为每次错误追加永久Prompt。验证机制与限制见[核心设计](CORE_DESIGN.md)，操作见[v2说明](V2_PREVIEW_USAGE.md#v2-growth)。
+Descriptor 说明来源及声明的适用性/依赖；来源信任、审阅和执行风险分开。准确字段见 tools/capability_registry.schema.json、capability_descriptor.schema.json，不由叙述推出新字段或权限。
 
-## 一个物理源，一个元数据视图
+### 5.1 Capability Descriptor 与 External Sidecar
 
-经审阅的可移植 Skill 保持一个物理正文来源；registry 记录来源、revision、hash 与兼容性，不复制第二份正文。
+原生 descriptor 描述所属内容；external sidecar 记录第三方来源和兼容，不改其文件。合同见 tools/external_capability_sidecar.schema.json。
 
-## Capability Descriptor 与 External Sidecar
+## 6. 来源信任、审阅状态与执行风险
 
-descriptor 描述原生内容身份；external sidecar 在不改第三方文件的前提下记录来源、依赖与暴露声明。两者不能自动授予执行资格。
+可信来源不证明行为安全，审阅方法不授权效果。保留当前来源身份和允许用途；敏感证据需要经审阅来源链，不能重新贴成公开或 Growth 标签。
 
-## 来源信任、审阅状态与执行风险
+## 7. 暴露与 Catalog 门禁
 
-三者分别记录。可信来源不证明行为安全，方法通过审阅也不授权实际效果。
+只暴露当前有资格且兼容的内容。禁用、撤销或不兼容内容继续排除；排序不能使其获得资格、安装或执行授权。
 
-## 暴露与 Catalog 门禁
+## 8. Advisory Router 契约
 
-目录暴露仍须当前资格检查；可见不等于可执行。disabled、revoked 或 incompatible 不能由路由分数变成可用。
+Router 对有资格候选排序并解释，不调用 Skill、不改发现、不授权或验收。当前任务工作流选择 task/phase/artifact/recovery 专题，只读相关合同。
 
-## Advisory Router 契约
+### 8.1 生成式 Catalog 与 Resolver
 
-capability router 只排序当前合格候选并给出理由，不接受 Task、不执行工具、不修改授权或覆盖 Host policy。
+生成元数据是来源视图，解析准确当前身份和哈希。
 
-## 生成式 Catalog 与 Resolver
+### 8.2 隔离 Native Projection
 
-生成元数据是已审阅内容的视图；解析时核当前身份和 hash。过期目录需重新生成/验证，不能手改资格绕过。
+声明所属与输入身份，在所选隔离配置中核原生发现。
 
-## 隔离 Native Projection
+### 8.3 W3 验证边界
 
-原生投影是工具专属派生物，声明归属与输入身份；在选定隔离 profile 核发现。配置通过不等于真实工具行为通过。
+静态组件/投影、安装和真实原生任务各自支持自己的范围；历史 W3 不扩写成完整宿主资格。
 
-## W3 验证边界
+## 9. 第三方 Skill 安装位置判断
 
-历史 W3 只覆盖静态组件与隔离投影；后续安装和原生任务证据保持各自时间/输入，不追溯扩大旧范围。
+例如，经审阅的 Codex 可移植来源可位于 `~/.agents/skills/<skill-name>`，兼容和加载仍须核验。根据实际宿主加载规则和明确用户意图选择，不将可移植来源静默复制到所有工具。MALTS 生命周期仅拥有自己的投影。
 
-## 第三方 Skill 安装位置判断
+### 既有 Skill 归并
 
-遵循宿主加载规则并保留唯一正文；Codex portable Skill 可位于 ~/.agents/skills/<skill-name>，工具派生视图不制造相冲突正文。MALTS 不是第三方包管理器。
+迁移/移除前核身份、用户修改、引用及恢复；catalog 成员身份不产生清理权。
 
-## 公开投影与私有状态
+## 10. 更新与生命周期安全
 
-只共享合格可移植内容；项目凭据、journal、证据正文和用户配置不进入目录或分发。暴露不授权复制私有状态。
+保全标记块外个人内容，使用核验来源、审阅计划和事务更新；重载宿主并核实际发现。Codex、Claude Code、OpenCode、DeepSeek Harness 保持各自加载约定。见[生命周期](LIFECYCLE.md)。
 
-工具专属原生根包括 ~/.codex/skills/<skill-name>、~/.claude/skills/<skill-name> 和 ~/.config/opencode/skills/<skill-name>。按实际宿主加载规则及明确用户目标选择，不静默复制可移植正文。
+## 11. 公开投影与私有状态
+
+仅发布有资格的可复用内容，不包含凭据、用户配置、任务库、journal 和原证据；暴露不授权复制私有状态。
+
+## 12. 采用次序
+
+核实际安装/工作区，选择所需工作流，检查当前来源和宿主能力，在已有权限内准备审阅动作，验证实际结果。不因建议自动采用、安装插件或派发 Agent。
+
+## 13. 验收条件
+
+分别核来源身份/schema、依赖闭包、当前资格、所需原生暴露和实际操作；说明缺失/不可用检查。请求模型/effort 不等于实际执行身份。全局 Skill/规则修改另有范围；中性/有害 Growth 结果仍保留。

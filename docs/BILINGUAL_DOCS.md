@@ -1,15 +1,31 @@
-# MALTS Languages and Documentation Ownership
+# MALTS Language Model
 
-This is part of the complete MALTS system documentation. Current implementation/version is2.0.0; workflow context is in [System Overview](SYSTEM_OVERVIEW.md) and [Usage](USAGE.md).
+English and Simplified Chinese guides describe the same MALTS product, currently **2.0.0**.
 
-## 1. Formal sources
+## User Documentation
 
-README.md and docs/ provide English references; README.zh-CN.md and docs/zh-CN/ provide matching Simplified Chinese guides. Both describe the same version/mechanisms/commands/support boundaries. Implementation, runtime contracts and observed validation determine technical facts; translation creates no separate state.
+README.md and docs/ provide English guides; README.zh-CN.md and docs/zh-CN/ provide matching Chinese guides. Keep chapter purposes, examples, parameters and limits aligned. Implementation and actual evidence determine technical facts.
 
-## 2. Language and project facts
+## Runtime Templates
 
-Read either language. Preserve user-authored goals/notes in their original language. Commands, fields, IDs, state codes and Schema remain unchanged. runtime/EN and runtime/CH provide templates/checklists. Localized views do not duplicate/translate authoritative stores.
+runtime/EN and runtime/CH contain Agent templates/checklists. Stable machine fields, commands and state codes remain unchanged. Structural checks do not prove translation quality.
 
-## 3. History and acceptance
+## Canonical Project Files
 
-Current guides describe 2.0.0; historical Changelog versions/dates remain. Derived descriptions identify current sources; never rewrite original receipts/hashes/backups for consistency. Old receipts do not certify modified reading copies. Capabilities, installation, Hosts and business acceptance remain distinct. See [Design](CORE_DESIGN.md) and [Overview](SYSTEM_OVERVIEW.md).
+Project-authored narrative and manual notes keep their original language. In adopted workspaces, the selected store/services own executable facts. Narrative controls and plans remain sources/views rather than a second localized state.
+
+## What Is Not Duplicated
+
+Do not duplicate task stores, operation identities, budgets, acceptance, credentials or raw evidence for translation. A full translated report/handoff is optional and requested explicitly.
+
+## Agent Behavior
+
+Read one applicable language for the current purpose. Preserve authored content, resolve critical wording against actual contracts and review both versions when updating a shared protocol.
+
+## Related Guides
+
+See [Overview](SYSTEM_OVERVIEW.md), [Design](CORE_DESIGN.md), [Usage](USAGE.md) and [Handoff](HANDOFF.md).
+
+## History And Acceptance
+
+Historical dates/versions, original hashes and receipts stay unchanged. Later edited views need their own proof; a translation or version label is not installation, Host or whole-project acceptance.
