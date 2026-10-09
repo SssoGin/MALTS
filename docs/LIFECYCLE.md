@@ -152,7 +152,7 @@ DoctorRepairPlan is a separate reviewed repair preparation. A recommendation is 
   -LifecycleRoot '<existing-lifecycle-root>' -ToolRootCodex '<codex-config-root>'
 ```
 
-Supply all actual roots sharing that lifecycle. Harness diagnosis uses its separate lifecycle and `-ToolRootDeepSeekDesktop`; see [Install](INSTALL.md).
+Supply all actual Host roots registered to the lifecycle, including Harness on a shared installation. Use `-ToolRootDeepSeekHarness` (the prior parameter remains an alias); diagnose a separate Harness lifecycle only when independent deployment was explicitly selected. See [Install](INSTALL.md).
 
 A missing bridge or Boot can be a derived-projection fault if the active core is still trusted. Changed generation bytes, manifests, registry or pointer weaken that basis; repair then needs an exact independently verified source matching the intended binding. Do not trust the same altered files to prove their own correctness.
 

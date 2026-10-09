@@ -442,7 +442,7 @@ MALTS does not automatically install a timer, watch context or grant future work
 | Codex | Managed `AGENTS.md`, native Skill bridges and optional MCP | Install/Update `-Tool Codex` |
 | Claude Code | Managed `CLAUDE.md`, native commands/agents/Skills | Install/Update `-Tool ClaudeCode` |
 | OpenCode | Managed `AGENTS.md` and native config/Skills | Install/Update `-Tool OpenCode` |
-| DeepSeek Harness | `.dsh/MALTS_BOOT.md`, native Harness workflow/profile entry | Dedicated lifecycle, `-ToolRootDeepSeekDesktop` |
+| DeepSeek Harness | `.dsh/MALTS_BOOT.md`, native Harness workflow/profile entry | Shared default lifecycle, `-Tool DeepSeekHarness` / `-ToolRootDeepSeekHarness`; prior root parameter remains an alias |
 
 All four use the same core contracts. `AllIncluded` in Install/Update selects all four Hosts. A shared installation has one active generation and registry; Host configuration roots and project state remain separate. Existing split roots use an explicit hash-bound consolidation transaction. The retained DeepSeek parameter name maps to the current `deepseek-harness` identity. See [Install](INSTALL.md) for an executable selection guide.
 
