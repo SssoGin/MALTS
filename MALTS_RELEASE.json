@@ -3,7 +3,7 @@
   "release_id": "MALTS-2.0.0",
   "version": "2.0.0",
   "release_tag": "v2.0.0",
-  "source_tree_sha256": "25800BDABFDEC001093FF1F409D3F2650ECC3E74F5FA6CE929B242B6EED894F1",
+  "source_tree_sha256": "CD6CF5E449435CF0325EEB2DDF6D31A2217EF33C9A3C8E68E01BDB665BDE7E6F",
   "user_file_count": 253,
   "repository_only_paths": [
     ".gitattributes",
@@ -11,5 +11,5 @@
     ".gitignore",
     "MALTS_RELEASE.json"
   ],
-  "created_at": "2026-10-09T08:03:00Z"
+  "created_at": "2026-10-09T08:04:40Z"
 }

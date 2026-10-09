@@ -85,7 +85,7 @@
 - [ ] 运行时、模型、effort、证据四元组、约束强度和 binding 策略清楚。
 - [ ] 角色名称只描述职责，不硬编码任务难度或推理 effort。
 - [ ] 如果 Agent 数量为 N，已记录 effective / verified-fallback binding 和生效运行时容量。
-- [ ] 如果任务属于协议、模板、检查清单、适配器或文档查漏补缺，Codex、Claude Code、OpenCode 同步范围清楚。
+- [ ] 如果任务属于协议、模板、检查清单、适配器或文档查漏补缺，Codex、Claude Code、OpenCode、DeepSeek Harness 同步范围清楚。
 - [ ] 本任务已被用户请求或已批准启动批次覆盖；按语义识别授权，不要求固定确认口令。
 
 ## 权限等级
