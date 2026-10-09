@@ -1,6 +1,8 @@
 # Changelog
 
-## 2.0.0 — 2026-10-08
+## 2.0.0 — latest revision: 2026-10-09
+
+First release: **2026-10-08**. Latest same-version revision: **2026-10-09**. Dates use Asia/Shanghai (UTC+08:00).
 
 MALTS connects goal clarification, project planning, execution, verification, recovery, handoff and experience management for AI Agent work. Single Agent is the default; approved multi-Agent work uses explicit responsibilities with one owner for integration and delivery.
 
@@ -24,6 +26,8 @@ Use the reviewed repository and installation/update plans. Installation enables 
 Evidence covers recorded representative versions/profiles and operations. DeepSeek Harness Desktop evidence uses Windows0.2.0-rc.2; GUI model cancellation is not certified. Experience trials include neutral outcomes. No universal success, speedup, actual money/human savings, arbitrary external-writer control or cross-user protected restoration guarantee is made. See the system, design and tool guides for applicable boundaries.
 
 ### 中文说明
+
+首次发布日期：**2026-10-08**；最新同版本修订日期：**2026-10-09**。日期按北京时间（Asia/Shanghai，UTC+08:00）表示。首次发布与后续修订使用同一产品版本2.0.0。
 
 MALTS将目标澄清、项目规划、执行、验证、恢复、交接与经验积累连接为完整工作过程，默认单Agent；有价值且已授权的分工由主Agent整合并负责交付。
 
