@@ -8,7 +8,7 @@
 
 按[安装](../../docs/zh-CN/INSTALL.md)和[使用](../../docs/zh-CN/USAGE.md)操作。重载宿主验证实际Skill/MCP；标记区外个人内容保留。新长期工作区需Phase-ready，已采用工作区沿当前binding和Task服务继续。
 
-Harness 使用 `Install-MALTS.ps1 -Tool DeepSeekHarness`；`AllIncluded` 选择四端，默认共享安装生命周期。各端仍有自己的配置根和 Boot。`ToolRootDeepSeekHarness` 指定实际工具根，旧参数名保留为别名。已有双安装按[生命周期合并流程](../../docs/zh-CN/LIFECYCLE.md#合并已有安装)显式迁移。完整安装和更新步骤见[安装](../../docs/zh-CN/INSTALL.md#deepseek-harness-安装)、[更新](../../docs/zh-CN/UPDATE.md#deepseek-harness-更新)。Desktop入口仍为profiles/desktop，CLI/Web不代证Desktop。
+Harness 与其他三端共用正式安装。`Install-MALTS.ps1`、`Update-MALTS.ps1` 的 `AllIncluded` 选择四端，各端保留自己的配置根和 Boot；实际 Harness 路径使用 `ToolRootDeepSeekHarness`。完整步骤见[安装](../../docs/zh-CN/INSTALL.md#deepseek-harness-安装)、[更新](../../docs/zh-CN/UPDATE.md#deepseek-harness-更新)及[共享生命周期](../../docs/zh-CN/LIFECYCLE.md#四端共享安装)。Desktop入口为profiles/desktop，CLI/Web不代证Desktop。
 
 ## 验证范围与限制
 

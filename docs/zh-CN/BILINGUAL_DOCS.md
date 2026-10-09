@@ -8,7 +8,7 @@ README.md 与 docs/ 提供英文指南，README.zh-CN.md 与 docs/zh-CN/ 提供�
 
 英文和中文入口引用同一工作流与准确命令合同。docs/zh-CN 的相对指南链接保持在中文文档集，源码/schema 链接指向共享包；读者选择语言不意味着选择另一套实现或安装。
 
-例如 ToolRootDeepSeekDesktop 在双语中保留准确参数名，当前宿主身份仍为 deepseek-harness。翻译标识或添加中文命令别名会使说明不可执行；应翻译用途并解释兼容名称。
+例如 ToolRootDeepSeekHarness 与宿主身份 deepseek-harness 在双语中保持准确拼写。翻译标识或添加中文命令别名会使说明不可执行；用途用中文解释，命令标识保持原文。
 
 ## 运行模板
 

@@ -87,6 +87,12 @@ Agent 从当前任务及相关资料开始，不需要每次重新阅读全部�
 
 **需要恢复与交接的工程工作。** 保留准确项目状态和必要备份，说明发生了什么、当前有哪些不确定项、下一个执行者可以继续哪些工作。
 
+## 四端共享正式安装
+
+Codex、Claude Code、OpenCode 和 DeepSeek Harness 共用一套 MALTS 正式安装，默认运行根为 `~/.agent-system/lifecycle`。四端使用同一版本和准确内容身份，由一个安装计划统一更新、诊断和恢复。
+
+各宿主仍保留自己的工具配置根：`~/.codex`、`~/.claude`、`~/.config/opencode` 和 `~/.dsh`。账号、模型设置、会话与原生工具由各宿主管理；共享安装不合并这些资料，也不自动改变项目状态。`AllIncluded` 选择四端，工具根另有位置时提供其实际路径。
+
 ## 开始使用
 
 MALTS 的已验证安装路径为 Windows，要求 Python 3.11 或更高版本；推荐 PowerShell 7。支持的 Agent 工具包括 Codex、Claude Code、OpenCode 和 DeepSeek Harness，工具自身应已安装并能够正常使用。
@@ -94,10 +100,10 @@ MALTS 的已验证安装路径为 Windows，要求 Python 3.11 或更高版本�
 从[公开仓库](https://github.com/SssoGin/MALTS)取得准备使用的版本，在仓库根目录先生成安装计划：
 
 ```powershell
-.\scripts\Install-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool Codex
+.\scripts\Install-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool AllIncluded
 ```
 
-安装计划会说明来源、写入位置、已有内容处理及恢复方式。审阅后，按[安装说明](docs/zh-CN/INSTALL.md)使用输出的准确计划哈希执行；需要同时配置三端或使用 DeepSeek Harness 时，按对应工具说明选择。更新已有安装见[升级指南](docs/zh-CN/UPDATE.md)。
+安装计划会说明来源、写入位置、已有内容处理及恢复方式。审阅后，按[安装说明](docs/zh-CN/INSTALL.md)使用输出的准确计划哈希执行；四端使用同一安装入口，`AllIncluded` 选择全部四端。更新已有共享安装见[升级指南](docs/zh-CN/UPDATE.md)。
 
 安装并确认工具已加载 MALTS 后，可以用自然语言开始：
 
@@ -114,7 +120,7 @@ MALTS 的已验证安装路径为 Windows，要求 Python 3.11 或更高版本�
 从准备使用的仓库版本生成更新计划：
 
 ```powershell
-.\scripts\Update-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool Codex
+.\scripts\Update-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool AllIncluded
 ```
 
 审阅计划后，使用输出的准确路径与哈希执行：

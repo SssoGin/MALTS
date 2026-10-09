@@ -67,7 +67,7 @@ A preview has its own declared identity and roots. Preview success qualifies tho
 
 Ordinary updates retain earlier generations. Once they have no current entry or recovery dependency, an explicitly requested retirement can remove selected `retiring` generations. It rejects the active generation, unregistered identities, incomplete tool coverage, changed images and references from current managed entries. The installation must be healthy before planning.
 
-Use the Python lifecycle CLI for this optional operation. Supply the discovered lifecycle root and **every tool registered to that root**, then select exact generation IDs. For example, a root serving Codex, Claude Code and OpenCode uses:
+Use the Python lifecycle CLI for this optional operation. Supply the discovered lifecycle root and **every tool registered to that root**, then select exact generation IDs. The shared Codex, Claude Code, OpenCode and DeepSeek Harness installation uses:
 
 ```powershell
 python .\tools\malts_lifecycle.py retire-plan `
@@ -75,6 +75,7 @@ python .\tools\malts_lifecycle.py retire-plan `
   --tool-root 'codex=<Codex configuration root>' `
   --tool-root 'claude-code=<Claude Code configuration root>' `
   --tool-root 'opencode=<OpenCode configuration root>' `
+  --tool-root 'deepseek-harness=<Harness configuration root>' `
   --generation-id '<inactive retiring generation ID>' `
   --out .\retirement.json --apply
 ```
@@ -93,19 +94,13 @@ The runtime mutex excludes other lifecycle writes. A durable retirement journal 
 
 After interruption, use `retire-recover --lifecycle-root '<root>' --operation-id '<id>'` to inspect intent, and add `--apply` for reconciliation. Recovery can commit a recorded verified recycle receipt or abort a fully preserved preflight-only attempt. It never repeats an uncertain recycle effect. Missing or incomplete recovery evidence remains `RECOVERY_REQUIRED`; restoring a directory from the Recycle Bin does not by itself register or activate it.
 
-### 清理不再使用的安装代际
-
-普通更新保留旧代际。有明确清理授权、且旧代际没有当前入口或必要恢复依赖时，可通过 Python 生命周期 CLI 的 `retire-plan`、`retire-execute` 清理指定的 `retiring` 代际。必须提供该生命周期根注册的全部工具；活动代际、未注册对象、内容变化和当前入口仍引用的对象会被拒绝。计划绑定精确路径、统计、哈希和安装状态，执行使用独立核准的回收站脚本，取得 `RECYCLED_VERIFIED` 后才移除对应注册记录，不手工修改活动代际或注册表，不清空回收站。
-
-退役记录和原注册表保存在 `runtime/generation-retirements/<operation-id>`。失败或中断后使用 `retire-recover` 对账；无 `--apply` 时不写入。恢复只处理已保存的有效回收证据，不重复执行结果未知的清理。该功能当前验证范围为 Windows 和上述回收脚本接口；隔离、永久删除及自动恢复注册不在此接口范围内。
-
 ## Review-First Plans
 
 Install/Update save a plan before activation. The plan identifies source, selected roots, intended generation, writes/removals, ownership classes, snapshots and postchecks. Execute needs the exact plan path and reported hash.
 
 For the generic entry, `Plan -Apply` saves a plan only; `Execute -Apply` performs the reviewed transaction. PreviewPlan likewise separates planning from execution. Preserve transaction journals; deleting a lock or editing a plan is not recovery.
 
-See [Install](INSTALL.md) and [Update](UPDATE.md) for all four Host paths. Install/Update's AllIncluded selects all four Hosts under the default shared lifecycle. ToolRootDeepSeekHarness selects Harness; ToolRootDeepSeekDesktop remains an alias. Separate roots are an explicit deployment choice, not a Harness requirement.
+See [Install](INSTALL.md) and [Update](UPDATE.md) for all four Host paths. Install/Update's AllIncluded selects all four Hosts under the default shared lifecycle. ToolRootDeepSeekHarness selects Harness;
 
 The transaction progresses through discovery/locking, source staging, snapshot, prevalidation, activation, postvalidation and final audit/commit. The recorded journal identifies which stages occurred. A failure can therefore be inspected at the original operation instead of inferred from which directories happen to exist.
 
@@ -152,7 +147,7 @@ DoctorRepairPlan is a separate reviewed repair preparation. A recommendation is 
   -LifecycleRoot '<existing-lifecycle-root>' -ToolRootCodex '<codex-config-root>'
 ```
 
-Supply all actual Host roots registered to the lifecycle, including Harness on a shared installation. Use `-ToolRootDeepSeekHarness` (the prior parameter remains an alias); diagnose a separate Harness lifecycle only when independent deployment was explicitly selected. See [Install](INSTALL.md).
+Supply all actual Host roots registered to the lifecycle, including Harness on a shared installation. Use `-ToolRootDeepSeekHarness` for the actual Harness configuration root. See [Install](INSTALL.md).
 
 A missing bridge or Boot can be a derived-projection fault if the active core is still trusted. Changed generation bytes, manifests, registry or pointer weaken that basis; repair then needs an exact independently verified source matching the intended binding. Do not trust the same altered files to prove their own correctness.
 
@@ -223,31 +218,10 @@ python -B "$runtime/tools/malts_lifecycle.py" discover --tool-root '<selected-to
 
 Require matching registry, active pointer, generation identity and VERSION. Discovery is read-only; a machine-global GLOBAL_BOOT.md is not its current input. Then verify the selected workspace binding and task context. See [Getting Started](GETTING_STARTED.md).
 
-## Consolidating Existing Installations
+## Shared Four-Host Installation
 
-An existing three-Host installation and separately installed Harness can be explicitly consolidated. Both roots must be healthy, serve disjoint Host sets and bind exactly the same v2 source, package and generation identity. Equal VERSION alone is insufficient. First align differing images through reviewed update/finalize transactions; do not manually edit registration, move Boot or copy an active generation.
+One lifecycle root, active generation and registry manage the formal installation. Codex, Claude Code, OpenCode and DeepSeek Harness resolve their Boots to the same verified runtime. Host configuration roots remain distinct, and bound task services own project state; sharing MALTS does not merge accounts, sessions, model settings or project stores.
 
-`consolidate-plan` is read-only by default; `--out ... --apply` saves the plan only. Supply both discovered roots and every registered Host. The plan contains personal instruction preimages and is private recovery material, not public repository content. Review the hash, mappings, merge outputs and recovery destination before execution:
+`AllIncluded` in Install-MALTS.ps1 and Update-MALTS.ps1 selects all four Hosts. Installation, update and Doctor use the actual registered Host set. Same-version content corrections use reviewed `finalize` transactions with preimages. Never edit an active generation manually; handle failures through the original transaction and recovery records.
 
-```powershell
-$shared = Join-Path $env:USERPROFILE '.agent-system/lifecycle'
-$oldHarness = '<existing separate Harness lifecycle from discovery>'
-$plan = Join-Path $env:TEMP ('malts-consolidate-' + [guid]::NewGuid().ToString('N') + '.json')
-python .\tools\malts_lifecycle.py consolidate-plan `
-  --lifecycle-root $shared --donor-lifecycle-root $oldHarness `
-  --repository-root (Get-Location).Path `
-  --tool-root "codex=$(Join-Path $env:USERPROFILE '.codex')" `
-  --tool-root "claude-code=$(Join-Path $env:USERPROFILE '.claude')" `
-  --tool-root "opencode=$(Join-Path $env:USERPROFILE '.config/opencode')" `
-  --tool-root "deepseek-harness=$(Join-Path $env:USERPROFILE '.dsh')" `
-  --out $plan --apply
-
-python .\tools\malts_lifecycle.py consolidate-execute `
-  --plan $plan --expected-plan-hash '<reviewed plan hash>' --apply
-```
-
-Execution locks both roots, preserves the complete donor, regenerates donor Host projections against the shared image, updates the primary registration/current-binding audit and retires donor registration. Original primary payload and existing Host projections remain unchanged during consolidation. Accounts, sessions and model settings stay with each Host. Donor state/user data are preserved in a verified backup; no project-state merge is performed.
-
-Journals and backups live under `runtime/consolidations/<operation-id>` in the primary root. After interruption, inspect `consolidate-recover --lifecycle-root '<shared root>' --operation-id '<id>'`; add `--apply` to reconcile the original plan. New external edits block overwriting, and pending consolidation fences ordinary lifecycle writes in both roots. Project adoption, budgets and unsettled business effects are unaffected.
-
-After four-Host Boot/discovery, cold services, Doctor and workspace-binding checks, a separate approved cleanup may recycle the inactive donor root once its recovery backup is verified. This workflow is currently qualified on Windows with cooperative runtime exclusion; it does not establish arbitrary-writer or cross-machine fencing.
+Windows transactions use a runtime mutex and durable records. These coordinate cooperating lifecycle operations rather than providing arbitrary-writer or cross-machine fencing. Verify all four discoveries, actual selected Host service loading, installation trust and workspace binding; report model/business behavior separately from installation checks.

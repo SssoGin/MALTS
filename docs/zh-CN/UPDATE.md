@@ -18,7 +18,7 @@
 .\scripts\Update-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool AllIncluded
 ```
 
-示例适用于已注册四端的共享安装；单端或其他组合须与该根实际注册集合相同，AllIncluded 当前包含四端。核来源、目标、所属、合并、快照与后置检查，再用实际输出值执行：
+示例更新已注册四端的共享正式安装。核来源、目标、所属、合并、快照与后置检查，再用实际输出值执行：
 
 ```powershell
 .\scripts\Update-MALTS.ps1 -Apply -PlanPath '<reviewed-plan-path>' -ExpectedPlanHash '<reviewed-plan-sha256>'
@@ -26,11 +26,9 @@
 
 ### DeepSeek Harness 更新
 
-四端共享安装按上方 `AllIncluded` 计划更新全部已注册工具；规划前从各 Boot 核实际生命周期。明确保持独立的 Harness 单端安装，可选择 `-Tool DeepSeekHarness` 并提供其实际 `-LifecycleRoot`／`-ToolRootDeepSeekHarness`。
+Harness 与其他三端共同更新同一正式安装。使用上方 `AllIncluded` 计划，提供四端实际配置根；自定义 Harness 路径使用 `-ToolRootDeepSeekHarness`。规划前从每端准确 Boot 核对共同运行根和内容身份。
 
-已有双安装在显式合并成功前仍分别维护。三端根须使用 `-Tool Codex,ClaudeCode,OpenCode`；当前 `AllIncluded` 包含 Harness，不能静默改变原注册工具集合。将独立 Harness 移入共享根时，先按[合并已有安装](LIFECYCLE.md#合并已有安装)审阅。若来源修订不同，先通过各自的正规 `finalize` 事务对齐完整安装身份，再合并，版本仍可保持2.0.0。
-
-保存计划与激活分开，使用实际输出的路径／哈希执行[安装说明](INSTALL.md)的 Execute 步骤。`ToolRootDeepSeekDesktop` 作为兼容别名保留，当前宿主身份为 `deepseek-harness`。
+保存计划与激活分开。核对来源、四端工具映射、个人内容合并和恢复前像，再用实际路径与哈希执行。版本号相同而内容发生变化时，按下方规则使用审阅的 `finalize` 事务，不修改活动代际或通过改版本绕过核验。安装更新不改变项目状态、账号、模型配置或会话。
 
 ## 版本迁移与冲突处理
 
@@ -58,11 +56,11 @@ U1 适用于可识别混合所属指令块，更新 MALTS 内容并保留标记�
 
 更新后保留代际、快照和证据可能仍服务恢复/历史。独立清理决定前盘点；版本年代和激活成功都不能证明原件已无用途。
 
-## Repair 前先诊断
+## 修复前先诊断
 
-对同一生命周期注册的全部实际工具根运行只读 Doctor；只有明确独立部署的 Harness 才单独诊断。先核核心信任，再选修复来源。DoctorRepairPlan 仅准备审阅，Execute 使用审阅哈希。不能改 journal/锁或权限绕过前置失败。
+对共享生命周期注册的四端实际工具根运行只读 Doctor。先核核心信任，再选修复来源。DoctorRepairPlan 仅准备审阅，Execute 使用审阅哈希。不能改 journal/锁或权限绕过前置失败。
 
-## 更新 Workspace Control
+## 更新工作区控制
 
 安装不采用项目。v2 采用前审阅当前事实、映射、写者、未知效果和备份。已采用工作区使用当前任务服务，保留 binding/source-seal，不运行旧 Markdown 初始化或重组写入。当前 Core 仅读写 Schema69；改版本字段不构成开发库迁移。
 
@@ -76,6 +74,6 @@ U1 适用于可识别混合所属指令块，更新 MALTS 内容并保留标记�
 
 沿原事务和当前恢复判断处理。项目恢复产生新 epoch，对账备份之后的工作、未知效果和预算消耗，不复活旧 Grant/Host/验收或旧运行权威。跨用户 DPAPI 恢复、任意写者排除和 GUI 模型取消仍未认证。
 
-## 更新后 Discovery
+## 更新后发现检查
 
 受管指令声明准确 MALTS_BOOT_PATH；即使 Boot 与指令文件不同目录，也使用该指针。重载各所选宿主，解析准确 Boot，执行 discovery/Doctor 并核真实原生 Skill/MCP。保留 AGENTS.override.md 与区块外内容；安装不创建或删除该 override。工作区 binding 单独核。交付说明版本、准确内容身份、实际检查、恢复位置和未解决项。见[生命周期](LIFECYCLE.md)。

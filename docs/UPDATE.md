@@ -18,7 +18,7 @@ Choose the reviewed repository revision, then create a plan:
 .\scripts\Update-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool AllIncluded
 ```
 
-The example applies to an installed four-Host set. A single Host or other combination must match that root's actual registered set; AllIncluded now includes all four. Review source, destinations, ownership, merges, snapshots and postchecks, then execute actual output values:
+The example updates the shared formal installation registered to all four Hosts. Review source, destinations, ownership, merges, snapshots and postchecks, then execute actual output values:
 
 ```powershell
 .\scripts\Update-MALTS.ps1 -Apply -PlanPath '<reviewed-plan-path>' -ExpectedPlanHash '<reviewed-plan-sha256>'
@@ -26,11 +26,9 @@ The example applies to an installed four-Host set. A single Host or other combin
 
 ### DeepSeek Harness Update
 
-On a shared four-Host installation, update all registered Hosts with the `AllIncluded` plan above. Resolve the actual lifecycle from each Boot before planning. For an intentionally independent Harness-only installation, choose `-Tool DeepSeekHarness` and its actual `-LifecycleRoot`/`-ToolRootDeepSeekHarness`.
+Harness updates the same formal installation together with the other three Hosts. Use the `AllIncluded` plan above with all four actual configuration roots; supply `-ToolRootDeepSeekHarness` for a custom Harness path. Before planning, resolve each exact Boot and verify the common runtime/content identity.
 
-Existing split installations stay separate until an explicit consolidation succeeds. A three-Host root still requires `-Tool Codex,ClaudeCode,OpenCode`; `AllIncluded` now includes Harness and cannot silently change that root's registered set. Use [Consolidating Existing Installations](LIFECYCLE.md#consolidating-existing-installations) when moving a separately installed Harness into the shared root. A same-version content amendment first aligns both exact images using reviewed `finalize` transactions, then consolidates.
-
-Plan saving and activation remain separate. Keep the reported plan/hash and use the Execute step from [Install](INSTALL.md). `ToolRootDeepSeekDesktop` remains a compatibility alias; the current Host identity is `deepseek-harness`.
+Saving and activation remain separate. Review the source, four-Host mappings, personal-content merges and recovery preimages, then execute the actual path/hash. For changed bytes under the same version, use the reviewed `finalize` transaction described below; do not edit the active generation or change the version to bypass verification. Installation updates do not change project state, accounts, model configuration or sessions.
 
 ## Version Migration And Collision Handling
 
@@ -60,7 +58,7 @@ Retained generations, snapshots and evidence can remain after update because the
 
 ## Diagnose Before Repair
 
-Use read-only Doctor for every Host registered to the lifecycle; diagnose Harness separately only when it was intentionally installed independently. Inspect core trust before choosing a repair source. DoctorRepairPlan prepares a review; Execute uses the reviewed hash. Do not edit journals/locks or change permissions to bypass a failed precondition.
+Use read-only Doctor with all four Host roots registered to the shared lifecycle. Inspect core trust before choosing a repair source. DoctorRepairPlan prepares a review; Execute uses the reviewed hash. Do not edit journals/locks or change permissions to bypass a failed precondition.
 
 ## Update Workspace Controls
 

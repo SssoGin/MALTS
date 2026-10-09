@@ -22,7 +22,7 @@ Agent 可核查并执行用户已批准的 MALTS 安装/更新。当前版本 **
 
 ## 能力投影核验
 
-原生桥接与标记指令指向共享实现，重载后核真实 Skill/MCP，不能只看配置/文件。AllIncluded 选择四端；Harness 使用 ToolRootDeepSeekHarness 及默认共享生命周期，已有双安装须显式合并。原生行为证据另行说明。
+原生桥接与标记指令指向共享实现，重载后核真实 Skill/MCP，不能只看配置/文件。AllIncluded 选择四端；Harness 使用 ToolRootDeepSeekHarness 及默认共享生命周期。原生行为证据另行说明。
 
 ## 隐私与纯净性
 

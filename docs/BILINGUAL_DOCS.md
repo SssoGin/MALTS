@@ -8,7 +8,7 @@ README.md and docs/ provide English guides; README.zh-CN.md and docs/zh-CN/ prov
 
 The English and Chinese entry points refer to the same workflows and exact command contracts. Relative links within docs/zh-CN stay within the Chinese guide set; source/schema links resolve to the shared package. A reader can therefore choose a language without choosing another implementation or installation.
 
-For example, Install's ToolRootDeepSeekDesktop retains its exact parameter name in both languages even though the current Host identity is deepseek-harness. Translating that identifier or inventing a Chinese command alias would make an otherwise understandable instruction non-executable. Translate its purpose and explain the compatibility name instead.
+For example, ToolRootDeepSeekHarness and the Host identity deepseek-harness keep their exact spelling in both language guides. Translating that identifier or inventing a Chinese command alias would make an otherwise understandable instruction non-executable. Translate the purpose while retaining executable identifiers.
 
 ## Runtime Templates
 

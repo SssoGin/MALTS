@@ -13,7 +13,7 @@ MALTS connects goal clarification, project planning, execution, verification, re
 - **Tool coverage and guidance have been extended.** DeepSeek Harness joins Codex, Claude Code and OpenCode adapters. English/Chinese documentation now describes the complete MALTS system with these improvements integrated into the relevant workflows.
 - **Unused installation generations can be retired explicitly.** Reviewed plans select exact inactive `retiring` generations, verify current-entry references and preserved active bytes, recycle through an independently approved helper, and remove registry records only after verified recovery evidence. Pending retirement is journaled; reconciliation never repeats an unknown effect. This optional capability is qualified for Windows and does not change the 2.0.0 version or automatically delete update history.
 
-- **One shared installation can serve all four Hosts.** Install/Update now accept DeepSeekHarness and AllIncluded selects all four. Existing identical split installations have explicit hash-bound consolidation and recovery commands; original Host content and donor recovery data are preserved. Normal updates still reject silent changes to registered Host selection.
+- **One shared installation can serve all four Hosts.** Install/Update now accept DeepSeekHarness and AllIncluded selects all four. Four Hosts share one active runtime and registration while keeping accounts, sessions and project data separate. Normal updates still reject silent changes to registered Host selection.
 
 ### Upgrading
 
@@ -31,7 +31,7 @@ MALTS将目标澄清、项目规划、执行、验证、恢复、交接与经验
 
 同版本维护补充显式旧代际退役：选择不再使用的 `retiring` 代际，核对当前引用和活动安装字节，通过独立核准的回收脚本取得有效恢复证据后移除注册记录。中断后按退役记录对账，不重复结果未知的清理。该功能当前限于 Windows；普通更新仍保留历史，不自动清空回收站或改为永久删除，版本保持 2.0.0。
 
-安装／更新入口现已统一四端，`DeepSeekHarness` 可单独选择，`AllIncluded` 包含四端。已有双安装通过明确合并计划及恢复流程迁移，保全个人内容和捐出安装的恢复资料；普通更新不静默改变注册工具集合。
+安装／更新入口现已统一四端，`DeepSeekHarness` 可单独选择，`AllIncluded` 包含四端。四端共用一份活动运行代际及注册，个人内容与项目状态保留；普通更新不静默改变注册工具集合。
 
 升级使用已审阅仓库及准确安装/更新计划；安装不会自动迁移项目，旧项目采用需要明确审阅，恢复不重复未知效果或补充已消费预算。技术状态格式为Schema69；更新后核实工具实际发现和加载。离线ZIP为可选来源。
 

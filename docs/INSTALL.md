@@ -26,33 +26,25 @@ Use a reviewed checkout of the [public repository](https://github.com/SssoGin/MA
 | OpenCode | `Install-MALTS.ps1 -Tool OpenCode` | Selected OpenCode root |
 | DeepSeek Harness | `Install-MALTS.ps1 -Tool DeepSeekHarness` | Selected Harness root, shared default lifecycle |
 
-Alternative first-installation plans:
+Shared four-Host installation plan:
 
 ```powershell
-.\scripts\Install-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool Codex
-.\scripts\Install-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool ClaudeCode
-.\scripts\Install-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool OpenCode
+.\scripts\Install-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool AllIncluded
 ```
 
-These are alternative plan examples; execute only your selected plan. `-Tool Codex,ClaudeCode` chooses those two. **`AllIncluded` selects Codex, Claude Code, OpenCode and DeepSeek Harness.** Explicit paths use `-LifecycleRoot`, matching `-ToolRootCodex`, `-ToolRootClaudeCode` or `-ToolRootOpenCode`/`-ToolRootDeepSeekHarness`, and `-PlanPath`.
+The shared formal installation uses one plan. **`AllIncluded` selects Codex, Claude Code, OpenCode and DeepSeek Harness.** Explicit paths use `-LifecycleRoot`, matching `-ToolRootCodex`, `-ToolRootClaudeCode` or `-ToolRootOpenCode`/`-ToolRootDeepSeekHarness`, and `-PlanPath`.
 
 ### DeepSeek Harness Installation
 
-Harness uses the same installation entry and default shared lifecycle as the other Hosts. Choose only the Hosts you need. For a fresh Harness-only installation, create the plan with:
+Harness shares the formal installation with Codex, Claude Code and OpenCode and uses the same entry. Create a complete four-Host plan with:
 
 ```powershell
-.\scripts\Install-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool DeepSeekHarness
+.\scripts\Install-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool AllIncluded
 ```
 
-For a fresh shared four-Host installation, use `-Tool AllIncluded`. `-ToolRootDeepSeekHarness` specifies the actual Harness configuration root; `ToolRootDeepSeekDesktop` remains an alias for existing callers. The default root is `~/.dsh`; the shared installation root is `~/.agent-system/lifecycle`. Accounts, sessions and model settings remain owned by each Host.
+The default shared lifecycle root is `~/.agent-system/lifecycle`; the Harness configuration root is `~/.dsh`. Use `-ToolRootDeepSeekHarness` for an explicit Host path. Accounts, sessions and model settings stay with each Host rather than being copied or merged into the MALTS installation.
 
-An existing three-Host installation cannot become a four-Host installation through a normal update or by changing Boot manually. If Harness is already installed separately, align both exact installed source identities and use the reviewed consolidation procedure in [Lifecycle](LIFECYCLE.md#consolidating-existing-installations). If it is not installed, choose a reviewed fresh installation strategy that preserves existing user content; the normal updater keeps its fixed registered Host set.
-
-The Install command saves a plan and returns its path/hash; it does not activate the plan. Review ownership, personal-content merges, preimages and selected roots, then use the [Review And Execute](#review-and-execute) step. This installs MALTS integration; the Harness application, accounts and models are managed separately.
-
-Each selected Host receives its own Boot and native integration while sharing one verified active generation. `AllIncluded` selects all four; choosing one Host does not implicitly select the others. Explicitly separate lifecycle roots remain supported when independent deployments are required.
-
-Keep plan files outside the source repository and examine the actual selected roots in the plan.
+The installer saves the plan and reports its path/hash. Review the source, actual four-Host roots, personal-content merges and recovery preimages before the execution step below. Use the update workflow for an existing formal installation; manually editing Boot, registration or an active generation is not installation. This workflow installs MALTS integration; the Harness application and models remain managed by their own installer.
 
 ## Review And Execute
 
@@ -96,12 +88,16 @@ python -B "$runtime/tools/malts_lifecycle.py" discover --tool-root $toolRoot
 python -B "$runtime/tools/malts_v2.py" capabilities
 ```
 
-Require discovery PASS and matching registry, pointer, identity and VERSION. Capabilities declare interfaces, not effective model behavior. Doctor checks installation trust and drift without repair. For Harness:
+Require discovery PASS with matching registration, active pointer, generation identity and VERSION. Doctor checks installation trust and drift without applying repairs. Supply all four actual Host roots for the shared installation:
 
 ```powershell
+$shared = Join-Path $env:USERPROFILE '.agent-system/lifecycle'
 .\scripts\Invoke-MALTSLifecycle.ps1 `
-  -Command Doctor -LifecycleRoot $harnessLifecycle `
-  -ToolRootDeepSeekDesktop $harnessRoot
+  -Command Doctor -LifecycleRoot $shared `
+  -ToolRootCodex (Join-Path $env:USERPROFILE '.codex') `
+  -ToolRootClaudeCode (Join-Path $env:USERPROFILE '.claude') `
+  -ToolRootOpenCode (Join-Path $env:USERPROFILE '.config/opencode') `
+  -ToolRootDeepSeekHarness (Join-Path $env:USERPROFILE '.dsh')
 ```
 
 For the shared lifecycle, provide all its actual selected tool roots to Doctor. Reload the Host and verify native Skill/MCP discovery; file presence alone is insufficient. Current Harness native evidence is scoped to Windows Desktop 0.2.0-rc.2; CLI/Web and GUI model cancellation have separate limits.
@@ -123,5 +119,3 @@ Use the installed MALTS workflow matching your goal: project setup, long-workspa
 ## Optional Cleanup Of Old Generations
 
 Installation and ordinary updates retain earlier generations. To remove an unused `retiring` generation, use the explicit Python CLI retirement workflow in [Lifecycle](LIFECYCLE.md#retiring-unused-generations). It verifies the exact inactive target and approved recycler before removing its registry record; the active version and project state are preserved. It does not empty the Recycle Bin or fall back to permanent deletion.
-
-旧安装代际的清理是独立的显式操作，不随更新自动执行。操作步骤及失败恢复见[生命周期说明](LIFECYCLE.md#清理不再使用的安装代际)；不能直接删除已注册的目录来代替退役流程。

@@ -8,7 +8,7 @@ The DeepSeek Harness adapter supplies native instructions/workflow discovery. Th
 
 Follow [Installation](../../docs/INSTALL.md) and [Usage](../../docs/USAGE.md). Reload the Host and verify actual Skills/MCP. Existing personal content outside marked MALTS blocks is retained. New long workspaces must be Phase-ready; existing adopted workspaces continue through current bindings and Task services.
 
-Use `Install-MALTS.ps1 -Tool DeepSeekHarness`; `AllIncluded` selects all four Hosts in the default shared lifecycle. Host configuration roots and Boots remain distinct. ToolRootDeepSeekHarness specifies the actual root; the previous parameter name remains an alias. Existing split installations follow [explicit consolidation](../../docs/LIFECYCLE.md#consolidating-existing-installations). See [Install](../../docs/INSTALL.md#deepseek-harness-installation) and [Update](../../docs/UPDATE.md#deepseek-harness-update). Desktop still uses profiles/desktop; CLI/Web does not substitute for Desktop qualification.
+Harness shares the formal installation with the other three Hosts. AllIncluded in Install-MALTS.ps1 and Update-MALTS.ps1 selects all four; each keeps its own configuration root and Boot. ToolRootDeepSeekHarness supplies the actual Harness path. See [Install](../../docs/INSTALL.md#deepseek-harness-installation), [Update](../../docs/UPDATE.md#deepseek-harness-update) and [Shared Lifecycle](../../docs/LIFECYCLE.md#shared-four-host-installation). Desktop uses profiles/desktop; CLI/Web does not substitute for Desktop qualification.
 
 ## Verified scope and limitations
 

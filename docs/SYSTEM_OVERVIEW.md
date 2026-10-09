@@ -93,7 +93,7 @@ Git, external memory, translated reports and unattended execution are selected b
 
 Evidence covers observed conditions, not arbitrary models/tools. Requested model names and authenticated effective identity remain distinct. English/Chinese guides describe one system; preserve authored project content without duplicating state.
 
-Choose any of the four installation entries in [Install](INSTALL.md). AllIncluded selects all four Hosts in one shared installation. Each Host retains its own native configuration; existing split installations require explicit consolidation.
+Choose any of the four installation entries in [Install](INSTALL.md). AllIncluded selects all four Hosts in one shared installation. Each Host retains its own native configuration.
 
 ## 7. Typical Use Cases
 

@@ -87,6 +87,12 @@ Workflows are delivered as Skills: method packages an Agent can discover and use
 
 **Recovery-sensitive engineering.** Keep exact project state/backups and identify what occurred, what remains uncertain and what the next executor can do.
 
+## One formal installation for four Hosts
+
+Codex, Claude Code, OpenCode and DeepSeek Harness share one formal MALTS installation under `~/.agent-system/lifecycle` by default. They use one version and exact content identity, with one plan for installation updates, diagnosis and recovery.
+
+Host configuration roots remain `~/.codex`, `~/.claude`, `~/.config/opencode` and `~/.dsh`. Accounts, model settings, sessions and native tools remain owned by each Host; sharing MALTS does not merge them or automatically change project state. `AllIncluded` selects all four; provide actual paths when Host roots differ from the defaults.
+
 ## Start using MALTS
 
 The verified installation path uses Windows and Python3.11+; PowerShell7 is recommended. Supported Agent tools are Codex, Claude Code, OpenCode and DeepSeek Harness, which should already be usable.
@@ -94,10 +100,10 @@ The verified installation path uses Windows and Python3.11+; PowerShell7 is reco
 Obtain the selected version from the [public repository](https://github.com/SssoGin/MALTS). From its root, create an installation plan:
 
 ```powershell
-.\scripts\Install-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool Codex
+.\scripts\Install-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool AllIncluded
 ```
 
-Review source, destinations, existing content and recovery, then apply the reported plan hash per [Installation](docs/INSTALL.md). Follow tool instructions for the three-tool selection or DeepSeek Harness. See [Update](docs/UPDATE.md) for an existing installation.
+Review source, destinations, existing content and recovery, then apply the reported plan hash per [Installation](docs/INSTALL.md). AllIncluded selects Codex, Claude Code, OpenCode and DeepSeek Harness through one installation entry. See [Update](docs/UPDATE.md) for an existing installation.
 
 Once installation and actual Host loading are verified, start naturally:
 
@@ -114,7 +120,7 @@ See [Getting Started](docs/GETTING_STARTED.md) for a runnable first example and 
 Create an update plan from the repository version you intend to use:
 
 ```powershell
-.\scripts\Update-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool Codex
+.\scripts\Update-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool AllIncluded
 ```
 
 Review it, then use the actual reported path/hash:

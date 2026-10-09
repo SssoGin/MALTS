@@ -19,7 +19,7 @@ Checks cover closed inventory, hashes, safe paths/collisions and package identit
 
 ## Install from an Extracted Archive
 
-The archive does not bypass the plan-hash requirement, ownership merges or postchecks. Use the payload lifecycle entry and ReleaseRoot for the extracted package, then review/apply its exact plan hash. For Harness, use the shared lifecycle and its actual ToolRootDeepSeekHarness along with every other registered Host; ToolRootDeepSeekDesktop remains an alias. Do not copy bytes directly into an active generation. See [Install](INSTALL.md).
+The archive does not bypass the plan-hash requirement, ownership merges or postchecks. Use the payload lifecycle entry and ReleaseRoot for the extracted package, then review/apply its exact plan hash. For Harness, use the shared lifecycle and its actual ToolRootDeepSeekHarness along with every other registered Host. Do not copy bytes directly into an active generation. See [Install](INSTALL.md).
 
 ## Archive Contents
 

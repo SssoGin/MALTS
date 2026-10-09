@@ -4,7 +4,7 @@ An Agent can inspect and execute the user’s approved MALTS installation/update
 
 ## Source Selection
 
-Choose the reviewed public repository normally; ZIP only for an explicit fixed/offline need. Verify actual version, identity, remote/ref and inventory. Select Codex, Claude Code, OpenCode and/or DeepSeek Harness in the default shared lifecycle; separate roots require an explicit independent deployment choice.
+Choose the reviewed public repository normally; ZIP only for an explicit fixed/offline need. Verify actual version, identity, remote/ref and inventory. Select Codex, Claude Code, OpenCode and/or DeepSeek Harness in the default shared lifecycle.
 
 ## Required Sequence
 
@@ -22,7 +22,7 @@ Reuse the approved same-scope batch without repeated confirmation. Installation 
 
 ## Capability Projection Verification
 
-MALTS native bridges and marked instructions resolve the shared implementation. Check actual Skills/MCP after reload, not just configuration/file presence. AllIncluded selects all four; Harness uses ToolRootDeepSeekHarness and the default shared lifecycle. Existing split installations require reviewed consolidation. Native behavior proof remains separate.
+MALTS native bridges and marked instructions resolve the shared implementation. Check actual Skills/MCP after reload, not just configuration/file presence. AllIncluded selects all four; Harness uses ToolRootDeepSeekHarness and the default shared lifecycle. Native behavior proof remains separate.
 
 ## Privacy and Purity
 
@@ -32,6 +32,6 @@ Preserve user content outside marked blocks and unknown ownership. Never copy pr
 
 Require matching tool Boot, registry, pointer, identity and VERSION. Verify workspace binding separately and deliver the actual version/content identity, observed checks, recovery location and limits. See [Security](SECURITY.md).
 
-Discover from each selected tool's exact Boot, not a path remembered from another tool. For a shared lifecycle, verify all selected projections against the same active identity, including Harness. Its configuration root remains separate; diagnosis covers all Hosts registered to the shared installation. Only an explicitly independent deployment is diagnosed on its own lifecycle root.
+Discover from each selected tool's exact Boot, not a path remembered from another tool. For a shared lifecycle, verify all selected projections against the same active identity, including Harness. Its configuration root remains separate; diagnosis covers all Hosts registered to the shared installation.
 
 Native discovery can remain stale after files were updated because a running Host loaded an earlier process/configuration. Reload normally and observe the current interface. Configuration presence, capability advertisement and effective invocation are separate results; report unavailable layers without fabricating them.

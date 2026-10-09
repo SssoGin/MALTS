@@ -326,7 +326,7 @@ Termination 有三种实际状态：
 
 审阅深度根据真实信号和影响选择：轻量判断通常不写文件；用户纠正、轻度返工或重要决定可支持项目候选；重大失败、反复返工或长期交付可需要深入复盘。没有信号的普通成功不生成空报告。
 
-### Growth Routing Gate
+### 成长路由检查
 
 轻量路由只在当前上下文判断，协议输出包括 NO_OUTPUT（无输出）、LIGHT_REPORT（简短说明）、RETROSPECTIVE_RECOMMENDED（建议深入复盘）和 RETROSPECTIVE_AUTHORIZED（已授权复盘）。建议不能自动执行深入分析或长期写入。当前轻量判断称 L1；项目记录/试用为 L2；全局方法应用为 L3，后二者分别核相应授权。
 
@@ -338,7 +338,7 @@ Termination 有三种实际状态：
 
 全局应用是另一决定。项目候选已验证也不自动改 Skill、Prompt 或个人规则。保留来源链，在授权长期落点前核维护成本和适用范围。当前实现管理提案、试用、评估和退役，不证明自动生产率改善。
 
-## MALTS Memory Pipeline
+## MALTS 经验处理流程
 
 MALTS Memory Pipeline 指经验从原事件进入可复用方法的流程，不依赖某个外部记忆产品。流程先判断事实与适用性，再决定是否值得持久保留。
 
@@ -387,9 +387,9 @@ MALTS Memory Pipeline 指经验从原事件进入可复用方法的流程，不�
 | Codex | 受管 `AGENTS.md`、原生 Skill 入口与可选 MCP | Install/Update `-Tool Codex` |
 | Claude Code | 受管 `CLAUDE.md`、原生命令/Agent/Skill | Install/Update `-Tool ClaudeCode` |
 | OpenCode | 受管 `AGENTS.md` 与原生配置/Skill | Install/Update `-Tool OpenCode` |
-| DeepSeek Harness | `.dsh/MALTS_BOOT.md`、Harness 原生工作流/配置入口 | 默认共享生命周期，`-ToolRootDeepSeekHarness`；旧参数名保留为别名 |
+| DeepSeek Harness | `.dsh/MALTS_BOOT.md`、Harness 原生工作流/配置入口 | 默认共享生命周期，`-ToolRootDeepSeekHarness` |
 
-四端使用同一核心合同。Install/Update 的 `AllIncluded` 选择四端，共享一份活动代际及注册；宿主配置根和项目状态保持独立。已有双安装通过显式哈希绑定的合并事务迁移。沿用的 DeepSeek 参数名对应当前 `deepseek-harness` 身份；[安装说明](INSTALL.md)提供可执行选择示例。
+四端使用同一核心合同。Install/Update 的 `AllIncluded` 选择四端，共享一份活动代际及注册；宿主配置根和项目状态保持独立。[安装说明](INSTALL.md)提供可执行选择示例。
 
 MALTS 仅拥有标记区块，区块外属于用户。合并需幂等，保留个人内容，所属不明确时停止。各宿主重载后检查实际原生发现；CLI、Web 和 Desktop 验证不能相互替代。当前 DeepSeek 证据限 Windows Desktop 0.2.0-rc.2；GUI 模型取消仍未认证。
 

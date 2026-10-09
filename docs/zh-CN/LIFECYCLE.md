@@ -65,7 +65,7 @@ ZIP 是第二种来源的交付形式，不自动下载，也不免除核验。�
 
 普通更新保留旧代际。有明确清理授权、且旧代际没有当前入口或必要恢复依赖时，可通过 Python 生命周期 CLI 清理指定的 `retiring` 代际。必须提供该生命周期根注册的全部工具；活动代际、未注册对象、重复选择、内容变化和当前入口仍引用的对象会被拒绝。规划前安装应处于健康状态。
 
-以下示例适用于三端根；四端共享根还须提供 deepseek-harness 的实际工具根。按 discovery 结果填写位置，不复制历史路径；明确独立的根只提供其实际注册工具。
+以下示例用于四端共享正式根，提供全部四端实际工具位置，按发现结果填写。
 
 ```powershell
 python .\tools\malts_lifecycle.py retire-plan `
@@ -73,6 +73,7 @@ python .\tools\malts_lifecycle.py retire-plan `
   --tool-root 'codex=<Codex 配置根>' `
   --tool-root 'claude-code=<Claude Code 配置根>' `
   --tool-root 'opencode=<OpenCode 配置根>' `
+  --tool-root 'deepseek-harness=<Harness 配置根>' `
   --generation-id '<不再使用的 retiring 代际 ID>' `
   --out .\retirement.json --apply
 ```
@@ -101,7 +102,7 @@ Install/Update 在激活前保存计划，说明来源、所选根、代际、�
 
 通用入口 `Plan -Apply` 仅保存计划，`Execute -Apply` 执行审阅事务；PreviewPlan 同样区分计划与执行。保留事务 journal，删锁或改计划不是恢复。
 
-四端流程见[安装](INSTALL.md)和[更新](UPDATE.md)。AllIncluded 选择四端，默认共享一个生命周期；Harness 工具根使用 `ToolRootDeepSeekHarness`，旧参数名保留为别名。
+四端流程见[安装](INSTALL.md)和[更新](UPDATE.md)。AllIncluded 选择四端，默认共享一个生命周期；Harness 工具根使用 `ToolRootDeepSeekHarness`，
 
 事务依次经历发现/加锁、来源准备、快照、预验证、激活、后置验证及审计/提交。Journal 标识实际到达步骤，因此可以沿原操作检查故障，不能凭目录是否存在猜完成程度。
 
@@ -148,7 +149,7 @@ DoctorRepairPlan 是独立审阅准备；建议不是可执行权限。Repair �
   -LifecycleRoot '<existing-lifecycle-root>' -ToolRootCodex '<codex-config-root>'
 ```
 
-提供共享该生命周期的全部实际根。四端共享安装包含 Harness 的实际 `-ToolRootDeepSeekHarness`，旧别名兼容，见[安装](INSTALL.md)。
+提供共享该生命周期的全部实际根。四端共享安装包含 Harness 的实际 `-ToolRootDeepSeekHarness`，见[安装](INSTALL.md)。
 
 核心仍可信时，桥或 Boot 缺失可能属于派生投影故障；代际字节、manifest、registry 或 pointer 改变会削弱此基础，修复须使用准确独立核验来源。不能让同一份被改文件自证正确。
 
@@ -188,7 +189,7 @@ Scan 只盘点残留，不产生删除权限。保留活动安装、状态/bindi
 
 残留应区分活动代际、注册保留代际、暂存候选、未结事务和普通临时输出，各自引用及恢复价值不同。终态或旧时间不能将它们一并视为可处置对象。
 
-## Workspace Phase And Artifact Lifecycle
+## 工作区、阶段与成果的生命周期
 
 ### Phase 边界与状态
 
@@ -219,31 +220,10 @@ python -B "$runtime/tools/malts_lifecycle.py" discover --tool-root '<selected-to
 
 核 registry、active pointer、generation identity 和 VERSION 一致。Discovery 只读，不使用机器级 GLOBAL_BOOT.md。随后核所选工作区绑定和任务上下文。见[快速开始](GETTING_STARTED.md)。
 
-## 合并已有安装
+## 四端共享安装
 
-已有主三端与独立 Harness 安装可通过显式合并统一。两根必须健康、工具集合不相交，并具有完全相同的 v2 来源、包体和代际身份；只有版本号相同不足以合并。完整来源不一致时，先分别按正规更新／finalize 事务对齐，不直接改注册表、复制活动代际或移动 Boot。
+正式安装由一个生命周期根、一份活动代际和注册表管理，Codex、Claude Code、OpenCode、DeepSeek Harness 的 Boot 指向同一核验运行根。各宿主配置根分别保留，项目状态由已绑定的任务服务维护；共享安装不合并账号、会话、模型设置或项目状态库。
 
-`consolidate-plan` 默认只读，`--out ... --apply` 只保存计划。准确填写 discovery 返回的主根、捐出根及两套注册的全部工具；计划含个人指令前像，属于本机私有恢复资料，不放入公开仓库。审阅哈希、工具映射、合并内容和恢复位置后执行：
+`Install-MALTS.ps1` 与 `Update-MALTS.ps1` 的 `AllIncluded` 对应全部四端。安装、更新和 Doctor 使用实际注册工具集合；同版本内容修正通过保留前像的 `finalize` 事务。活动代际不手工编辑，失败时依据原事务和恢复记录处理。
 
-```powershell
-$shared = Join-Path $env:USERPROFILE '.agent-system/lifecycle'
-$oldHarness = '<existing separate Harness lifecycle from discovery>'
-$plan = Join-Path $env:TEMP ('malts-consolidate-' + [guid]::NewGuid().ToString('N') + '.json')
-python .\tools\malts_lifecycle.py consolidate-plan `
-  --lifecycle-root $shared --donor-lifecycle-root $oldHarness `
-  --repository-root (Get-Location).Path `
-  --tool-root "codex=$(Join-Path $env:USERPROFILE '.codex')" `
-  --tool-root "claude-code=$(Join-Path $env:USERPROFILE '.claude')" `
-  --tool-root "opencode=$(Join-Path $env:USERPROFILE '.config/opencode')" `
-  --tool-root "deepseek-harness=$(Join-Path $env:USERPROFILE '.dsh')" `
-  --out $plan --apply
-
-python .\tools\malts_lifecycle.py consolidate-execute `
-  --plan $plan --expected-plan-hash '<reviewed plan hash>' --apply
-```
-
-执行同时锁定两根并保全完整捐出根，重新生成捐出宿主的 MALTS 投影，更新主注册及当前绑定审计，最后退出捐出注册。原主活动载荷和三端投影不被合并操作改写。各宿主账号、会话、模型配置保留；捐出根中的状态和用户数据保存在已核验备份，不自动合入项目状态库。
-
-记录和备份位于主根 `runtime/consolidations/<operation-id>`。中断后使用 `consolidate-recover --lifecycle-root '<shared root>' --operation-id '<id>'` 检查，添加 `--apply` 才按原计划对账。新外部修改会阻止覆盖，未决合并阻止两根其他生命周期写入。项目采用、预算和未决业务效果不随安装合并改变。
-
-确认四端 Boot/discovery、冷启动服务、Doctor 及工作区绑定后，才能按独立清理授权回收已退出注册的捐出根；先核其恢复备份，不删除仍在使用的安装。该合并流程当前验证于 Windows，依赖合作式运行互斥，不提供任意外部写者或跨机器排除保证。
+Windows 下的安装事务使用运行互斥和持久记录。互斥约束合作式生命周期操作，不是任意外部写者或跨机器的安全边界。完成检查应核四端发现、所选宿主实际服务加载、安装信任及工作区绑定；模型业务效果与安装核验分别报告。
