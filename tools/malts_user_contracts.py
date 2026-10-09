@@ -1917,7 +1917,7 @@ def _semantic_audit_record(value: dict[str, Any]) -> list[ContractIssue]:
     valid = False
     if record_type == "current-binding":
         valid = (
-            operation_id is not None and operation in {"install", "update", "repair", "finalize"} and outcome == "ACTIVE"
+            operation_id is not None and operation in {"install", "update", "repair", "finalize", "consolidate"} and outcome == "ACTIVE"
             and plan_hash is not None and generation_id is not None and binding_sha256 is not None
             and plan_sha256 is None and journal_sha256 is None and counts == (None, None, None)
             and last_operation_id is None

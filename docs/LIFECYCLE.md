@@ -105,7 +105,7 @@ Install/Update save a plan before activation. The plan identifies source, select
 
 For the generic entry, `Plan -Apply` saves a plan only; `Execute -Apply` performs the reviewed transaction. PreviewPlan likewise separates planning from execution. Preserve transaction journals; deleting a lock or editing a plan is not recovery.
 
-See [Install](INSTALL.md) and [Update](UPDATE.md) for all four Host paths. Install/Update's AllIncluded selects three Hosts. Harness uses its own lifecycle/root and retained `ToolRootDeepSeekDesktop` parameter.
+See [Install](INSTALL.md) and [Update](UPDATE.md) for all four Host paths. Install/Update's AllIncluded selects all four Hosts under the default shared lifecycle. ToolRootDeepSeekHarness selects Harness; ToolRootDeepSeekDesktop remains an alias. Separate roots are an explicit deployment choice, not a Harness requirement.
 
 The transaction progresses through discovery/locking, source staging, snapshot, prevalidation, activation, postvalidation and final audit/commit. The recorded journal identifies which stages occurred. A failure can therefore be inspected at the original operation instead of inferred from which directories happen to exist.
 
@@ -222,3 +222,32 @@ python -B "$runtime/tools/malts_lifecycle.py" discover --tool-root '<selected-to
 ```
 
 Require matching registry, active pointer, generation identity and VERSION. Discovery is read-only; a machine-global GLOBAL_BOOT.md is not its current input. Then verify the selected workspace binding and task context. See [Getting Started](GETTING_STARTED.md).
+
+## Consolidating Existing Installations
+
+An existing three-Host installation and separately installed Harness can be explicitly consolidated. Both roots must be healthy, serve disjoint Host sets and bind exactly the same v2 source, package and generation identity. Equal VERSION alone is insufficient. First align differing images through reviewed update/finalize transactions; do not manually edit registration, move Boot or copy an active generation.
+
+`consolidate-plan` is read-only by default; `--out ... --apply` saves the plan only. Supply both discovered roots and every registered Host. The plan contains personal instruction preimages and is private recovery material, not public repository content. Review the hash, mappings, merge outputs and recovery destination before execution:
+
+```powershell
+$shared = Join-Path $env:USERPROFILE '.agent-system/lifecycle'
+$oldHarness = '<existing separate Harness lifecycle from discovery>'
+$plan = Join-Path $env:TEMP ('malts-consolidate-' + [guid]::NewGuid().ToString('N') + '.json')
+python .\tools\malts_lifecycle.py consolidate-plan `
+  --lifecycle-root $shared --donor-lifecycle-root $oldHarness `
+  --repository-root (Get-Location).Path `
+  --tool-root "codex=$(Join-Path $env:USERPROFILE '.codex')" `
+  --tool-root "claude-code=$(Join-Path $env:USERPROFILE '.claude')" `
+  --tool-root "opencode=$(Join-Path $env:USERPROFILE '.config/opencode')" `
+  --tool-root "deepseek-harness=$(Join-Path $env:USERPROFILE '.dsh')" `
+  --out $plan --apply
+
+python .\tools\malts_lifecycle.py consolidate-execute `
+  --plan $plan --expected-plan-hash '<reviewed plan hash>' --apply
+```
+
+Execution locks both roots, preserves the complete donor, regenerates donor Host projections against the shared image, updates the primary registration/current-binding audit and retires donor registration. Original primary payload and existing Host projections remain unchanged during consolidation. Accounts, sessions and model settings stay with each Host. Donor state/user data are preserved in a verified backup; no project-state merge is performed.
+
+Journals and backups live under `runtime/consolidations/<operation-id>` in the primary root. After interruption, inspect `consolidate-recover --lifecycle-root '<shared root>' --operation-id '<id>'`; add `--apply` to reconcile the original plan. New external edits block overwriting, and pending consolidation fences ordinary lifecycle writes in both roots. Project adoption, budgets and unsettled business effects are unaffected.
+
+After four-Host Boot/discovery, cold services, Doctor and workspace-binding checks, a separate approved cleanup may recycle the inactive donor root once its recovery backup is verified. This workflow is currently qualified on Windows with cooperative runtime exclusion; it does not establish arbitrary-writer or cross-machine fencing.

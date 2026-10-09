@@ -15,10 +15,10 @@ Check relevant writers and unsettled effects before changing shared installation
 Choose the reviewed repository revision, then create a plan:
 
 ```powershell
-.\scripts\Update-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool Codex
+.\scripts\Update-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool AllIncluded
 ```
 
-Choose ClaudeCode, OpenCode, a selected combination or AllIncluded for the first three only. Review source, destinations, ownership, merges, snapshots and postchecks, then execute actual output values:
+The example applies to an installed four-Host set. A single Host or other combination must match that root's actual registered set; AllIncluded now includes all four. Review source, destinations, ownership, merges, snapshots and postchecks, then execute actual output values:
 
 ```powershell
 .\scripts\Update-MALTS.ps1 -Apply -PlanPath '<reviewed-plan-path>' -ExpectedPlanHash '<reviewed-plan-sha256>'
@@ -26,21 +26,11 @@ Choose ClaudeCode, OpenCode, a selected combination or AllIncluded for the first
 
 ### DeepSeek Harness Update
 
-Use its existing actual lifecycle and `.dsh` root. For the generic current-user layout:
+On a shared four-Host installation, update all registered Hosts with the `AllIncluded` plan above. Resolve the actual lifecycle from each Boot before planning. For an intentionally independent Harness-only installation, choose `-Tool DeepSeekHarness` and its actual `-LifecycleRoot`/`-ToolRootDeepSeekHarness`.
 
-```powershell
-$harnessRoot = Join-Path $env:USERPROFILE '.dsh'
-$harnessLifecycle = Join-Path $env:USERPROFILE '.agent-system/deepseek-harness-lifecycle'
-$planPath = Join-Path $env:TEMP ('malts-harness-plan-' + [guid]::NewGuid().ToString('N') + '.json')
-.\scripts\Invoke-MALTSLifecycle.ps1 `
-  -Command Plan -Operation update `
-  -RepositoryRoot (Get-Location).Path `
-  -LifecycleRoot $harnessLifecycle `
-  -ToolRootDeepSeekDesktop $harnessRoot `
-  -OutPath $planPath -Apply
-```
+Existing split installations stay separate until an explicit consolidation succeeds. A three-Host root still requires `-Tool Codex,ClaudeCode,OpenCode`; `AllIncluded` now includes Harness and cannot silently change that root's registered set. Use [Consolidating Existing Installations](LIFECYCLE.md#consolidating-existing-installations) when moving a separately installed Harness into the shared root. A same-version content amendment first aligns both exact images using reviewed `finalize` transactions, then consolidates.
 
-Plan -Apply saves a plan only. Review its hash, then use the Execute command from [Install](INSTALL.md). Use `-Operation finalize` only for an explicitly reviewed same-version content correction. Harness is not an Install/Update AllIncluded member.
+Plan saving and activation remain separate. Keep the reported plan/hash and use the Execute step from [Install](INSTALL.md). `ToolRootDeepSeekDesktop` remains a compatibility alias; the current Host identity is `deepseek-harness`.
 
 ## Version Migration And Collision Handling
 
@@ -48,7 +38,7 @@ An identical installed source can return NO_OP. Different bytes under the same s
 
 ## Optional Offline Archive Update
 
-Verify and safely extract the selected fixed archive, use its ReleaseRoot and the same plan/hash sequence. Harness uses its dedicated generic lifecycle entry. Choose the current archive by its stated source commit and digest; a retained older package remains historical input and must not be presented as the latest guides. See [Release Archive](RELEASE_ARTIFACT.md).
+Verify and safely extract the selected fixed archive, use its ReleaseRoot and the same plan/hash sequence. Harness and other Hosts registered to the same installation use the same entry. Choose the current archive by its stated source commit and digest; a retained older package remains historical input and must not be presented as the latest guides. See [Release Archive](RELEASE_ARTIFACT.md).
 
 ## User Modifications And Cleanup
 
@@ -70,7 +60,7 @@ Retained generations, snapshots and evidence can remain after update because the
 
 ## Diagnose Before Repair
 
-Use read-only Doctor for all roots sharing the selected lifecycle; diagnose Harness separately. Inspect core trust before choosing a repair source. DoctorRepairPlan prepares a review; Execute uses the reviewed hash. Do not edit journals/locks or change permissions to bypass a failed precondition.
+Use read-only Doctor for every Host registered to the lifecycle; diagnose Harness separately only when it was intentionally installed independently. Inspect core trust before choosing a repair source. DoctorRepairPlan prepares a review; Execute uses the reviewed hash. Do not edit journals/locks or change permissions to bypass a failed precondition.
 
 ## Update Workspace Controls
 

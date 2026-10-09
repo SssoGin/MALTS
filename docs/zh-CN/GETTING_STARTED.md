@@ -40,7 +40,7 @@ MALTS 的已验证路径使用 Windows、Python3.11或更高版本及PowerShell�
 
 更多工具选择、明确根目录、离线安装和入口核查见[安装](INSTALL.md)。重新加载Agent工具后，确认MALTS工作流和相关工具实际可用；安装文件存在不证明当前对话已加载。
 
-选择一端或多端。Harness 的独立 Plan/Execute 流程见[安装](INSTALL.md)，AllIncluded 不选择它。
+选择一端或多端。Harness 使用相同安装／更新入口，AllIncluded 选择四端。已有双安装按[生命周期合并流程](LIFECYCLE.md#合并已有安装)审阅迁移。
 
 ## 5. 审阅并执行
 

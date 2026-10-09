@@ -3,11 +3,13 @@ param(
     [string] $ReleaseRoot,
     [string] $RepositoryRoot,
     [string] $LifecycleRoot,
-    [ValidateSet('Codex', 'ClaudeCode', 'OpenCode', 'AllIncluded')]
+    [ValidateSet('Codex', 'ClaudeCode', 'OpenCode', 'DeepSeekHarness', 'AllIncluded')]
     [string[]] $Tool = @(),
     [string] $ToolRootCodex,
     [string] $ToolRootClaudeCode,
     [string] $ToolRootOpenCode,
+    [Alias('ToolRootDeepSeekDesktop')]
+    [string] $ToolRootDeepSeekHarness,
     [string[]] $LegacyRoot = @(),
     [string] $OperationId,
     [string] $PlanPath,

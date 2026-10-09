@@ -8,6 +8,7 @@ param(
     [string] $ToolRootCodex,
     [string] $ToolRootClaudeCode,
     [string] $ToolRootOpenCode,
+    [Alias('ToolRootDeepSeekHarness')]
     [string] $ToolRootDeepSeekDesktop,
     [ValidateSet('codex', 'claude-code', 'opencode', 'deepseek-harness')]
     [string[]] $Tool = @(),

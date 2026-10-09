@@ -444,7 +444,7 @@ MALTS does not automatically install a timer, watch context or grant future work
 | OpenCode | Managed `AGENTS.md` and native config/Skills | Install/Update `-Tool OpenCode` |
 | DeepSeek Harness | `.dsh/MALTS_BOOT.md`, native Harness workflow/profile entry | Dedicated lifecycle, `-ToolRootDeepSeekDesktop` |
 
-All four use the same core contracts. `AllIncluded` in Install/Update selects the first three only; it is not a four-Host shortcut. The retained DeepSeek parameter name maps to the current `deepseek-harness` identity. See [Install](INSTALL.md) for an executable selection guide.
+All four use the same core contracts. `AllIncluded` in Install/Update selects all four Hosts. A shared installation has one active generation and registry; Host configuration roots and project state remain separate. Existing split roots use an explicit hash-bound consolidation transaction. The retained DeepSeek parameter name maps to the current `deepseek-harness` identity. See [Install](INSTALL.md) for an executable selection guide.
 
 MALTS owns only marked managed instruction blocks; surrounding text remains user-owned. Merge idempotently, preserve personal content and stop on ambiguous ownership. Reload each Host and check actual native discovery. CLI, Web and Desktop qualification are not interchangeable. Current DeepSeek evidence is scoped to Windows Desktop 0.2.0-rc.2; GUI model cancellation remains uncertified.
 

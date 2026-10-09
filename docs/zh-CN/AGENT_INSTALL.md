@@ -4,7 +4,7 @@ Agent 可核查并执行用户已批准的 MALTS 安装/更新。当前版本 **
 
 ## 来源选择
 
-通常选择已审阅公开仓库，仅在明确固定/离线需要时使用 ZIP。核版本、身份、remote/ref 和清单，选择 Codex、Claude Code、OpenCode，或独立 DeepSeek Harness 生命周期。
+通常选择已审阅公开仓库，仅在明确固定/离线需要时使用 ZIP。核版本、身份、remote/ref 和清单，选择 Codex、Claude Code、OpenCode 或 DeepSeek Harness；默认所选工具共用一个安装生命周期。
 
 ## 必要次序
 
@@ -22,7 +22,7 @@ Agent 可核查并执行用户已批准的 MALTS 安装/更新。当前版本 **
 
 ## 能力投影核验
 
-原生桥接与标记指令指向共享实现，重载后核真实 Skill/MCP，不能只看配置/文件。AllIncluded 选择三端；Harness 使用 ToolRootDeepSeekDesktop 及独立生命周期。原生行为证据另行说明。
+原生桥接与标记指令指向共享实现，重载后核真实 Skill/MCP，不能只看配置/文件。AllIncluded 选择四端；Harness 使用 ToolRootDeepSeekHarness 及默认共享生命周期，已有双安装须显式合并。原生行为证据另行说明。
 
 ## 隐私与纯净性
 
@@ -32,6 +32,6 @@ Agent 可核查并执行用户已批准的 MALTS 安装/更新。当前版本 **
 
 核工具 Boot、registry、pointer、identity 和 VERSION 一致，工作区 binding 单独核。交付说明真实版本/内容身份、实际检查、恢复位置及限制。见[安全](SECURITY.md)。
 
-从各所选工具准确 Boot 发现，不使用另一工具记忆路径。共享生命周期核全部所选投影对应同一活动身份；Harness 有独立根/生命周期，单独诊断。
+从各所选工具准确 Boot 发现，不使用另一工具记忆路径。共享生命周期核全部所选投影对应同一活动身份；Harness 保留独立工具配置根，共享安装时与同一根注册的其他工具一并诊断。
 
 文件更新后，运行宿主仍可能加载早期进程/配置，原生发现因此未更新。正常重载并观察当前接口。配置存在、能力声明和实际调用是不同结果；不可用层如实说明。

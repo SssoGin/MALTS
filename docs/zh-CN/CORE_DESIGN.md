@@ -387,9 +387,9 @@ MALTS Memory Pipeline 指经验从原事件进入可复用方法的流程，不�
 | Codex | 受管 `AGENTS.md`、原生 Skill 入口与可选 MCP | Install/Update `-Tool Codex` |
 | Claude Code | 受管 `CLAUDE.md`、原生命令/Agent/Skill | Install/Update `-Tool ClaudeCode` |
 | OpenCode | 受管 `AGENTS.md` 与原生配置/Skill | Install/Update `-Tool OpenCode` |
-| DeepSeek Harness | `.dsh/MALTS_BOOT.md`、Harness 原生工作流/配置入口 | 独立生命周期，`-ToolRootDeepSeekDesktop` |
+| DeepSeek Harness | `.dsh/MALTS_BOOT.md`、Harness 原生工作流/配置入口 | 默认共享生命周期，`-ToolRootDeepSeekHarness`；旧参数名保留为别名 |
 
-四端使用同一核心合同。Install/Update 的 `AllIncluded` 只选择前三端，不是四端快捷方式。沿用的 DeepSeek 参数名对应当前 `deepseek-harness` 身份；[安装说明](INSTALL.md)提供可执行选择示例。
+四端使用同一核心合同。Install/Update 的 `AllIncluded` 选择四端，共享一份活动代际及注册；宿主配置根和项目状态保持独立。已有双安装通过显式哈希绑定的合并事务迁移。沿用的 DeepSeek 参数名对应当前 `deepseek-harness` 身份；[安装说明](INSTALL.md)提供可执行选择示例。
 
 MALTS 仅拥有标记区块，区块外属于用户。合并需幂等，保留个人内容，所属不明确时停止。各宿主重载后检查实际原生发现；CLI、Web 和 Desktop 验证不能相互替代。当前 DeepSeek 证据限 Windows Desktop 0.2.0-rc.2；GUI 模型取消仍未认证。
 

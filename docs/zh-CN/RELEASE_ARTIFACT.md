@@ -19,7 +19,7 @@
 
 ## 从解出的归档安装
 
-归档不会绕过计划哈希、所属合并或后置检查。使用载荷生命周期入口和解压包 ReleaseRoot，再审阅/执行准确计划哈希。Harness 选择独立生命周期及 ToolRootDeepSeekDesktop。不能直接复制至活动代际。见[安装](INSTALL.md)。
+归档不会绕过计划哈希、所属合并或后置检查。使用载荷生命周期入口和解压包 ReleaseRoot，再审阅/执行准确计划哈希。Harness 使用共享生命周期及实际 ToolRootDeepSeekHarness，并提供其他已注册工具根；ToolRootDeepSeekDesktop 保留为别名。不能直接复制至活动代际。见[安装](INSTALL.md)。
 
 ## 归档内容
 

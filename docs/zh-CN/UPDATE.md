@@ -15,10 +15,10 @@
 选择经审阅仓库版本后创建计划：
 
 ```powershell
-.\scripts\Update-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool Codex
+.\scripts\Update-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool AllIncluded
 ```
 
-可选 ClaudeCode、OpenCode、指定组合，或仅涵盖前三端的 AllIncluded。核来源、目标、所属、合并、快照与后置检查，再用实际输出值执行：
+示例适用于已注册四端的共享安装；单端或其他组合须与该根实际注册集合相同，AllIncluded 当前包含四端。核来源、目标、所属、合并、快照与后置检查，再用实际输出值执行：
 
 ```powershell
 .\scripts\Update-MALTS.ps1 -Apply -PlanPath '<reviewed-plan-path>' -ExpectedPlanHash '<reviewed-plan-sha256>'
@@ -26,21 +26,11 @@
 
 ### DeepSeek Harness 更新
 
-使用已有实际生命周期与 `.dsh` 根。通用当前用户布局示例：
+四端共享安装按上方 `AllIncluded` 计划更新全部已注册工具；规划前从各 Boot 核实际生命周期。明确保持独立的 Harness 单端安装，可选择 `-Tool DeepSeekHarness` 并提供其实际 `-LifecycleRoot`／`-ToolRootDeepSeekHarness`。
 
-```powershell
-$harnessRoot = Join-Path $env:USERPROFILE '.dsh'
-$harnessLifecycle = Join-Path $env:USERPROFILE '.agent-system/deepseek-harness-lifecycle'
-$planPath = Join-Path $env:TEMP ('malts-harness-plan-' + [guid]::NewGuid().ToString('N') + '.json')
-.\scripts\Invoke-MALTSLifecycle.ps1 `
-  -Command Plan -Operation update `
-  -RepositoryRoot (Get-Location).Path `
-  -LifecycleRoot $harnessLifecycle `
-  -ToolRootDeepSeekDesktop $harnessRoot `
-  -OutPath $planPath -Apply
-```
+已有双安装在显式合并成功前仍分别维护。三端根须使用 `-Tool Codex,ClaudeCode,OpenCode`；当前 `AllIncluded` 包含 Harness，不能静默改变原注册工具集合。将独立 Harness 移入共享根时，先按[合并已有安装](LIFECYCLE.md#合并已有安装)审阅。若来源修订不同，先通过各自的正规 `finalize` 事务对齐完整安装身份，再合并，版本仍可保持2.0.0。
 
-Plan -Apply 仅保存计划。审阅哈希后使用[安装说明](INSTALL.md)的 Execute 命令；只有明确审阅的同版本内容修正才使用 `-Operation finalize`。Harness 不属于 Install/Update 的 AllIncluded。
+保存计划与激活分开，使用实际输出的路径／哈希执行[安装说明](INSTALL.md)的 Execute 步骤。`ToolRootDeepSeekDesktop` 作为兼容别名保留，当前宿主身份为 `deepseek-harness`。
 
 ## 版本迁移与冲突处理
 
@@ -48,7 +38,7 @@ Plan -Apply 仅保存计划。审阅哈希后使用[安装说明](INSTALL.md)的
 
 ## 可选离线归档更新
 
-核验并安全解压所选固定归档，使用 ReleaseRoot 及相同计划/哈希流程。Harness 使用独立通用生命周期入口。按声明来源提交和校验值选择现行归档，留存旧包属于历史输入，不能当作最新指南。见[发布归档](RELEASE_ARTIFACT.md)。
+核验并安全解压所选固定归档，使用 ReleaseRoot 及相同计划/哈希流程。Harness 与其同一安装中的其他工具使用同一入口。按声明来源提交和校验值选择现行归档，留存旧包属于历史输入，不能当作最新指南。见[发布归档](RELEASE_ARTIFACT.md)。
 
 ## 用户修改与清理
 
@@ -70,7 +60,7 @@ U1 适用于可识别混合所属指令块，更新 MALTS 内容并保留标记�
 
 ## Repair 前先诊断
 
-对共享生命周期全部实际根运行只读 Doctor；Harness 单独诊断。先核核心信任，再选修复来源。DoctorRepairPlan 仅准备审阅，Execute 使用审阅哈希。不能改 journal/锁或权限绕过前置失败。
+对同一生命周期注册的全部实际工具根运行只读 Doctor；只有明确独立部署的 Harness 才单独诊断。先核核心信任，再选修复来源。DoctorRepairPlan 仅准备审阅，Execute 使用审阅哈希。不能改 journal/锁或权限绕过前置失败。
 
 ## 更新 Workspace Control
 

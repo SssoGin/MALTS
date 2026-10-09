@@ -22,7 +22,7 @@ Reuse the approved same-scope batch without repeated confirmation. Installation 
 
 ## Capability Projection Verification
 
-MALTS native bridges and marked instructions resolve the shared implementation. Check actual Skills/MCP after reload, not just configuration/file presence. AllIncluded selects three; Harness uses ToolRootDeepSeekDesktop and its dedicated lifecycle. Native behavior proof remains separate.
+MALTS native bridges and marked instructions resolve the shared implementation. Check actual Skills/MCP after reload, not just configuration/file presence. AllIncluded selects all four; Harness uses ToolRootDeepSeekHarness and the default shared lifecycle. Existing split installations require reviewed consolidation. Native behavior proof remains separate.
 
 ## Privacy and Purity
 

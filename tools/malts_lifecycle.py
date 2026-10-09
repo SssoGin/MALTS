@@ -2998,6 +2998,8 @@ def _make_plan_resolved(
     root = _absolute(lifecycle_root)
     from lifecycle_retirement import assert_idle as assert_retirement_idle
     assert_retirement_idle(sys.modules[__name__], root)
+    from lifecycle_consolidation import assert_idle as assert_consolidation_idle
+    assert_consolidation_idle(sys.modules[__name__], root)
     normalized_tools = _normalize_tool_roots(tool_roots)
     for tool_root in normalized_tools.values():
         if _is_inside(root, tool_root) or _is_inside(tool_root, root):
@@ -5695,6 +5697,8 @@ def _execute_plan_with_artifact(
     root.mkdir(parents=True, exist_ok=True)
     from lifecycle_retirement import assert_idle as assert_retirement_idle
     assert_retirement_idle(sys.modules[__name__], root)
+    from lifecycle_consolidation import assert_idle as assert_consolidation_idle
+    assert_consolidation_idle(sys.modules[__name__], root)
     if not _runtime_mutex_owned:
         from v2_runtime_mutex import RuntimeMutex
         with RuntimeMutex(root):
@@ -6831,13 +6835,50 @@ def build_parser() -> argparse.ArgumentParser:
     retirement_recover.add_argument("--lifecycle-root", required=True)
     retirement_recover.add_argument("--operation-id", required=True)
     retirement_recover.add_argument("--apply", action="store_true")
+
+    consolidation_plan = subparsers.add_parser("consolidate-plan")
+    consolidation_plan.add_argument("--lifecycle-root", required=True)
+    consolidation_plan.add_argument("--donor-lifecycle-root", required=True)
+    _add_tool_root_argument(consolidation_plan)
+    consolidation_plan.add_argument("--repository-root")
+    consolidation_plan.add_argument("--release-root")
+    consolidation_plan.add_argument("--operation-id")
+    consolidation_plan.add_argument("--out")
+    consolidation_plan.add_argument("--apply", action="store_true")
+    consolidation_execute = subparsers.add_parser("consolidate-execute")
+    consolidation_execute.add_argument("--plan", required=True)
+    consolidation_execute.add_argument("--expected-plan-hash", required=True)
+    consolidation_execute.add_argument("--apply", action="store_true")
+    consolidation_recover = subparsers.add_parser("consolidate-recover")
+    consolidation_recover.add_argument("--lifecycle-root", required=True)
+    consolidation_recover.add_argument("--operation-id", required=True)
+    consolidation_recover.add_argument("--apply", action="store_true")
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        if args.command.startswith("retire-"):
+        if args.command.startswith("consolidate-"):
+            import lifecycle_consolidation as consolidation
+            engine = sys.modules[__name__]
+            if args.command == 'consolidate-plan':
+                plan = consolidation.make_plan(engine, lifecycle_root=args.lifecycle_root,
+                    donor_lifecycle_root=args.donor_lifecycle_root, tool_roots=_parse_tool_roots(args.tool_root),
+                    repository_root=args.repository_root, release_root=args.release_root,
+                    operation_id=args.operation_id)
+                if args.apply:
+                    if not args.out or _absolute(args.out).exists():
+                        raise LifecycleError('CONSOLIDATE_PLAN_OUTPUT', 'Supply a new exact plan destination.')
+                    write_json(_absolute(args.out), plan)
+                result = {'status':'PASS','mode':'APPLY' if args.apply else 'DRY_RUN',
+                    'writes_performed':args.apply,'plan':plan,'plan_hash':plan['plan_hash']}
+            elif args.command == 'consolidate-execute':
+                result = consolidation.execute(engine, load_json(_absolute(args.plan)),
+                    args.expected_plan_hash, apply=args.apply)
+            else:
+                result = consolidation.recover(engine, args.lifecycle_root, args.operation_id, apply=args.apply)
+        elif args.command.startswith("retire-"):
             import lifecycle_retirement as retirement
             engine = sys.modules[__name__]
             if args.command == 'retire-plan':

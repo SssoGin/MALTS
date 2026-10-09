@@ -24,9 +24,9 @@
 | Codex | `Install-MALTS.ps1 -Tool Codex` | 所选 Codex 根 |
 | Claude Code | `Install-MALTS.ps1 -Tool ClaudeCode` | 所选 Claude Code 根 |
 | OpenCode | `Install-MALTS.ps1 -Tool OpenCode` | 所选 OpenCode 根 |
-| DeepSeek Harness | `Invoke-MALTSLifecycle.ps1 -ToolRootDeepSeekDesktop` | 独立 Harness 生命周期和工具根 |
+| DeepSeek Harness | `Install-MALTS.ps1 -Tool DeepSeekHarness` | 所选 Harness 工具根，默认共享生命周期 |
 
-前三端的计划示例：
+首次安装的可选计划示例：
 
 ```powershell
 .\scripts\Install-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool Codex
@@ -34,41 +34,23 @@
 .\scripts\Install-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool OpenCode
 ```
 
-这些是可选择的计划示例，只执行自己选择的计划。`-Tool Codex,ClaudeCode` 选择两端；**`AllIncluded` 仅包括 Codex、Claude Code、OpenCode，不包括 Harness。** 显式路径使用 `-LifecycleRoot`、对应 `-ToolRootCodex`、`-ToolRootClaudeCode` 或 `-ToolRootOpenCode`，以及 `-PlanPath`。
+这些是可选择的首次安装计划，只执行自己选择的一项。`-Tool Codex,ClaudeCode` 选择两端；**`AllIncluded` 选择 Codex、Claude Code、OpenCode、DeepSeek Harness 四端。** 显式路径使用 `-LifecycleRoot`、对应的 `-ToolRootCodex`、`-ToolRootClaudeCode`、`-ToolRootOpenCode` 或 `-ToolRootDeepSeekHarness`，以及 `-PlanPath`。
 
 ### DeepSeek Harness 安装
 
-独立生命周期使用当前身份 `deepseek-harness`。公开参数 `ToolRootDeepSeekDesktop` 为兼容保留，指当前 Harness 配置根。使用实际 `.dsh` 根与独立 Harness 生命周期，不能用旧 Desktop 身份或路径替代。
-
-在仓库根生成并保存审阅计划：
+Harness 与其他宿主使用同一安装入口及默认共享生命周期，只选择需要的工具。首次仅安装 Harness 的计划示例：
 
 ```powershell
-$harnessRoot = Join-Path $env:USERPROFILE '.dsh'
-$harnessLifecycle = Join-Path $env:USERPROFILE '.agent-system/deepseek-harness-lifecycle'
-$planPath = Join-Path $env:TEMP ('malts-harness-plan-' + [guid]::NewGuid().ToString('N') + '.json')
-.\scripts\Invoke-MALTSLifecycle.ps1 `
-  -Command Plan -Operation install `
-  -RepositoryRoot (Get-Location).Path `
-  -LifecycleRoot $harnessLifecycle `
-  -ToolRootDeepSeekDesktop $harnessRoot `
-  -OutPath $planPath -Apply
+.\scripts\Install-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool DeepSeekHarness
 ```
 
-这里 `Plan -Apply` **仅保存计划文件，不激活安装**；不带 `-Apply` 时输出 dry-run 计划。核输出的 `plan_hash`、来源身份、根目录、合并分类和快照，再执行：
+首次建立四端共享安装时使用 `-Tool AllIncluded`。`-ToolRootDeepSeekHarness` 指定实际 Harness 配置根，`ToolRootDeepSeekDesktop` 作为原调用方式的别名保留。默认工具根为 `~/.dsh`，共享安装根为 `~/.agent-system/lifecycle`。各宿主的账号、会话和模型设置仍由各自管理。
 
-```powershell
-.\scripts\Invoke-MALTSLifecycle.ps1 `
-  -Command Execute -PlanPath '<reviewed-plan-path>' `
-  -ExpectedPlanHash '<reviewed-plan-sha256>' -Apply
-```
+已有三端安装不能通过普通更新或手改 Boot 变为四端安装。Harness 已单独安装时，先使两套安装的完整来源身份一致，再按[生命周期合并流程](LIFECYCLE.md#合并已有安装)迁移；尚未安装时，应选择保全现有用户内容的明确新装方案。普通更新继续要求注册工具集合不变。
 
-Plan 通过 `-ToolRootDeepSeekDesktop` 选择 Harness；通用生命周期的 `-Tool deepseek-harness` 选择器用于 PreviewPlan。不要将 Harness 传给 Install/Update 的三端 `-Tool` 参数。此过程安装 MALTS 适配，不安装 DeepSeek Harness、本地模型、密钥或 Provider 订阅。
+Install 命令保存计划并返回路径／哈希，不直接激活。核对所选根、所属、个人内容合并和前像，再执行下方“审阅并执行”步骤。此操作安装 MALTS 适配；Harness 应用、账号和模型另行管理。
 
-UseDefaultRoots 为前三端选择 ~/.codex、~/.claude、~/.config/opencode，共享生命周期为 ~/.agent-system/lifecycle。自定义宿主根须明确传入；Harness 示例选择 ~/.dsh 和独立生命周期，宿主另有配置位置时使用实际根。
-
-共享生命周期可服务所选前三端投影，Harness 使用前述独立适配路径；各工具仍有自己的 Boot/标记指令。安装一端不授权或隐式选择其余端。
-
-计划保存在仓库外，避免产生意外来源文件。Plan 与 Execute 之间源树须未变；特别在混用显式与默认输入时，审阅计划实际 tool_roots。
+每个所选宿主保留自己的 Boot 和原生入口，共用一份已核验活动代际。`AllIncluded` 选择四端，选择单端不隐式安装其余端；需要独立部署时仍可明确选择不同生命周期根。计划文件保存在源码仓库外，并核对输出中的实际工具映射。
 
 ## 审阅并执行
 
@@ -99,7 +81,7 @@ UseDefaultRoots 为前三端选择 ~/.codex、~/.claude、~/.config/opencode，�
 .\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.0.zip -ExtractOutput '<new-extraction-root>' -Apply
 ```
 
-校验器取自相应审阅来源。使用解压载荷的生命周期入口和 `-ReleaseRoot '<extracted-package-root>'`，再执行同样的计划/哈希流程。Harness 使用独立生命周期入口并传 ReleaseRoot。不能将载荷直接复制进活动代际。见[发布归档](RELEASE_ARTIFACT.md)。
+校验器取自相应审阅来源。使用解压载荷的生命周期入口和 `-ReleaseRoot '<extracted-package-root>'`，再执行同样的计划/哈希流程。Harness 使用相同生命周期入口和 ReleaseRoot，并提供该安装注册的全部工具根。不能将载荷直接复制进活动代际。见[发布归档](RELEASE_ARTIFACT.md)。
 
 ## 核验已安装运行时
 

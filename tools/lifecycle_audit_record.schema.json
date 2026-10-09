@@ -25,7 +25,7 @@
     "created_at": {"type": "string", "format": "date-time"},
     "month": {"type": "string", "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$"},
     "operation_id": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
-    "operation": {"type": ["string", "null"], "enum": ["install", "update", "repair", "finalize", "uninstall", null]},
+    "operation": {"type": ["string", "null"], "enum": ["install", "update", "repair", "finalize", "uninstall", "consolidate", null]},
     "outcome": {"enum": ["ACTIVE", "SUCCESS", "RECOVERED", "UNINSTALLED", "SUMMARY"]},
     "details": {
       "type": "object",

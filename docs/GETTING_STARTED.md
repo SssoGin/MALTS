@@ -32,7 +32,7 @@ From the repository:
 
 
 
-Select one or several Hosts. Harness uses the dedicated Plan/Execute procedure in [Install](INSTALL.md); AllIncluded does not select it.
+Select one or several Hosts. Harness uses the same Install/Update entry; AllIncluded selects all four. Existing split installations follow the explicit consolidation procedure in [Lifecycle](LIFECYCLE.md#consolidating-existing-installations).
 
 ## 5. Review and Execute
 

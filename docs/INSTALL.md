@@ -24,9 +24,9 @@ Use a reviewed checkout of the [public repository](https://github.com/SssoGin/MA
 | Codex | `Install-MALTS.ps1 -Tool Codex` | Selected Codex root |
 | Claude Code | `Install-MALTS.ps1 -Tool ClaudeCode` | Selected Claude Code root |
 | OpenCode | `Install-MALTS.ps1 -Tool OpenCode` | Selected OpenCode root |
-| DeepSeek Harness | `Invoke-MALTSLifecycle.ps1 -ToolRootDeepSeekDesktop` | Dedicated Harness lifecycle/root |
+| DeepSeek Harness | `Install-MALTS.ps1 -Tool DeepSeekHarness` | Selected Harness root, shared default lifecycle |
 
-For one or several of the first three Hosts:
+Alternative first-installation plans:
 
 ```powershell
 .\scripts\Install-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool Codex
@@ -34,45 +34,29 @@ For one or several of the first three Hosts:
 .\scripts\Install-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool OpenCode
 ```
 
-These are alternative plan examples; execute only your selected plan. `-Tool Codex,ClaudeCode` chooses those two. **`AllIncluded` includes Codex, Claude Code and OpenCode only.** It does not install Harness. Explicit paths use `-LifecycleRoot`, matching `-ToolRootCodex`, `-ToolRootClaudeCode` or `-ToolRootOpenCode`, and `-PlanPath`.
+These are alternative plan examples; execute only your selected plan. `-Tool Codex,ClaudeCode` chooses those two. **`AllIncluded` selects Codex, Claude Code, OpenCode and DeepSeek Harness.** Explicit paths use `-LifecycleRoot`, matching `-ToolRootCodex`, `-ToolRootClaudeCode` or `-ToolRootOpenCode`/`-ToolRootDeepSeekHarness`, and `-PlanPath`.
 
 ### DeepSeek Harness Installation
 
-The dedicated lifecycle uses identity `deepseek-harness`. The public parameter `ToolRootDeepSeekDesktop` is retained for compatibility and refers to the current Harness configuration root. Use the actual `.dsh` root and a separate Harness lifecycle; an old Desktop identity/path is not a substitute.
-
-From the repository root, create and save a review plan:
+Harness uses the same installation entry and default shared lifecycle as the other Hosts. Choose only the Hosts you need. For a fresh Harness-only installation, create the plan with:
 
 ```powershell
-$harnessRoot = Join-Path $env:USERPROFILE '.dsh'
-$harnessLifecycle = Join-Path $env:USERPROFILE '.agent-system/deepseek-harness-lifecycle'
-$planPath = Join-Path $env:TEMP ('malts-harness-plan-' + [guid]::NewGuid().ToString('N') + '.json')
-.\scripts\Invoke-MALTSLifecycle.ps1 `
-  -Command Plan -Operation install `
-  -RepositoryRoot (Get-Location).Path `
-  -LifecycleRoot $harnessLifecycle `
-  -ToolRootDeepSeekDesktop $harnessRoot `
-  -OutPath $planPath -Apply
+.\scripts\Install-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool DeepSeekHarness
 ```
 
-Here `Plan -Apply` **saves the plan file only**; it does not activate an installation. Without `-Apply`, Plan prints a dry-run plan. Review the reported `plan_hash`, source identity, roots, merge classifications and snapshots. Execute it with:
+For a fresh shared four-Host installation, use `-Tool AllIncluded`. `-ToolRootDeepSeekHarness` specifies the actual Harness configuration root; `ToolRootDeepSeekDesktop` remains an alias for existing callers. The default root is `~/.dsh`; the shared installation root is `~/.agent-system/lifecycle`. Accounts, sessions and model settings remain owned by each Host.
 
-```powershell
-.\scripts\Invoke-MALTSLifecycle.ps1 `
-  -Command Execute -PlanPath '<reviewed-plan-path>' `
-  -ExpectedPlanHash '<reviewed-plan-sha256>' -Apply
-```
+An existing three-Host installation cannot become a four-Host installation through a normal update or by changing Boot manually. If Harness is already installed separately, align both exact installed source identities and use the reviewed consolidation procedure in [Lifecycle](LIFECYCLE.md#consolidating-existing-installations). If it is not installed, choose a reviewed fresh installation strategy that preserves existing user content; the normal updater keeps its fixed registered Host set.
 
-The planner selects Harness from `-ToolRootDeepSeekDesktop`; the generic lifecycle's `-Tool deepseek-harness` selector is used by PreviewPlan. Do not pass Harness to Install/Update's three-Host `-Tool` parameter. This installs MALTS integration, not DeepSeek Harness, a model, a key or a provider subscription.
+The Install command saves a plan and returns its path/hash; it does not activate the plan. Review ownership, personal-content merges, preimages and selected roots, then use the [Review And Execute](#review-and-execute) step. This installs MALTS integration; the Harness application, accounts and models are managed separately.
 
-For UseDefaultRoots, the first three Host configuration roots are ~/.codex, ~/.claude and ~/.config/opencode, with the shared lifecycle under ~/.agent-system/lifecycle. A custom Host root must be supplied explicitly. The Harness example selects ~/.dsh and a dedicated lifecycle; use its actual root if the Host was configured elsewhere.
+Each selected Host receives its own Boot and native integration while sharing one verified active generation. `AllIncluded` selects all four; choosing one Host does not implicitly select the others. Explicitly separate lifecycle roots remain supported when independent deployments are required.
 
-One lifecycle can serve the selected first-three projections, while Harness uses the dedicated integration path documented above. Each tool still receives its own Boot/marked instructions. Installing one tool does not authorize or implicitly select the others.
-
-Keep the plan outside the repository so generation does not introduce unexpected source files. The source tree must remain unchanged between Plan and Execute. Examine the actual selected tool_roots in the plan, particularly when combining explicit and default inputs.
+Keep plan files outside the source repository and examine the actual selected roots in the plan.
 
 ## Review And Execute
 
-The ordinary Install command creates a plan and reports its exact path/hash. Review selected destinations, source identity, ownership, personal-content merges, recoverable preimages and postchecks. For the first three Hosts, use the actual output values:
+The ordinary Install command creates a plan and reports its exact path/hash. Review selected destinations, source identity, ownership, personal-content merges, recoverable preimages and postchecks. For the selected Hosts, use the actual output values:
 
 ```powershell
 .\scripts\Install-MALTS.ps1 -Apply -PlanPath '<reviewed-plan-path>' -ExpectedPlanHash '<reviewed-plan-sha256>'
@@ -99,7 +83,7 @@ The current Release attachment is `MALTS-2.0.0.zip`. A same-version reissue has 
 .\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.0.zip -ExtractOutput '<new-extraction-root>' -Apply
 ```
 
-Obtain the verifier from the matching reviewed source. Run the extracted payload's lifecycle entry with `-ReleaseRoot '<extracted-package-root>'`, then the same plan/hash sequence. Harness uses its dedicated lifecycle entry with ReleaseRoot. Never copy a payload into an active generation. See [Release Archive](RELEASE_ARTIFACT.md).
+Obtain the verifier from the matching reviewed source. Run the extracted payload's lifecycle entry with `-ReleaseRoot '<extracted-package-root>'`, then the same plan/hash sequence. Harness uses the same lifecycle entry with ReleaseRoot and every Host registered to that installation. Never copy a payload into an active generation. See [Release Archive](RELEASE_ARTIFACT.md).
 
 ## Verify The Installed Runtime
 
