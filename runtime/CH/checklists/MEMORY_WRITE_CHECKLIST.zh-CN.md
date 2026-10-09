@@ -1,8 +1,8 @@
-﻿# MEMORY_WRITE_CHECKLIST
+# MEMORY_WRITE_CHECKLIST
 
 > 写入长期 Skill、`AGENTS.md`、`CLAUDE.md`、等价工具指令入口或全局记忆前使用。
 
-通过本检查清单只表示候选质量合格，不代表已经取得写入权限。L1 只分析，不写 durable state；L2 只能在一次性项目授权和声明文件面内写入；任何 L3 全局/规范记忆、Skills、checklists、lint、adapters、三工具安装态、公开内容或持久工具指令的提议或修改，都必须另行取得明确确认。
+通过本检查清单只表示候选质量合格，不代表已经取得写入权限。L1 只分析，不写持久状态；L2 只能在一次性项目授权和声明文件面内写入；任何 L3 全局/规范记忆、Skill、检查清单、检查工具、适配器、四端安装状态、公开内容或持久工具指令的提议或修改，都必须另行取得明确确认。
 
 ## 权限
 
@@ -48,7 +48,7 @@
 | 全局 Skill | 跨项目可复用 |
 | `GLOBAL_MEMORY.md` | 跨项目稳定规则、模式或决策 |
 | 工具指令文件候选 | 高频、稳定、跨任务行为，适合写入 `AGENTS.md`、`CLAUDE.md` 或等价工具指令入口 |
-| 工具适配文档 | 只适用于 Claude Code、Codex、OpenCode 或其他工具 |
+| 工具适配文档 | 只适用于 Claude Code、Codex、OpenCode、DeepSeek Harness 或其他工具 |
 | 不写入 | 太具体、未验证、重复或低价值 |
 
 ## 安全
@@ -58,13 +58,13 @@
 - [ ] 规则不会导致未来不安全自动化。
 - [ ] 任何 L3 提议或规则变更都需要用户单独确认。
 
-## Future-Use Validation
+## 后续任务中的验证
 
-- [ ] 已记录原始触发事件，但没有把它计为 future use。
-- [ ] `VALIDATED` 已有两个 helped future tasks，task ID 与 independence key 均不同；连同原事件累计三次验证。
+- [ ] 已记录原始触发事件，但没有把它计为后续任务中的复用。
+- [ ] `VALIDATED` 已有两个有帮助（helped）的后续任务，任务 ID 与独立性标识（independence key）均不同；连同原事件累计三次验证。
 - [ ] 高风险候选还有独立审阅或负面/反例测试。
-- [ ] 已记录采用、拒绝、延后及 outcome；检索本身不等于应用授权。
-- [ ] harmful evidence 进入 `CHALLENGED`；严重 harmful evidence 进入 `SUSPENDED` 并停止自动应用。
+- [ ] 已记录采用、拒绝、延后及实际结果（outcome）；检索本身不等于应用授权。
+- [ ] 有害证据进入 `CHALLENGED`；严重有害证据进入 `SUSPENDED` 并停止自动应用。
 - [ ] 存在挑战、修订、废弃、替换和移除路径。
 
 ## 降级保存
@@ -82,7 +82,7 @@
 - 权限引用：
 - 生命周期状态：
 
-## MALTS v1.3.0 记忆写入
+## 经验写入的执行边界
 
-- [ ] 成长候选记录区分 Fast Path 无长期增量观察与受治理的长期增量工作。
-- [ ] canonical 记忆中未写入“自动重试”“自动终态升级”或“跨系统 exactly-once”的声明。
+- [ ] 成长候选记录区分 不产生长期写入的快速检查观察与受治理的长期增量工作。
+- [ ] 规范记忆中未写入“自动重试”“自动终态升级”或“跨系统效果严格只发生一次（exactly-once）”的声明。

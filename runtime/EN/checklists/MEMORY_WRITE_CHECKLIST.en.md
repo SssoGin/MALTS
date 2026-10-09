@@ -48,7 +48,7 @@ Passing this checklist establishes candidate quality, not write authority. L1 an
 | Global skill | Reusable across projects |
 | `GLOBAL_MEMORY.md` | Cross-project stable rule, pattern, or decision |
 | Tool instruction file candidate | High-frequency, stable, cross-task behavior that belongs in `AGENTS.md`, `CLAUDE.md`, or an equivalent tool instruction entry |
-| Tool adapter | Specific to Claude Code, Codex, OpenCode, or another tool |
+| Tool adapter | Specific to Claude Code, Codex, OpenCode, DeepSeek Harness, or another tool |
 | Do not write | Too specific, unverified, duplicate, or low value |
 
 ## Safety
@@ -82,7 +82,7 @@ Passing this checklist establishes candidate quality, not write authority. L1 an
 - Authority reference:
 - Lifecycle status:
 
-## MALTS v1.3.0 memory writes
+## Memory Write Execution Boundaries
 
 - [ ] Growth candidate records distinguish Fast Path no-durable-delta observations from governed durable-delta work.
 - [ ] No claim of automatic retry, automatic terminal promotion, or cross-system exactly-once entered canonical memory.

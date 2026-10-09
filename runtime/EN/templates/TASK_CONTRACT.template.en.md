@@ -12,7 +12,7 @@
 
 ## Runtime, Model, And Effort Policy
 
-- Runtime / adapter: Codex / Claude Code / OpenCode / Other
+- Runtime / adapter: Codex / Claude Code / OpenCode / DeepSeek Harness / Other
 - Dispatch mechanism: e.g. Codex `spawn_agent`
 - Delegation mode: main / single-agent / sub-agent / nested / peer-task
 - Parent task/thread reference, if peer-task:
@@ -23,7 +23,7 @@
 - Runtime effort policy: Cost-aware recommended effort / Exact inherit only when cost class matches / Explicit runtime effort ID / Runtime default
 - Normalized reasoning tier: none / light / standard / deep / maximum / unknown
 - Display label, if exposed:
-- Cross-tool sync expectation for gap-filling tasks: Codex + Claude Code + OpenCode unless user-scoped otherwise / N/A
+- Cross-tool sync expectation for gap-filling tasks: Codex + Claude Code + OpenCode + DeepSeek Harness unless user-scoped otherwise / N/A
 - User-visible model name or policy:
 - User model specification source: User specified / User chose exact inherit / Cost-aware recommendation / Runtime default after capability check
 - Explicit model, if any:
@@ -85,7 +85,7 @@
 - [ ] Runtime, model, effort, evidence quartet, constraint strength, and binding policy are clear.
 - [ ] Role names describe responsibility and do not hard-code task difficulty or reasoning effort.
 - [ ] If Agent count is N, effective or verified-fallback binding and effective runtime capacity are recorded.
-- [ ] For protocol, template, checklist, adapter, or documentation gap-filling tasks, Codex, Claude Code, and OpenCode sync scope is clear.
+- [ ] For protocol, template, checklist, adapter, or documentation gap-filling tasks, Codex, Claude Code, OpenCode, and DeepSeek Harness sync scope is clear.
 - [ ] This task is covered by the user request or an approved launch batch; authorization is semantic and does not require a fixed confirmation phrase.
 
 ## Permission Level

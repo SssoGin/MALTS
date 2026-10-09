@@ -1,4 +1,4 @@
-﻿# TASK_CONTRACT
+# TASK_CONTRACT
 
 > 用途：把一个可分派任务定义清楚，让子 Agent 能执行且不会扩展范围。
 
@@ -12,7 +12,7 @@
 
 ## 运行时、模型与 Effort 策略
 
-- 运行时 / 适配器：Codex / Claude Code / OpenCode / Other
+- 运行时 / 适配器：Codex / Claude Code / OpenCode / DeepSeek Harness / Other
 - 分派机制：例如 Codex `spawn_agent`
 - Delegation mode：main / single-agent / sub-agent / nested / peer-task
 - Parent task/thread 引用（peer-task 时）：
@@ -23,7 +23,7 @@
 - 运行时 effort 策略：成本感知推荐 effort / 成本等级匹配时精确继承 / 显式 runtime effort ID / 运行时默认
 - 归一化推理等级：none / light / standard / deep / maximum / unknown
 - 展示标签（如运行时提供）：
-- 查漏补缺三工具同步预期：Codex + Claude Code + OpenCode，除非用户另行限定 / N/A
+- 查漏补缺四工具同步预期：Codex + Claude Code + OpenCode + DeepSeek Harness，除非用户另行限定 / N/A
 - 用户可见模型名称或策略：
 - 用户模型指定来源：用户指定 / 用户选择精确继承 / 成本感知推荐 / capability 核查后的运行时默认
 - 显式模型，如有：
