@@ -1,6 +1,6 @@
 ﻿# 多 Agent 长任务调度与成长系统
 
-MALTS（Multi-Agent Long-Task Scheduling and Growth System，多 Agent 长任务调度与成长系统）围绕目标、可检查结果、可恢复执行和经验评估组织 AI Agent 项目工作。默认由单 Agent 执行，已授权协作使用同一项目和验收模型。当前实现为 **2.0.2**。
+MALTS（Multi-Agent Long-Task Scheduling and Growth System，多 Agent 长任务调度与成长系统）围绕目标、可检查结果、可恢复执行和经验评估组织 AI Agent 项目工作。默认由单 Agent 执行，已授权协作使用同一项目和验收模型。当前实现为 **2.0.3**。
 
 ## 工作区权威、进入与并发
 
@@ -520,3 +520,9 @@ Capabilities 可查询当前动作合同。详细操作和示例见[控制端操
 当前不认证总体成功率、普遍或跨宿主因果提速、真实费用/人工节省、Provider 内部请求总量、GUI 模型取消、任意 OS 写者的 fencing、跨用户 DPAPI 恢复或自治发布。对这些限制的保留是对证据适用范围的说明，不改变 Task 的实际验收标准。
 
 操作方法见[使用指南](USAGE.md)；精确状态和错误合同见[状态合同](V2_STATE_CONTRACT.md)。
+
+## 原生状态库迁址与路径恢复
+
+健康原生库与已采用库均通过正式重定位流程搬迁；原生无定位文件时明确提供原状态目录，并保留 Project 的业务资源根。统一入口为 `store-relocation-preflight`、`store-relocation-prepare`、`store-relocation-status`、`store-relocation-plan` 和 `store-relocation-apply`；正式写入使用当前安装和审阅计划哈希。恢复审查不等于执行授权，切换后 Phase 仍须明确激活。原生旧库的普通服务写入也会被拒绝。
+
+受管长文件路径经内部扩展路径访问；不修改系统注册表，不放宽来源及链接校验。旧2.0.2未完成准备按原计划、原哈希与原操作目录接续，保留备份、失败尝试、定位前像和回执。完整前提、命令、诊断与限制见[工作区管理与状态重定位](MANAGEMENT_AND_RELOCATION.md)。

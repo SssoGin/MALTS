@@ -8,7 +8,7 @@ MALTS 是一套用于 AI Agent 项目工作的运行框架，将目标澄清、�
 
 MALTS 默认由一个 Agent 完成工作。需要独立调查、验证或分开实施时，可以在明确分工和授权后使用多个 Agent；负责项目的主 Agent 仍承担整合、验收和最终交付责任。无论使用一个还是多个 Agent，都沿用同一套目标、阶段、验证和恢复方法。
 
-当前版本为 **2.0.2**。本页介绍完整的 MALTS 系统；本版本的新增、改进和升级影响见[版本说明](CHANGELOG.md)。
+当前版本为 **2.0.3**。本页介绍完整的 MALTS 系统；本版本的新增、改进和升级影响见[版本说明](CHANGELOG.md)。
 
 ## 它解决什么问题
 
@@ -191,7 +191,7 @@ MALTS 提供经审阅的旧工作区采用和长项目就绪查询。普通新�
 
 ## 版本
 
-当前发布版本：**2.0.2**。版本说明与可选离线包见[MALTS 2.0.2 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.0.2)，历史变化见[CHANGELOG](CHANGELOG.md)。
+当前发布版本：**2.0.3**。版本说明与可选离线包见[MALTS 2.0.3 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.0.3)，历史变化见[CHANGELOG](CHANGELOG.md)。
 
 ## 文档语言
 

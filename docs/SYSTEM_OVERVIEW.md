@@ -1,6 +1,6 @@
 # MALTS System Overview
 
-MALTS preserves project goals, current progress, observed results and recovery information across AI-agent execution rounds. It combines delivery, optional collaboration and evidence-based experience use through shared project/task contracts. Current version: **2.0.2**.
+MALTS preserves project goals, current progress, observed results and recovery information across AI-agent execution rounds. It combines delivery, optional collaboration and evidence-based experience use through shared project/task contracts. Current version: **2.0.3**.
 
 ## 1. System Purpose
 

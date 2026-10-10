@@ -174,18 +174,21 @@ def main(argv=None):
     relocate=sub.add_parser('store-relocation-preflight')
     relocate.add_argument('--workspace',type=Path,required=True)
     relocate.add_argument('--target-state-dir',type=Path)
+    relocate.add_argument('--old-state-dir',type=Path)
     relocate.add_argument('--journal-root',type=Path)
     relocate.add_argument('--operation-id',required=True)
     relocate.add_argument('--authority-ref',required=True)
     relocation_status=sub.add_parser('store-relocation-status')
     relocation_status.add_argument('--journal-root',type=Path,required=True)
-    for command in ('store-relocation-prepare','legacy-forward-apply'):
+    relocation_plan=sub.add_parser('store-relocation-plan')
+    relocation_plan.add_argument('--journal-root',type=Path,required=True)
+    for command in ('store-relocation-prepare','legacy-forward-apply','store-relocation-apply'):
         apply_command=sub.add_parser(command)
         apply_command.add_argument('--plan-file',type=Path,required=True)
         apply_command.add_argument('--expected-plan-sha256',required=True)
         apply_command.add_argument('--tool-root',type=Path,required=True)
         apply_command.add_argument('--apply',action='store_true')
-        if command=='legacy-forward-apply':apply_command.add_argument('--journal-root',type=Path,required=True)
+        if command!='store-relocation-prepare':apply_command.add_argument('--journal-root',type=Path,required=True)
     disaster=sub.add_parser('disaster-forward-plan')
     disaster.add_argument('--state-dir',type=Path,required=True)
     disaster.add_argument('--old-state-dir',type=Path,required=True)
@@ -493,7 +496,8 @@ def main(argv=None):
                                 'default_management_directory':'.malts','owned_internal_layout':True,
                                 'healthy_store_relocation':{'preflight':'store-relocation-preflight',
                                     'prepare':'store-relocation-prepare','status':'store-relocation-status',
-                                    'apply':'legacy-forward-apply','recovery_review_required':True,
+                                    'plan':'store-relocation-plan','apply':'store-relocation-apply','legacy_apply':'legacy-forward-apply',
+                                    'source_kinds':['ADOPTED','NATIVE_EXPLICIT','NATIVE_LOCATOR'],'windows_long_managed_paths':True,'recovery_review_required':True,
                                     'profile':'WINDOWS_SQLITE_EXCLUSIVE_FORWARD_HANDOFF'},
                                 'legacy_runtime_rollback_supported':False,'recovery_direction':'V2_ONLY',
                                 'legacy_rollback_scene_recovery_qualified':False,
@@ -546,18 +550,24 @@ def main(argv=None):
         elif args.command == 'store-relocation-preflight':
             from v2_relocation import preflight
             result=preflight(workspace=args.workspace,target_state_dir=args.target_state_dir,
-                             operation_id=args.operation_id,authority_ref=args.authority_ref,journal_root=args.journal_root)
+                             operation_id=args.operation_id,authority_ref=args.authority_ref,journal_root=args.journal_root,old_state_dir=args.old_state_dir)
+        elif args.command == 'store-relocation-plan':
+            from v2_native_relocation import forward_plan
+            result=forward_plan(args.journal_root)
         elif args.command == 'store-relocation-status':
             from v2_relocation import status
             result=status(args.journal_root)
-        elif args.command in {'store-relocation-prepare','legacy-forward-apply'}:
+        elif args.command in {'store-relocation-prepare','legacy-forward-apply','store-relocation-apply'}:
             from v2_relocation import prepare,apply_forward
             from v2_runtime_admission import runtime_admission
             action=prepare if args.command=='store-relocation-prepare' else apply_forward
+            if args.command=='store-relocation-apply':
+                from v2_native_relocation import apply as native_apply
+                action=native_apply if load_request_json(args.plan_file).get('format')=='malts.v2.native-forward-plan' else apply_forward
             with runtime_admission(args.tool_root):
                 result=action(load_request_json(args.plan_file),expected_plan_sha256=args.expected_plan_sha256,
                               tool_root=args.tool_root,apply=args.apply,
-                              **({'journal_root':args.journal_root} if args.command=='legacy-forward-apply' else {}))
+                              **({'journal_root':args.journal_root} if args.command!='store-relocation-prepare' else {}))
         elif args.command == 'management-init':
             from v2_management import initialize_management
             result=initialize_management(args.workspace,apply=args.apply)

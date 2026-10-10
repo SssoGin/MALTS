@@ -9,11 +9,12 @@ from contextlib import closing
 from pathlib import Path
 from v2_state_store import StateStore, SCHEMA_VERSION, _json
 from v2_evidence import BlobStore, EvidenceCorrupt, _regular_path
+from v2_path_io import io_path,ManagedPathIOError
 
 
 def _hash(path):
     digest = hashlib.sha256()
-    with path.open('rb') as source:
+    with io_path(path).open('rb') as source:
         for chunk in iter(lambda: source.read(1024*1024), b''):
             digest.update(chunk)
     return digest.hexdigest()
@@ -41,10 +42,12 @@ def _copy_managed(source_root,target_root,relative,expected_hash=None):
     source,target=source_root/path,target_root/path
     _regular_path(source)
     _regular_path(target)
-    target.parent.mkdir(parents=True,exist_ok=True)
-    with source.open('rb') as src,target.open('xb') as dst:
-        shutil.copyfileobj(src,dst,1024*1024)
-        dst.flush(); os.fsync(dst.fileno())
+    try:
+        io_path(target.parent).mkdir(parents=True,exist_ok=True)
+        with io_path(source).open('rb') as src,io_path(target).open('xb') as dst:
+            shutil.copyfileobj(src,dst,1024*1024)
+            dst.flush(); os.fsync(dst.fileno())
+    except OSError as error:raise ManagedPathIOError('COPY_MANAGED_FILE',target,error) from None
     actual=_hash(target)
     if expected_hash is not None and actual!=expected_hash: raise EvidenceCorrupt('Managed file changed during restore')
     return {'path':relative,'sha256':actual}
@@ -147,9 +150,9 @@ def verify_backup(root: Path) -> dict:
         if record['path'] in managed_hashes and record['sha256']!=managed_hashes[record['path']]: raise EvidenceCorrupt('Managed backup bytes do not match recorded provenance')
     expected_files={'manifest.json','state.db',*['blobs/'+digest[:2]+'/'+digest for digest in expected],*managed_paths}
     actual_files=set()
-    for path in root.rglob('*'):
+    for path in io_path(root).rglob('*'):
         _regular_path(path)
-        if path.is_file(): actual_files.add(path.relative_to(root).as_posix())
+        if path.is_file(): actual_files.add(path.relative_to(io_path(root)).as_posix())
     if actual_files!=expected_files: raise EvidenceCorrupt('Backup contains missing or unlisted files')
     return manifest
 
@@ -186,7 +189,9 @@ def restore_backup(source: Path, destination: Path, *, expected_manifest_sha256:
         _copy_managed(source,destination,record['path'],record['sha256'])
     epoch = str(uuid.uuid4())
     with closing(StateStore(pending_database)) as restored:
-        with restored.transaction() as c:
+        from v2_native_authority import current,lifecycle_transaction,append
+        authority=current(restored.connection)
+        with lifecycle_transaction(restored,authority) as c:
             c.execute('UPDATE recovery_state SET epoch=?,reconciliation_required=1,source_backup_hash=? WHERE singleton=1',
                       (epoch,manifest['database_sha256']))
             c.execute('UPDATE execution_grant SET revoked=1')
@@ -215,6 +220,7 @@ def restore_backup(source: Path, destination: Path, *, expected_manifest_sha256:
             c.execute("UPDATE project_completion SET valid=0,invalidation_ref='restore' WHERE valid=1")
             c.execute('INSERT INTO execution_audit(kind,subject_id,details_json) VALUES (?,?,?)',
                       ('BACKUP_RESTORED',epoch,_json({'source_hash':manifest['database_sha256'],'watermarks':manifest['watermarks'],'reconciliation_required':True})))
+            if authority is not None:append(c,{**authority,'state':'RESTORED','epoch':epoch,'state_dir':str(destination)})
     pending_database.rename(destination/'state.db')
     return {'epoch':epoch,'reconciliation_required':True,'execution_authorized':False,
             'source_watermarks':manifest['watermarks']}

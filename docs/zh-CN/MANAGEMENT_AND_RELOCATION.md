@@ -1,6 +1,6 @@
 # MALTS 工作区管理与状态库重定位
 
-MALTS 集中保存项目定义、任务状态、证据与恢复资料，并在业务成果的实际位置检查结果。当前版本为 **2.0.2**。本文说明默认管理布局、旧工作区的审阅采用，以及健康已采用状态库的重定位。安装更新和项目状态迁移是不同操作。
+MALTS 集中保存项目定义、任务状态、证据与恢复资料，并在业务成果的实际位置检查结果。当前版本为 **2.0.3**。本文说明默认管理布局、旧工作区的审阅采用，以及健康原生或已采用状态库的重定位。安装更新和项目状态迁移是不同操作。
 
 ## 1. 默认布局与所有权
 
@@ -49,7 +49,7 @@ $Cli = Join-Path $MaltsRoot 'tools/malts_v2.py'
 
 Windows 采用交接冻结审阅来源文件并保护目录身份，同时允许候选数据库提交。即使管理数据物理上位于工作区内，也不属于普通业务文件操作的资源范围；逻辑权威隔离不依赖相邻目录布局，也不赋予任意应用访问状态文件的权限。
 
-## 4. 重定位健康的已采用状态库
+## 4. 重定位健康的状态库
 
 ### 4.1 范围与前提
 
@@ -58,6 +58,10 @@ Windows 采用交接冻结审阅来源文件并保护目录身份，同时允许
 规划前处理活动 Run、未知操作效果和未静默的 Host 派发。Run 列表为空不能证明外部 Editor、脚本或业务写入者已停止。恢复库在切换权威前须完成当前 epoch 的资源与效果审查；不得为了完成迁移而将未知覆盖改成已协调。
 
 网络路径、重解析链接、不支持的根内布局、跨用户或跨机器搬迁，以及非本地或云同步存储不属于此流程的已验证范围。固定本地路径本身不能证明第三方同步客户端不存在，操作者须排除同步目录。容量和访问检查是前置检查；后续磁盘或访问失败会保留部分现场。
+
+
+
+原生库不需要伪装成旧工作区或重新导入。预检自动识别已有原生定位文件；通过底层 `init --state-dir` 建立、尚无定位文件的库须另外传入 `--old-state-dir $OldState`，其中 `$Workspace` 是 Project 的实际业务资源根，`$OldState` 是现有数据库的父目录，二者不可混用。返回的 `source_kind` 分别为 `NATIVE_EXPLICIT`、`NATIVE_LOCATOR` 或 `ADOPTED`。已有库迁址不能使用 `workspace-init`：该命令只创建新库，不复制现有 Task、依赖、历史或预算。
 
 ### 4.2 只读计划与准备
 
@@ -93,11 +97,11 @@ $Plan = Get-Content -LiteralPath $PlanPath -Raw -Encoding utf8 | ConvertFrom-Jso
 将原操作记录中的 `target.backup_root` 读为 `$BackupRoot`，再保存准确的前向计划：
 
 ```powershell
-& $PythonExe -B $Cli legacy-forward-plan --old-state-dir $Plan.old_state_dir --state-dir $Plan.state_dir --backup-root $BackupRoot --adoption-id $OperationId --authority-ref $AuthorityRef |
+& $PythonExe -B $Cli store-relocation-plan --journal-root $Plan.journal_root |
     Out-File -LiteralPath $ForwardPath -Encoding utf8NoBOM
 $Forward = Get-Content -LiteralPath $ForwardPath -Raw -Encoding utf8 | ConvertFrom-Json
-& $PythonExe -B $Cli legacy-forward-apply --plan-file $ForwardPath --expected-plan-sha256 $Forward.plan_sha256 --journal-root $Plan.journal_root --tool-root $ToolRoot
-& $PythonExe -B $Cli legacy-forward-apply --plan-file $ForwardPath --expected-plan-sha256 $Forward.plan_sha256 --journal-root $Plan.journal_root --tool-root $ToolRoot --apply
+& $PythonExe -B $Cli store-relocation-apply --plan-file $ForwardPath --expected-plan-sha256 $Forward.plan_sha256 --journal-root $Plan.journal_root --tool-root $ToolRoot
+& $PythonExe -B $Cli store-relocation-apply --plan-file $ForwardPath --expected-plan-sha256 $Forward.plan_sha256 --journal-root $Plan.journal_root --tool-root $ToolRoot --apply
 & $PythonExe -B $Cli workspace --workspace $Workspace
 & $PythonExe -B $Cli store-relocation-status --journal-root $Plan.journal_root
 ```
@@ -106,10 +110,20 @@ $Forward = Get-Content -LiteralPath $ForwardPath -Raw -Encoding utf8 | ConvertFr
 
 新 epoch 撤销旧 Grant、使验收失效、隔离租约与 Host，并防止恢复预算被重新补足。恢复会暂停原活动或已完成的 Phase。切换成功后核对当前治理状态，再明确激活应接续的 Phase；不能复制旧令牌或重复已完成效果来恢复运行。
 
+
+
+### 4.5 原生库权威与长路径
+
+原生迁址使用相同的备份、恢复审查和真实交接锁，随后在现有执行审计中追加原生生命周期事实，并原子切换 `.malts/native.json`。目标依次为恢复隔离、准备和活动状态；旧库持久记录被取代后，服务拒绝其执行及普通写入，包括新增 Task。它不生成旧来源、采用记录或第二份空项目。活动事实绑定状态路径、epoch、所属工作区、原操作记录和回执哈希。定位前像及未完成尝试仍用于原身份接续。
+
+Windows 受管文件复制、哈希、备份核验、恢复及交接文件句柄采用内部扩展路径表示；对外计划、引用和定位文件保留普通规范化路径。这样可处理完整路径超过260字符的合法受管文件，不要求修改 `LongPathsEnabled`。路径组件仍须符合文件系统限制；链接、重解析、硬链接和受管引用校验没有放宽。数据库和协议控制根仍采用有界路径：新预检按派生控制文件最长路径240字符的保守预算拒绝过深布局，返回 `RELOCATION_CONTROL_PATH_TOO_LONG`。这与受管相对文件较长是两种情况。文件复制失败返回不含私人文件名的 `MANAGED_FILE_IO_FAILED`、操作类别、字符数和系统错误码，不宣称准备完成。
+
 ## 5. 中断、保留与验证边界
 
-保留原操作 ID、计划、操作记录、备份和目标。`store-relocation-status` 只读。准备中断后重新应用原准备计划；不完整的备份与恢复尝试保留供核查，重试发布完整尝试而不覆盖它们。前向中断后，读取状态返回的 `forward.plan` 或使用 `forward-status`，再应用准确的原计划。部分协议替换保留前像，沿原身份接续。ACTIVE 重复调用核验绑定后返回原回执，不重新切换，也不声称重新核验 Host。
+保留原操作 ID、计划、操作记录、备份和目标。`store-relocation-status` 只读。准备中断后重新应用原准备计划；不完整的备份与恢复尝试保留供核查，重试发布完整尝试而不覆盖它们。前向中断后，读取状态返回的 `forward.plan` （已采用库仍可使用 `forward-status`），再应用准确的原计划。部分协议替换保留前像，沿原身份接续。ACTIVE 重复调用核验绑定后返回原回执，不重新切换，也不声称重新核验 Host。
 
 备份后旧库产生新工作时，前向规划或应用会拒绝过期快照。应处理分歧，不能强改哈希或删除新工作。旧库不可读及灾难恢复须使用既有独立恢复合同；健康重定位控制器不静默切换到该流程。
 
 验证覆盖隔离原生初始化、根内采用、外置兼容、真实 SQLite 争用、输入保护、漂移拒绝、原身份接续及权威切换，不代表某个用户项目已经迁移，也不证明任意 Editor 隔离、跨用户 DPAPI 恢复、模型行为或性能收益。项目专属验证和另行授权的保留或清理决定完成前，应保留原始资料。
+
+已有2.0.2的版本1重定位计划及 `PREPARING` 操作记录继续有效：更新运行时后读取原 `store-relocation-status`，用原计划文件、原 `plan_sha256`、原操作 ID 和原目录重新执行 `store-relocation-prepare`。不删除失败尝试、不编辑操作记录、不另起 ID 掩盖未决状态。后续仍须完成新 epoch 的资源与效果审查，再由统一的 `store-relocation-plan`／`store-relocation-apply` 接续；原 `legacy-forward-*` 已采用库接口继续兼容。长路径验证使用自有 Windows 夹具，不能据此外推特定用户工程已迁移。

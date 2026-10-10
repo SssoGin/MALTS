@@ -1,6 +1,6 @@
 ﻿# 安装 MALTS
 
-用户可以选择将 MALTS 安装到所需 Agent 工具。共享核心提供项目工作、接续、验证和经验工作流，各工具使用自己的原生入口。当前版本：**2.0.2**。安装遵循先审阅计划再执行，不调用模型、不安装宿主程序，也不自动采用已有项目。
+用户可以选择将 MALTS 安装到所需 Agent 工具。共享核心提供项目工作、接续、验证和经验工作流，各工具使用自己的原生入口。当前版本：**2.0.3**。安装遵循先审阅计划再执行，不调用模型、不安装宿主程序，也不自动采用已有项目。
 
 ## 前置条件
 
@@ -17,7 +17,7 @@
 
 ## 仓库安装（主要路径）
 
-使用已审阅的[公开仓库](https://github.com/SssoGin/MALTS) checkout，核实际 remote/ref，并确认 `MALTS_RELEASE.json` 与 `VERSION` 都为 2.0.2。`main` 上文档修订可保持相同版本，但具有独立、准确的源树身份。安装器核所选真实树；业务文件或缓存不能混入。
+使用已审阅的[公开仓库](https://github.com/SssoGin/MALTS) checkout，核实际 remote/ref，并确认 `MALTS_RELEASE.json` 与 `VERSION` 都为 2.0.3。`main` 上文档修订可保持相同版本，但具有独立、准确的源树身份。安装器核所选真实树；业务文件或缓存不能混入。
 
 | 宿主 | 入口 | 范围 |
 |---|---|---|
@@ -68,11 +68,11 @@ Install 命令创建共享安装计划并输出准确路径和哈希。审阅四
 
 ## 可选离线归档
 
-现行 Release 附件为 `MALTS-2.0.2.zip`。同版本重新发布对应独立核验包，来源提交和 SHA-256 见 Release 说明；离线安装前核准确下载修订。GitHub 自动源码归档对应现行版本标签。现行标签、核验仓库和 MALTS 上传包应标识同一来源修订，但归档布局不同。
+现行 Release 附件为 `MALTS-2.0.3.zip`。同版本重新发布对应独立核验包，来源提交和 SHA-256 见 Release 说明；离线安装前核准确下载修订。GitHub 自动源码归档对应现行版本标签。现行标签、核验仓库和 MALTS 上传包应标识同一来源修订，但归档布局不同。
 
 ```powershell
-.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.2.zip
-.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.2.zip -ExtractOutput '<new-extraction-root>' -Apply
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.3.zip
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.3.zip -ExtractOutput '<new-extraction-root>' -Apply
 ```
 
 校验器取自相应审阅来源。使用解压载荷的生命周期入口和 `-ReleaseRoot '<extracted-package-root>'`，再执行同样的计划/哈希流程。Harness 使用相同生命周期入口和 ReleaseRoot，并提供该安装注册的全部工具根。不能将载荷直接复制进活动代际。见[发布归档](RELEASE_ARTIFACT.md)。

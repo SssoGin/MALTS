@@ -21,7 +21,8 @@ def checked_phase_plan(store,phase_id,revision):
     plan=(store.path.parent if row[5]=='STATE' else Path(row[0]))/relative
     _regular_path(plan)
     digest=hashlib.sha256()
-    with plan.open('rb') as stream:
+    from v2_path_io import io_path
+    with io_path(plan).open('rb') as stream:
         for chunk in iter(lambda:stream.read(65536),b''): digest.update(chunk)
     if digest.hexdigest()!=row[2]: raise StateConflict('Phase plan content changed')
 

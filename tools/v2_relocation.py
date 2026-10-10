@@ -15,6 +15,7 @@ from v2_backup import backup,verify_backup,restore_backup,_managed_paths,_refere
 from v2_recovery import Recovery
 from v2_management import ManagementConflict,root_path,management_root,initialize_management,validate_layout
 from v2_runtime_mutex import RuntimeMutex
+from v2_path_io import io_path
 
 PROFILE='WINDOWS_SQLITE_EXCLUSIVE_FORWARD_HANDOFF'
 
@@ -46,7 +47,7 @@ def _write(path,value):
 
 def _file_hash(path):
     digest=hashlib.sha256()
-    with path.open('rb') as stream:
+    with io_path(path).open('rb') as stream:
         for chunk in iter(lambda:stream.read(1048576),b''):digest.update(chunk)
     return digest.hexdigest()
 
@@ -55,12 +56,12 @@ def _closure(store):
     copied=set(_managed_paths(store.connection))
     copied.update('blobs/'+h[:2]+'/'+h for h in _referenced_blobs(store))
     rows=[]
-    for count,p in enumerate(store.path.parent.rglob('*'),1):
+    for count,p in enumerate(io_path(store.path.parent).rglob('*'),1):
         if count>50000:raise ManagementConflict('STATE_CLOSURE_ENTRY_BUDGET_EXCEEDED')
         _regular_path(p)
         if not p.is_file():continue
         if p.stat().st_nlink!=1:raise ManagementConflict('STATE_CLOSURE_HARDLINK_NOT_SUPPORTED')
-        relative=p.relative_to(store.path.parent).as_posix()
+        relative=p.relative_to(io_path(store.path.parent)).as_posix()
         if relative in {'state.db-journal','state.db-wal','state.db-shm'}:
             raise ManagementConflict('STATE_TRANSACTION_OR_RECOVERY_REQUIRED')
         rows.append({'path':relative,'sha256':_file_hash(p),'bytes':p.stat().st_size,
@@ -71,8 +72,9 @@ def _closure(store):
     return rows
 
 
-def _healthy(store):
-    store.require_execution_ready();require_active_binding(store)
+def _healthy(store, *, native=False):
+    store.require_execution_ready()
+    if not native:require_active_binding(store)
     c=store.connection
     if c.execute("SELECT 1 FROM execution_run WHERE state<>'CLOSED' LIMIT 1").fetchone():
         raise ManagementConflict('LIVE_OR_UNRESOLVED_RUN_REQUIRES_HANDOFF')
@@ -84,13 +86,14 @@ def _healthy(store):
         raise ManagementConflict('EFFECT_RECOVERY_REQUIRED')
 
 
-def preflight(*,workspace,target_state_dir=None,operation_id,authority_ref,journal_root=None):
+def preflight(*,workspace,target_state_dir=None,operation_id,authority_ref,journal_root=None,old_state_dir=None):
     """Read-only exact plan; no backup, target directory or management claim."""
     if not re.fullmatch('[A-Za-z0-9][A-Za-z0-9._-]{0,127}',operation_id):raise ValueError('Invalid relocation identity')
     if not isinstance(authority_ref,str) or not authority_ref.strip():raise ValueError('Authority reference required')
     source=root_path(workspace); managed=management_root(source)
-    binding=json.loads((source/BINDING).read_text(encoding='utf-8'))
-    old=root_path(binding['state_dir']);target=root_path(target_state_dir or managed/'state')
+    from v2_native_relocation import classify_source
+    identity=classify_source(source,old_state_dir)
+    old=root_path(identity['state_dir']);target=root_path(target_state_dir or managed/'state')
     journal=root_path(journal_root or managed/'recovery'/operation_id)
     validate_layout(source,state=target)
     roots=(old,target,journal)
@@ -100,8 +103,12 @@ def preflight(*,workspace,target_state_dir=None,operation_id,authority_ref,journ
     if target.anchor.casefold()!=journal.anchor.casefold():raise ManagementConflict('TARGET_AND_JOURNAL_REQUIRE_SAME_VOLUME')
     if journal.is_relative_to(source) and not journal.is_relative_to(managed/'recovery'):
         raise ManagementConflict('INTERNAL_JOURNAL_REQUIRES_MANAGEMENT_RECOVERY_DIRECTORY')
+    # Database/control roots still use SQLite and ordinary protocol APIs. Long
+    # managed relative files use extended I/O, without a system registry change.
+    if os.name=='nt' and max(len(str(journal/'restore-'/('x'*32)/'.restoring.db')),len(str(target/'relocation-host-evidence'/(operation_id+'.'+('x'*32)+'.json'))),len(str(old/'state.db')))>240:
+        raise ManagementConflict('RELOCATION_CONTROL_PATH_TOO_LONG')
     with closing(StateStore(old/'state.db',readonly=True)) as store:
-        _healthy(store); rows=_closure(store)
+        _healthy(store,native=identity['source_kind']!='ADOPTED'); rows=_closure(store)
         epoch=store.connection.execute('SELECT epoch FROM recovery_state').fetchone()[0]
         source_hash=state_hash(store.connection)
     nearest=target.parent
@@ -111,10 +118,12 @@ def preflight(*,workspace,target_state_dir=None,operation_id,authority_ref,journ
         raise ManagementConflict('RELOCATION_TARGET_PERMISSION_OR_CAPACITY_INSUFFICIENT')
     result={'format':'malts.v2.relocation-plan','version':1,'operation_id':operation_id,
         'workspace_root':str(source),'old_state_dir':str(old),'state_dir':str(target),'journal_root':str(journal),
-        'old_epoch':epoch,'old_adoption_id':binding['adoption_id'],'old_state_sha256':source_hash,
-        'source_protocol':[{'path':p,'sha256':_file_hash(source/p)} for p in (BINDING,*SEALS)],
+        'old_epoch':epoch,'old_adoption_id':identity.get('adoption_id'),'old_state_sha256':source_hash,
+        'source_protocol':[{'path':p,'sha256':_file_hash(source/p)} for p in identity['protocol_paths']],
         'closure':rows,'authority_ref':authority_ref,'profile':PROFILE,'external_effect_review_required':True,
         'same_user_same_machine_required':True,'principal_sha256':_principal(),'execution_authorized':False,'writes_performed':False}
+    if identity['source_kind']!='ADOPTED':
+        result.update(version=2,source_kind=identity['source_kind'],project_id=identity['project_id'],old_native_authority=identity['native_authority'])
     result['plan_sha256']=_hash(result)
     return result
 
@@ -123,8 +132,9 @@ def _validate(plan):
     fields={'format','version','operation_id','workspace_root','old_state_dir','state_dir','journal_root','old_epoch',
         'old_adoption_id','old_state_sha256','source_protocol','closure','authority_ref','profile',
         'external_effect_review_required','same_user_same_machine_required','principal_sha256','execution_authorized','writes_performed','plan_sha256'}
+    if isinstance(plan,dict) and plan.get('version')==2:fields|={'source_kind','project_id','old_native_authority'}
     if (not isinstance(plan,dict) or set(plan)!=fields or plan['format']!='malts.v2.relocation-plan' or
-            plan['version']!=1 or plan['profile']!=PROFILE or plan['execution_authorized'] is not False or
+            type(plan['version']) is not int or plan['version'] not in (1,2) or plan['profile']!=PROFILE or plan['execution_authorized'] is not False or
             plan['writes_performed'] is not False or plan['external_effect_review_required'] is not True or
             plan['same_user_same_machine_required'] is not True):raise ValueError('Invalid relocation plan')
     if _hash({k:v for k,v in plan.items() if k!='plan_sha256'})!=plan['plan_sha256']:
@@ -135,6 +145,8 @@ def _validate(plan):
     if any(a.is_relative_to(b) or b.is_relative_to(a) for i,a in enumerate(roots) for b in roots[i+1:]):
         raise ManagementConflict('RELOCATION_ROOT_OVERLAP')
     validate_layout(plan['workspace_root'],state=roots[1])
+    if plan['version']==2 and (plan['source_kind'] not in {'NATIVE_EXPLICIT','NATIVE_LOCATOR'} or plan['old_adoption_id'] is not None):
+        raise ValueError('Invalid native source classification')
 
 
 @contextmanager
@@ -173,7 +185,11 @@ def prepare(plan, *, expected_plan_sha256, tool_root=None, apply=False):
         if journal.exists():
             if json.loads((journal/'plan.json').read_text(encoding='utf-8'))!=plan:raise StateConflict('Relocation journal conflicts')
             if (journal/'target.json').exists():return status(journal)
-        _healthy(store)
+        native=plan.get('source_kind','ADOPTED')!='ADOPTED'
+        _healthy(store,native=native)
+        if native:
+            from v2_native_relocation import check_source
+            check_source(plan,store)
         if state_hash(store.connection)!=plan['old_state_sha256'] or _closure(store)!=plan['closure']:
             raise ManagementConflict('OLD_STATE_CHANGED_AFTER_RELOCATION_PLAN')
         if any(_file_hash(source/r['path'])!=r['sha256'] for r in plan['source_protocol']):
@@ -185,7 +201,7 @@ def prepare(plan, *, expected_plan_sha256, tool_root=None, apply=False):
                 _write(journal/'target.json',pending);return status(journal)
             raise ManagementConflict('RELOCATION_TARGET_EXISTS')
         if not journal.exists():
-            if journal.is_relative_to(source/'.malts') or target.is_relative_to(source/'.malts'):
+            if native or journal.is_relative_to(source/'.malts') or target.is_relative_to(source/'.malts'):
                 initialize_management(source,apply=True)
             journal.parent.mkdir(parents=True,exist_ok=True);journal.mkdir();_write(journal/'plan.json',plan)
         saved_record=journal/'backup.json'
@@ -205,6 +221,9 @@ def prepare(plan, *, expected_plan_sha256, tool_root=None, apply=False):
         else:
             staged=journal/('restore-'+uuid.uuid4().hex)
             restore_backup(saved,staged,expected_manifest_sha256=_hash(manifest))
+            if native:
+                from v2_native_relocation import quarantine_target
+                quarantine_target(plan,staged)
             with closing(StateStore(staged/'state.db',readonly=True)) as restored:
                 epoch=restored.connection.execute('SELECT epoch FROM recovery_state').fetchone()[0]
             pending={'state_dir':str(target),'staged_root':str(staged),'backup_root':str(saved),
@@ -242,7 +261,10 @@ def status(journal_root):
                     'action':'KEEP_HISTORY' if r['status'] in {'COMPLETED','CANCELLED','FAILED'} else 'KEEP_PAUSED',
                     'reason':'Preserve state pending operator review','next_action':None} for r in inventory['tasks']],
                 'unresolved_external_effects':['TODO: review effects and writers outside the database']}
-        if row:result['forward']=ForwardRecovery(store).inspect(adoption_id=plan['operation_id'])
+        if plan.get('source_kind','ADOPTED')!='ADOPTED':
+            from v2_native_relocation import native_status
+            native_status(result,store,journal)
+        elif row:result['forward']=ForwardRecovery(store).inspect(adoption_id=plan['operation_id'])
     return result
 
 
@@ -253,7 +275,10 @@ class WindowsForwardHandoff:
     @contextmanager
     def handoff(self,plan):
         from v2_adoption_host import _deny_write_handle
-        ForwardRecovery._validate(plan)
+        if plan.get('format')=='malts.v2.native-forward-plan':
+            from v2_native_relocation import validate_forward
+            validate_forward(plan)
+        else:ForwardRecovery._validate(plan)
         roots={root_path(plan[k]) for k in ('source_root','state_dir','old_state_dir')}
         validate_layout(plan['source_root'],state=plan['state_dir'])
         with ExitStack() as guards:

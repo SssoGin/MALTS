@@ -179,6 +179,8 @@ def inspect_native_workspace(workspace):
     _regular_path(root);_regular_path(root/'state.db');_regular_path(root/'runtime/v2_binding.json')
     if (root/'runtime/v2_binding.json').exists():raise ValueError('Use the bound workspace entry')
     with closing(StateStore(root/'state.db',readonly=True)) as store:
+        from v2_native_authority import require_authority
+        require_authority(store)
         c=store.connection;c.execute('BEGIN')
         if c.execute('SELECT 1 FROM legacy_control_source LIMIT 1').fetchone() or c.execute('SELECT 1 FROM migration_adoption LIMIT 1').fetchone():
             raise ValueError('Imported or adopted state requires its verified workspace binding')

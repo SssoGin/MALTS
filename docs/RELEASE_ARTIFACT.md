@@ -1,18 +1,18 @@
 # Optional Release Archive
 
-The repository is MALTS’s normal install/update source. The optional fixed archive supports offline or archival use; current release version is **2.0.2**.
+The repository is MALTS’s normal install/update source. The optional fixed archive supports offline or archival use; current release version is **2.0.3**.
 
 ## One Optional Release ZIP
 
-The formal Release has one MALTS-uploaded MALTS-2.0.2.zip. GitHub-generated source archives are separate platform links. The installer never downloads a ZIP automatically.
+The formal Release has one MALTS-uploaded MALTS-2.0.3.zip. GitHub-generated source archives are separate platform links. The installer never downloads a ZIP automatically.
 
 ## Verify Before Extraction
 
 Obtain Verify-MALTSBootstrap.ps1 from the matching reviewed source and inspect before extraction:
 
 ```powershell
-.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.2.zip
-.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.2.zip -ExtractOutput '<new-extraction-root>' -Apply
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.3.zip
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.3.zip -ExtractOutput '<new-extraction-root>' -Apply
 ```
 
 Checks cover closed inventory, hashes, safe paths/collisions and package identity. Integrity proves these bytes, not native model or business results.

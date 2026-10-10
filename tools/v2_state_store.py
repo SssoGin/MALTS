@@ -321,6 +321,8 @@ class StateStore:
         self.connection.close()
 
     def require_execution_ready(self):
+        from v2_native_authority import require_authority
+        require_authority(self)
         if self.pending_migration_domains():
             raise StateConflict('Semantic migration is incomplete; execution remains disabled')
         row = self.connection.execute('SELECT reconciliation_required FROM recovery_state WHERE singleton=1').fetchone()
@@ -354,6 +356,8 @@ class StateStore:
         c = self.connection
         c.execute('BEGIN IMMEDIATE')
         try:
+            from v2_native_authority import require_authority
+            require_authority(self,write=True)
             if self.transaction_guard is not None:self.transaction_guard(self)
             yield c
             c.execute('COMMIT')
@@ -624,6 +628,8 @@ class StateStore:
         c = self.connection
         c.execute('BEGIN IMMEDIATE')
         try:
+            from v2_native_authority import require_authority
+            require_authority(self,write=True)
             prior = c.execute('SELECT request_hash,revision FROM request_receipt WHERE request_id=?', (request_id,)).fetchone()
             if prior:
                 if prior[0] != request_hash:

@@ -1,10 +1,10 @@
 # Update MALTS
 
-An update selects verified source content and changes the chosen installation through a reviewed transaction. The updater preserves project work and user-owned configuration according to its plan; it does not select a new goal or migrate projects automatically. Current version: **2.0.2**.
+An update selects verified source content and changes the chosen installation through a reviewed transaction. The updater preserves project work and user-owned configuration according to its plan; it does not select a new goal or migrate projects automatically. Current version: **2.0.3**.
 
 ## Before Updating
 
-Inspect the installed identity, intended source, workspace binding, user edits, relevant writers and pending effects. Preserve recovery materials. The updater does not pull Git and performs no automatic repository selection, automatic ZIP download, provider call or implicit project migration. Current version remains **2.0.2**.
+Inspect the installed identity, intended source, workspace binding, user edits, relevant writers and pending effects. Preserve recovery materials. The updater does not pull Git and performs no automatic repository selection, automatic ZIP download, provider call or implicit project migration. Current version remains **2.0.3**.
 
 Compare the active source kind/hash, intended repository/package identity and actual selected tool roots. Identify whether a normal version update or same-version content consolidation is needed. Preserve required transaction snapshots and project backups for their different recovery purposes.
 
@@ -81,3 +81,9 @@ Managed instructions identify the exact MALTS_BOOT_PATH; use that pointer even i
 ## Workspace Management Data and Migration
 
 Ordinary new workspaces use `workspace-init` to place task state, managed evidence and recovery data under an owned `.malts` directory; explicit external layouts remain supported. Installation updates do not move existing projects. Healthy adopted stores can relocate through a read-only plan, backup/restore, current-effect review and formal forward switch. The new epoch does not restore old Grants/acceptance or activate a Phase automatically. Retain old stores, external historical references and source capsules according to their actual dependencies. See [workspace management and store relocation](MANAGEMENT_AND_RELOCATION.md) for steps and limits.
+
+## Native Store Relocation and Path Recovery
+
+Healthy native and adopted stores use the formal relocation workflow. An unlocated native store requires its explicit old state directory while preserving the Project business resource root. Unified commands are `store-relocation-preflight`, `store-relocation-prepare`, `store-relocation-status`, `store-relocation-plan` and `store-relocation-apply`; formal writes use the current installation and reviewed plan hash. Recovery review grants no execution permission, and Phase activation remains explicit after cutover. Ordinary service writes to the superseded native store are rejected as well.
+
+Long managed-file paths use internal extended-path I/O without registry changes or relaxed source/link checks. An incomplete v2.0.2 preparation continues with its original plan, hash and operation journal, retaining backups, failed attempts, locator preimages and receipt. See [workspace management and relocation](MANAGEMENT_AND_RELOCATION.md) for prerequisites, commands, diagnostics and limits.

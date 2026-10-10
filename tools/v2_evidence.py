@@ -7,6 +7,7 @@ import re
 import stat
 import tempfile
 from pathlib import Path
+from v2_path_io import io_path
 
 DIGEST = re.compile(r'[a-f0-9]{64}')
 
@@ -28,6 +29,7 @@ def _regular_path(path: Path) -> None:
     # Check ancestors before descendants so a rejected parent link is never
     # traversed even for metadata inspection of a child outside the trust root.
     for part in reversed((path, *path.parents)):
+        if len(str(part))>=248:part=io_path(part)
         if part.is_symlink() or (part.exists() and getattr(part.lstat(), 'st_file_attributes', 0) & 0x400):
             raise EvidenceCorrupt('Evidence paths cannot traverse links or reparse points')
 
@@ -36,7 +38,7 @@ class BlobStore:
     def __init__(self, root: Path, *, readonly=False):
         self.root = Path(root).absolute()
         _regular_path(self.root)
-        if not self.root.is_dir():
+        if not io_path(self.root).is_dir():
             raise FileNotFoundError(self.root)
         self.readonly = readonly
 
@@ -50,7 +52,7 @@ class BlobStore:
     def verify(self, digest: str) -> Path:
         path = self.path(digest)
         actual = hashlib.sha256()
-        with path.open('rb') as source:
+        with io_path(path).open('rb') as source:
             for chunk in iter(lambda: source.read(1024 * 1024), b''):
                 actual.update(chunk)
         if actual.hexdigest() != digest:
@@ -61,7 +63,7 @@ class BlobStore:
         # Validate the same bytes that are returned, not an earlier open handle.
         if max_bytes is not None and (type(max_bytes) is not int or max_bytes<0):
             raise ValueError('Read budget must be a nonnegative integer')
-        with self.path(digest).open('rb') as source:
+        with io_path(self.path(digest)).open('rb') as source:
             size=os.fstat(source.fileno()).st_size
             if max_bytes is not None and size>max_bytes:
                 raise EvidenceReadLimit(size)
@@ -79,12 +81,12 @@ class BlobStore:
             raise TypeError('Evidence payload must be bytes')
         digest = hashlib.sha256(data).hexdigest()
         target = self.path(digest)
-        if target.exists():
+        if io_path(target).exists():
             self.verify(digest)
             return digest
-        target.parent.mkdir(exist_ok=True)
+        io_path(target.parent).mkdir(exist_ok=True)
         _regular_path(target.parent)
-        descriptor, name = tempfile.mkstemp(prefix='.pending-', dir=target.parent)
+        descriptor, name = tempfile.mkstemp(prefix='.pending-', dir=io_path(target.parent))
         staged = Path(name)
         with os.fdopen(descriptor, 'wb') as stream:
             stream.write(data)
@@ -93,7 +95,7 @@ class BlobStore:
         # Hard-link publication is atomic and fails if the hash name exists.
         # Failed publication keeps staged bytes for explicit recovery.
         try:
-            os.link(staged, target)
+            os.link(staged, io_path(target))
         except FileExistsError:
             self.verify(digest)
         self.verify(digest)

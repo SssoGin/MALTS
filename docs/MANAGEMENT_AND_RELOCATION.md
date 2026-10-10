@@ -1,6 +1,6 @@
 # MALTS Workspace Management and Store Relocation
 
-MALTS keeps project definitions, task state, evidence and recovery information together while checking business outputs at their actual locations. Current version: **2.0.2**. This guide covers the default management layout, reviewed adoption of a legacy workspace, and relocation of a healthy adopted store. Installation and project-state migration are separate operations.
+MALTS keeps project definitions, task state, evidence and recovery information together while checking business outputs at their actual locations. Current version: **2.0.3**. This guide covers the default management layout, reviewed adoption of a legacy workspace, and relocation of a healthy native or adopted store. Installation and project-state migration are separate operations.
 
 ## 1. Default Layout and Ownership
 
@@ -49,15 +49,19 @@ Source inventory is bounded to indexed controls and explicit selections. Its has
 
 The Windows adoption handoff freezes the reviewed source files and protects their namespace while the candidate database commits. Management data is outside the business-operation resource surface even when physically inside the workspace. This separates logical authority without requiring sibling directories or granting arbitrary applications access to state files.
 
-## 4. Relocate a Healthy Adopted Store
+## 4. Relocate a Healthy Store
 
 ### 4.1 Scope and Preconditions
 
-The shipped controller supports a readable, healthy adopted store on Windows fixed local volumes under the same user and machine. The target must be absent; source state, target state and operation journal must not contain each other. Target and journal must share a volume for atomic publication of the restored directory. The old state may be on another fixed local volume. The default target and journal are `.malts/state` and `.malts/recovery/<operation-id>`.
+The shipped controller supports a readable, healthy native or adopted store on Windows fixed local volumes under the same user and machine. The target must be absent; source state, target state and operation journal must not contain each other. Target and journal must share a volume for atomic publication of the restored directory. The old state may be on another fixed local volume. The default target and journal are `.malts/state` and `.malts/recovery/<operation-id>`.
 
 Resolve live Runs, unknown operation effects and unquiesced Host dispatch before planning. An empty Run list does not prove that external Editors, scripts or business writers stopped. The restored store requires an explicit current-epoch resource/effect review before switching authority. Do not mark unknown coverage as reconciled merely to complete relocation.
 
 Network/reparse paths, unsupported internal layouts, cross-user/cross-machine transfer and non-local/cloud-synchronized storage are outside this qualified workflow. A fixed local path alone does not establish that a third-party synchronization client is absent; the operator must exclude synchronized folders. Capacity and access checks are preliminary; a subsequent disk or access failure preserves the partial scene.
+
+
+
+Native stores do not need a fabricated legacy import. Preflight discovers an existing native locator. A store created through lower-level `init --state-dir` without a locator additionally requires `--old-state-dir $OldState`: `$Workspace` is the Project business resource root, and `$OldState` is the existing database directory. They are distinct identities. Returned `source_kind` is `NATIVE_EXPLICIT`, `NATIVE_LOCATOR` or `ADOPTED`. Do not use `workspace-init` to relocate an existing store: it creates a new store without transferring Tasks, dependencies, history or budgets.
 
 ### 4.2 Read-Only Plan and Preparation
 
@@ -93,11 +97,11 @@ Review is operator-attested, not independent proof of arbitrary external writer 
 Read the original journal's `target.backup_root` as `$BackupRoot`, then save the exact forward plan:
 
 ```powershell
-& $PythonExe -B $Cli legacy-forward-plan --old-state-dir $Plan.old_state_dir --state-dir $Plan.state_dir --backup-root $BackupRoot --adoption-id $OperationId --authority-ref $AuthorityRef |
+& $PythonExe -B $Cli store-relocation-plan --journal-root $Plan.journal_root |
     Out-File -LiteralPath $ForwardPath -Encoding utf8NoBOM
 $Forward = Get-Content -LiteralPath $ForwardPath -Raw -Encoding utf8 | ConvertFrom-Json
-& $PythonExe -B $Cli legacy-forward-apply --plan-file $ForwardPath --expected-plan-sha256 $Forward.plan_sha256 --journal-root $Plan.journal_root --tool-root $ToolRoot
-& $PythonExe -B $Cli legacy-forward-apply --plan-file $ForwardPath --expected-plan-sha256 $Forward.plan_sha256 --journal-root $Plan.journal_root --tool-root $ToolRoot --apply
+& $PythonExe -B $Cli store-relocation-apply --plan-file $ForwardPath --expected-plan-sha256 $Forward.plan_sha256 --journal-root $Plan.journal_root --tool-root $ToolRoot
+& $PythonExe -B $Cli store-relocation-apply --plan-file $ForwardPath --expected-plan-sha256 $Forward.plan_sha256 --journal-root $Plan.journal_root --tool-root $ToolRoot --apply
 & $PythonExe -B $Cli workspace --workspace $Workspace
 & $PythonExe -B $Cli store-relocation-status --journal-root $Plan.journal_root
 ```
@@ -106,10 +110,20 @@ The controller holds both SQLite exclusive locks across the forward transactions
 
 The new epoch revokes old Grants, invalidates acceptance, quarantines leases/Hosts and keeps restored budgets from being replenished. Active/completed Phases are paused by restore. Inspect current governance and explicitly activate the intended Phase after successful switch; do not resume by copying old tokens or re-running completed effects.
 
+
+
+### 4.5 Native Authority and Long Paths
+
+Native relocation shares backup, recovery review and actual handoff locks, then appends native lifecycle facts to the existing execution audit and atomically changes `.malts/native.json`. The target progresses through restored quarantine, prepared and active authority. Once the old store is durably superseded, services reject both its execution and ordinary writes, including new Tasks. No legacy import, adoption row or empty replacement project is created. Active authority binds the state location, epoch, workspace, original journal and receipt hash. Locator preimages and incomplete attempts support continuation under the original identity.
+
+Windows managed-file copying, hashing, backup verification, restore and handoff file handles use an internal extended-path spelling. Public plans, references and locators retain normal normalized paths. Valid managed files exceeding 260 full-path characters can therefore be processed without changing `LongPathsEnabled`. Filesystem component limits remain applicable; link, reparse, hard-link and managed-reference checks are unchanged. Database and protocol control roots remain bounded: new preflight conservatively rejects a layout when a derived control path exceeds its 240-character budget, with `RELOCATION_CONTROL_PATH_TOO_LONG`. This differs from a long managed relative file. Copy errors report `MANAGED_FILE_IO_FAILED`, operation, character count and OS error code without private file names or a false preparation-success claim.
+
 ## 5. Interruption, Retention and Verification Limits
 
-Keep the original operation ID, plan, journal, backup and target. `store-relocation-status` is read-only. Reapply the original preparation plan for a preparation interruption. Incomplete backup/restore attempts remain for inspection; retry publishes a completed attempt without overwriting them. After a forward interruption, use status's persisted `forward.plan` or `forward-status` and reapply that exact plan. Partial protocol replacements preserve preimages and resume under the original identity. An ACTIVE replay verifies binding and returns the receipt without a new cutover or Host qualification.
+Keep the original operation ID, plan, journal, backup and target. `store-relocation-status` is read-only. Reapply the original preparation plan for a preparation interruption. Incomplete backup/restore attempts remain for inspection; retry publishes a completed attempt without overwriting them. After a forward interruption, use status's persisted `forward.plan` (`forward-status` remains available for adopted stores) and reapply that exact plan. Partial protocol replacements preserve preimages and resume under the original identity. An ACTIVE replay verifies binding and returns the receipt without a new cutover or Host qualification.
 
 If the old store advanced after backup, forward planning/application rejects the stale snapshot. Resolve that divergence rather than forcing hashes or deleting new work. Unreadable old stores and disaster recovery need the existing separate recovery contracts; this healthy-store controller does not silently switch to that path.
 
 Verification covers isolated native/internal adoption, external compatibility, actual SQLite contention, guarded inputs, drift rejection, original-ID continuation and authority switching. It does not establish migration of a particular user project, general Editor isolation, cross-user DPAPI recovery, model behavior or performance gains. Keep originals until project-specific verification and any separately authorized retention/cleanup decision are complete.
+
+Existing v2.0.2 version-1 relocation plans and PREPARING journals remain usable. After updating the runtime, read original `store-relocation-status` and repeat `store-relocation-prepare` with the original plan file, plan hash, operation ID and journal. Preserve failed attempts; do not edit the journal or create a new ID to hide unresolved state. Complete current-epoch resource/effect review, then continue through `store-relocation-plan` / `store-relocation-apply`. Existing adopted-store `legacy-forward-*` interfaces remain compatible. Long-path validation uses owned Windows fixtures and does not prove migration of a particular user project.

@@ -1,6 +1,6 @@
 # MALTS Controller Operations
 
-Controllers use the verified runtime and selected state to query tasks and perform reviewed requests. The current Core format is Schema69 and version **2.0.2**. Ordinary project work can use installed Skills; the commands below describe the controller interface. Demonstrations require a separately selected new directory and do not call a model or install a Host.
+Controllers use the verified runtime and selected state to query tasks and perform reviewed requests. The current Core format is Schema69 and version **2.0.3**. Ordinary project work can use installed Skills; the commands below describe the controller interface. Demonstrations require a separately selected new directory and do not call a model or install a Host.
 
 <a id="v2-start"></a>
 ## 1. First complete local task
@@ -38,9 +38,9 @@ request('grant.record', grant_id='G1', task_id='T1', task_revision=1, actor='dem
         source_ref='user:approved-isolated-file-demo', resource='hello.txt', effect='write')
 p = request('operation.prepare', operation_id='OP1', grant_id='G1', actor='demo',
             resource='hello.txt', effect='write', capture_authority_ref='user:approved-synthetic-demo',
-            parameters={'tool': 'create-file', 'path': 'hello.txt', 'content': 'Hello MALTS 2.0.2\n'})
+            parameters={'tool': 'create-file', 'path': 'hello.txt', 'content': 'Hello MALTS 2.0.3\n'})
 request('operation.create-file', operation_id='OP1', actor='demo', expected_request_hash=p['request_hash'])
-assert (demo / 'hello.txt').read_bytes() == b'Hello MALTS 2.0.2\n'
+assert (demo / 'hello.txt').read_bytes() == b'Hello MALTS 2.0.3\n'
 descriptor = {'owner': 'DEMO', 'target': {'task_id': 'T1', 'task_revision': 1, 'criterion': 'Integrity'},
               'content_class': 'synthetic', 'sensitivity': 'project', 'redaction_policy_version': 'demo-v1',
               'verification_scope': 'Isolated synthetic file integrity only',
@@ -226,3 +226,9 @@ Capability fields describe their declared layer. `migration_supported=false` ref
 ### 9.8 Cross-root projects and verification limits
 
 Adoption binds Project `resource_root` to the control workspace. An external Unity/Unreal/source/assets root does not inherit write authorization. Review separate resource ownership and the applicable adapter before allowing effects there; do not change binding files or a database field to gain access. Four-tool installation, synthetic migration/negative/recovery checks and actual controller operation are separate evidence from a particular business project's migration or Editor behavior. Cross-user DPAPI plaintext recovery remains unqualified.
+
+## Native Store Relocation and Path Recovery
+
+Healthy native and adopted stores use the formal relocation workflow. An unlocated native store requires its explicit old state directory while preserving the Project business resource root. Unified commands are `store-relocation-preflight`, `store-relocation-prepare`, `store-relocation-status`, `store-relocation-plan` and `store-relocation-apply`; formal writes use the current installation and reviewed plan hash. Recovery review grants no execution permission, and Phase activation remains explicit after cutover. Ordinary service writes to the superseded native store are rejected as well.
+
+Long managed-file paths use internal extended-path I/O without registry changes or relaxed source/link checks. An incomplete v2.0.2 preparation continues with its original plan, hash and operation journal, retaining backups, failed attempts, locator preimages and receipt. See [workspace management and relocation](MANAGEMENT_AND_RELOCATION.md) for prerequisites, commands, diagnostics and limits.

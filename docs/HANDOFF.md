@@ -1,6 +1,6 @@
 # Handoff
 
-MALTS handoffs make project work understandable across windows, interruptions and Agent changes. They preserve the goal, current progress, actual evidence and next eligible work. Current version: **2.0.2**. A handoff is an on-demand continuation view; the selected task services own execution state.
+MALTS handoffs make project work understandable across windows, interruptions and Agent changes. They preserve the goal, current progress, actual evidence and next eligible work. Current version: **2.0.3**. A handoff is an on-demand continuation view; the selected task services own execution state.
 
 ## Default File Names
 
@@ -87,3 +87,9 @@ Read [Handoff implementation](../tools/v2_handoff.py) for the guarded capture/pu
 ## Workspace Management Data and Migration
 
 Ordinary new workspaces use `workspace-init` to place task state, managed evidence and recovery data under an owned `.malts` directory; explicit external layouts remain supported. Installation updates do not move existing projects. Healthy adopted stores can relocate through a read-only plan, backup/restore, current-effect review and formal forward switch. The new epoch does not restore old Grants/acceptance or activate a Phase automatically. Retain old stores, external historical references and source capsules according to their actual dependencies. See [workspace management and store relocation](MANAGEMENT_AND_RELOCATION.md) for steps and limits.
+
+## Native Store Relocation and Path Recovery
+
+Healthy native and adopted stores use the formal relocation workflow. An unlocated native store requires its explicit old state directory while preserving the Project business resource root. Unified commands are `store-relocation-preflight`, `store-relocation-prepare`, `store-relocation-status`, `store-relocation-plan` and `store-relocation-apply`; formal writes use the current installation and reviewed plan hash. Recovery review grants no execution permission, and Phase activation remains explicit after cutover. Ordinary service writes to the superseded native store are rejected as well.
+
+Long managed-file paths use internal extended-path I/O without registry changes or relaxed source/link checks. An incomplete v2.0.2 preparation continues with its original plan, hash and operation journal, retaining backups, failed attempts, locator preimages and receipt. See [workspace management and relocation](MANAGEMENT_AND_RELOCATION.md) for prerequisites, commands, diagnostics and limits.

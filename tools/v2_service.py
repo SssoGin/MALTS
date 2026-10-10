@@ -174,6 +174,11 @@ def safe_error(error):
     """Stable public error data; never includes raw exception messages or input."""
     from v2_adoption_host import ControlHandoffError
     from v2_management import ManagementConflict
+    from v2_path_io import ManagedPathIOError
+    if isinstance(error,ManagedPathIOError):
+        return {'decision':'ERROR','error_type':'ManagedPathIOError','error_code':'MANAGED_FILE_IO_FAILED',
+                'operation':error.operation,'path_characters':error.path_characters,'os_error':error.os_error,
+                'message':'Managed file I/O failed. Preserve the original journal and partial attempts; verify storage access and path support before resuming the same operation.'}
     if isinstance(error,ManagementConflict):
         return {'decision':'ERROR','error_type':'ManagementConflict','error_code':'WORKSPACE_MANAGEMENT_BLOCKED',
                 'reason_code':error.reason_code,

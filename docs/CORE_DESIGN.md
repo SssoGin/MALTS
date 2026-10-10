@@ -1,6 +1,6 @@
 # Multi-Agent Long-Task Scheduling and Growth System
 
-MALTS (Multi-Agent Long-Task Scheduling and Growth System) organizes AI-agent project work around goals, checkable results, recoverable execution and assessed experience. The default executor is one Agent; approved collaboration uses the same project and acceptance model. The current implementation is **2.0.2**.
+MALTS (Multi-Agent Long-Task Scheduling and Growth System) organizes AI-agent project work around goals, checkable results, recoverable execution and assessed experience. The default executor is one Agent; approved collaboration uses the same project and acceptance model. The current implementation is **2.0.3**.
 
 ## Workspace authority, entry, and concurrency
 
@@ -575,3 +575,9 @@ Recorded evidence covers domain/transaction/permission/recovery checks, managed 
 Uncertified claims include population success rates, universal/cross-Host causal speedups, actual money/human savings, provider-internal request totals, GUI model cancellation, arbitrary-OS fencing, cross-user DPAPI restoration and autonomous publication. These limits explain evidence scope without changing Task acceptance standards.
 
 See [Usage](USAGE.md) and the [State Contract](V2_STATE_CONTRACT.md) for operations and exact state boundaries.
+
+## Native Store Relocation and Path Recovery
+
+Healthy native and adopted stores use the formal relocation workflow. An unlocated native store requires its explicit old state directory while preserving the Project business resource root. Unified commands are `store-relocation-preflight`, `store-relocation-prepare`, `store-relocation-status`, `store-relocation-plan` and `store-relocation-apply`; formal writes use the current installation and reviewed plan hash. Recovery review grants no execution permission, and Phase activation remains explicit after cutover. Ordinary service writes to the superseded native store are rejected as well.
+
+Long managed-file paths use internal extended-path I/O without registry changes or relaxed source/link checks. An incomplete v2.0.2 preparation continues with its original plan, hash and operation journal, retaining backups, failed attempts, locator preimages and receipt. See [workspace management and relocation](MANAGEMENT_AND_RELOCATION.md) for prerequisites, commands, diagnostics and limits.

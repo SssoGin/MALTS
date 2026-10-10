@@ -95,7 +95,8 @@ def _deny_write_handle(path,*,directory=False):
     kernel.GetFinalPathNameByHandleW.argtypes=[W.HANDLE,W.LPWSTR,W.DWORD,W.DWORD];kernel.GetFinalPathNameByHandleW.restype=W.DWORD
     # No DELETE sharing. Directory creation is inhibited by legacy admission,
     # not by pretending that a directory handle prevents arbitrary new files.
-    handle=kernel.CreateFileW(str(path),0x80000000,3 if directory else 1,None,3,0x02200000 if directory else 0x00200000,None)
+    from v2_path_io import io_path
+    handle=kernel.CreateFileW(str(io_path(path)),0x80000000,3 if directory else 1,None,3,0x02200000 if directory else 0x00200000,None)
     if handle==C.c_void_p(-1).value:raise ControlHandoffError('CONTROL_INPUT_IN_USE_OR_UNREADABLE')
     try:
         buffer=C.create_unicode_buffer(32768)

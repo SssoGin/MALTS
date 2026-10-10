@@ -1,10 +1,10 @@
 # Capability And Skill Governance
 
-A Skill describes a method; a capability describes what a Host or component can provide; exposure determines what is discoverable; authorization determines which effects may execute. MALTS records these decisions separately so source visibility or a routing recommendation cannot expand permission. Current version: **2.0.2**.
+A Skill describes a method; a capability describes what a Host or component can provide; exposure determines what is discoverable; authorization determines which effects may execute. MALTS records these decisions separately so source visibility or a routing recommendation cannot expand permission. Current version: **2.0.3**.
 
 ## 1. Status And Purpose
 
-Capability governance explains what a workflow can use, which sources are reviewed and how native exposure differs from execution permission. It applies to the whole product, currently **2.0.2**. It is not a third-party package manager.
+Capability governance explains what a workflow can use, which sources are reviewed and how native exposure differs from execution permission. It applies to the whole product, currently **2.0.3**. It is not a third-party package manager.
 
 Without this separation, a catalog can become a second source of operating rules: a copied Skill drifts from its original, a display name is mistaken for an installed implementation, or a high-ranked method is treated as authorized. Governance retains the source identity and makes review/exposure decisions inspectable before any effect.
 

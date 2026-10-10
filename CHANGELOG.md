@@ -1,5 +1,43 @@
 # Changelog
 
+## 2.0.3 — 2026-10-10
+
+Released 2026-10-10 (Asia/Shanghai, UTC+08:00). MALTS continues to provide project planning, task continuity, controlled execution, verification, collaboration and experience workflows through one shared core for Codex, Claude Code, OpenCode and DeepSeek Harness. This patch completes existing-store relocation and fixes Windows managed-file path handling.
+
+## Added and fixed
+
+- **Relocate an existing native project without rebuilding it.** Both explicit native stores created by `init --state-dir` and stores discovered through `.malts/native.json` can move to the default project-local `.malts/state` or an explicitly selected external directory. The original Project, Phase definitions and actual plans, Task revisions, dependencies, history, referenced inputs and business resource root are preserved. An unlocated store requires `--old-state-dir`; `workspace-init` remains initialization, not migration.
+- **One authority after cutover.** Native relocation reuses complete backup, quarantined restore, current-epoch resource/effect review, actual SQLite exclusive locks and guarded managed inputs. Native lifecycle facts fence execution and ordinary writes at the old state path before activating the new locator. Interrupted cutover can leave both endpoints closed until continuation; it does not activate two stores or fabricate a legacy adoption.
+- **Unified workflow and accurate diagnostics.** `store-relocation-plan` and `store-relocation-apply` select the native or adopted protocol from the original journal. Preflight reports `NATIVE_EXPLICIT`, `NATIVE_LOCATOR` or `ADOPTED`; missing native source selection and damaged adopted bindings receive distinct diagnostics. Existing adopted `legacy-forward-*` commands remain compatible.
+- **Windows long managed-file paths.** Copying, hashing, backup verification, restore, blob access and handoff file handles use internal extended-path I/O for valid local files longer than 260 full-path characters. No system registry change is required. Public path identities stay normalized; filesystem component limits, source-reference integrity and link/reparse/hard-link rejection remain in force. Excessively deep database/protocol roots are rejected at new preflight with `RELOCATION_CONTROL_PATH_TOO_LONG`; managed-copy failures provide bounded path-free diagnostics.
+- **Continue v2.0.2 preparation under the original identity.** A version-1 plan whose journal remains `PREPARING` can resume after the update using its original operation ID, plan hash and directory. Incomplete backup/restore attempts remain available. Forward recovery also resumes after old-authority retirement, locator replacement or receipt persistence; completed replay returns the original receipt without claiming a new Host qualification.
+- **Recovery preserves obligations.** Restore changes epoch, revokes old Grants, invalidates prior acceptance, keeps budgets from being replenished, and pauses active/completed Phases. Actual resource/effect reconciliation and explicit Phase activation are still required. Old state, historical absolute references, operation journals and recovery preimages are not automatically deleted.
+
+## Upgrade, verification and limits
+
+Update selected tools through the shared lifecycle transaction; Schema69 and existing project bindings stay unchanged. Installation does not migrate project state. For relocation, use the verified runtime and follow the [management and relocation guide](https://github.com/SssoGin/MALTS/blob/v2.0.3/docs/MANAGEMENT_AND_RELOCATION.md).
+
+Validation covers owned native long projects, located-native repeated relocation, adopted compatibility, old-path write refusal, interrupted cutover and original-ID replay, drift/UNKNOWN rejection, budget/Grant preservation and real Windows long managed-file backup/restore. Four-tool installation and downloaded package/source correspondence are verified separately before final delivery. These checks do not establish migration of the feedback authors' private projects or every Windows/Python combination. Supported relocation requires readable healthy state, the same Windows user and machine, fixed local volumes, absent targets, nonoverlapping old/target/journal roots and same-volume target/journal. External effects require factual operator review. Network/reparse/cloud-synchronized storage, cross-user/cross-machine recovery, arbitrary Editor/raw-file isolation, general performance gains and native model behavior remain unqualified.
+
+## 中文说明
+
+发布日期为2026-10-10，采用 Asia/Shanghai（UTC+08:00）。MALTS 继续通过 Codex、Claude Code、OpenCode、DeepSeek Harness 四端共享核心提供项目规划、任务接续、受控执行、验证、协作与经验工作流。本补丁补齐已有状态库的正式迁址，并修复 Windows 受管文件路径问题。
+
+### 新增与修复
+
+- **已有原生项目可迁址，无需重建。** 通过 `init --state-dir` 建立的显式原生库，以及通过 `.malts/native.json` 定位的原生库，均可迁入默认项目内 `.malts/state` 或明确选择的外置目录。保留原 Project、Phase 定义及实际计划、Task 修订、依赖、历史、引用输入和业务资源根。无定位文件时提供 `--old-state-dir`；`workspace-init` 仍是初始化，不是迁移。
+- **切换后只有一个权威。** 原生迁址复用完整备份、隔离恢复、当前 epoch 的资源与效果审查、真实 SQLite 排他锁及受管输入保护。原生生命周期事实先拒绝旧状态路径的执行和普通写入，再激活新定位文件。中断时两端可能同时拒绝执行，须按原操作接续；不会激活双库，也不伪造旧工作区采用。
+- **统一流程与准确诊断。** `store-relocation-plan` 和 `store-relocation-apply` 根据原操作记录选择原生或已采用协议。预检区分 `NATIVE_EXPLICIT`、`NATIVE_LOCATOR`、`ADOPTED`；未明确原生来源与已采用绑定损坏分别报告。原已采用库的 `legacy-forward-*` 命令继续兼容。
+- **Windows 长受管文件路径。** 复制、哈希、备份核验、恢复、证据内容访问和交接文件句柄使用内部扩展路径访问合法本地文件，支持完整路径超过260字符的情况，不要求修改系统注册表。对外路径身份保持规范化；文件系统组件长度、来源引用完整性及链接、重解析、硬链接拒绝规则继续生效。数据库或协议根过深时，新预检以 `RELOCATION_CONTROL_PATH_TOO_LONG` 提前拒绝；受管复制失败返回有界且不含私人路径的诊断。
+- **2.0.2 准备失败可按原身份续办。** 版本1计划和仍处于 `PREPARING` 的操作记录，可在更新后使用原操作 ID、计划哈希及原目录继续。不完整备份与恢复尝试仍保留。旧权威退役后、定位文件替换后或回执持久化后的中断也可接续；完成后的重复调用返回原回执，不声称重新认证宿主。
+- **恢复不免除原有义务。** 恢复改变 epoch，使旧 Grant 和原验收失效，不补足预算，并暂停活动或已完成 Phase。资源与效果须实际协调，Phase 须明确激活。旧状态库、历史绝对引用、操作记录与恢复前像不会自动删除。
+
+### 升级、验证与限制
+
+通过四端共享生命周期事务更新所选工具；Schema69 和已有项目绑定保持不变。安装不搬迁项目状态。迁址须使用已核实运行时，并遵循[工作区管理与状态重定位说明](https://github.com/SssoGin/MALTS/blob/v2.0.3/docs/zh-CN/MANAGEMENT_AND_RELOCATION.md)。
+
+验证覆盖自有原生长项目、带定位文件原生库的重复迁址、已采用兼容、旧路径写入拒绝、中断与原身份重放、漂移及 UNKNOWN 拒绝、预算和授权保护，以及 Windows 长受管路径备份与恢复。四端安装、实际下载包和源码的对应关系在最终交付前另行核验。这些检查不证明反馈作者的私有项目已迁移，也不覆盖全部 Windows/Python 组合。受支持迁址要求健康可读状态、同 Windows 用户和机器、固定本地卷、尚不存在的目标、互不包含的旧库／目标／操作记录根，以及同卷目标与操作记录。外部效果须依据事实审查。网络或重解析路径、云同步存储、跨用户跨机器恢复、任意编辑器或原始文件写入隔离、普遍性能收益及原生模型行为仍未认证。
+
 ## 2.0.2 — 2026-10-10
 
 Dates use Asia/Shanghai (UTC+08:00). This maintenance release improves where MALTS project management data is stored and how an already adopted store can move, while retaining the full product workflow and the shared core for Codex, Claude Code, OpenCode and DeepSeek Harness.
