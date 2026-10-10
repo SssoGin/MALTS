@@ -1,6 +1,6 @@
 ﻿# MALTS 控制端操作参考
 
-控制端使用已验证运行时和所选状态查询任务、执行审阅请求。当前 Core 格式 Schema69，版本 **2.0.0**。普通项目可使用已安装 Skill，下列命令说明控制端接口。演示使用另行选择的新目录，不调用模型或安装宿主。
+控制端使用已验证运行时和所选状态查询任务、执行审阅请求。当前 Core 格式 Schema69，版本 **2.0.1**。普通项目可使用已安装 Skill，下列命令说明控制端接口。演示使用另行选择的新目录，不调用模型或安装宿主。
 
 <a id="v2-start"></a>
 ## 1. 第一个完整本地任务
@@ -38,9 +38,9 @@ request('grant.record', grant_id='G1', task_id='T1', task_revision=1, actor='dem
         source_ref='user:approved-isolated-file-demo', resource='hello.txt', effect='write')
 p = request('operation.prepare', operation_id='OP1', grant_id='G1', actor='demo',
             resource='hello.txt', effect='write', capture_authority_ref='user:approved-synthetic-demo',
-            parameters={'tool': 'create-file', 'path': 'hello.txt', 'content': 'Hello MALTS 2.0.0\n'})
+            parameters={'tool': 'create-file', 'path': 'hello.txt', 'content': 'Hello MALTS 2.0.1\n'})
 request('operation.create-file', operation_id='OP1', actor='demo', expected_request_hash=p['request_hash'])
-assert (demo / 'hello.txt').read_bytes() == b'Hello MALTS 2.0.0\n'
+assert (demo / 'hello.txt').read_bytes() == b'Hello MALTS 2.0.1\n'
 descriptor = {'owner': 'DEMO', 'target': {'task_id': 'T1', 'task_revision': 1, 'criterion': 'Integrity'},
               'content_class': 'synthetic', 'sensitivity': 'project', 'redaction_policy_version': 'demo-v1',
               'verification_scope': 'Isolated synthetic file integrity only',
@@ -147,3 +147,81 @@ growth.propose 绑定提案/来源证据；growth.begin-trial 绑定候选/所�
 ## 9. 历史采用与升级
 
 旧工作区只通过已选择的 legacy adoption/forward合同迁入 v2：审阅目标、映射、当前写者、UNKNOWN、备份与source seal，再 preview/apply。采用成功之后只在 v2内前向恢复。不要删除binding/seal、直接编辑DB或恢复旧Markdown写权。版本更新见[更新](UPDATE.md)，完整机制见[状态合同](V2_STATE_CONTRACT.md)。
+
+### 9.1 支持范围与切换边界
+
+MALTS 2.0.1 提供 `legacy-adoption-apply` 及内置 `WINDOWS_GOVERNED_CONTROL_FILES` 交接器，用于 Windows 固定本地卷上经审阅的 MALTS 控制定义和历史输入。控制器从当前 discovery 核实的运行时执行，在操作期间持有生命周期互斥。Codex、Claude Code、OpenCode 和 DeepSeek Harness 共用此控制器；这不等于四端 GUI 进程均已成为受控迁移宿主。
+
+交接器独占创建两份旧事务来源封印，以 Windows 文件句柄禁止其他调用改写或删除每份审阅输入和已知活动文件，并持有祖先目录句柄防止重命名。已有写句柄或可写映射会阻止取得保护。旧受管事务不能越过封印启动新写入；候选定义和语义评审在 SQLite 切换事务中再次核对。交接凭证记录实际持有的保护，CLI 不接受用户编写的 witness JSON。
+
+绑定资源是审阅过的控制输入、来源协议文件和候选定义，不是业务项目目录下的所有文件。交接器不会停止 Editor、导入进程、后台任务或任意外部程序；未列入来源清单的业务文件不会因此导入或备份。预检会拒绝把外部业务根纳入该交接器。更大资源范围仍需调用方提供经验证的 Host，证明实际阻止相关写入；进程列表为空或 MALTS 记录已结清不能替代这项保证。
+
+### 9.2 目录布局与权限
+
+创建来源封存或状态库之前先核对布局：
+
+```text
+<project-parent>/
+  <control-workspace>/
+  <project-malts-home>/
+    source-capsule/
+    state/
+    adoption-plan.json
+```
+
+source、capsule、state 三个根目录须互不包含。项目专用的相邻目录需要本次任务明确的写入授权；原工作区权限不自动包含该目录。采用后，state 是唯一、长期维护的任务权威，须保留备份和受保护证据，不能当作迁移缓存清理。capsule 校验只保护所选来源字节，不证明完整业务资产树已备份或可跨用户解密恢复。
+
+读取 Boot 并通过 discovery 后，用已授权路径替换下列变量。前两条命令只读：
+
+```powershell
+$Cli = Join-Path $MaltsRoot 'tools/malts_v2.py'
+& $PythonExe -B $Cli entry-status --workspace $SourceRoot --tool-root $ToolRoot --verify-package
+& $PythonExe -B $Cli legacy-adoption-preflight --source-root $SourceRoot --capsule-root $CapsuleRoot --state-dir $StateDir
+```
+
+如需检查更大的拟采用范围，追加 `--resource-root '<external-business-root>'`。返回 `EXTERNAL_RESOURCE_HANDOFF_NOT_SUPPORTED` 时停止该扩展范围。布局有效或返回 `CONTROL_HANDOFF_AVAILABLE` 均不证明已取得现场保护，也不授权开始持久准备。
+
+### 9.3 准备、定义导入与语义评审
+
+先保全原始目标、控制、计划、成果、用户修改与恢复义务。通过 `legacy-activity` 检查旧活动；UNKNOWN 效果和未结事务沿原身份协调。审阅来源清单后，以 `legacy-stage` 预览并按准确 inventory hash 封存 capsule。通过 `legacy-import-definitions` 预览、应用经明确审阅的 Project、Phase、Task 与依赖映射，写入独立候选库，再以 `legacy-verify-import` 验证。历史 DONE 仍是历史声明。
+
+随后，`legacy-review-semantics` 绑定经审阅的来源处置、inventory hash 和 mapping hash，仅应用批准的预览哈希。来源清单、导入数据库和语义回执是不同里程碑，均不证明已采用或获得执行权限。各命令 `--help` 给出当前闭合参数；来源或映射漂移时重新评审，不能修改保存的哈希来通过检查。
+
+### 9.4 审阅计划与正式执行
+
+语义评审通过后生成、保存一份 `legacy-adoption-plan`，传入已有授权引用及选定 adoption ID，将返回 JSON 原样保存为 UTF-8。`plan_sha256` 绑定来源、状态库、语义评审、定义、活动和新旧 epoch。保留此计划供重试；可能已经发生部分切换后，不另生成替代计划。
+
+对这份已保存、审阅的计划执行：
+
+```powershell
+$Plan = Get-Content -LiteralPath $PlanPath -Raw -Encoding utf8 | ConvertFrom-Json
+& $PythonExe -B $Cli legacy-adoption-apply --plan-file $PlanPath --expected-plan-sha256 $Plan.plan_sha256 --tool-root $ToolRoot
+# 对同一审阅操作已有授权后，应用同一份计划：
+& $PythonExe -B $Cli legacy-adoption-apply --plan-file $PlanPath --expected-plan-sha256 $Plan.plan_sha256 --tool-root $ToolRoot --apply
+```
+
+未加 `--apply` 时，不创建封印、binding、数据库变更或交接证据。正式执行取得真实保护并调用核心采用协议。`ADOPTED` 只证明相应范围的绑定切换，不激活 Phase、不恢复 Task、不启动 Host，也不签发 Grant。
+
+### 9.5 中断与沿原身份接续
+
+使用 `adoption-status --state-dir $StateDir --adoption-id $Plan.adoption_id` 检查原操作。Windows 控制器在失败时保留属于原计划的封印，使旧受管写入继续受阻。PREPARED、部分封印或已落盘 binding 是待恢复现场，不能删除文件或运行原生初始化绕过。保留计划、状态库和交接证据，查明并修复实际原因；评审和输入仍匹配时，应用同一计划及 ID。外来封印、binding 或定义漂移会拒绝接续，不覆盖现有内容。
+
+ACTIVE 状态的重复调用核实当前 binding 后返回历史回执，带 `replayed=true`、`writes_performed=false` 和 `host_revalidated=false`，不声称重新隔离写入者。后续恢复备份按既有 v2 前向恢复合同执行；不支持恢复旧运行时写权。
+
+### 9.6 正式长项目就绪查询
+
+采用后运行 `workspace --workspace $SourceRoot`。服务核验 binding、状态库、epoch 和来源封印，返回所选 Project、当前修订、profile、活动 Phase、实际计划引用及哈希、已验证 Task/绑定/依赖数量，以及 `readiness_blockers`。`definition_body_reverified=true` 表明已复核定义正文，与有界上下文预览不同。
+
+`LONG_PROJECT` 表示已有 Phase 层次；`phase_ready=true` 还要求完整的当前 Project 定义、合适且唯一的 ACTIVE Phase、匹配的计划字节、当前 Task 绑定，以及无未决迁移或恢复条件。查询验证依赖关系；前序任务结果尚未验收时，任务服务仍会阻止后继执行。这里的就绪是治理就绪，不是 Grant，也不是业务验收。
+
+采用之后，通过 `phase.set-active` 明确审阅、激活应接续的 Phase；需要时修订 Task，并以 `phase.bind-task` 绑定当前修订。使用 `governance-context`、`task-queue` 和准确 Task 的 `context` 接续。不能为了把字段改成 true 就激活任意历史 Phase 或启动业务工作。
+
+### 9.7 入口诊断与能力字段含义
+
+`workspace` 先分类再打开状态库：旧来源返回 `MIGRATION_REQUIRED`，未绑定的导入库返回 `ADOPTION_REQUIRED`，有来源封印而未通过 binding 验证的现场返回 `RECOVERY_REQUIRED`。这些对象都不是原生工作区。无效 binding 和真实数据库故障仍返回错误，不能当作迁移成功。
+
+能力字段描述各自层次。`migration_supported=false` 指自动数据库 schema 升级，不否定单独的、经过评审的旧工作区采用流程。`builtin_control_handoff` 描述上述 Windows 控制输入模式；`native_host_adapters_qualified=false` 和 `whole_host_occupancy_known=false` 继续保留对原生 Agent 调度和任意外部写入者的限制，内置控制交接不改变这些限制。
+
+### 9.8 跨根工程与验证限制
+
+采用将 Project 的 `resource_root` 绑定控制工作区。外部 Unity、Unreal、源码或资产根不会继承写入授权；产生效果前须单独审阅资源归属与适用适配器，不能通过改 binding 或数据库字段获得权限。四端安装、隔离迁移与负向/恢复检查、真实控制器操作，均与某业务工程的迁移或 Editor 行为分别验证。跨用户 DPAPI 明文恢复仍未认证。

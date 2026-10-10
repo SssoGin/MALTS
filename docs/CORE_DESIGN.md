@@ -1,6 +1,6 @@
 # Multi-Agent Long-Task Scheduling and Growth System
 
-MALTS (Multi-Agent Long-Task Scheduling and Growth System) organizes AI-agent project work around goals, checkable results, recoverable execution and assessed experience. The default executor is one Agent; approved collaboration uses the same project and acceptance model. The current implementation is **2.0.0**.
+MALTS (Multi-Agent Long-Task Scheduling and Growth System) organizes AI-agent project work around goals, checkable results, recoverable execution and assessed experience. The default executor is one Agent; approved collaboration uses the same project and acceptance model. The current implementation is **2.0.1**.
 
 ## Workspace authority, entry, and concurrency
 
@@ -551,6 +551,12 @@ The mechanism can be followed through an actual managed-file task: task.revise d
 This sequence trades some explicit state management for inspectable recovery. A service cannot infer an external business result merely because a file adapter succeeded, and a model cannot bypass a failed boundary with a rewritten summary. When a step is blocked, inspect its value-free error code and the current contract instead of guessing another action name or widening the endpoint.
 
 The maintained action contracts can be queried through capabilities. Detailed procedures and examples are in [Controller Operations](V2_PREVIEW_USAGE.md), with [State Contract](V2_STATE_CONTRACT.md) defining the current format and authority boundaries.
+
+### Governed control-workspace adoption
+
+Legacy adoption changes executable task authority, not ownership of every business file. The Windows control-input handoff first inhibits both legacy transaction domains with durable source seals, then denies write/delete access to reviewed source inputs and known activity files through held OS handles. Namespace guards prevent their ancestor directories from being renamed. The core rechecks source/review/definition fingerprints and commits the new epoch, Project control resource root and binding through the existing adoption protocol. Local guard evidence records the exact input hashes and plan identity; it is retained privately with the selected state.
+
+This boundary is deliberately narrower than arbitrary process or filesystem isolation. It does not stop an Editor or adopt a separate source/assets root. A wider handoff requires a qualified caller-owned Host. Source files that cannot be guarded, foreign seals, unresolved effects or definition drift stop cutover. Owned seals and PREPARED state survive a failed built-in cutover and are resumed with the original plan. Adoption does not activate historical Phases or authorize business execution. The read-only workspace service separately verifies the current Project, Phase plan bytes, Task bindings and dependencies before reporting governance readiness. See [controller workflow](V2_PREVIEW_USAGE.md#v2-migration).
 
 ## Verification Scope And Limitations
 

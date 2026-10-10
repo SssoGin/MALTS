@@ -1,6 +1,6 @@
 ﻿# 安全
 
-安全和隐私适用于 MALTS 整体工作流、安装与分发。当前版本 **2.0.0**。
+安全和隐私适用于 MALTS 整体工作流、安装与分发。当前版本 **2.0.1**。
 
 ## 使用前核验
 
@@ -41,3 +41,9 @@ Grant 绑定主体、资源、效果和当前任务版本，服务核依赖、�
 ## 报告安全问题
 
 通过[仓库](https://github.com/SssoGin/MALTS)提供最小脱敏复现，不附密钥、原会话或受保护正文。见[状态合同](V2_STATE_CONTRACT.md)。
+
+## 受管采用边界
+
+`legacy-adoption-preflight` 在持久准备前检查 source/capsule/state 互不包含及 Windows 控制输入支持范围；目录关系有效不产生写入权限。`legacy-adoption-apply` 默认只预览，正式应用绑定准确计划哈希及当前运行时，并使用真实来源封印、Windows 文件保护与 SQLite 定义重验。内置模式只覆盖审阅的 MALTS 控制输入和旧事务准入，不隔离任意外部应用或接管业务根。
+
+失败时保留原采用 ID、计划、所属封印和私有交接证据；不能换 ID 重放或删除 binding 来恢复旧权威。`workspace` 对旧来源、未绑定导入库和封印恢复现场分别给出迁移、采用与恢复诊断；已采用入口重核 Project/计划/Task/依赖并报告 `LONG_PROJECT`、`phase_ready` 和阻塞原因。该就绪仅为治理条件，不签发 Grant、不证明业务验收。跨根业务效果须另行核准资源与适配器。完整步骤见[采用与升级](V2_PREVIEW_USAGE.md#v2-migration)。

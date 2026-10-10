@@ -1,6 +1,6 @@
 # MALTS State and Service Contract
 
-The state contract binds goals, task revisions, permissions, operations, evidence and recovery to the selected workspace. CLI and MCP call the same domain services through different Host permission surfaces. Current implementation: **2.0.0**.
+The state contract binds goals, task revisions, permissions, operations, evidence and recovery to the selected workspace. CLI and MCP call the same domain services through different Host permission surfaces. Current implementation: **2.0.1**.
 
 ## 1. Format, entry and authority
 
@@ -114,3 +114,9 @@ Errors use stable error_code. Successful request fields are inside result, inclu
 ## 10. Implementation and qualification
 
 v2_service and domain modules enforce these contracts. Domain/transaction/recovery checks, managed files, representative native tasks and installation establish distinct evidence layers. Configuration, self-ratings, synthetic examples and historical completion cannot substitute for one another. See [Overview](SYSTEM_OVERVIEW.md) and [v2 Operations](V2_PREVIEW_USAGE.md).
+
+## Governed adoption boundary
+
+`legacy-adoption-preflight` checks separate source/capsule/state roots and Windows control-input support before persistent preparation; a valid layout grants no write permission. `legacy-adoption-apply` defaults to preview, binds the exact plan hash and current runtime, and uses real source seals, Windows input guards and SQLite definition rechecks. Its built-in profile covers reviewed MALTS control inputs and legacy transaction admission; it does not isolate arbitrary external applications or take over a business root.
+
+Failure preserves the original adoption ID, plan, owned seals and private handoff evidence. Do not replay under a new ID or delete binding files to restore legacy authority. `workspace` distinguishes a legacy source, unbound imported store and sealed recovery scene. Adopted entry rechecks Project/plan/Task/dependency bodies and reports LONG_PROJECT, phase_ready and blockers. This is governance readiness, not a Grant or business acceptance. Effects on external roots need separately reviewed resources and adapters. See [adoption and upgrade](V2_PREVIEW_USAGE.md#v2-migration).

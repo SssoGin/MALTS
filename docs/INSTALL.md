@@ -1,6 +1,6 @@
 # Install MALTS
 
-Install MALTS into the Agent tools you choose. One shared core supplies project work, continuity, verification and experience workflows; each tool receives its own native entry. Current version: **2.0.0**. Installation is review-first and does not call a model, install the Host application or adopt existing projects.
+Install MALTS into the Agent tools you choose. One shared core supplies project work, continuity, verification and experience workflows; each tool receives its own native entry. Current version: **2.0.1**. Installation is review-first and does not call a model, install the Host application or adopt existing projects.
 
 ## Prerequisites
 
@@ -17,7 +17,7 @@ Use short, explicit roots with no ambiguous links/protected overlaps. Lifecycle 
 
 ## Repository Installation (Primary)
 
-Use a reviewed checkout of the [public repository](https://github.com/SssoGin/MALTS). Check the actual remote/ref and confirm `MALTS_RELEASE.json` and `VERSION` both identify 2.0.0. A documentation revision on `main` can retain the same version while having its own exact source-tree identity. The installer checks the actual selected tree; do not add business files or caches inside it.
+Use a reviewed checkout of the [public repository](https://github.com/SssoGin/MALTS). Check the actual remote/ref and confirm `MALTS_RELEASE.json` and `VERSION` both identify 2.0.1. A documentation revision on `main` can retain the same version while having its own exact source-tree identity. The installer checks the actual selected tree; do not add business files or caches inside it.
 
 | Host | Entry | Scope |
 |---|---|---|
@@ -68,11 +68,11 @@ Do not replace a meaningful failure with a manual file copy or a success label. 
 
 ## Optional Offline Archive
 
-The current Release attachment is `MALTS-2.0.0.zip`. A same-version reissue has its own qualified package, source commit and SHA-256 in the Release notes. Verify the exact downloaded revision before offline installation. GitHub-generated source archives follow the current version tag. The current tag, qualified repository and MALTS-uploaded package should identify the same source revision, although archive layouts differ.
+The current Release attachment is `MALTS-2.0.1.zip`. A same-version reissue has its own qualified package, source commit and SHA-256 in the Release notes. Verify the exact downloaded revision before offline installation. GitHub-generated source archives follow the current version tag. The current tag, qualified repository and MALTS-uploaded package should identify the same source revision, although archive layouts differ.
 
 ```powershell
-.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.0.zip
-.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.0.zip -ExtractOutput '<new-extraction-root>' -Apply
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.1.zip
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.1.zip -ExtractOutput '<new-extraction-root>' -Apply
 ```
 
 Obtain the verifier from the matching reviewed source. Run the extracted payload's lifecycle entry with `-ReleaseRoot '<extracted-package-root>'`, then the same plan/hash sequence. Harness uses the same lifecycle entry with ReleaseRoot and every Host registered to that installation. Never copy a payload into an active generation. See [Release Archive](RELEASE_ARTIFACT.md).

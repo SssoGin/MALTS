@@ -1,6 +1,6 @@
 # Use MALTS in a Project
 
-Project work begins with a checkable goal and continues through planning, execution, verification and delivery. MALTS workflows preserve the facts needed for interruption, collaboration and future review. Current version: **2.0.0**; controller protocols are in [Operations](V2_PREVIEW_USAGE.md).
+Project work begins with a checkable goal and continues through planning, execution, verification and delivery. MALTS workflows preserve the facts needed for interruption, collaboration and future review. Current version: **2.0.1**; controller protocols are in [Operations](V2_PREVIEW_USAGE.md).
 
 ## Enter an existing workspace
 

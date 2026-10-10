@@ -3,7 +3,7 @@ import json,os,re,sqlite3
 from pathlib import Path
 from contextlib import closing
 from malts_lifecycle import resolve_discovery,verify_installed_generation_envelope,classify_generation_id,LifecycleError,LOCK_RELATIVE
-from v2_state_store import StateStore,SCHEMA_VERSION,APPLICATION_ID
+from v2_state_store import StateStore,StateConflict,SCHEMA_VERSION,APPLICATION_ID
 from v2_evidence import _regular_path
 from v2_legacy_reader import read_source_bytes
 from v2_compatibility import inspect_contract,current_contract
@@ -69,6 +69,103 @@ def _identity(discovery):
     return tuple(discovery[k] for k in ('malts_root','generation_id','version','artifact_sha256'))+(discovery['tool_boot']['sha256'],)
 
 
+def workspace_readiness(store,project_id=None):
+    """Verify governance bodies and plans in one read transaction; grant no effects."""
+    from v2_governance import checked_phase_plan,require_carry_lineage
+    from v2_definition_content import decode
+    from v2_contracts import criteria,phase_boundary
+    c=store.connection
+    projects=c.execute('SELECT project_id,resource_root FROM project ORDER BY project_id LIMIT 2').fetchall() if project_id is None else c.execute('SELECT project_id,resource_root FROM project WHERE project_id=?',(project_id,)).fetchall()
+    if len(projects)!=1:raise ValueError('Workspace requires one selected Project')
+    project_id,resource_root=projects[0]
+    original=c.execute('SELECT original_goal FROM project WHERE project_id=?',(project_id,)).fetchone()[0]
+    if not decode(original,project_id,'project-original',project_id,0,'goal').strip():raise ValueError('Original Project goal is empty')
+    current=c.execute('SELECT revision,goal,acceptance_json FROM project_revision WHERE project_id=? ORDER BY revision DESC LIMIT 1',(project_id,)).fetchone()
+    project_verified=False
+    if current:
+        if not decode(current[1],project_id,'project',project_id,current[0],'goal').strip():raise ValueError('Project goal is empty')
+        criteria(decode(current[2],project_id,'project',project_id,current[0],'acceptance'));project_verified=True
+    phases=c.execute('SELECT p.phase_id,p.revision,p.state,r.goal,r.boundary_json,r.acceptance_json,r.plan_ref,r.plan_sha256,r.plan_scope FROM phase p JOIN phase_revision r ON r.phase_id=p.phase_id AND r.revision=p.revision WHERE p.project_id=? ORDER BY p.phase_id',(project_id,)).fetchall()
+    active=[]
+    for row in phases:
+        phase_id,revision,state=row[:3]
+        if not decode(row[3],project_id,'phase',phase_id,revision,'goal').strip():raise ValueError('Phase goal is empty')
+        phase_boundary(decode(row[4],project_id,'phase',phase_id,revision,'boundary'))
+        criteria(decode(row[5],project_id,'phase',phase_id,revision,'acceptance'))
+        # Completed historical Phases may bind older Project revisions. Readiness
+        # requires the current active Phase, not requalification of past work.
+        if state=='ACTIVE':
+            checked_phase_plan(store,phase_id,revision)
+            active.append({'phase_id':phase_id,'revision':revision,'plan_ref':row[6],'plan_sha256':row[7],'plan_scope':row[8],'plan_content_verified':True})
+    if len(active)>1:raise StateConflict('Ambiguous active Phases')
+    blockers=[];tasks=0;dependencies=0;binding_count=0
+    for task_id,revision in c.execute('SELECT task_id,revision FROM task WHERE project_id=? ORDER BY task_id',(project_id,)).fetchall():
+        task=store.task(task_id);tasks+=1
+        if not task['goal'].strip():raise ValueError('Task goal is empty')
+        criteria(task['acceptance'])
+        binding=c.execute('SELECT b.phase_id,b.phase_revision,p.revision,p.state FROM phase_task b JOIN phase p ON p.phase_id=b.phase_id WHERE b.task_id=? AND b.task_revision=?',(task_id,revision)).fetchone()
+        if phases and binding is None:blockers.append('TASK_PHASE_BINDING_MISSING')
+        elif binding:
+            binding_count+=1;require_carry_lineage(store,task_id,revision)
+            if binding[1]!=binding[2] and binding[3]=='ACTIVE':blockers.append('TASK_PHASE_REVISION_STALE')
+        for dep,dep_revision,dep_project,exists in c.execute('SELECT d.predecessor_id,d.predecessor_revision,t.project_id,r.revision FROM dependency d LEFT JOIN task t ON t.task_id=d.predecessor_id LEFT JOIN task_revision r ON r.task_id=d.predecessor_id AND r.revision=d.predecessor_revision WHERE d.task_id=? AND d.task_revision=?',(task_id,revision)):
+            dependencies+=1
+            if exists is None or dep_project!=project_id:raise StateConflict('Task dependency definition is invalid')
+    epoch,reconciliation=c.execute('SELECT epoch,reconciliation_required FROM recovery_state WHERE singleton=1').fetchone()
+    domains=store.pending_migration_domains()
+    if not project_verified:blockers.append('PROJECT_DEFINITION_MISSING')
+    if not active:blockers.append('ACTIVE_PHASE_MISSING')
+    if reconciliation:blockers.append('RECONCILIATION_REQUIRED')
+    if domains:blockers.append('MIGRATION_DOMAINS_PENDING')
+    if c.execute('SELECT 1 FROM task_effect_recovery LIMIT 1').fetchone():blockers.append('EFFECT_RECOVERY_REQUIRED')
+    return {'project_id':project_id,'project_revision':current[0] if current else None,'resource_root':resource_root,'epoch':epoch,
+        'profile':'LONG_PROJECT' if phases else 'TASK_ONLY','active_phase':active[0] if active else None,
+        'phase_ready':bool(active) and not blockers,'readiness_blockers':sorted(set(blockers)),
+        'reconciliation_required':bool(reconciliation),'pending_migration_domains':domains,
+        'definition_body_reverified':True,'project_definition_verified':project_verified,
+        'task_definitions_verified':tasks,'task_phase_bindings_verified':binding_count,'dependencies_verified':dependencies,
+        'readiness_scope':'GOVERNANCE_ONLY','execution_authorized':False,'writes_performed':False}
+
+
+def inspect_workspace_entry(workspace):
+    """Classify before opening a database; imported state never becomes native."""
+    root=Path(workspace).absolute();_regular_path(root)
+    binding_path=root/'runtime/v2_binding.json';_regular_path(binding_path)
+    if binding_path.exists():
+        binding=_json_file(root,'runtime/v2_binding.json')
+        _workspace_format(root)  # verify exact fields, receipt, source and seals
+        with closing(StateStore(Path(binding['state_dir'])/'state.db',readonly=True)) as store:
+            c=store.connection;c.execute('BEGIN')
+            from v2_adoption import require_active_binding
+            require_active_binding(store)
+            row=c.execute('SELECT project_id FROM migration_adoption WHERE adoption_id=?',(binding['adoption_id'],)).fetchone()
+            ready=workspace_readiness(store,row[0])
+            c.execute('COMMIT')
+            return {**ready,'decision':'ADOPTED_WORKSPACE','state_dir':binding['state_dir'],'binding_status':'VERIFIED','adoption_performed':False}
+    _regular_path(root/'state.db')
+    if (root/'state.db').exists():
+        with closing(StateStore(root/'state.db',readonly=True)) as store:
+            c=store.connection
+            if c.execute('SELECT 1 FROM legacy_control_source LIMIT 1').fetchone() or c.execute('SELECT 1 FROM migration_adoption LIMIT 1').fetchone():
+                return {'decision':'ADOPTION_REQUIRED','reason':'IMPORTED_STORE_REQUIRES_VERIFIED_SOURCE_BINDING',
+                    'next_command':'adoption-status or legacy-adoption-preflight','profile':None,'phase_ready':False,
+                    'execution_authorized':False,'writes_performed':False}
+        return inspect_native_workspace(root)
+    for name in ('runtime/workspace_transaction.lock.json','runtime/artifact_transaction.lock.json'):
+        _regular_path(root/name)
+        if (root/name).exists():
+            try:value=_json_file(root,name)
+            except ValueError:value={}
+            if value.get('format')=='malts.v2.source-seal':
+                return {'decision':'RECOVERY_REQUIRED','reason':'SOURCE_SEALED_WITHOUT_VERIFIED_BINDING','next_command':'adoption-status',
+                    'phase_ready':False,'execution_authorized':False,'writes_performed':False}
+    if (root/'runtime/workspace_control.json').exists():
+        _workspace_format(root)
+        return {'decision':'MIGRATION_REQUIRED','reason':'LEGACY_DEFINITIONS_REQUIRE_REVIEWED_IMPORT',
+            'next_command':'legacy-adoption-preflight','phase_ready':False,'execution_authorized':False,'writes_performed':False}
+    return {'decision':'WORKSPACE_NOT_FOUND','reason':'NO_SELECTED_WORKSPACE_ENTRY','phase_ready':False,'execution_authorized':False,'writes_performed':False}
+
+
 def inspect_native_workspace(workspace):
     """Explicit native store entry; never synthesize adoption or initialize state."""
     root=Path(workspace).absolute()
@@ -79,25 +176,9 @@ def inspect_native_workspace(workspace):
         c=store.connection;c.execute('BEGIN')
         if c.execute('SELECT 1 FROM legacy_control_source LIMIT 1').fetchone() or c.execute('SELECT 1 FROM migration_adoption LIMIT 1').fetchone():
             raise ValueError('Imported or adopted state requires its verified workspace binding')
-        projects=c.execute('SELECT project_id,resource_root FROM project ORDER BY project_id LIMIT 2').fetchall()
-        if len(projects)!=1:raise ValueError('Native workspace requires one unambiguous Project')
-        project_id,resource_root=projects[0]
-        phases=c.execute("SELECT phase_id,revision FROM phase WHERE project_id=? AND state='ACTIVE' ORDER BY phase_id LIMIT 2",(project_id,)).fetchall()
-        if len(phases)>1:raise ValueError('Native workspace has ambiguous active Phases')
-        has_phases=bool(c.execute('SELECT 1 FROM phase WHERE project_id=? LIMIT 1',(project_id,)).fetchone())
-        phase=None
-        if phases:
-            from v2_governance import checked_phase_plan
-            checked_phase_plan(store,phases[0][0],phases[0][1])
-            phase={'phase_id':phases[0][0],'revision':phases[0][1],'plan_content_verified':True}
-        epoch,reconciliation=c.execute('SELECT epoch,reconciliation_required FROM recovery_state WHERE singleton=1').fetchone()
-        domains=store.pending_migration_domains()
-        return {'decision':'NATIVE_WORKSPACE','state_dir':str(root),'project_id':project_id,
-                'resource_root':resource_root,'epoch':epoch,'binding_status':'EXPLICIT_NATIVE_STORE',
-                'profile':'LONG_PROJECT' if has_phases else 'TASK_ONLY','active_phase':phase,
-                'phase_ready':phase is not None and not reconciliation and not domains,
-                'reconciliation_required':bool(reconciliation),'pending_migration_domains':domains,
-                'adoption_performed':False,'execution_authorized':False,'writes_performed':False}
+        result=workspace_readiness(store)
+        c.execute('COMMIT')
+        return {**result,'decision':'NATIVE_WORKSPACE','state_dir':str(root),'binding_status':'EXPLICIT_NATIVE_STORE','adoption_performed':False}
 
 
 def _lifecycle_lock_present(discovery):

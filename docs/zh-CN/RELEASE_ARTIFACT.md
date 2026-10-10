@@ -1,18 +1,18 @@
 ﻿# 可选发布归档
 
-仓库是 MALTS 常规安装/更新来源，可选固定归档服务于离线或归档使用；当前发布版本 **2.0.0**。
+仓库是 MALTS 常规安装/更新来源，可选固定归档服务于离线或归档使用；当前发布版本 **2.0.1**。
 
 ## 一个可选 Release ZIP
 
-正式 Release 有一个 MALTS 上传附件 MALTS-2.0.0.zip。GitHub 自动源码归档是平台另行链接；安装器不自动下载 ZIP。
+正式 Release 有一个 MALTS 上传附件 MALTS-2.0.1.zip。GitHub 自动源码归档是平台另行链接；安装器不自动下载 ZIP。
 
 ## 解压前核验
 
 从匹配审阅来源取得 Verify-MALTSBootstrap.ps1，解压前核验：
 
 ```powershell
-.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.0.zip
-.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.0.zip -ExtractOutput '<new-extraction-root>' -Apply
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.1.zip
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.1.zip -ExtractOutput '<new-extraction-root>' -Apply
 ```
 
 检查闭合清单、哈希、安全路径/碰撞和包体身份。完整性证明这些字节，不证明原生模型或业务结果。

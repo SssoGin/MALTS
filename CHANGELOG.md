@@ -1,5 +1,37 @@
 # Changelog
 
+## 2.0.1 — 2026-10-10
+
+Dates use Asia/Shanghai (UTC+08:00). This maintenance release improves adoption of existing MALTS control workspaces while retaining the product workflow and the shared installation for Codex, Claude Code, OpenCode and DeepSeek Harness.
+
+### Added and improved
+
+- A formal `legacy-adoption-apply` controller with exact-plan preview/apply and active-runtime admission. The Windows governed-control handoff creates both source seals, holds actual write/delete-denying input handles and rechecks reviewed definitions at cutover; it accepts no declarative witness shortcut.
+- Read-only `legacy-adoption-preflight` checks support and separate source/capsule/state roots before persistent preparation. External business-resource inclusion is explicitly rejected by the built-in profile instead of being silently treated as covered.
+- Precise `workspace` diagnostics distinguish legacy migration, an unbound imported store, a sealed recovery scene and an actual storage failure. Imported state remains ineligible for native entry.
+- Both adopted and native entries now report service-verified governance readiness: current Project, actual active-Phase plan/hash, Task definitions/bindings, dependency integrity and blockers. Adoption alone does not activate a Phase or authorize execution.
+- Built-in interrupted cutover retains the original ID/plan and owned seals for continuation; an ACTIVE replay is read-only and explicitly does not revalidate the Host. Documentation explains preparation, adoption, readiness, cross-root permissions and recovery separately.
+
+### Upgrade and limits
+
+Update the selected tools through the normal shared lifecycle transaction. Core Schema69 and existing workspace bindings remain unchanged; installation does not adopt projects or upgrade arbitrary databases automatically. Preserve backups and incomplete migration plans. The built-in handoff is Windows/local/control-input scoped: it is not a sandbox for arbitrary Editors, external jobs or separate business roots. Wider handoff needs a separately qualified Host. Cross-user DPAPI plaintext recovery remains unqualified. No general performance or model-quality improvement is claimed.
+
+### 中文说明
+
+日期采用 Asia/Shanghai（UTC+08:00）。本维护版本改进已有 MALTS 控制工作区的采用流程，沿用产品整体工作过程，以及 Codex、Claude Code、OpenCode、DeepSeek Harness 四端共享安装。
+
+### 新增与改进
+
+- 增加正式 `legacy-adoption-apply` 控制器，绑定准确计划进行预览、应用，并核准当前运行时。Windows 受管控制交接创建两份来源封印，实际持有禁止改写、删除输入的文件句柄，在切换时重核审阅定义，不接受声明式 witness 捷径。
+- 增加只读 `legacy-adoption-preflight`，在持久准备前检查支持范围及 source、capsule、state 互不包含。内置模式明确拒绝纳入外部业务资源，不静默扩大已覆盖范围。
+- `workspace` 区分旧工作区待迁移、未绑定导入库、封印恢复现场和真实存储故障；导入库仍不能走原生入口。
+- 已采用与原生入口均提供服务核验的治理就绪状态，包括当前 Project、活动 Phase 实际计划及哈希、Task 定义和绑定、依赖完整性及阻塞原因。采用本身不激活 Phase，也不授权执行。
+- 内置切换中断后保留原 ID、计划和所属封印供接续；ACTIVE 重复查询只读，并明确未重新核验 Host。文档分别说明准备、采用、就绪、跨根权限与恢复。
+
+### 升级与限制
+
+通过常规共享生命周期事务更新所选工具。Core Schema69 和现有工作区绑定不变；安装不自动采用项目，也不自动升级任意数据库。保留备份及未完成迁移计划。内置交接仅支持 Windows 本地控制输入，不隔离任意 Editor、外部任务或独立业务根；更大范围需单独合格的 Host。跨用户 DPAPI 明文恢复仍未认证。不声明普遍性能或模型质量收益。
+
 ## 2.0.0 — latest revision: 2026-10-09
 
 First release: **2026-10-08**. Latest same-version revision: **2026-10-09**. Dates use Asia/Shanghai (UTC+08:00).

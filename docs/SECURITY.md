@@ -1,6 +1,6 @@
 # Security
 
-Security and privacy apply to the whole MALTS workflow, installation and distribution. Current version: **2.0.0**.
+Security and privacy apply to the whole MALTS workflow, installation and distribution. Current version: **2.0.1**.
 
 ## Verify Before Use
 
@@ -41,3 +41,9 @@ Preserve binding/source-seals, original acceptance, uncertain effects and requir
 ## Report Security Issues
 
 Send a minimal redacted reproduction through the [repository](https://github.com/SssoGin/MALTS). Never include keys, raw sessions or protected evidence bodies. See [State Contract](V2_STATE_CONTRACT.md).
+
+## Governed adoption boundary
+
+`legacy-adoption-preflight` checks separate source/capsule/state roots and Windows control-input support before persistent preparation; a valid layout grants no write permission. `legacy-adoption-apply` defaults to preview, binds the exact plan hash and current runtime, and uses real source seals, Windows input guards and SQLite definition rechecks. Its built-in profile covers reviewed MALTS control inputs and legacy transaction admission; it does not isolate arbitrary external applications or take over a business root.
+
+Failure preserves the original adoption ID, plan, owned seals and private handoff evidence. Do not replay under a new ID or delete binding files to restore legacy authority. `workspace` distinguishes a legacy source, unbound imported store and sealed recovery scene. Adopted entry rechecks Project/plan/Task/dependency bodies and reports LONG_PROJECT, phase_ready and blockers. This is governance readiness, not a Grant or business acceptance. Effects on external roots need separately reviewed resources and adapters. See [adoption and upgrade](V2_PREVIEW_USAGE.md#v2-migration).

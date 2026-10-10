@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "release_id": "MALTS-2.0.0",
-  "version": "2.0.0",
-  "release_tag": "v2.0.0",
-  "source_tree_sha256": "CD6CF5E449435CF0325EEB2DDF6D31A2217EF33C9A3C8E68E01BDB665BDE7E6F",
-  "user_file_count": 253,
+  "release_id": "MALTS-2.0.1",
+  "version": "2.0.1",
+  "release_tag": "v2.0.1",
+  "source_tree_sha256": "2340B3D2F493E59ECDF86E959A7FE0702ECD9DFAAAD719A94507213900C20408",
+  "user_file_count": 254,
   "repository_only_paths": [
     ".gitattributes",
     ".github/workflows/ci.yml",
     ".gitignore",
     "MALTS_RELEASE.json"
   ],
-  "created_at": "2026-10-09T08:04:40Z"
+  "created_at": "2026-10-10T04:27:23Z"
 }

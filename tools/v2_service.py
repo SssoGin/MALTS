@@ -172,6 +172,11 @@ def execute_request(store,request,*,evidence_reader=None,required_resource_root=
 
 def safe_error(error):
     """Stable public error data; never includes raw exception messages or input."""
+    from v2_adoption_host import ControlHandoffError
+    if isinstance(error,ControlHandoffError):
+        return {'decision':'ERROR','error_type':'ControlHandoffError','error_code':'ADOPTION_HANDOFF_BLOCKED',
+                'reason_code':error.reason_code,
+                'message':'Control handoff was not established. Inspect the original adoption ID/plan and retained seals; release conflicting input access or use the discovered active runtime. Do not create a replacement migration.'}
     if isinstance(error,(GrantAccessDenied,WorkerAdmissionDenied)):
         reason=error.reason_code if isinstance(error,GrantAccessDenied) else 'DISPATCH_NOT_ADMITTED'
         return {'decision':'ERROR','error_type':'PermissionError','error_code':'ACCESS_DENIED','reason_code':reason,

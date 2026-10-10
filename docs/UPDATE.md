@@ -1,10 +1,10 @@
 # Update MALTS
 
-An update selects verified source content and changes the chosen installation through a reviewed transaction. The updater preserves project work and user-owned configuration according to its plan; it does not select a new goal or migrate projects automatically. Current version: **2.0.0**.
+An update selects verified source content and changes the chosen installation through a reviewed transaction. The updater preserves project work and user-owned configuration according to its plan; it does not select a new goal or migrate projects automatically. Current version: **2.0.1**.
 
 ## Before Updating
 
-Inspect the installed identity, intended source, workspace binding, user edits, relevant writers and pending effects. Preserve recovery materials. The updater does not pull Git and performs no automatic repository selection, automatic ZIP download, provider call or implicit project migration. Current version remains **2.0.0**.
+Inspect the installed identity, intended source, workspace binding, user edits, relevant writers and pending effects. Preserve recovery materials. The updater does not pull Git and performs no automatic repository selection, automatic ZIP download, provider call or implicit project migration. Current version remains **2.0.1**.
 
 Compare the active source kind/hash, intended repository/package identity and actual selected tool roots. Identify whether a normal version update or same-version content consolidation is needed. Preserve required transaction snapshots and project backups for their different recovery purposes.
 

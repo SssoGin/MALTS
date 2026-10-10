@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MALTS 2.0.0 Task, state and recovery CLI. Select a verified runtime and workspace."""
+"""MALTS Task, state and recovery CLI. Select a verified runtime and workspace."""
 from __future__ import annotations
 import sys
 sys.dont_write_bytecode = True
@@ -144,6 +144,16 @@ def main(argv=None):
     adoption_status=sub.add_parser('adoption-status')
     adoption_status.add_argument('--state-dir',type=Path,required=True)
     adoption_status.add_argument('--adoption-id',required=True)
+    preflight=sub.add_parser('legacy-adoption-preflight',help='Read-only support and three-root layout check before migration preparation')
+    preflight.add_argument('--source-root',type=Path,required=True)
+    preflight.add_argument('--capsule-root',type=Path,required=True)
+    preflight.add_argument('--state-dir',type=Path,required=True)
+    preflight.add_argument('--resource-root',type=Path,action='append',default=[])
+    cutover=sub.add_parser('legacy-adoption-apply',help='Windows governed-control handoff; exact reviewed plan, dry-run by default')
+    cutover.add_argument('--plan-file',type=Path,required=True)
+    cutover.add_argument('--expected-plan-sha256',required=True)
+    cutover.add_argument('--tool-root',type=Path,required=True)
+    cutover.add_argument('--apply',action='store_true')
     for command in ('legacy-forward-plan','forward-status'):
         forward=sub.add_parser(command)
         forward.add_argument('--state-dir',type=Path,required=True)
@@ -444,7 +454,7 @@ def main(argv=None):
                                          'global_key_file':False,'preview_read_mode':'BOUNDED_PROTECTED_PROJECTION',
                                          'preview_characters':2048,'max_protected_preview_characters':32768,
                                          'preview_verifies_full_body':False,'controller_refresh':'definition.refresh-preview'},
-                    'qualification':'UNQUALIFIED_MAINTENANCE_CANDIDATE','actions':actions,
+                    'qualification':'SCOPED_RUNTIME_QUALIFICATION','qualification_scope':'Capabilities are per interface/profile; no whole-Host or business acceptance is implied','actions':actions,
                     'optional_mcp_bridge':{'entry':'v2_mcp.py','default_mode':'READ_ONLY','tested_sdk':'1.26.0',
                         'tested_protocol':'2025-11-25','runtime_dependency_checked':False,
                         'modern_protocol_qualified':False,'native_host_integration_qualified':False},
@@ -454,12 +464,15 @@ def main(argv=None):
                                             'partial_write_auto_repair':False,'preimage_in_backup':True,
                                             'reviewed_partial_repair':True,'repair_plan_command':'update-repair-plan'},
                     'automated_evidence_verifiers':{'verification.managed-files':{'method':'managed-file-integrity','level':'C','business_correctness_verified':False}},
-                    'adoption':{'plan':True,'apply':'TRUSTED_IN_PROCESS_HOST_ONLY','binding_resolution':True,
+                    'adoption':{'plan':True,'apply':'TRUSTED_HOST_OR_WINDOWS_CONTROL_HANDOFF','binding_resolution':True,
+                                'builtin_control_handoff':__import__('v2_adoption_host').adoption_support(),
                                 'legacy_runtime_rollback_supported':False,'recovery_direction':'V2_ONLY',
                                 'legacy_rollback_scene_recovery_qualified':False,
                                 'native_host_adapters_qualified':False,'forward_reconciliation_implemented':True,
                                 'forward_profile':'RECONCILED_CURRENT_BACKUP_WITH_READABLE_OLD_STORE'},
-                    'migration_supported':False,'writes_performed':False,'execution_authorized':False}
+                    'migration_supported':False,'migration_supported_scope':'AUTOMATIC_DATABASE_SCHEMA_UPGRADE',
+                    'legacy_adoption_support':'WINDOWS_GOVERNED_CONTROL_FILES; external business resources require a separately qualified adapter',
+                    'writes_performed':False,'execution_authorized':False}
         elif args.command=='update-repair-plan':
             from v2_update_repair import plan_update_repair
             with closing(StateStore(args.state_dir/'state.db',readonly=True)) as store:
@@ -481,20 +494,8 @@ def main(argv=None):
             from v2_entry import inspect_entry
             result=inspect_entry(workspace=args.workspace,tool_root=args.tool_root,verify_package=args.verify_package,refresh_generation=args.refresh_generation)
         elif args.command == 'workspace':
-            _regular_path(args.workspace/'runtime/v2_binding.json')
-            if not (args.workspace/'runtime/v2_binding.json').exists():
-                from v2_entry import inspect_native_workspace
-                result=inspect_native_workspace(args.workspace)
-            else:
-                binding=load_request_json(args.workspace/'runtime/v2_binding.json')
-                target=Path(binding['state_dir'])
-                if not target.is_absolute() or str(target).startswith(('\\\\','//')): raise ValueError('Adopted store must be a local absolute path')
-                if Path(binding['source_root']).resolve()!=args.workspace.resolve(): raise StateConflict('Workspace binding source differs')
-                with closing(StateStore(target/'state.db',readonly=True)) as store:
-                    require_active_binding(store)
-                    result={'decision':'ADOPTED_WORKSPACE','state_dir':str(target),'epoch':binding['epoch'],
-                            'binding_status':'VERIFIED','reconciliation_required':bool(store.connection.execute('SELECT reconciliation_required FROM recovery_state').fetchone()[0]),
-                            'execution_authorized':False,'writes_performed':False}
+            from v2_entry import inspect_workspace_entry
+            result=inspect_workspace_entry(args.workspace)
         elif args.command in {'disaster-forward-plan','disaster-forward-status'}:
             with closing(StateStore(args.state_dir/'state.db',readonly=True)) as store:
                 disaster=UnavailableStoreRecovery(store)
@@ -513,6 +514,12 @@ def main(argv=None):
         elif args.command == 'adoption-status':
             with closing(StateStore(args.state_dir/'state.db',readonly=True)) as store:
                 result=Adoption(store).inspect(adoption_id=args.adoption_id)
+        elif args.command == 'legacy-adoption-preflight':
+            from v2_adoption_host import adoption_preflight
+            result=adoption_preflight(source_root=args.source_root,capsule_root=args.capsule_root,state_dir=args.state_dir,resource_roots=args.resource_root)
+        elif args.command == 'legacy-adoption-apply':
+            from v2_adoption_host import apply_control_adoption
+            result=apply_control_adoption(plan=load_request_json(args.plan_file),tool_root=args.tool_root,expected_plan_sha256=args.expected_plan_sha256,apply=args.apply)
         elif args.command == 'legacy-adoption-plan':
             with closing(StateStore(args.state_dir/'state.db',readonly=True)) as store:
                 result=Adoption(store).plan(source_root=args.source_root,semantic_review_id=args.semantic_review_id,

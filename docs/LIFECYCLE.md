@@ -1,6 +1,6 @@
 # MALTS Lifecycle
 
-The installation lifecycle verifies a source, stages a generation, preserves preimages, activates selected native integrations and checks the resulting binding. The project lifecycle maintains goals, tasks, evidence and recovery independently of installation. Current version: **2.0.0**.
+The installation lifecycle verifies a source, stages a generation, preserves preimages, activates selected native integrations and checks the resulting binding. The project lifecycle maintains goals, tasks, evidence and recovery independently of installation. Current version: **2.0.1**.
 
 ## Core Invariants
 
@@ -13,7 +13,7 @@ Installation and project work have separate lifecycles. Installation owns immuta
 - Active generations are runtime inputs, not editable workspaces.
 - Snapshots and incomplete transactions retain their recovery purpose.
 
-Current version is **2.0.0**; same-version documentation amendments keep a distinct content identity.
+Current version is **2.0.1**; same-version documentation amendments keep a distinct content identity.
 
 A registry identity is meaningful only when it agrees with the active pointer, generation manifest and payload, and the selected tool's Boot. The installer checks the complete verified source before writing; post-validation checks the actual destination rather than inferring success from an exit message.
 
@@ -28,11 +28,11 @@ Personal instruction files have mixed ownership. Only marked MALTS sections are 
 | Reviewed repository | Normal installation/update | VERSION, MALTS_RELEASE.json, exact inventory, source-tree identity and topology |
 | Verified extracted package | Explicit fixed/offline input | Closed release/artifact manifests, inventories and hashes |
 
-ZIP is the delivery form of the second source, not an automatic download or an alternative to source verification. A reissued 2.0.0 ZIP is qualified against its stated source commit and content identity; platform source archives follow the current version tag, which must match the qualified archive source.
+ZIP is the delivery form of the second source, not an automatic download or an alternative to source verification. Each issued ZIP is qualified against its stated source commit and content identity; platform source archives follow the current version tag, which must match the qualified archive source.
 
 Repository verification checks the declared user paths plus the repository-only identity/Git/CI files. It rejects missing, changed or unexpected public content. Installation extracts only user payload paths; repository metadata is not installed into the generation.
 
-A fixed archive adds an outer closed inventory and inner lifecycle artifact. The verifier checks names, traversal/collision risks and hashes before final extraction. A GitHub-generated source archive is a snapshot of a Git ref and must not be assumed to have the same package layout as MALTS-2.0.0.zip.
+A fixed archive adds an outer closed inventory and inner lifecycle artifact. The verifier checks names, traversal/collision risks and hashes before final extraction. A GitHub-generated source archive is a snapshot of a Git ref and must not be assumed to have the same package layout as MALTS-2.0.1.zip.
 
 Select the source before planning and keep it unchanged until execution. Pulling a new commit, editing a guide or adding a cache after planning can invalidate the source identity. Generate another reviewed plan rather than editing the old hash or relaxing verification.
 
@@ -42,7 +42,7 @@ Stable identities use `malts-v<version>`; preview identities have their declared
 
 For a reviewed same-version correction, the current v2 `finalize` path preserves the target preimage and installs the qualified new identity transactionally. This is a deliberate consolidation, not an automatic cleanup or reason to invent a patch version. Historical identities and receipts remain truthful.
 
-The version identifies a release line; the content hash identifies the exact qualified tree. These serve different purposes. Retaining 2.0.0 for a documentation correction is compatible with a new source-tree hash, but the installed identity must be updated through the formal transaction rather than pretending the old artifact contains new bytes.
+The version identifies a release line; the content hash identifies the exact qualified tree. These serve different purposes. A documentation correction can produce a distinct source-tree hash, but the installed identity must be updated through the formal transaction rather than pretending the old artifact contains new bytes.
 
 For current v2 finalization, planning records the existing target and its snapshot before replacement. It does not implicitly retire every old version or scan the drive for cleanup. Review any planned writes/removals and the snapshot paths against the actual selected lifecycle. For an explicitly authorized tag correction, retain the original annotated object under a historical reference, then align the current version tag and package to the qualified source. Retained original packages/receipts keep their original identities; new tag/package observations receive a new receipt.
 

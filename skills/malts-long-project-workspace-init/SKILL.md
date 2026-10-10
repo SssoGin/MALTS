@@ -11,6 +11,8 @@ Initialize a phase-ready long workspace, review its Phase boundary, or recover i
 
 ## Select the actual workspace contract
 
+For an unadopted legacy workspace, run read-only `entry-status` and `legacy-adoption-preflight` before creating a capsule/store. Source, capsule and state must be separate authorized roots. The built-in Windows `legacy-adoption-apply` covers reviewed MALTS control inputs and legacy transaction admission, not arbitrary external applications or business roots. Follow [adoption steps and limits](../../docs/V2_PREVIEW_USAGE.md#v2-migration); preserve the original plan/ID on partial cutover. After adoption, `workspace` supplies service-verified governance readiness, including plan bytes and Task bindings. Do not substitute an imported store or historical DONE.
+
 Discover the active runtime through the Host's exact `MALTS_BOOT.md` and verified lifecycle identity. For an adopted or explicitly selected native v2 workspace, run `tools/malts_v2.py workspace --workspace <root>` and use its verified store. A missing/conflicting binding requires v2 recovery, not legacy initialization. Ordinary entry creates no Project, Phase, Session, Run or Artifact.
 
 For adopted v2, the selected store and services own executable state. Historical Markdown controls, `WORK_TASK_REPORT.md`, and the latest historical Session are provenance, not current acceptance or write authority. Read the exact current Task/Phase, its dependencies, actual plan bytes/hash and unresolved effects before the relevant action. A read result or declared hash does not grant execution or verify the plan body.

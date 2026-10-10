@@ -1,6 +1,6 @@
 # Agent-Assisted Installation
 
-An Agent can inspect and execute the user’s approved MALTS installation/update. Current version is **2.0.0**; inspection does not expand the authorization.
+An Agent can inspect and execute the user’s approved MALTS installation/update. Current version is **2.0.1**; inspection does not expand the authorization.
 
 ## Source Selection
 

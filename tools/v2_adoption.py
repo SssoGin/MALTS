@@ -229,7 +229,7 @@ class Adoption:
                     c.execute('UPDATE recovery_state SET epoch=?,reconciliation_required=0 WHERE singleton=1',(plan['new_epoch'],))
                     c.execute("UPDATE migration_barrier SET pending_domains_json='[]' WHERE singleton=1")
                     receipt={'decision':'ADOPTED','adoption_id':plan['adoption_id'],'epoch':plan['new_epoch'],
-                        'host_witness':witness,'assurance':'CALLER_CONFIGURED_HOST_ADAPTER','writes_performed':True,
+                        'host_witness':witness,'assurance':getattr(host,'assurance','CALLER_CONFIGURED_HOST_ADAPTER'),'writes_performed':True,
                         'execution_authorized':False,'legacy_source_sealed':True,'post_adoption_state_sha256':definition_state_hash(c)}
                     c.execute("UPDATE migration_adoption SET state='ACTIVE',receipt_json=? WHERE adoption_id=?",(_json(receipt),plan['adoption_id']))
                 require_active_binding(self.store)
@@ -237,7 +237,7 @@ class Adoption:
             except BaseException:
                 # An installed binding may be observed even if the DB commit
                 # failed. Keep seals and PREPARED state for exact-plan recovery.
-                if not _path(root,BINDING).exists():
+                if not _path(root,BINDING).exists() and not getattr(host,'preserve_source_seals',False):
                     for name in SEALS:
                         path=_path(root,name)
                         if path.exists() and path.read_bytes()==_seal(plan): _retire_owned(root,name,_seal(plan),plan['adoption_id'])

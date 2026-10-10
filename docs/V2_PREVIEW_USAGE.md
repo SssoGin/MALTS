@@ -1,6 +1,6 @@
 # MALTS Controller Operations
 
-Controllers use the verified runtime and selected state to query tasks and perform reviewed requests. The current Core format is Schema69 and version **2.0.0**. Ordinary project work can use installed Skills; the commands below describe the controller interface. Demonstrations require a separately selected new directory and do not call a model or install a Host.
+Controllers use the verified runtime and selected state to query tasks and perform reviewed requests. The current Core format is Schema69 and version **2.0.1**. Ordinary project work can use installed Skills; the commands below describe the controller interface. Demonstrations require a separately selected new directory and do not call a model or install a Host.
 
 <a id="v2-start"></a>
 ## 1. First complete local task
@@ -38,9 +38,9 @@ request('grant.record', grant_id='G1', task_id='T1', task_revision=1, actor='dem
         source_ref='user:approved-isolated-file-demo', resource='hello.txt', effect='write')
 p = request('operation.prepare', operation_id='OP1', grant_id='G1', actor='demo',
             resource='hello.txt', effect='write', capture_authority_ref='user:approved-synthetic-demo',
-            parameters={'tool': 'create-file', 'path': 'hello.txt', 'content': 'Hello MALTS 2.0.0\n'})
+            parameters={'tool': 'create-file', 'path': 'hello.txt', 'content': 'Hello MALTS 2.0.1\n'})
 request('operation.create-file', operation_id='OP1', actor='demo', expected_request_hash=p['request_hash'])
-assert (demo / 'hello.txt').read_bytes() == b'Hello MALTS 2.0.0\n'
+assert (demo / 'hello.txt').read_bytes() == b'Hello MALTS 2.0.1\n'
 descriptor = {'owner': 'DEMO', 'target': {'task_id': 'T1', 'task_revision': 1, 'criterion': 'Integrity'},
               'content_class': 'synthetic', 'sensitivity': 'project', 'redaction_policy_version': 'demo-v1',
               'verification_scope': 'Isolated synthetic file integrity only',
@@ -147,3 +147,81 @@ Artifacts have independent content, ownership, relation and reuse checks. Curren
 ## 9. Adoption and upgrade
 
 Explicit legacy adoption/forward contracts review goals, mapping, writers, UNKNOWN, backup and seals, then preview/apply. After adoption, recovery stays in v2. Never remove binding/seals, patch DB or revive Markdown write authority. See [Update](UPDATE.md) and the [State Contract](V2_STATE_CONTRACT.md).
+
+### 9.1 Support and the cutover boundary
+
+MALTS 2.0.1 supplies `legacy-adoption-apply` with the built-in `WINDOWS_GOVERNED_CONTROL_FILES` handoff. It adopts reviewed MALTS control definitions and historical inputs on fixed local Windows volumes. The controller runs from the actively discovered runtime and holds lifecycle exclusion during the operation. Codex, Claude Code, OpenCode and DeepSeek Harness can use the same controller; this does not certify their GUI processes as independently controlled migration Hosts.
+
+The handoff exclusively creates both legacy transaction seals, opens every reviewed source input and known activity file with Windows write/delete sharing denied, and holds ancestor directory handles against rename. An existing writable handle or writable mapping prevents acquisition. New governed legacy transactions cannot pass the seals. Candidate definitions and semantic review are checked again in the SQLite cutover transaction. A witness records the actually held guards; the CLI accepts no user-authored witness JSON.
+
+The bound resources are the reviewed control inputs, source protocol files and candidate definitions. This is not isolation of every file beneath a business project, and it does not stop an Editor, import worker, background job or arbitrary external application. Unindexed business files are not imported or backed up by adoption. Including external business roots in this handoff is unsupported and is rejected by preflight. A caller-configured Host is still required for a wider resource boundary; its actual suppression of writers must be independently established. Do not infer that guarantee from an empty process list or settled MALTS records.
+
+### 9.2 Directory layout and permission
+
+Check the layout before creating a capsule or store:
+
+```text
+<project-parent>/
+  <control-workspace>/
+  <project-malts-home>/
+    source-capsule/
+    state/
+    adoption-plan.json
+```
+
+The source, capsule and state roots must be separate: none may contain another. The project-specific home needs explicit write permission under the current task; permission for the original workspace alone does not include this sibling directory. State becomes the sole long-lived task authority after adoption. Keep its backups and protected evidence; it is not a disposable migration cache. Capsule verification protects selected source bytes, not the complete business asset tree or cross-user plaintext recovery.
+
+After reading Boot and verifying discovery, replace the placeholders below with the authorized paths. These first commands are read-only:
+
+```powershell
+$Cli = Join-Path $MaltsRoot 'tools/malts_v2.py'
+& $PythonExe -B $Cli entry-status --workspace $SourceRoot --tool-root $ToolRoot --verify-package
+& $PythonExe -B $Cli legacy-adoption-preflight --source-root $SourceRoot --capsule-root $CapsuleRoot --state-dir $StateDir
+```
+
+To check a proposed wider boundary, append `--resource-root '<external-business-root>'`; `EXTERNAL_RESOURCE_HANDOFF_NOT_SUPPORTED` is a stop for that wider boundary. A valid layout or `CONTROL_HANDOFF_AVAILABLE` proves neither live guard acquisition nor authorization to start preparation.
+
+### 9.3 Preparation, import and semantic review
+
+Preserve original goals, controls, plans, outputs, user edits and recovery obligations first. Inspect `legacy-activity`; UNKNOWN effects or unresolved transactions must be reconciled under their original identity. Review the source inventory, then use `legacy-stage` to preview and seal a capsule with its exact inventory hash. Use `legacy-import-definitions` to preview/apply an explicitly reviewed Project/Phase/Task/dependency mapping into the separate candidate store. `legacy-verify-import` verifies that import. Historical DONE remains a historical declaration.
+
+Next, use `legacy-review-semantics` with the reviewed dispositions, inventory hash and mapping hash. Apply only its approved preview hash. A source inventory, imported database and semantic receipt are different milestones: none establishes an adopted workspace or execution permission. The `--help` for each command lists the current closed arguments; source or mapping drift requires a new review, not editing the saved hashes.
+
+### 9.4 Reviewed plan and formal apply
+
+Generate and save one `legacy-adoption-plan` after successful semantic review, supplying the existing authorization reference and a selected adoption ID. Save the returned JSON unchanged as UTF-8. Its `plan_sha256` binds source/store, semantic review, definitions, activity and both epochs. Preserve this plan for retries; do not generate a replacement plan after a possibly partial cutover.
+
+For that saved, reviewed plan:
+
+```powershell
+$Plan = Get-Content -LiteralPath $PlanPath -Raw -Encoding utf8 | ConvertFrom-Json
+& $PythonExe -B $Cli legacy-adoption-apply --plan-file $PlanPath --expected-plan-sha256 $Plan.plan_sha256 --tool-root $ToolRoot
+# After the reviewed operation is authorized, apply the same plan:
+& $PythonExe -B $Cli legacy-adoption-apply --plan-file $PlanPath --expected-plan-sha256 $Plan.plan_sha256 --tool-root $ToolRoot --apply
+```
+
+Without `--apply`, no seal, binding, database mutation or handoff evidence is created. Apply acquires real guards and uses the core adoption protocol. `ADOPTED` proves the binding switch at that scope; it does not activate a Phase, resume a Task, launch a Host or issue a Grant.
+
+### 9.5 Interruption and identity-preserving continuation
+
+Inspect the original operation with `adoption-status --state-dir $StateDir --adoption-id $Plan.adoption_id`. The Windows controller preserves owned seals on failure so governed writers remain blocked. PREPARED with partial seals or an installed binding is a recoverable scene, not permission to delete the files or run native initialization. Preserve the plan, store and handoff evidence. Correct the observed cause, then apply the exact same plan/ID when review and inputs still match. Foreign seals/bindings or changed definitions reject continuation without overwriting them.
+
+An already ACTIVE replay verifies the current binding and returns the stored receipt with `replayed=true`, `writes_performed=false` and `host_revalidated=false`. It does not claim new writer isolation. Forward recovery after a later restore follows the existing v2 recovery contracts; legacy rollback stays unsupported.
+
+### 9.6 Formal long-project readiness
+
+Query `workspace --workspace $SourceRoot` after adoption. The service verifies binding, store, epoch and source seals and returns the selected Project, current revision, profile, active Phase, actual plan reference/hash, verified Task/binding/dependency counts and `readiness_blockers`. `definition_body_reverified=true` distinguishes this query from bounded context previews.
+
+`LONG_PROJECT` identifies a defined Phase hierarchy. `phase_ready=true` additionally requires the current Project definition, one suitable ACTIVE Phase with matching plan bytes, current Task bindings and no pending migration/recovery condition. Dependency edges are verified; unaccepted predecessor results still block dependent execution through the Task service. Readiness is governance readiness, not a Grant or business acceptance.
+
+After adoption, explicitly review and activate the intended Phase through `phase.set-active`; revise Tasks and bind their current revisions with `phase.bind-task` where needed. Use `governance-context`, `task-queue` and exact Task `context` for bounded continuation. Do not activate arbitrary historical Phases or start business work merely to make a field true.
+
+### 9.7 Entry diagnostics and capability meaning
+
+`workspace` classifies before opening state: a legacy source returns `MIGRATION_REQUIRED`, an unbound imported store returns `ADOPTION_REQUIRED`, and an owned source seal without a verified binding returns `RECOVERY_REQUIRED`. None is a native workspace. Invalid bindings and actual database failures remain errors; do not label those failures as successful migration.
+
+Capability fields describe their declared layer. `migration_supported=false` refers to automatic database-schema upgrades, not the separate reviewed legacy-adoption workflow. `builtin_control_handoff` describes this Windows control-input profile. `native_host_adapters_qualified=false` and `whole_host_occupancy_known=false` retain their restrictions on native Agent orchestration and arbitrary external writers; the built-in control handoff does not change them.
+
+### 9.8 Cross-root projects and verification limits
+
+Adoption binds Project `resource_root` to the control workspace. An external Unity/Unreal/source/assets root does not inherit write authorization. Review separate resource ownership and the applicable adapter before allowing effects there; do not change binding files or a database field to gain access. Four-tool installation, synthetic migration/negative/recovery checks and actual controller operation are separate evidence from a particular business project's migration or Editor behavior. Cross-user DPAPI plaintext recovery remains unqualified.

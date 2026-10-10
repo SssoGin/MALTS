@@ -1,10 +1,10 @@
 # Getting Started with MALTS
 
-To begin, select an installed Agent tool and a verified MALTS source, review an installation plan, check native loading, then define a bounded project goal. Current version: **2.0.0**.
+To begin, select an installed Agent tool and a verified MALTS source, review an installation plan, check native loading, then define a bounded project goal. Current version: **2.0.1**.
 
 ## 1. Understand the Model
 
-MALTS preserves goals, current progress, evidence and recovery across finite project work. Single Agent is the normal path; collaboration and experience review are selected by actual need. The current implementation is **2.0.0**.
+MALTS preserves goals, current progress, evidence and recovery across finite project work. Single Agent is the normal path; collaboration and experience review are selected by actual need. The current implementation is **2.0.1**.
 
 ### Initialization Versus Ordinary Entry
 
@@ -16,7 +16,7 @@ The verified path uses Windows, Python3.11+ and PowerShell; PowerShell7 is recom
 
 ## 3. Verify the Repository Source
 
-Review remote/ref, VERSION and MALTS_RELEASE.json. Use the exact reviewed 2.0.0 tree; the current MALTS ZIP identifies its exact source revision and digest in the Release notes, while platform source archives follow their tag. See [Install](INSTALL.md) for inventory verification.
+Review remote/ref, VERSION and MALTS_RELEASE.json. Use the exact reviewed 2.0.1 tree; the current MALTS ZIP identifies its exact source revision and digest in the Release notes, while platform source archives follow their tag. See [Install](INSTALL.md) for inventory verification.
 
 Run the installation entry from the actual reviewed repository root. Keep credentials, project outputs and caches outside that distribution tree. The release identity binds exact user/repository-only inventories, so a modified or incomplete source must be corrected before planning.
 

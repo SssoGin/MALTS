@@ -8,7 +8,7 @@ MALTS is an operating framework for AI Agent project work. It connects goal clar
 
 One Agent is the default executor. When independent investigation, implementation or verification helps, explicitly authorized Agents can share the work. The main Agent remains responsible for integration, acceptance and delivery. The same goals, stages, verification and recovery methods apply to both modes.
 
-The current version is **2.0.0**. This page describes MALTS as a complete system; version-specific changes and upgrade implications are in the [Changelog](CHANGELOG.md).
+The current version is **2.0.1**. This page describes MALTS as a complete system; version-specific changes and upgrade implications are in the [Changelog](CHANGELOG.md).
 
 ## Problems it addresses
 
@@ -187,9 +187,11 @@ scripts/      Installation, updates and installation lifecycle
 docs/         System, usage, design and technical references
 ```
 
+MALTS 2.0.1 adds a reviewed Windows control-workspace adoption command, an early layout/support check and a verified long-project readiness query. It preserves the workflow and four-tool shared installation described above. See [adoption and its resource boundary](docs/V2_PREVIEW_USAGE.md#v2-migration) before migrating an existing workspace.
+
 ## Version
 
-Current release: **2.0.0**. See the [MALTS 2.0.0 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.0.0) for notes/optional offline ZIP and [Changelog](CHANGELOG.md) for history.
+Current release: **2.0.1**. See the [MALTS 2.0.1 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.0.1) for notes/optional offline ZIP and [Changelog](CHANGELOG.md) for history.
 
 ## Documentation languages
 
