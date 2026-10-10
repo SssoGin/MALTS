@@ -49,16 +49,24 @@ def _local_root(value):
     return root
 
 
-def adoption_preflight(*,source_root,capsule_root,state_dir,resource_roots=()):
+def adoption_preflight(*,source_root,capsule_root=None,state_dir=None,resource_roots=()):
     """No mkdir, database creation, source seal or runtime mutation."""
     result={'decision':'ADOPTION_PREFLIGHT','support':adoption_support(),'layout_valid':False,
         'host_handoff_established':False,'preparation_authorized':False,'execution_authorized':False,'writes_performed':False}
     try:
-        source,capsule,state=map(_local_root,(source_root,capsule_root,state_dir))
+        source=_local_root(source_root)
+        capsule=_local_root(capsule_root or source/'.malts/source-capsules/adoption')
+        state=_local_root(state_dir or source/'.malts/state')
         if not source.is_dir():raise ValueError('Existing source workspace required')
-        roots=(source,capsule,state)
-        if any(a.is_relative_to(b) or b.is_relative_to(a) for i,a in enumerate(roots) for b in roots[i+1:]):
-            return {**result,'reason':'MIGRATION_ROOTS_MUST_BE_SEPARATE'}
+        from v2_management import validate_layout
+        try:layout=validate_layout(source,capsule=capsule,state=state)
+        except StateConflict as error:return {**result,'reason':str(error)}
+        if capsule.exists() or state.exists():return {**result,'reason':'MIGRATION_TARGET_ALREADY_EXISTS'}
+        if layout['layout']=='IN_WORKSPACE':
+            from v2_legacy_reader import inspect_workspace
+            from v2_management import selection_conflicts
+            if selection_conflicts(inspect_workspace(source)):
+                return {**result,'reason':'SOURCE_MANAGEMENT_DIRECTORY_CONFLICT'}
         if resource_roots and any(_local_root(r)!=source for r in resource_roots):
             return {**result,'layout_valid':True,'reason':'EXTERNAL_RESOURCE_HANDOFF_NOT_SUPPORTED',
                 'next_step':'Adopt the control workspace only; obtain a separately qualified adapter before including external business resources.'}
@@ -67,7 +75,7 @@ def adoption_preflight(*,source_root,capsule_root,state_dir,resource_roots=()):
         if any((source/name).exists() for name in SEALS):
             return {**result,'layout_valid':True,'reason':'SOURCE_TRANSACTION_OR_ADOPTION_RECOVERY_REQUIRED',
                 'next_step':'Inspect legacy-activity and the original adoption-status/plan; do not prepare a replacement identity.'}
-        return {**result,'layout_valid':True,'source_root':str(source),'capsule_root':str(capsule),'state_dir':str(state),
+        return {**result,'layout_valid':True,**layout,'source_root':str(source),'capsule_root':str(capsule),'state_dir':str(state),
             'reason':'CONTROL_HANDOFF_AVAILABLE' if os.name=='nt' else 'CONTROL_HANDOFF_PLATFORM_UNSUPPORTED',
             'preparation_prerequisites':['Explicit authorization for these three exact roots','Reviewed source inventory and semantic dispositions','No unresolved legacy activity','Successful live file-handle acquisition at apply'],
             'source_contents_copied':False,'state_is_long_lived_authority':True}
@@ -117,8 +125,11 @@ class WindowsControlHandoff:
     def handoff(self,plan):
         Adoption._check_plan(plan)
         source=_local_root(plan['source_root']);target=_local_root(plan['state_dir'])
-        if target!=self.store.path.parent.resolve() or source.is_relative_to(target) or target.is_relative_to(source):
+        if target!=self.store.path.parent.resolve():
             raise StateConflict('Handoff source/store scope differs')
+        from v2_management import validate_layout
+        inventory=json.loads((target/'legacy-source/manifest.json').read_text(encoding='utf-8'))['inventory']
+        validate_layout(source,state=target,inventory=inventory,require_owned=True)
         if os.name!='nt':raise OSError('Windows control handoff is unavailable')
         with ExitStack() as guards:
             for root in sorted((source,target),key=lambda p:os.path.normcase(str(p))):guards.enter_context(RuntimeMutex(root))

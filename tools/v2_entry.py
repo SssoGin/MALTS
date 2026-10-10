@@ -39,6 +39,9 @@ def _workspace_format(workspace):
                 binding['state_dir'].startswith(('\\\\','//'))):
             raise ValueError('Unsupported or mismatched workspace binding')
         state=Path(binding['state_dir']);kind='BOUND_V2_STORE'
+    elif (root/'.malts/native.json').exists():
+        from v2_management import native_location
+        state=native_location(root);kind='OWNED_NATIVE_STORE'
     elif (root/'state.db').exists():state=root;kind='DIRECT_CANDIDATE_STORE'
     elif (root/'runtime/workspace_control.json').exists():
         value=_json_file(root,'runtime/workspace_control.json')
@@ -142,6 +145,9 @@ def inspect_workspace_entry(workspace):
             ready=workspace_readiness(store,row[0])
             c.execute('COMMIT')
             return {**ready,'decision':'ADOPTED_WORKSPACE','state_dir':binding['state_dir'],'binding_status':'VERIFIED','adoption_performed':False}
+    if (root/'.malts/native.json').exists():
+        from v2_management import native_location
+        return inspect_native_workspace(native_location(root))
     _regular_path(root/'state.db')
     if (root/'state.db').exists():
         with closing(StateStore(root/'state.db',readonly=True)) as store:

@@ -73,6 +73,8 @@ def require_active_binding(store):
             (plan['adoption_id'],plan['project_id'],plan['plan_sha256'])!=rows[0][2:]):
         raise StateConflict('Adoption receipt belongs to a different store or identity')
     root=Path(plan['source_root'])
+    from v2_management import validate_layout
+    validate_layout(root,state=store.path.parent,require_owned=True)
     resource=store.connection.execute('SELECT resource_root FROM project WHERE project_id=?',(plan['project_id'],)).fetchone()
     if resource is None or Path(resource[0]).resolve()!=root.resolve(): raise StateConflict('Adopted resource root changed')
     for relative,data in [(BINDING,_binding(plan)),*((name,_seal(plan)) for name in SEALS)]:
@@ -111,8 +113,9 @@ class Adoption:
         if not isinstance(authority_ref,str) or not authority_ref.strip(): raise ValueError('Adoption authority reference required')
         source=Path(source_root).absolute(); target=self.store.path.parent.resolve()
         _regular_path(source)
-        if source.resolve().is_relative_to(target) or target.is_relative_to(source.resolve()):
-            raise ValueError('Source and candidate store must be separate directories')
+        from v2_management import validate_layout
+        inventory=json.loads((target/'legacy-source/manifest.json').read_text(encoding='utf-8'))['inventory']
+        validate_layout(source,state=target,inventory=inventory,require_owned=True)
         if _path(source,BINDING).exists(): raise StateConflict('Source already has a binding; inspect its cutover state')
         c=self.store.connection; c.execute('BEGIN')
         try:

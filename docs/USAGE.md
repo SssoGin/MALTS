@@ -1,6 +1,6 @@
 # Use MALTS in a Project
 
-Project work begins with a checkable goal and continues through planning, execution, verification and delivery. MALTS workflows preserve the facts needed for interruption, collaboration and future review. Current version: **2.0.1**; controller protocols are in [Operations](V2_PREVIEW_USAGE.md).
+Project work begins with a checkable goal and continues through planning, execution, verification and delivery. MALTS workflows preserve the facts needed for interruption, collaboration and future review. Current version: **2.0.2**; controller protocols are in [Operations](V2_PREVIEW_USAGE.md).
 
 ## Enter an existing workspace
 
@@ -147,3 +147,7 @@ Use malts-single-agent-lightweight-growth for meaningful correction/verification
 Record sources, applicable problems, actions, checks and exclusions. Project recording/trials use existing permission; global rule/Skill edits have separate scope. Current growth.propose/trial/outcome/validate/retire manage later assessments. Retain neutral/harmful/unknown and retirement.
 
 A helpful check can be tried in suitable future work; one success does not justify imposing it on every project forever.
+
+## Workspace Management Data and Migration
+
+Ordinary new workspaces use `workspace-init` to place task state, managed evidence and recovery data under an owned `.malts` directory; explicit external layouts remain supported. Installation updates do not move existing projects. Healthy adopted stores can relocate through a read-only plan, backup/restore, current-effect review and formal forward switch. The new epoch does not restore old Grants/acceptance or activate a Phase automatically. Retain old stores, external historical references and source capsules according to their actual dependencies. See [workspace management and store relocation](MANAGEMENT_AND_RELOCATION.md) for steps and limits.

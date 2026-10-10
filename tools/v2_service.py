@@ -173,6 +173,11 @@ def execute_request(store,request,*,evidence_reader=None,required_resource_root=
 def safe_error(error):
     """Stable public error data; never includes raw exception messages or input."""
     from v2_adoption_host import ControlHandoffError
+    from v2_management import ManagementConflict
+    if isinstance(error,ManagementConflict):
+        return {'decision':'ERROR','error_type':'ManagementConflict','error_code':'WORKSPACE_MANAGEMENT_BLOCKED',
+                'reason_code':error.reason_code,
+                'message':'Management preparation or relocation is blocked. Inspect the exact target and original operation journal; preserve current state and unresolved recovery material.'}
     if isinstance(error,ControlHandoffError):
         return {'decision':'ERROR','error_type':'ControlHandoffError','error_code':'ADOPTION_HANDOFF_BLOCKED',
                 'reason_code':error.reason_code,

@@ -1,6 +1,6 @@
 # MALTS System Overview
 
-MALTS preserves project goals, current progress, observed results and recovery information across AI-agent execution rounds. It combines delivery, optional collaboration and evidence-based experience use through shared project/task contracts. Current version: **2.0.1**.
+MALTS preserves project goals, current progress, observed results and recovery information across AI-agent execution rounds. It combines delivery, optional collaboration and evidence-based experience use through shared project/task contracts. Current version: **2.0.2**.
 
 ## 1. System Purpose
 
@@ -142,3 +142,7 @@ Migration is an explicit ownership change. Review mappings, writers, uncertain e
 Use [Getting Started](GETTING_STARTED.md), then [Usage](USAGE.md). Inspect existing progress before continuation; initialize only a new long goal. See [Operations](V2_PREVIEW_USAGE.md) for controllers and [Lifecycle](LIFECYCLE.md) for upgrades/recovery.
 
 [Core Design](CORE_DESIGN.md) preserves the detailed model, operating sections and tradeoffs. [State Contract](V2_STATE_CONTRACT.md) defines exact current protocols.
+
+## Workspace Management Data and Migration
+
+Ordinary new workspaces use `workspace-init` to place task state, managed evidence and recovery data under an owned `.malts` directory; explicit external layouts remain supported. Installation updates do not move existing projects. Healthy adopted stores can relocate through a read-only plan, backup/restore, current-effect review and formal forward switch. The new epoch does not restore old Grants/acceptance or activate a Phase automatically. Retain old stores, external historical references and source capsules according to their actual dependencies. See [workspace management and store relocation](MANAGEMENT_AND_RELOCATION.md) for steps and limits.

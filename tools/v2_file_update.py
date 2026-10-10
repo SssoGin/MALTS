@@ -157,6 +157,8 @@ def update_file(host, *, operation_id, actor, expected_request_hash):
     require_access(policy,owner=task['project_id'],purpose='recovery',revoked=False)
     if 'recovery' not in policy['access_scope']['purposes']: raise PermissionError('Preimage must remain available for recovery')
     root=Path(row[5]).absolute(); target=root/unambiguous_relative_file(parameters['path'])
+    from v2_management import protect_business_resource
+    protect_business_resource(host.store,root,parameters['path'])
     if str(root).startswith(('\\\\','//')): raise PermissionError('Update requires a local file root')
     _regular_path(root)
     if host.required_resource_root is not None and root.resolve()!=host.required_resource_root: raise PermissionError('Update root differs from Host policy')

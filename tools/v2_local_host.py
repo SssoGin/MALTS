@@ -137,6 +137,8 @@ class LocalFileHost:
             raise FileReadParametersError('Read adapter requires closed read-file parameters')
         if row[3]!='read' or row[5]!=actor or parameters['path']!=row[2]: raise PermissionError('Read parameters or actor differ from Grant')
         relative=unambiguous_relative_file(parameters['path']); root=Path(row[4]).absolute()
+        from v2_management import protect_business_resource
+        protect_business_resource(self.store,root,relative)
         if self.required_resource_root is not None and root.resolve()!=self.required_resource_root: raise PermissionError('Host resource root differs from policy')
         intent=self.operations.record_intent(operation_id,actor,expected_request_hash)
         if not intent['execute_once']: return {'decision':'NOT_REEXECUTED','operation_state':intent['state']}
@@ -178,6 +180,8 @@ class LocalFileHost:
         if self.required_resource_root is not None and root!=self.required_resource_root:
             raise PermissionError('Host resource root differs from its pinned policy')
         target=root/relative
+        from v2_management import protect_business_resource
+        protect_business_resource(self.store,root,relative)
         _regular_path(target)
         if not target.parent.is_dir() or not target.resolve().is_relative_to(root):
             raise PermissionError('Create target has no permitted parent')

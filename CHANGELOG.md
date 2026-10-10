@@ -1,5 +1,39 @@
 # Changelog
 
+## 2.0.2 — 2026-10-10
+
+Dates use Asia/Shanghai (UTC+08:00). This maintenance release improves where MALTS project management data is stored and how an already adopted store can move, while retaining the full product workflow and the shared core for Codex, Claude Code, OpenCode and DeepSeek Harness.
+
+### Added and improved
+
+- **Project-local management by default.** `workspace-init` creates an owned `.malts/state` and a verified native locator. Legacy-adoption preflight offers internal capsule/state paths. Explicit external layouts and existing external bindings remain supported; an installation update does not move projects.
+- **Ownership and source selection.** Unknown preexisting management directories and conflicting targets are rejected. A hashed source-selection contract excludes management data from legacy inputs without ignoring all hidden files. Real indexed-source conflicts under `.malts` fail explicitly. Staging, definition import, adoption, entry and backup support the internal layout; ordinary business operations cannot access state or authority files.
+- **Formal adopted-store relocation.** Read-only preflight binds normalized roots, current state/protocol hashes, file closure and same-user/same-machine identity. Preparation creates a verified backup and quarantined new-epoch restore; status exposes the original journal and a deliberately UNKNOWN recovery-review template. After actual resource/effect reconciliation, `legacy-forward-apply` performs the existing forward protocol using real SQLite exclusive locks and managed-input/namespace guards.
+- **One authority and resumable cutover.** Source advancement rejects a stale snapshot. Old authority is superseded before new activation. Original IDs, plans, preimages and incomplete attempts survive interruption; replay verifies binding without pretending to establish a new Host fence. Restore invalidates old Grants/acceptance, keeps budgets from being replenished, and requires explicit Phase activation. Old stores and historical absolute references remain available; relocation does not delete them or rewrite historical evidence.
+- **Earlier archive diagnostics.** Staging preview rejects unsupported `archive-only` status/identity before copying. Only verified inactive `DONE`, `CANCELLED` or `FAILED` controls qualify; `SUPERSEDED` and `BLOCKED` are not silently reclassified.
+- **Complete bilingual guidance.** README, design, installation, use, update, state, security and handoff guides point to a detailed management/relocation procedure; the local demonstration uses the default internal layout.
+
+### Upgrade and limits
+
+Update selected tools through the normal shared lifecycle transaction. Core Schema69 and current project bindings remain unchanged. Relocation is explicit and supports healthy readable adopted stores on Windows fixed local volumes under the same user/machine, with an absent target and same-volume target/journal. Network/reparse/cloud-synchronized storage, cross-user/cross-machine transfer and arbitrary raw-file/Editor writer isolation are not qualified. External effects require a factual operator review; empty Run records are not proof of quiescence. No reporter project migration, native model qualification, general performance gain or automatic recovery-material cleanup is claimed.
+
+### 中文说明
+
+日期采用 Asia/Shanghai（UTC+08:00）。本维护版本改进 MALTS 项目管理数据的保存位置，以及已采用状态库的正式搬迁方式，沿用产品完整工作过程和 Codex、Claude Code、OpenCode、DeepSeek Harness 四端共享核心。
+
+### 新增与改进
+
+- **默认项目内管理。** `workspace-init` 创建所属 `.malts/state` 和经核验的原生定位文件；旧工作区采用预检给出根内来源封存和状态路径。显式外置布局及已有外置绑定继续受支持，安装更新不搬动项目。
+- **所有权与来源选择。** 拒绝未知已有管理目录和目标冲突。参与哈希的来源选择合同排除管理数据，不忽略全部隐藏文件；真正位于 `.malts` 下的索引来源明确报冲突。封存、定义导入、采用、入口与备份支持根内布局；普通业务操作不能访问状态或权威文件。
+- **正式已采用库重定位。** 只读预检绑定规范化根目录、当前状态与协议哈希、文件闭包及同机同用户身份。准备生成核验备份和新 epoch 的隔离恢复；状态查询提供原操作记录及有意保留 UNKNOWN 的恢复审查模板。资源与效果经实际协调后，`legacy-forward-apply` 使用真实 SQLite 排他锁、受管输入和目录保护执行既有前向协议。
+- **唯一权威与中断接续。** 旧来源产生新工作时拒绝过期快照；旧权威先被取代，再激活新权威。中断保留原 ID、计划、前像和未完成尝试；重复调用核验 binding，不冒充建立新的 Host 隔离。恢复使旧 Grant 和验收失效，不补足预算，Phase 须明确激活。旧库和历史绝对引用继续保留，不随重定位删除或改写历史证据。
+- **提前报告封存问题。** 封存预览在复制前拒绝不支持的 `archive-only` 状态或身份。仅已核实、非活动的 `DONE`、`CANCELLED`、`FAILED` 控制符合条件，不静默重分类 `SUPERSEDED` 或 `BLOCKED`。
+- **完整中英说明。** README、设计、安装、使用、升级、状态、安全和交接文档衔接详细的管理与重定位流程，本地演示采用默认根内布局。
+
+### 升级与限制
+
+通过常规共享生命周期事务更新所选工具，Core Schema69 和当前项目绑定不变。重定位须显式执行，仅支持同机同用户、Windows 固定本地卷上健康可读的已采用库、尚不存在的目标，以及同卷目标和操作记录目录。网络或重解析路径、云同步存储、跨用户跨机器搬迁、任意原始文件或 Editor 写入隔离均未认证。外部效果须依据事实审查，Run 记录为空不证明静默。不声明反馈方项目已迁移、原生模型已认证、普遍性能收益或恢复资料自动清理。
+
 ## 2.0.1 — 2026-10-10
 
 Dates use Asia/Shanghai (UTC+08:00). This maintenance release improves adoption of existing MALTS control workspaces while retaining the product workflow and the shared installation for Codex, Claude Code, OpenCode and DeepSeek Harness.

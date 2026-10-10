@@ -61,6 +61,8 @@ class Operations:
         if '://' in resource:
             return None
         root=c.execute('SELECT p.resource_root FROM project p JOIN task t ON t.project_id=p.project_id WHERE t.task_id=?',(task_id,)).fetchone()[0]
+        from v2_management import protect_business_resource
+        protect_business_resource(self.store,root,resource)
         locator=normalize_locator(root,{'schema_version':1,'locator_id':'resource','kind':'PATH','scope':'WORKSPACE',
                                        'access':'READ' if effect=='read' else 'WRITE','value':resource,'aliases':[]})
         if locator['physical_identity_status']=='UNKNOWN':

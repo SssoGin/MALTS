@@ -191,13 +191,14 @@ def stage_controls(source, destination, *, inventory, expected_inventory_sha256)
     source,destination=Path(source).absolute(),Path(destination).absolute()
     _regular_path(source)
     _regular_path(destination)
-    if destination.resolve().is_relative_to(source.resolve()) or source.resolve().is_relative_to(destination.resolve()):
-        raise ValueError('Migration capsule must use a separate local directory')
+    from v2_management import validate_layout
+    layout=validate_layout(source,capsule=destination,inventory=inventory,require_owned=True)
     if inventory_hash(inventory)!=expected_inventory_sha256:
         raise StateConflict('Reviewed inventory hash changed')
     if (any(r.get('identity_verification')!='MATCH' for r in inventory['records']) or
             verify_inventory(source,inventory)['decision']!='SOURCE_MATCH'):
         raise StateConflict('Source inventory is ambiguous, unverified or stale')
+    if layout['layout']=='IN_WORKSPACE':destination.parent.mkdir(exist_ok=True)
     destination.mkdir()  # no overwrite, no recursive directory copying
     controls=destination/'controls'
     controls.mkdir()
@@ -435,6 +436,15 @@ def import_definitions(capsule, destination, *, expected_inventory_sha256, mappi
     """
     from v2_contracts import criteria,phase_boundary
     capsule,destination=Path(capsule).absolute(),Path(destination).absolute()
+    _regular_path(capsule);_regular_path(destination)
+    if capsule.resolve().is_relative_to(destination.resolve()) or destination.resolve().is_relative_to(capsule.resolve()):
+        raise StateConflict('CAPSULE_AND_STATE_MUST_BE_SEPARATE')
+    if destination.parent.name=='.malts':
+        from v2_management import validate_layout
+        verify_capsule(capsule,expected_inventory_sha256=expected_inventory_sha256)
+        manifest=json.loads((capsule/'manifest.json').read_text(encoding='utf-8'))
+        validate_layout(destination.parent.parent,capsule=capsule,state=destination,
+                        inventory=manifest['inventory'],require_owned=True)
     if inventory_hash(mapping)!=expected_mapping_sha256: raise StateConflict('Reviewed definition mapping changed')
     sources=definition_sources(capsule,expected_inventory_sha256=expected_inventory_sha256)
     artifacts=historical_artifacts(sources)

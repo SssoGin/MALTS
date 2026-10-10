@@ -20,7 +20,7 @@ from v2_runs import Runs
 from v2_local_host import LocalFileHost
 from v2_growth import Growth
 from v2_governance import Governance
-from v2_legacy_reader import inspect_workspace,annotate_archive_only,inspect_legacy_activity
+from v2_legacy_reader import inspect_workspace,annotate_archive_only,inspect_legacy_activity,verify_inventory
 from v2_migration import stage_controls,verify_capsule,inventory_hash,import_definitions,verify_definition_import,finalize_definition_import,retry_definition_import,legacy_control_context,legacy_artifact_context,legacy_session_run_context,MigrationReview
 from v2_adoption import Adoption,require_active_binding
 from v2_forward_recovery import ForwardRecovery,UnavailableStoreRecovery
@@ -38,6 +38,15 @@ def main(argv=None):
     parser = SafeArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('capabilities')
+    management=sub.add_parser('management-init')
+    management.add_argument('--workspace',type=Path,required=True)
+    management.add_argument('--apply',action='store_true')
+    native=sub.add_parser('workspace-init')
+    native.add_argument('--workspace',type=Path,required=True)
+    native.add_argument('--project-id',required=True)
+    native.add_argument('--goal',required=True)
+    native.add_argument('--state-dir',type=Path)
+    native.add_argument('--apply',action='store_true')
     handoff=sub.add_parser('handoff-preview')
     handoff.add_argument('--state-dir',type=Path,required=True)
     handoff.add_argument('--task-id',required=True)
@@ -146,8 +155,8 @@ def main(argv=None):
     adoption_status.add_argument('--adoption-id',required=True)
     preflight=sub.add_parser('legacy-adoption-preflight',help='Read-only support and three-root layout check before migration preparation')
     preflight.add_argument('--source-root',type=Path,required=True)
-    preflight.add_argument('--capsule-root',type=Path,required=True)
-    preflight.add_argument('--state-dir',type=Path,required=True)
+    preflight.add_argument('--capsule-root',type=Path)
+    preflight.add_argument('--state-dir',type=Path)
     preflight.add_argument('--resource-root',type=Path,action='append',default=[])
     cutover=sub.add_parser('legacy-adoption-apply',help='Windows governed-control handoff; exact reviewed plan, dry-run by default')
     cutover.add_argument('--plan-file',type=Path,required=True)
@@ -162,6 +171,21 @@ def main(argv=None):
         if command=='legacy-forward-plan':
             forward.add_argument('--backup-root',type=Path,required=True)
             forward.add_argument('--authority-ref',required=True)
+    relocate=sub.add_parser('store-relocation-preflight')
+    relocate.add_argument('--workspace',type=Path,required=True)
+    relocate.add_argument('--target-state-dir',type=Path)
+    relocate.add_argument('--journal-root',type=Path)
+    relocate.add_argument('--operation-id',required=True)
+    relocate.add_argument('--authority-ref',required=True)
+    relocation_status=sub.add_parser('store-relocation-status')
+    relocation_status.add_argument('--journal-root',type=Path,required=True)
+    for command in ('store-relocation-prepare','legacy-forward-apply'):
+        apply_command=sub.add_parser(command)
+        apply_command.add_argument('--plan-file',type=Path,required=True)
+        apply_command.add_argument('--expected-plan-sha256',required=True)
+        apply_command.add_argument('--tool-root',type=Path,required=True)
+        apply_command.add_argument('--apply',action='store_true')
+        if command=='legacy-forward-apply':apply_command.add_argument('--journal-root',type=Path,required=True)
     disaster=sub.add_parser('disaster-forward-plan')
     disaster.add_argument('--state-dir',type=Path,required=True)
     disaster.add_argument('--old-state-dir',type=Path,required=True)
@@ -466,6 +490,11 @@ def main(argv=None):
                     'automated_evidence_verifiers':{'verification.managed-files':{'method':'managed-file-integrity','level':'C','business_correctness_verified':False}},
                     'adoption':{'plan':True,'apply':'TRUSTED_HOST_OR_WINDOWS_CONTROL_HANDOFF','binding_resolution':True,
                                 'builtin_control_handoff':__import__('v2_adoption_host').adoption_support(),
+                                'default_management_directory':'.malts','owned_internal_layout':True,
+                                'healthy_store_relocation':{'preflight':'store-relocation-preflight',
+                                    'prepare':'store-relocation-prepare','status':'store-relocation-status',
+                                    'apply':'legacy-forward-apply','recovery_review_required':True,
+                                    'profile':'WINDOWS_SQLITE_EXCLUSIVE_FORWARD_HANDOFF'},
                                 'legacy_runtime_rollback_supported':False,'recovery_direction':'V2_ONLY',
                                 'legacy_rollback_scene_recovery_qualified':False,
                                 'native_host_adapters_qualified':False,'forward_reconciliation_implemented':True,
@@ -514,6 +543,27 @@ def main(argv=None):
         elif args.command == 'adoption-status':
             with closing(StateStore(args.state_dir/'state.db',readonly=True)) as store:
                 result=Adoption(store).inspect(adoption_id=args.adoption_id)
+        elif args.command == 'store-relocation-preflight':
+            from v2_relocation import preflight
+            result=preflight(workspace=args.workspace,target_state_dir=args.target_state_dir,
+                             operation_id=args.operation_id,authority_ref=args.authority_ref,journal_root=args.journal_root)
+        elif args.command == 'store-relocation-status':
+            from v2_relocation import status
+            result=status(args.journal_root)
+        elif args.command in {'store-relocation-prepare','legacy-forward-apply'}:
+            from v2_relocation import prepare,apply_forward
+            from v2_runtime_admission import runtime_admission
+            action=prepare if args.command=='store-relocation-prepare' else apply_forward
+            with runtime_admission(args.tool_root):
+                result=action(load_request_json(args.plan_file),expected_plan_sha256=args.expected_plan_sha256,
+                              tool_root=args.tool_root,apply=args.apply,
+                              **({'journal_root':args.journal_root} if args.command=='legacy-forward-apply' else {}))
+        elif args.command == 'management-init':
+            from v2_management import initialize_management
+            result=initialize_management(args.workspace,apply=args.apply)
+        elif args.command == 'workspace-init':
+            from v2_management import initialize_workspace
+            result=initialize_workspace(args.workspace,project_id=args.project_id,goal=args.goal,state_dir=args.state_dir,apply=args.apply)
         elif args.command == 'legacy-adoption-preflight':
             from v2_adoption_host import adoption_preflight
             result=adoption_preflight(source_root=args.source_root,capsule_root=args.capsule_root,state_dir=args.state_dir,resource_roots=args.resource_root)
@@ -571,13 +621,22 @@ def main(argv=None):
             inventory=inspect_workspace(args.workspace,growth_ledgers=args.growth_ledger,payload_files=args.payload_file)
             if args.archive_only_file:
                 inventory=annotate_archive_only(inventory,load_request_json(args.archive_only_file))
+            archive_issues=[]
+            try:source_check=verify_inventory(args.workspace,inventory)
+            except ValueError:
+                archive_issues=[{'code':'ARCHIVE_ONLY_REQUIRES_VERIFIED_INACTIVE_TERMINAL_CONTROL',
+                                 'role':r['role'],'id':r['id'],'declared_status':r.get('declared_status'),
+                                 'allowed_statuses':['DONE','CANCELLED','FAILED']}
+                                for r in inventory['records'] if 'archive_only' in r]
+                source_check={'decision':'SOURCE_CHANGED_OR_AMBIGUOUS','issues':archive_issues}
             if args.apply:
                 if not args.expected_inventory_sha256: raise ValueError('Staging requires reviewed inventory hash')
                 result=stage_controls(args.workspace,args.destination,inventory=inventory,expected_inventory_sha256=args.expected_inventory_sha256)
             else:
                 result={'decision':'SOURCE_STAGE_PREVIEW','inventory_sha256':inventory_hash(inventory),
                         'archive_only_count':sum('archive_only' in r for r in inventory['records']),
-                        'issues':inventory['issues'],'unverified_identity_count':sum(r['identity_verification']!='MATCH' for r in inventory['records']),
+                        'issues':source_check['issues'],'source_readiness':source_check['decision'],
+                        'unverified_identity_count':sum(r['identity_verification']!='MATCH' for r in inventory['records']),
                         'source_record_count':len(inventory['records']),'writes_performed':False,
                         'semantic_import_performed':False,'destination_readiness':'NOT_EVALUATED'}
         elif args.command == 'legacy-inspect':

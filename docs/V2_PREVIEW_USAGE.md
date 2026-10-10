@@ -1,6 +1,6 @@
 # MALTS Controller Operations
 
-Controllers use the verified runtime and selected state to query tasks and perform reviewed requests. The current Core format is Schema69 and version **2.0.1**. Ordinary project work can use installed Skills; the commands below describe the controller interface. Demonstrations require a separately selected new directory and do not call a model or install a Host.
+Controllers use the verified runtime and selected state to query tasks and perform reviewed requests. The current Core format is Schema69 and version **2.0.2**. Ordinary project work can use installed Skills; the commands below describe the controller interface. Demonstrations require a separately selected new directory and do not call a model or install a Host.
 
 <a id="v2-start"></a>
 ## 1. First complete local task
@@ -14,7 +14,7 @@ cli, demo = Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve()
 if not cli.is_file():
     raise FileNotFoundError(cli)
 demo.mkdir(exist_ok=False)
-state = demo / 'state'
+state = demo / '.malts' / 'state'
 def call(*args):
     p = subprocess.run([sys.executable, '-B', str(cli), *map(str, args)],
                        capture_output=True, text=True, encoding='utf-8', timeout=60)
@@ -27,7 +27,7 @@ def request(action, **arguments):
     preview = call('request', '--state-dir', state, '--request-file', path)
     assert preview['decision'] == 'NOT_APPLIED'
     return call('request', '--state-dir', state, '--request-file', path, '--apply')['result']
-call('init', '--state-dir', state, '--resource-root', demo,
+call('workspace-init', '--workspace', demo,
      '--project-id', 'DEMO', '--goal', 'Verify an isolated file', '--apply')
 criterion = {'criterion_id': 'Integrity', 'description': 'Managed bytes match',
              'hard': True, 'verification_method': 'managed-file-integrity',
@@ -38,9 +38,9 @@ request('grant.record', grant_id='G1', task_id='T1', task_revision=1, actor='dem
         source_ref='user:approved-isolated-file-demo', resource='hello.txt', effect='write')
 p = request('operation.prepare', operation_id='OP1', grant_id='G1', actor='demo',
             resource='hello.txt', effect='write', capture_authority_ref='user:approved-synthetic-demo',
-            parameters={'tool': 'create-file', 'path': 'hello.txt', 'content': 'Hello MALTS 2.0.1\n'})
+            parameters={'tool': 'create-file', 'path': 'hello.txt', 'content': 'Hello MALTS 2.0.2\n'})
 request('operation.create-file', operation_id='OP1', actor='demo', expected_request_hash=p['request_hash'])
-assert (demo / 'hello.txt').read_bytes() == b'Hello MALTS 2.0.1\n'
+assert (demo / 'hello.txt').read_bytes() == b'Hello MALTS 2.0.2\n'
 descriptor = {'owner': 'DEMO', 'target': {'task_id': 'T1', 'task_revision': 1, 'criterion': 'Integrity'},
               'content_class': 'synthetic', 'sensitivity': 'project', 'redaction_policy_version': 'demo-v1',
               'verification_scope': 'Isolated synthetic file integrity only',
@@ -62,7 +62,7 @@ print('CURRENT_EVIDENCE_VALID; VERIFIED_BACKUP; synthetic file only')
 
 Read tool Boot and discover. Adopted workspaces pass the business root to workspace; native v2 explicitly selects state root. Inspect governance-context, task-queue and context. Queries create no execution entities.
 
-For a new long project, init is followed by project.define, phase.define with actual plan, phase.set-active and phase.bind-task for each Task revision. Require LONG_PROJECT and phase_ready=true from workspace. The demonstration above is TASK_ONLY, not long-project setup.
+For a new long project, workspace-init is followed by project.define, phase.define with actual plan, phase.set-active and phase.bind-task for each Task revision. Require LONG_PROJECT and phase_ready=true from workspace. The demonstration above is TASK_ONLY, not long-project setup.
 
 phase.define fields are phase_id, project_id, project_revision, expected_revision, goal, boundary (in_scope/out_of_scope arrays), acceptance, plan_ref, plan_sha256, authority_ref and request_id. plan_ref is an actual project-relative file; Task scope entries must belong to in_scope. Before revising an ACTIVE Phase, settle effects/Hosts/Runs, pause, define a new revision and rebind affected Tasks.
 
@@ -161,15 +161,16 @@ The bound resources are the reviewed control inputs, source protocol files and c
 Check the layout before creating a capsule or store:
 
 ```text
-<project-parent>/
-  <control-workspace>/
-  <project-malts-home>/
-    source-capsule/
+<control-workspace>/
+  runtime/v2_binding.json
+  .malts/
+    management.json
+    source-capsules/<adoption-id>/
     state/
-    adoption-plan.json
+    recovery/<operation-id>/
 ```
 
-The source, capsule and state roots must be separate: none may contain another. The project-specific home needs explicit write permission under the current task; permission for the original workspace alone does not include this sibling directory. State becomes the sole long-lived task authority after adoption. Keep its backups and protected evidence; it is not a disposable migration cache. Capsule verification protects selected source bytes, not the complete business asset tree or cross-user plaintext recovery.
+The default places management data under the owned `.malts` directory; capsule and state remain separate from each other. Preflight returns default paths. Preview and apply `management-init --workspace $SourceRoot` before staging/importing into that layout. Explicit authorized external paths remain available; existing bindings are not moved automatically. See [management and relocation](MANAGEMENT_AND_RELOCATION.md) for ownership, source exclusion and migration steps. State becomes the sole long-lived task authority after adoption. Keep its backups and protected evidence; it is not a disposable migration cache. Capsule verification protects selected source bytes, not the complete business asset tree or cross-user plaintext recovery.
 
 After reading Boot and verifying discovery, replace the placeholders below with the authorized paths. These first commands are read-only:
 

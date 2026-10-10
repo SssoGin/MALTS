@@ -1,6 +1,6 @@
 # Handoff
 
-MALTS handoffs make project work understandable across windows, interruptions and Agent changes. They preserve the goal, current progress, actual evidence and next eligible work. Current version: **2.0.1**. A handoff is an on-demand continuation view; the selected task services own execution state.
+MALTS handoffs make project work understandable across windows, interruptions and Agent changes. They preserve the goal, current progress, actual evidence and next eligible work. Current version: **2.0.2**. A handoff is an on-demand continuation view; the selected task services own execution state.
 
 ## Default File Names
 
@@ -83,3 +83,7 @@ A successor first verifies runtime and workspace identity, then compares the han
 If current facts differ, preserve the view and explain the difference; refresh only the derived portion after reviewing source facts. Do not roll back current task state to make an old handoff match. Where manual text and generated facts conflict, retain both sources and resolve the material question rather than deleting the inconvenient note.
 
 Read [Handoff implementation](../tools/v2_handoff.py) for the guarded capture/publication checks and [Controller Operations](V2_PREVIEW_USAGE.md#v2-handoff) for the current entry.
+
+## Workspace Management Data and Migration
+
+Ordinary new workspaces use `workspace-init` to place task state, managed evidence and recovery data under an owned `.malts` directory; explicit external layouts remain supported. Installation updates do not move existing projects. Healthy adopted stores can relocate through a read-only plan, backup/restore, current-effect review and formal forward switch. The new epoch does not restore old Grants/acceptance or activate a Phase automatically. Retain old stores, external historical references and source capsules according to their actual dependencies. See [workspace management and store relocation](MANAGEMENT_AND_RELOCATION.md) for steps and limits.

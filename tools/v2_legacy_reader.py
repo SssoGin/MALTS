@@ -518,7 +518,11 @@ def inspect_workspace(root, *, max_controls=500, growth_ledgers=None, payload_fi
                         'declared_status':{'preservation':'EXPLICIT_SELECTION_ONLY','bytes':record['bytes']}})
     if read_control(root,'runtime/workspace_control.json')['sha256']!=index['sha256']:
         issues.append({'code':'INDEX_CHANGED_DURING_READ'})
+    from v2_management import SELECTION,selection_conflicts
+    conflicts=selection_conflicts({'records':records})
+    if conflicts:issues.append({'code':'SOURCE_MANAGEMENT_DIRECTORY_CONFLICT','paths':conflicts})
     return {'decision':'INVENTORY_ONLY','source_contract':runtime['contract_id'],'index_sha256':index['sha256'],
+            'source_selection':json.loads(json.dumps(SELECTION)),
             'growth_ledgers':growth_ledgers,**({'payload_files':payload_files} if payload_files else {}),
             'records':records,'issues':issues,'writes_performed':False,'execution_authorized':False,
             'migration_ready':False,'scope':'Indexed controls, Result/Phase boundary chains, explicitly selected Growth bundles and payload files; unselected references and semantic replay not mapped'}
@@ -655,6 +659,8 @@ def verify_inventory(root, inventory):
     """
     if not isinstance(inventory,dict) or inventory.get('source_contract')!='malts.workspace.current':
         raise ValueError('Unsupported inventory contract')
+    from v2_management import validate_selection
+    validate_selection(inventory)
     records=inventory.get('records')
     if not isinstance(records,list) or not 1<=len(records)<=5000:
         raise ValueError('Invalid inventory record count')

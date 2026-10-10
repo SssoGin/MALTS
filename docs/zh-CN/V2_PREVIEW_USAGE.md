@@ -1,6 +1,6 @@
 ﻿# MALTS 控制端操作参考
 
-控制端使用已验证运行时和所选状态查询任务、执行审阅请求。当前 Core 格式 Schema69，版本 **2.0.1**。普通项目可使用已安装 Skill，下列命令说明控制端接口。演示使用另行选择的新目录，不调用模型或安装宿主。
+控制端使用已验证运行时和所选状态查询任务、执行审阅请求。当前 Core 格式 Schema69，版本 **2.0.2**。普通项目可使用已安装 Skill，下列命令说明控制端接口。演示使用另行选择的新目录，不调用模型或安装宿主。
 
 <a id="v2-start"></a>
 ## 1. 第一个完整本地任务
@@ -14,7 +14,7 @@ cli, demo = Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve()
 if not cli.is_file():
     raise FileNotFoundError(cli)
 demo.mkdir(exist_ok=False)
-state = demo / 'state'
+state = demo / '.malts' / 'state'
 def call(*args):
     p = subprocess.run([sys.executable, '-B', str(cli), *map(str, args)],
                        capture_output=True, text=True, encoding='utf-8', timeout=60)
@@ -27,7 +27,7 @@ def request(action, **arguments):
     preview = call('request', '--state-dir', state, '--request-file', path)
     assert preview['decision'] == 'NOT_APPLIED'
     return call('request', '--state-dir', state, '--request-file', path, '--apply')['result']
-call('init', '--state-dir', state, '--resource-root', demo,
+call('workspace-init', '--workspace', demo,
      '--project-id', 'DEMO', '--goal', 'Verify an isolated file', '--apply')
 criterion = {'criterion_id': 'Integrity', 'description': 'Managed bytes match',
              'hard': True, 'verification_method': 'managed-file-integrity',
@@ -38,9 +38,9 @@ request('grant.record', grant_id='G1', task_id='T1', task_revision=1, actor='dem
         source_ref='user:approved-isolated-file-demo', resource='hello.txt', effect='write')
 p = request('operation.prepare', operation_id='OP1', grant_id='G1', actor='demo',
             resource='hello.txt', effect='write', capture_authority_ref='user:approved-synthetic-demo',
-            parameters={'tool': 'create-file', 'path': 'hello.txt', 'content': 'Hello MALTS 2.0.1\n'})
+            parameters={'tool': 'create-file', 'path': 'hello.txt', 'content': 'Hello MALTS 2.0.2\n'})
 request('operation.create-file', operation_id='OP1', actor='demo', expected_request_hash=p['request_hash'])
-assert (demo / 'hello.txt').read_bytes() == b'Hello MALTS 2.0.1\n'
+assert (demo / 'hello.txt').read_bytes() == b'Hello MALTS 2.0.2\n'
 descriptor = {'owner': 'DEMO', 'target': {'task_id': 'T1', 'task_revision': 1, 'criterion': 'Integrity'},
               'content_class': 'synthetic', 'sensitivity': 'project', 'redaction_policy_version': 'demo-v1',
               'verification_scope': 'Isolated synthetic file integrity only',
@@ -62,7 +62,7 @@ print('CURRENT_EVIDENCE_VALID; VERIFIED_BACKUP; synthetic file only')
 
 读取工具 Boot 并 discovery；已采用工作区运行 `workspace --workspace '<business-root>'`，原生 v2 明确传入其 state 目录。随后用 `governance-context`、`task-queue`、`context` 读取当前目标。查询不创建执行实体。
 
-新长期工作区在显式 `init` 后还需：`project.define` 定义当前目标/验收；`phase.define` 绑定实际计划；`phase.set-active` 激活；`phase.bind-task` 绑定每个 Task revision。最后 `workspace` 必须报告 LONG_PROJECT 和 `phase_ready=true`。上方演示只是 TASK_ONLY，不能冒充长期初始化。
+新长期工作区在显式 `workspace-init` 后还需：`project.define` 定义当前目标/验收；`phase.define` 绑定实际计划；`phase.set-active` 激活；`phase.bind-task` 绑定每个 Task revision。最后 `workspace` 必须报告 LONG_PROJECT 和 `phase_ready=true`。上方演示只是 TASK_ONLY，不能冒充长期初始化。
 
 `phase.define` 的字段为 phase_id、project_id、project_revision、expected_revision、goal、boundary（in_scope/out_of_scope 数组）、acceptance、plan_ref、plan_sha256、authority_ref、request_id；plan_ref 是相对项目资源根的真实文件。scope 必须逐项在 in_scope 中。更改 ACTIVE Phase 前先处理 pending effects/Hosts/Runs，再 pause、define 新 revision 并重绑定受影响任务。
 
@@ -150,7 +150,7 @@ growth.propose 绑定提案/来源证据；growth.begin-trial 绑定候选/所�
 
 ### 9.1 支持范围与切换边界
 
-MALTS 2.0.1 提供 `legacy-adoption-apply` 及内置 `WINDOWS_GOVERNED_CONTROL_FILES` 交接器，用于 Windows 固定本地卷上经审阅的 MALTS 控制定义和历史输入。控制器从当前 discovery 核实的运行时执行，在操作期间持有生命周期互斥。Codex、Claude Code、OpenCode 和 DeepSeek Harness 共用此控制器；这不等于四端 GUI 进程均已成为受控迁移宿主。
+MALTS 提供 `legacy-adoption-apply` 及内置 `WINDOWS_GOVERNED_CONTROL_FILES` 交接器，用于 Windows 固定本地卷上经审阅的 MALTS 控制定义和历史输入。控制器从当前 discovery 核实的运行时执行，在操作期间持有生命周期互斥。Codex、Claude Code、OpenCode 和 DeepSeek Harness 共用此控制器；这不等于四端 GUI 进程均已成为受控迁移宿主。
 
 交接器独占创建两份旧事务来源封印，以 Windows 文件句柄禁止其他调用改写或删除每份审阅输入和已知活动文件，并持有祖先目录句柄防止重命名。已有写句柄或可写映射会阻止取得保护。旧受管事务不能越过封印启动新写入；候选定义和语义评审在 SQLite 切换事务中再次核对。交接凭证记录实际持有的保护，CLI 不接受用户编写的 witness JSON。
 
@@ -161,15 +161,16 @@ MALTS 2.0.1 提供 `legacy-adoption-apply` 及内置 `WINDOWS_GOVERNED_CONTROL_F
 创建来源封存或状态库之前先核对布局：
 
 ```text
-<project-parent>/
-  <control-workspace>/
-  <project-malts-home>/
-    source-capsule/
+<control-workspace>/
+  runtime/v2_binding.json
+  .malts/
+    management.json
+    source-capsules/<adoption-id>/
     state/
-    adoption-plan.json
+    recovery/<operation-id>/
 ```
 
-source、capsule、state 三个根目录须互不包含。项目专用的相邻目录需要本次任务明确的写入授权；原工作区权限不自动包含该目录。采用后，state 是唯一、长期维护的任务权威，须保留备份和受保护证据，不能当作迁移缓存清理。capsule 校验只保护所选来源字节，不证明完整业务资产树已备份或可跨用户解密恢复。
+默认将管理数据置于所属 `.malts` 目录，capsule 与 state 仍互不包含。预检返回默认路径；持久准备前预览并应用 `management-init --workspace $SourceRoot`，再使用该布局封存和导入。也可明确选择有授权的外置路径；已有绑定不自动搬迁。完整所有权、来源排除及迁移步骤见[管理与重定位](MANAGEMENT_AND_RELOCATION.md)。采用后，state 是唯一、长期维护的任务权威，须保留备份和受保护证据，不能当作迁移缓存清理。capsule 校验只保护所选来源字节，不证明完整业务资产树已备份或可跨用户解密恢复。
 
 读取 Boot 并通过 discovery 后，用已授权路径替换下列变量。前两条命令只读：
 

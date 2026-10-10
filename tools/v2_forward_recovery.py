@@ -381,7 +381,7 @@ class ForwardRecovery:
             with self.store.transaction() as restored:
                 if state_hash(restored)!=plan['new_state_sha256']: raise StateConflict('Target changed before forward activation')
                 receipt={'decision':'ADOPTED','forward_recovery':True,'forward_plan':plan,'adoption_id':plan['adoption_id'],
-                    'epoch':new['new_epoch'],'host_witness':witness,'assurance':'CALLER_CONFIGURED_HOST_ADAPTER',
+                    'epoch':new['new_epoch'],'host_witness':witness,'assurance':getattr(host,'assurance','CALLER_CONFIGURED_HOST_ADAPTER'),
                     'post_adoption_state_sha256':definition_state_hash(restored),'execution_authorized':False,
                     'writes_performed':True,'preserved_new_work':True}
                 restored.execute("UPDATE migration_adoption SET state='ACTIVE',receipt_json=? WHERE adoption_id=?",(_json(receipt),plan['adoption_id']))

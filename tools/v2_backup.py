@@ -68,6 +68,10 @@ def _referenced_blobs(snapshot):
 def backup(store: StateStore, blobs: BlobStore, destination: Path) -> dict:
     destination = Path(destination).absolute()
     _regular_path(destination)
+    state=store.path.parent.resolve()
+    if state.is_relative_to(destination.resolve()) or any(destination.resolve().is_relative_to(state/p)
+            for p in ('blobs','legacy-source','plans','protected-inputs')):
+        raise ValueError('Backup cannot contain the state root or occupy managed input namespaces')
     destination.mkdir()  # Never overwrite an existing backup.
     database = destination/'state.db'
     with closing(sqlite3.connect(database)) as target:
@@ -153,6 +157,9 @@ def verify_backup(root: Path) -> dict:
 def restore_backup(source: Path, destination: Path, *, expected_manifest_sha256: str | None = None) -> dict:
     """Restore to a new directory under quarantine; never overwrite live state."""
     source, destination = Path(source).absolute(), Path(destination).absolute()
+    _regular_path(source);_regular_path(destination)
+    if source.resolve().is_relative_to(destination.resolve()) or destination.resolve().is_relative_to(source.resolve()):
+        raise ValueError('Restore and backup directories must not overlap')
     manifest = verify_backup(source)
     manifest_sha256 = hashlib.sha256(_json(manifest).encode('utf-8')).hexdigest()
     if expected_manifest_sha256 is not None and manifest_sha256 != expected_manifest_sha256:
