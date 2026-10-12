@@ -22,6 +22,7 @@ from v2_definition_content import DefinitionPreviews
 from v2_task_lifecycle import Verification
 from v2_artifacts import Artifacts
 from v2_handoff import HandoffNotes
+from v2_recovery import Recovery
 
 
 class WorkerAdmissionDenied(PermissionError):
@@ -59,6 +60,7 @@ ACTIONS = {
     'phase.bind-task':Governance.bind_task,
     'phase.carry-task':Governance.carry_task,
     'task.revise':StateStore.revise_task, 'task.depend':StateStore.add_dependency, 'task.cancel':StateStore.cancel_task,
+    'task.resume-after-recovery':Recovery.resume_task,
     'task.configure-budget':Operations.configure_task_budget,
     'project.configure-budget':Operations.configure_project_budget,
     'budget.amend':Operations.amend_budget,
@@ -161,6 +163,7 @@ def execute_request(store,request,*,evidence_reader=None,required_resource_root=
     elif owner=='Verification': instance=Verification(store)
     elif owner=='Artifacts': instance=Artifacts(store,required_resource_root=required_resource_root)
     elif owner=='HandoffNotes': instance=HandoffNotes(store)
+    elif owner=='Recovery':instance=Recovery(store)
     else: raise ValueError('Unknown registered service owner')
     arguments=dict(request['arguments'])
     if request['action'] in {'evidence.record','evidence.derive'}:
@@ -176,6 +179,10 @@ def safe_error(error):
     from v2_adoption_host import ControlHandoffError
     from v2_management import ManagementConflict
     from v2_path_io import ManagedPathIOError
+    from malts_lifecycle import LifecycleError
+    if isinstance(error,LifecycleError):
+        from v2_diagnostics import entry_error
+        return {'decision':'ERROR','error_code':'RUNTIME_IDENTITY_UNAVAILABLE',**entry_error(error,'DISCOVERY')}
     from v2_diagnostics import PlanHashMismatch
     from v2_assurance import UnqualifiedAdapter
     if isinstance(error,UnqualifiedAdapter):return {'decision':'ERROR','error_code':'UNQUALIFIED_ADAPTER','host_authentication':'NOT_ENFORCED','external_writer_isolation':'UNKNOWN','execution_authorized':False}

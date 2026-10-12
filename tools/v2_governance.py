@@ -143,11 +143,13 @@ class Governance:
                 if pending: reasons.append('UNRESOLVED_EFFECTS')
                 try: require_task_phase(self.store,task_id)
                 except (ValueError,OSError): reasons.append('PHASE_REVIEW_REQUIRED')
+                from v2_workflow_summary import task_recovery_view
                 tasks.append({'task_id':task_id,'revision':revision,'state':state,'goal_preview':goal,
                               'goal_preview_status':preview['status'],
                               'goal_characters':characters,'planning_ready':not reasons,'blockers':reasons,
                               'reconciliation_only':reconciliation_only,
-                              'unresolved_dependency_count':len(dependencies),'pending_effect_count':pending})
+                              'unresolved_dependency_count':len(dependencies),'pending_effect_count':pending,
+                              **task_recovery_view(self.store,task_id,revision,state)})
             result={'project_id':project_id,'tasks':tasks,
                     'next_after_task_id':rows[limit-1][0] if len(rows)>limit else None,
                     'pagination_consistency':'LIVE_KEYSET','writes_performed':False,'execution_authorized':False,

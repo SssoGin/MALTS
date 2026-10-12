@@ -1,6 +1,6 @@
 # MALTS 工作区管理与状态库重定位
 
-MALTS 集中保存项目定义、任务状态、证据与恢复资料，并在业务成果的实际位置检查结果。当前版本为 **2.0.4**。本文说明默认管理布局、旧工作区的审阅采用，以及健康原生或已采用状态库的重定位。安装更新和项目状态迁移是不同操作。
+MALTS 集中保存项目定义、任务状态、证据与恢复资料，并在业务成果的实际位置检查结果。当前版本为 **2.0.5**。本文说明默认管理布局、旧工作区的审阅采用，以及健康原生或已采用状态库的重定位。安装更新和项目状态迁移是不同操作。
 
 ## 1. 默认布局与所有权
 
@@ -162,3 +162,46 @@ CLI、MCP、恢复和Host结果携带 `execution_assurance` 或相应直接字�
 ### 6.3 保全检查的阶段
 
 `workspace-audit --workspace $Workspace` 提供官方只读项目根入口。可附 `--baseline-file` 使用 `malts.preservation.v1` 清单（`files`逐项包含 `path`、`bytes`、`sha256`）检查原始内容；原清单中的文件无论位置均逐项核验。`--mode pre-adoption` 在合法v2新增管理资料后报告 `LEGACY_PREPARATION_SCOPE_STALE`，不把新增资料解释为原文件丢失。`--mode current-v2` 核所属 `.malts` 和有效binding；其他新增项目路径须经审阅，以 `--allow-new-path` 显式提供。UNKNOWN或未审阅新增仍报告待核，不自动认领。项目已有 `verify_preparation.py`、`verify_preservation.py` 属项目集成脚本，应迁移到这一阶段范式；安装不会替用户改写它们。
+
+## 7. 入口报告、迁址下一步与最终核验
+
+`entry-status`分别报告runtime discovery、当前binding和package check。包检查的状态为PACKAGE_CHECK_NOT_PERFORMED、PACKAGE_CHECK_UNAVAILABLE、PACKAGE_CHECK_FAILED或PACKAGE_CHECK_VERIFIED；存储访问不可用与确认包不一致分别显示，合法工作区的binding结论保留。包核验失败仍不获得完整安装核验或执行许可。默认CLI是只读报告命令，退出0仅表示报告成功输出；自动化使用 `--strict`，非相容或请求的深检不通过时退出3，参数/命令错误退出2。
+
+`store-relocation-status`在原journal上给出completion_level与next_required_actions。PREPARING须继续原prepare计划；RESTORED_NOT_ACTIVE须完成当前epoch的恢复审查；FORWARD_READY须生成并应用前向计划；FORWARD_CUTOVER_INCOMPLETE使用原forward计划；ACTIVE_NOT_PHASE_READY还须审阅并激活Phase；ACTIVE_PHASE_READY仍须核Task续办及业务权限。这些层次不改变既有状态或原操作身份，也不自动执行建议动作。
+
+```powershell
+& $PythonExe -B $Cli entry-status --workspace $Workspace --tool-root $ToolRoot --verify-package --strict
+& $PythonExe -B $Cli store-relocation-status --journal-root $Plan.journal_root
+& $PythonExe -B $Cli workspace-final-verify --workspace $Workspace --tool-root $ToolRoot --operation-id $OperationId --journal-root $Plan.journal_root --verify-package --strict
+```
+
+最终核验只读绑定runtime身份、协议哈希、所选状态与epoch、原操作回执、旧权威退役、当前Project/Phase及实际计划、Task定义/绑定和依赖结构，并生成completion_receipt_sha256。读数据库时采用一个快照，结束前复核runtime、锁、协议和活动计划；它不是跨文件/进程的原子快照，也不证明外部写者隔离。正常已绑定项目可不提供operation-id；核验特定迁址时须准确对应原ID及journal，不能以新ID替代。Phase未就绪或Task暂停会分别显示，不把业务未完成误报为迁址失败。完整Hash是当前观察的指纹，输入变化后须重新核验。
+
+### 7.1 恢复后Task续办
+
+Restore暂停非终态Task，并使旧Grant和验收失效。`recovery-next-task-actions --state-dir $StateDir --project-id $ProjectId`只读列出当前修订、Phase绑定、未接受依赖、recovery_disposition和推荐路径；task-queue也显示resume_after_recovery_required。KEEP_PAUSED表示保留等待显式决策，REVERIFY表示审阅后要求重新验证，均不代表原业务验收有效。
+
+已有目标、范围和验收无需改变时，控制端可通过下列闭合请求预览并应用 `task.resume-after-recovery`。expected_epoch来自当前工作区，review_id来自该epoch已协调的原恢复审查。服务要求当前修订、有效Phase及计划、依赖已接受、登记效果和写者已协调；只把匹配KEEP_PAUSED的Task改为READY，不创建Run、不发Grant、不补预算或恢复验收。该动作只属于控制端，不向MCP Worker自动开放。
+
+```json
+{"action":"task.resume-after-recovery","arguments":{"task_id":"<exact-task>","expected_revision":1,"expected_epoch":"<current-epoch>","review_id":"<current-review>","request_id":"<stable-continuation-id>","authority_ref":"<approved-review>"}}
+```
+
+```powershell
+& $PythonExe -B $Cli request --state-dir $StateDir --request-file $ContinuationFile
+& $PythonExe -B $Cli request --state-dir $StateDir --request-file $ContinuationFile --tool-root $ToolRoot --apply
+```
+
+目标/范围/验收改变时使用正式task.revise、显式review_ref和新Task修订；原预算继续累计，依赖和Phase绑定按当前合同重核。普通暂停且仍有合法owned Run/checkpoint的情形使用run.resume；恢复后已关闭或失效的旧Run不能以该命令复活。禁止手改数据库把PAUSED转为READY。
+
+### 7.2 状态层次与authority职责
+
+报告分开列出operation_status、workspace_status、governance_readiness、execution_authorization和external_writer_assurance。SUCCESS或VERIFIED可以与NOT_GRANTED同时成立。OPERATOR_ATTESTED表示当前资源审查来自操作者；external_writer_isolation仍为UNKNOWN，不提升为独立物理隔离。
+
+authority_kind=ADOPTED_BINDING使用runtime/v2_binding.json及对应采用/前向回执，不要求native.json；NATIVE_LOCATOR使用所属.malts/native.json；NATIVE_EXPLICIT使用明确选中的原生状态目录。management.json仅声明.malts目录所有权，不替代任何运行权威。
+
+### 7.3 项目集成与公开回归
+
+项目入口应调用实际安装下的tools/malts_v2.py，以准确的MALTS控制工作区进行workspace、workspace-final-verify和当前task查询。它们提供MALTS治理状态，不能替代Unity Editor的实际进程或Unity MCP状态。若项目AGENTS.md引用不存在的unity_workspace_status.py，项目维护者须恢复该项目脚本或改成已存在的上述MALTS入口，同时保留单独的Editor核查；MALTS安装不伪造脚本、不编辑未选工程。
+
+公开CI在自有Windows临时项目中验证长受管文件备份/恢复、真实前向交接、旧权威失效、原ID重放和恢复建议，记录实际LongPathsEnabled，不修改注册表。本机LongPathsEnabled=0的260+路径及原版本1journal/失败尝试保留、原生/已采用中断回归另有对应证据。托管runner环境不等于任意用户工程或Windows版本；各证据保留自身范围。

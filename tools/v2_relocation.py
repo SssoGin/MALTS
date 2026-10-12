@@ -249,7 +249,9 @@ def status(journal_root):
             [str(Path(plan['old_state_dir'])/r['path']) for r in plan['closure'] if r['disposition']=='RETAIN_EXTERNAL_HISTORY']}
     from v2_assurance import assurance
     result['execution_assurance']=assurance()
-    if not (journal/'target.json').exists():return result
+    if not (journal/'target.json').exists():
+        from v2_workflow_summary import relocation_guidance
+        return relocation_guidance(result)
     target=json.loads((journal/'target.json').read_text(encoding='utf-8'))
     if target['plan_sha256']!=plan['plan_sha256'] or target['state_dir']!=plan['state_dir']:
         raise StateConflict('Relocation target journal differs')
@@ -277,7 +279,8 @@ def status(journal_root):
         result['backup_basis']=verification_report(Path(target['backup_root']))['identity_layers']
         result['restored_epoch_basis']={'epoch':target['epoch'],'state_semantic_sha256':state_hash(store.connection)}
         result['source_basis']={'state_semantic_sha256':plan['old_state_sha256'],'source_file_sha256':next(r['sha256'] for r in plan['closure'] if r['path']=='state.db')}
-    return result
+    from v2_workflow_summary import relocation_guidance
+    return relocation_guidance(result)
 
 
 class WindowsForwardHandoff:

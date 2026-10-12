@@ -1,6 +1,6 @@
 # MALTS Workspace Management and Store Relocation
 
-MALTS keeps project definitions, task state, evidence and recovery information together while checking business outputs at their actual locations. Current version: **2.0.4**. This guide covers the default management layout, reviewed adoption of a legacy workspace, and relocation of a healthy native or adopted store. Installation and project-state migration are separate operations.
+MALTS keeps project definitions, task state, evidence and recovery information together while checking business outputs at their actual locations. Current version: **2.0.5**. This guide covers the default management layout, reviewed adoption of a legacy workspace, and relocation of a healthy native or adopted store. Installation and project-state migration are separate operations.
 
 ## 1. Default Layout and Ownership
 
@@ -162,3 +162,46 @@ Isolated checking restores a new-epoch store and reads current-user Project/Phas
 ### 6.3 Preservation Stages
 
 `workspace-audit --workspace $Workspace` provides an official read-only project-root entry. An optional `--baseline-file` uses a `malts.preservation.v1` manifest whose files each contain path, bytes and SHA-256. Every original file is checked regardless of location. Pre-adoption mode reports `LEGACY_PREPARATION_SCOPE_STALE` after legitimate v2 management additions, rather than treating additions as lost original content. Current-v2 mode validates owned management and binding files; other additions require explicit reviewed `--allow-new-path` scope. Unknown additions remain review items. Project-local preparation/preservation scripts should adopt this staged pattern; an installation does not rewrite those scripts automatically.
+
+## 7. Entry Reports, Relocation Next Actions and Final Verification
+
+`entry-status` separately reports runtime discovery, selected binding and package checking. Package states are PACKAGE_CHECK_NOT_PERFORMED, PACKAGE_CHECK_UNAVAILABLE, PACKAGE_CHECK_FAILED and PACKAGE_CHECK_VERIFIED. Storage unavailability differs from confirmed package drift; the valid workspace-binding result is retained. A failed check grants neither verified installation integrity nor execution. The default CLI is a read-only report command: exit0 means the report was produced. Automation uses `--strict`; noncompatible conditions or unsuccessful requested deep checking return3, while command/input errors return2.
+
+`store-relocation-status` returns completion_level and next_required_actions on the original journal. PREPARING resumes original preparation; RESTORED_NOT_ACTIVE needs current-epoch recovery review; FORWARD_READY needs forward planning/application; FORWARD_CUTOVER_INCOMPLETE resumes the original forward plan; ACTIVE_NOT_PHASE_READY needs Phase review/activation; ACTIVE_PHASE_READY still requires Task continuation and permission checks. This changes no state or original identity and executes no suggestion automatically.
+
+```powershell
+& $PythonExe -B $Cli entry-status --workspace $Workspace --tool-root $ToolRoot --verify-package --strict
+& $PythonExe -B $Cli store-relocation-status --journal-root $Plan.journal_root
+& $PythonExe -B $Cli workspace-final-verify --workspace $Workspace --tool-root $ToolRoot --operation-id $OperationId --journal-root $Plan.journal_root --verify-package --strict
+```
+
+Final verification is read-only and binds runtime identity, protocol hashes, selected state/epoch, original operation receipt, old-authority supersession, current Project/Phase and actual plan, Task definitions/bindings and dependency structure into completion_receipt_sha256. It uses one database read snapshot and rechecks runtime, locks, protocol and active plan before returning. This is not an atomic snapshot across files/processes or external-writer isolation. A normal bound project can omit operation-id; a specific relocation must use its exact original ID/journal. Phase readiness, paused Tasks and business completion remain distinct. The digest fingerprints the current observation and must be reverified after relevant input changes.
+
+### 7.1 Continue Tasks After Recovery
+
+Restore pauses nonterminal Tasks and invalidates old Grants/acceptance. `recovery-next-task-actions --state-dir $StateDir --project-id $ProjectId` lists current revisions, Phase bindings, unresolved dependencies, recovery_disposition and recommended paths without writes; task-queue also exposes resume_after_recovery_required. KEEP_PAUSED retains an explicit decision point; REVERIFY requires new verification after review. Neither proves old business acceptance remains valid.
+
+When goal/scope/acceptance are unchanged, the controller can preview/apply the following closed `task.resume-after-recovery` request. expected_epoch comes from the current workspace; review_id identifies its reconciled original recovery review. The service requires current revision, active Phase and actual plan, accepted dependencies and settled registered effects/writers. It changes only a matching KEEP_PAUSED Task to READY, creating no Run/Grant or replenished budget/acceptance. This is a controller operation and is not automatically exposed to MCP Workers.
+
+```json
+{"action":"task.resume-after-recovery","arguments":{"task_id":"<exact-task>","expected_revision":1,"expected_epoch":"<current-epoch>","review_id":"<current-review>","request_id":"<stable-continuation-id>","authority_ref":"<approved-review>"}}
+```
+
+```powershell
+& $PythonExe -B $Cli request --state-dir $StateDir --request-file $ContinuationFile
+& $PythonExe -B $Cli request --state-dir $StateDir --request-file $ContinuationFile --tool-root $ToolRoot --apply
+```
+
+A changed goal/scope/acceptance uses formal task.revise with explicit review_ref and a new revision; budgets remain cumulative, and dependencies/Phase binding follow current contracts. Ordinary pauses with a valid owned Run/checkpoint use run.resume. Closed or invalidated pre-restore Runs cannot be revived through that path. Manual database edits from PAUSED to READY are unsupported.
+
+### 7.2 Result Layers and Authority Responsibilities
+
+Reports distinguish operation_status, workspace_status, governance_readiness, execution_authorization and external_writer_assurance. SUCCESS/VERIFIED can coexist with NOT_GRANTED. OPERATOR_ATTESTED describes the current operator resource review; external_writer_isolation stays UNKNOWN and never becomes independently verified physical isolation.
+
+ADOPTED_BINDING uses runtime/v2_binding.json and its adoption/forward receipt without requiring native.json. NATIVE_LOCATOR uses the owned .malts/native.json; NATIVE_EXPLICIT uses the explicitly selected native store. management.json identifies management-namespace ownership and replaces no runtime authority.
+
+### 7.3 Project Integration and Public Regression
+
+Project entry instructions should invoke the installed tools/malts_v2.py with the exact MALTS control workspace for workspace, workspace-final-verify and current Task queries. These provide MALTS governance state and cannot replace actual Unity Editor/process or Unity MCP observations. A project referring to a missing unity_workspace_status.py needs its maintainer to restore that project script or update the reference to the available MALTS entry while retaining separate Editor checks. MALTS installation neither invents that script nor edits an unselected project.
+
+Public CI exercises long managed-file backup/restore, actual forward handoff, old-authority fencing, original-ID replay and recovery guidance in owned Windows temporary projects. It records actual LongPathsEnabled without registry changes. Separate local evidence covers 260+ paths with LongPathsEnabled=0, original version1 journals, retained failed attempts and native/adopted interruption recovery. Hosted runners do not qualify every user project or Windows version; each result retains its own scope.

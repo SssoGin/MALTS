@@ -28,6 +28,7 @@ from v2_adoption import Adoption,require_active_binding
 from v2_forward_recovery import ForwardRecovery,UnavailableStoreRecovery
 from v2_service import ACTIONS,checked_arguments,load_request_json,action_contracts,execute_request,safe_error
 from v2_compatibility import CLI_INTERFACE_VERSION,current_contract,inspect_contract
+from malts_lifecycle import LifecycleError
 
 class SafeArgumentParser(argparse.ArgumentParser):
     def error(self, message):
@@ -136,6 +137,7 @@ def main(argv=None):
     adopted=sub.add_parser('workspace')
     adopted.add_argument('--workspace',type=Path,required=True)
     entry=sub.add_parser('entry-status')
+    entry.add_argument('--strict',action='store_true')
     entry.add_argument('--workspace',type=Path,required=True);entry.add_argument('--tool-root',type=Path,required=True)
     entry.add_argument('--verify-package',action='store_true')
     entry.add_argument('--refresh-generation',type=Path)
@@ -182,6 +184,18 @@ def main(argv=None):
     relocate.add_argument('--authority-ref',required=True)
     relocation_status=sub.add_parser('store-relocation-status')
     relocation_status.add_argument('--journal-root',type=Path,required=True)
+    final_check=sub.add_parser('workspace-final-verify')
+    final_check.add_argument('--workspace',type=Path,required=True)
+    final_check.add_argument('--tool-root',type=Path,required=True)
+    final_check.add_argument('--operation-id')
+    final_check.add_argument('--journal-root',type=Path)
+    final_check.add_argument('--verify-package',action='store_true')
+    final_check.add_argument('--strict',action='store_true')
+    next_tasks=sub.add_parser('recovery-next-task-actions')
+    next_tasks.add_argument('--state-dir',type=Path,required=True)
+    next_tasks.add_argument('--project-id',required=True)
+    next_tasks.add_argument('--after-task-id',default='')
+    next_tasks.add_argument('--limit',type=int,default=20)
     workspace_audit=sub.add_parser('workspace-audit')
     workspace_audit.add_argument('--workspace',type=Path,required=True)
     workspace_audit.add_argument('--baseline-file',type=Path)
@@ -543,6 +557,12 @@ def main(argv=None):
         elif args.command == 'workspace-audit':
             from v2_workspace_audit import audit
             result=audit(args.workspace,baseline=load_request_json(args.baseline_file) if args.baseline_file else None,mode=args.mode,allow_new_paths=args.allow_new_path)
+        elif args.command=='workspace-final-verify':
+            from v2_workflow_summary import final_verify
+            result=final_verify(workspace=args.workspace,tool_root=args.tool_root,operation_id=args.operation_id,journal_root=args.journal_root,verify_package=args.verify_package)
+        elif args.command=='recovery-next-task-actions':
+            from v2_workflow_summary import next_task_actions
+            result=next_task_actions(args.state_dir,project_id=args.project_id,after_task_id=args.after_task_id,limit=args.limit)
         elif args.command in {'disaster-forward-plan','disaster-forward-status'}:
             with closing(StateStore(args.state_dir/'state.db',readonly=True)) as store:
                 disaster=UnavailableStoreRecovery(store)
@@ -745,6 +765,10 @@ def main(argv=None):
                 else:
                     result=execute_request(store,request)
         from v2_assurance import assurance
+        if args.command in {'entry-status','workspace'}:
+            from v2_workflow_summary import layers
+            valid=result.get('status') in {'COMPATIBLE','OPTIONAL_REFRESH'} if args.command=='entry-status' else result.get('decision') in {'ADOPTED_WORKSPACE','NATIVE_WORKSPACE'}
+            result.update({k:v for k,v in layers(success=valid,verified=result.get('workspace_binding_verified',valid),ready=result.get('phase_ready',False)).items() if k not in result})
         if isinstance(result,dict) and 'plan_sha256' not in result:result.setdefault('execution_assurance',assurance())
         if args.command=='capabilities':
             result.update(schema_migration={'supported':False,'scope':'AUTOMATIC_DATABASE_SCHEMA_UPGRADE'},
@@ -758,8 +782,10 @@ def main(argv=None):
             from v2_diagnostics import require_plan_hash
             require_plan_hash(json.loads(serialized),result['plan_sha256'],'PLAN_SERIALIZATION_SELF_CHECK')
         print(serialized)
+        if args.command=='entry-status' and args.strict and result.get('status') not in {'COMPATIBLE','OPTIONAL_REFRESH'}:return 3
+        if args.command=='workspace-final-verify' and args.strict and (result.get('operation_status')!='SUCCESS' or not result.get('phase_ready')):return 3
         return 0
-    except (OSError, ValueError, TypeError, KeyError, sqlite3.Error) as error:
+    except (OSError, ValueError, TypeError, KeyError, sqlite3.Error,LifecycleError) as error:
         print(json.dumps(safe_error(error),ensure_ascii=False),file=sys.stderr)
         return 2
 

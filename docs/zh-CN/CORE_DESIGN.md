@@ -1,6 +1,6 @@
 ﻿# 多 Agent 长任务调度与成长系统
 
-MALTS（Multi-Agent Long-Task Scheduling and Growth System，多 Agent 长任务调度与成长系统）围绕目标、可检查结果、可恢复执行和经验评估组织 AI Agent 项目工作。默认由单 Agent 执行，已授权协作使用同一项目和验收模型。当前实现为 **2.0.4**。
+MALTS（Multi-Agent Long-Task Scheduling and Growth System，多 Agent 长任务调度与成长系统）围绕目标、可检查结果、可恢复执行和经验评估组织 AI Agent 项目工作。默认由单 Agent 执行，已授权协作使用同一项目和验收模型。当前实现为 **2.0.5**。
 
 ## 工作区权威、进入与并发
 
@@ -530,3 +530,7 @@ Capabilities 可查询当前动作合同。详细操作和示例见[控制端操
 ## 安装完整性与恢复核验
 
 深度入口核验将安装用户载荷与可复现解释器缓存分开：源码、metadata和哈希链仍须精确匹配，当前解释器缓存只在能由已核实源码复现时接受。其他缓存版本、损坏缓存、额外文件和源码变化均停止检查，不自动删缓存或修改manifest。`entry-status --verify-package` 与MCP `malts_entry_status` 返回相同安全原因码。恢复结果分别说明登记效果与外部写者覆盖；格式相容、业务验收、隔离恢复与外部写者静默是不同结论。分阶段保全、UTF8计划和隔离恢复命令见[管理与恢复核验](MANAGEMENT_AND_RELOCATION.md)。
+
+## 恢复后的状态与接续
+
+入口、包检查、工作区权威、治理就绪、Task可继续及业务授权分别核验。迁址状态提供原journal的下一步，workspace-final-verify生成只读当前闭包，recovery-next-task-actions解释暂停Task。经审阅的task.resume-after-recovery只准备匹配Task为READY，继续保留预算、旧Grant及验收失效；新执行仍按当前权限和效果合同处理。职责、严格退出和可执行请求见[恢复核验说明](MANAGEMENT_AND_RELOCATION.md#7-入口报告迁址下一步与最终核验)。

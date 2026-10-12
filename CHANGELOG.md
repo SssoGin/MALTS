@@ -1,5 +1,45 @@
 # Changelog
 
+## 2.0.5 — 2026-10-12
+
+Released 2026-10-12 (Asia/Shanghai, UTC+08:00). MALTS retains the full project planning, task continuity, controlled execution, verification, recovery, collaboration and experience workflow through the shared core for Codex, Claude Code, OpenCode and DeepSeek Harness.
+
+## Added and improved
+
+- **Separate entry and package outcomes.** Runtime discovery, valid workspace binding and optional deep-package checking retain their own conclusions. Package checking distinguishes not performed, unavailable, failed and verified. A failed or unavailable check does not manufacture installation integrity or execution permission. Default entry reporting remains compatible; `--strict` supplies nonzero condition-failure exits for automation.
+- **Original-journal next actions.** Relocation status explains preparation, quarantined restore, reconciliation, forward readiness/cutover and active Phase readiness through completion_level and next_required_actions. Suggestions do not execute automatically, replace the operation ID or drop failed attempts.
+- **One current final verification report.** `workspace-final-verify` checks runtime, binding/locator, selected epoch, original cutover/old-authority closure, current Project/Phase plan, Tasks and dependency structure, and fingerprints the report. It preserves distinctions between active store, ready governance, paused business work and ungranted execution. The database snapshot and rechecked files are not an atomic external-process snapshot.
+- **Explicit continuation after restore.** `recovery-next-task-actions` and task-queue show recovery dispositions, revision/Phase/dependency blockers and formal next steps. The controller-only `task.resume-after-recovery` prepares a matching paused Task as READY after current-epoch review and dependency/effect checks; it creates no Run, grants no permission, restores no old acceptance and replenishes no budget. Replanning and ordinary owned-checkpoint resume remain separate workflows.
+- **Clear authority and assurance labels.** Adopted binding, located native state and explicit native state are distinguished. Adopted projects need no native.json. Operation success, workspace verification, governance readiness, execution authorization and operator-attested coverage are reported separately; external isolation remains UNKNOWN without independent proof.
+- **Public Windows long-path regression.** Public CI adds an owned native relocation case covering 260+ managed backup/restore paths, actual handoff, old-store fencing, original-ID replay and continuation guidance. It records the runner's registry setting without changing it. Existing local zero-setting and native/adopted interruption evidence retain their scopes.
+- **Bilingual integration guidance.** Existing product guides add complete final-verification, strict-report and recovery continuation examples. Project-specific missing Unity helpers are identified as integration work, with a real MALTS entry alternative and separate Editor-check responsibilities.
+
+## Upgrade and limits
+
+Use the normal four-tool shared lifecycle update. Schema69, project bindings and cumulative budgets remain unchanged; installation does not relocate or resume business projects. Cache integrity and safe diagnostics introduced in2.0.4 remain supported. Follow the [management/recovery guide](https://github.com/SssoGin/MALTS/blob/v2.0.5/docs/MANAGEMENT_AND_RELOCATION.md).
+
+Checks use owned fixtures and actual installed interfaces. Governance readiness is not business acceptance or a Grant. External writer isolation, authenticated native Agent qualification, cross-user/machine recovery and universal model/performance claims remain unqualified. The feedback author's Unity project is unavailable on this maintenance host; its missing local helper is not fabricated or declared repaired.
+
+## 中文说明
+
+发布日期为2026-10-12，采用 Asia/Shanghai（UTC+08:00）。MALTS 保留完整的项目规划、任务接续、受控执行、验证、恢复、协作及经验工作流，Codex、Claude Code、OpenCode、DeepSeek Harness 沿用四端共享核心。
+
+### 新增与改进
+
+- **分离入口与包检查结论。** Runtime发现、有效工作区binding和可选深度包检查分别报告。包检查区分未执行、不可用、失败与已核验；检查失败或不可用不制造安装完整或执行许可。默认报告语义兼容，自动化可用--strict获得条件不满足的非零退出。
+- **原操作记录的下一步。** 迁址状态以completion_level和next_required_actions解释准备、隔离恢复、效果审查、前向就绪／切换及活动Phase就绪。建议不自动执行，不替换操作ID，也不丢弃失败尝试。
+- **一份当前最终核验报告。** workspace-final-verify核runtime、binding／locator、所选epoch、原切换及旧权威、当前Project/Phase实际计划、Task与依赖结构，并生成报告指纹。活动库、治理就绪、暂停业务及未获执行授权保持区别；数据库快照与文件复核不等于外部进程的原子快照。
+- **显式的恢复后续办。** recovery-next-task-actions和task-queue给出恢复处置、修订／Phase／依赖阻塞与正式下一步。控制端task.resume-after-recovery经当前epoch审查和依赖／效果检查，仅准备匹配暂停Task为READY，不创建Run、不授权限、不恢复旧验收、不补预算。重计划与普通owned-checkpoint恢复仍是不同路径。
+- **清楚的权威及证据标签。** 区分已采用binding、带定位文件原生库及显式原生库；已采用项目不要求native.json。操作成功、工作区核验、治理就绪、业务授权和操作者覆盖分别显示，外部隔离无独立证明时仍为UNKNOWN。
+- **公开Windows长路径回归。** 公开CI增加自有原生迁址案例，覆盖260+受管路径备份／恢复、真实交接、旧库失效、原ID重放及续办建议。记录runner的实际注册表配置，不修改它。本机配置为0及原生／已采用中断证据继续保留各自范围。
+- **双语集成指引。** 现有产品文档补充可执行的最终核验、严格报告和恢复续办范式。项目缺失Unity脚本明确归为集成工作，提供实际存在的MALTS替代入口，并说明Editor仍须单独核查。
+
+### 升级与限制
+
+通过常规四端共享生命周期更新。Schema69、项目binding与累计预算保持不变；安装不迁址或恢复业务项目。2.0.4加入的缓存完整性及安全诊断继续支持，步骤见[管理与恢复说明](https://github.com/SssoGin/MALTS/blob/v2.0.5/docs/zh-CN/MANAGEMENT_AND_RELOCATION.md)。
+
+验证采用自有夹具和实际安装接口；治理就绪不等于业务验收或Grant。外部写者隔离、原生Agent身份／资格、跨用户跨机器恢复及普遍模型／性能效果仍未认证。反馈作者的Unity工程不在本维护机上，不伪造或宣称修复其缺失本地脚本。
+
 ## 2.0.4 — 2026-10-12
 
 Released 2026-10-12 (Asia/Shanghai, UTC+08:00). MALTS retains its project planning, task continuity, controlled execution, verification, recovery, collaboration and experience workflows, with one shared core for Codex, Claude Code, OpenCode and DeepSeek Harness.

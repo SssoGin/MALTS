@@ -112,3 +112,62 @@ jobs:
           python -B tools/long_workspace.py --help
           python -B tools/malts_lifecycle.py --help
           python -B tools/malts_user_tools.py --help
+
+      - name: Exercise owned native relocation and Windows managed paths
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          @'
+          import hashlib, json, os, sys, tempfile, winreg
+          from contextlib import closing
+          from pathlib import Path
+          sys.path.insert(0, str(Path('tools').resolve()))
+          from v2_state_store import StateStore, StateConflict
+          from v2_management import native_location
+          from v2_governance import Governance
+          from v2_path_io import io_path
+          from v2_backup import verify_backup
+          from v2_relocation import preflight, prepare, status
+          from v2_native_relocation import forward_plan, apply
+          from v2_recovery import Recovery
+          from v2_workflow_summary import next_task_actions
+          root = Path(tempfile.mkdtemp(prefix='malts-ci-relocation-', dir=os.environ['RUNNER_TEMP']))
+          project = root/'project'; project.mkdir()
+          old = root/'original-state'; old.mkdir(); (old/'blobs').mkdir()
+          with closing(StateStore.initialize(old/'state.db','CI','Owned CI project',resource_root=project)) as store:
+              g = Governance(store)
+              g.define_project(project_id='CI',expected_revision=0,goal='Review current state',acceptance=['Checked'],authority_ref='ci:owned',request_id='PROJECT')
+              relative = 'plans/'+('continuation-'*6)+'/boundary-revisions/'+('reviewed-'*9)+'/actual.json'
+              plan_file = old/relative; io_path(plan_file.parent).mkdir(parents=True); io_path(plan_file).write_bytes(b'Actual reviewed managed plan')
+              g.define_phase(phase_id='PH',project_id='CI',project_revision=1,expected_revision=0,goal='Deliver',boundary={'in_scope':['output'],'out_of_scope':[]},acceptance=['Checked'],plan_ref=relative,plan_sha256=hashlib.sha256(io_path(plan_file).read_bytes()).hexdigest(),plan_scope='STATE',authority_ref='ci:owned',request_id='PHASE')
+              g.set_phase_active(phase_id='PH',expected_revision=1,active=True,authority_ref='ci:owned')
+              store.revise_task(task_id='T',project_id='CI',expected_revision=0,goal='Continue after review',scope=['output'],acceptance=['Checked'],request_id='TASK')
+              g.bind_task(task_id='T',task_revision=1,phase_id='PH',phase_revision=1,authority_ref='ci:owned')
+              plan=preflight(workspace=project,old_state_dir=old,operation_id='CI-MOVE',authority_ref='ci:owned')
+              info=prepare(plan,expected_plan_sha256=plan['plan_sha256'],apply=True)
+              manifest=verify_backup(Path(info['target']['backup_root']))
+              longest=max(len(str(Path(info['target']['backup_root'])/r['path'])) for r in manifest['managed_files'])
+              if longest<=260: raise RuntimeError('CI input did not exercise a long managed path')
+              target=Path(plan['state_dir'])
+              with closing(StateStore(target/'state.db')) as restored:
+                  inventory=Recovery(restored).inspect()
+                  report={'review_id':'CI-REVIEW','authority_ref':'ci:owned-all-resources-no-business-writers','basis':inventory['binding'],
+                      'resource_reviews':[{'resource_id':r['resource_id'],'coverage':'RECONCILED','evidence_ref':'ci:owned-resources-reviewed'} for r in inventory['resources']],
+                      'writer_reviews':[], 'task_actions':[{'task_id':'T','revision':1,'action':'KEEP_PAUSED','reason':'Explicit continuation required','next_action':None}], 'unresolved_external_effects':[]}
+                  review=Recovery(restored); reviewed=review.plan(report); review.apply(report,expected_plan_sha256=reviewed['plan_sha256'])
+              forward=forward_plan(plan['journal_root'])
+              receipt=apply(forward,expected_plan_sha256=forward['plan_sha256'],journal_root=plan['journal_root'],apply=True)
+              if receipt['decision']!='NATIVE_RELOCATED' or native_location(project)!=target: raise RuntimeError('Authority switch failed')
+              try: store.require_execution_ready()
+              except StateConflict: pass
+              else: raise RuntimeError('Old execution authority remained active')
+              if status(plan['journal_root'])['completion_level']!='ACTIVE_NOT_PHASE_READY': raise RuntimeError('Phase readiness was incorrectly implied')
+              if not next_task_actions(target,project_id='CI')['tasks'][0]['resume_after_recovery_required']: raise RuntimeError('Recovery continuation guidance missing')
+              if not apply(forward,expected_plan_sha256=forward['plan_sha256'],journal_root=plan['journal_root'],apply=True)['replayed']: raise RuntimeError('Original-ID replay failed')
+          with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,r'SYSTEM\CurrentControlSet\Control\FileSystem') as key:
+              configured=winreg.QueryValueEx(key,'LongPathsEnabled')[0]
+          print(json.dumps({'native_relocation':'PASS','long_managed_backup_characters':longest,'LongPathsEnabled_observed':configured,'registry_modified':False,'single_authority':'PASS','original_id_replay':'PASS','resume_guidance':'PASS'}))
+          '@ | & python -X utf8 -B -
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Public relocation/long-path regression failed.'
+          }

@@ -73,6 +73,38 @@ class Recovery:
     def __init__(self, store: StateStore):
         self.store = store
 
+    def resume_task(self, *, task_id,expected_revision,expected_epoch,review_id,request_id,authority_ref):
+        """Controller-only preparation after recovery, not a Run/Grant resume."""
+        for label,value in [('task_id',task_id),('expected_epoch',expected_epoch),('review_id',review_id),('request_id',request_id),('authority_ref',authority_ref)]:text(value,label)
+        if type(expected_revision) is not int or expected_revision<1:raise ValueError('Current Task revision required')
+        fingerprint=digest([task_id,expected_revision,expected_epoch,review_id,authority_ref])
+        with self.store.transaction() as c:
+            self.store.require_execution_ready()
+            task=self.store.task(task_id);epoch=c.execute('SELECT epoch FROM recovery_state').fetchone()[0]
+            if task is None or task['revision']!=expected_revision or epoch!=expected_epoch:raise StateConflict('Recovery continuation revision or epoch changed')
+            prior=c.execute('SELECT request_hash,task_id,revision FROM request_receipt WHERE request_id=?',(request_id,)).fetchone()
+            if prior:
+                if prior!=(fingerprint,task_id,expected_revision):raise StateConflict('Recovery continuation request identity differs')
+                return {'decision':'REPLAY','current_status':task['status'],'execution_authorized':False,'writes_performed':False}
+            require_project_review(c,review_id,epoch)
+            report=json.loads(c.execute('SELECT report_json FROM recovery_review WHERE review_id=? AND epoch=?',(review_id,epoch)).fetchone()[0])
+            chosen=next((x for x in report['task_actions'] if x['task_id']==task_id and x['revision']==expected_revision),None)
+            if task['status']!='PAUSED' or chosen is None or chosen['action']!='KEEP_PAUSED':raise StateConflict('Task has no matching paused recovery disposition')
+            from v2_governance import require_task_phase
+            require_task_phase(self.store,task_id)
+            if self.store.unresolved_dependencies(task_id,expected_revision):raise StateConflict('Recovery continuation dependencies require current acceptance')
+            if (c.execute("SELECT 1 FROM operation WHERE task_id=? AND state IN ('PREPARED','INTENT_RECORDED','UNKNOWN')",(task_id,)).fetchone() or
+                    c.execute("SELECT 1 FROM execution_run WHERE task_id=? AND state<>'CLOSED'",(task_id,)).fetchone() or
+                    c.execute('SELECT 1 FROM host_dispatch WHERE task_id=? AND launch_committed=1 AND coalesce(quiesced,0)=0',(task_id,)).fetchone()):
+                raise StateConflict('Recovery continuation requires settled registered effects and writers')
+            result={'decision':'TASK_RECOVERY_READY','task_id':task_id,'revision':expected_revision,'epoch':epoch,'review_id':review_id,
+                'previous_status':'PAUSED','current_status':'READY','authority_ref':authority_ref,'run_started':False,
+                'grants_reactivated':False,'acceptances_revalidated':False,'budgets_replenished':False,'execution_authorized':False,'writes_performed':True}
+            c.execute("UPDATE task SET status='READY' WHERE task_id=? AND revision=?",(task_id,expected_revision))
+            c.execute('INSERT INTO request_receipt VALUES (?,?,?,?)',(request_id,fingerprint,task_id,expected_revision))
+            c.execute('INSERT INTO execution_audit(kind,subject_id,details_json) VALUES (?,?,?)',('TASK_RECOVERY_CONTINUATION_APPROVED',task_id,_json(result)))
+            return result
+
     @contextmanager
     def _read(self):
         c = self.store.connection

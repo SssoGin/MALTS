@@ -1,6 +1,6 @@
 # MALTS State and Service Contract
 
-The state contract binds goals, task revisions, permissions, operations, evidence and recovery to the selected workspace. CLI and MCP call the same domain services through different Host permission surfaces. Current implementation: **2.0.4**.
+The state contract binds goals, task revisions, permissions, operations, evidence and recovery to the selected workspace. CLI and MCP call the same domain services through different Host permission surfaces. Current implementation: **2.0.5**.
 
 ## 1. Format, entry and authority
 
@@ -134,3 +134,7 @@ Long managed-file paths use internal extended-path I/O without registry changes 
 ## Installation Integrity and Recovery Verification
 
 Deep entry verification separates the exact installed user payload from reproducible interpreter caches. Source, metadata and hash chains must still match; a current-interpreter cache is accepted only when reproduced from verified source. Other interpreter caches, corrupt caches, extra files and source changes fail closed without deleting caches or editing manifests. CLI deep entry and MCP malts_entry_status share safe cause codes. Recovery results distinguish registered effects from external writer coverage; compatible format, business acceptance, isolated recovery and writer quiescence are separate conclusions. See [management and recovery verification](MANAGEMENT_AND_RELOCATION.md) for staged preservation, UTF-8 plans and isolated recovery commands.
+
+## State and Continuation After Recovery
+
+Entry, package checking, workspace authority, governance readiness, Task continuation and execution permission are verified separately. Relocation status supplies original-journal next actions; workspace-final-verify produces a read-only current closure; recovery-next-task-actions explains paused Tasks. Reviewed task.resume-after-recovery prepares only its matching Task as READY, retaining budgets and invalid old Grants/acceptance; new execution still follows current permission/effect contracts. See [recovery verification](MANAGEMENT_AND_RELOCATION.md#7-entry-reports-relocation-next-actions-and-final-verification) for responsibilities, strict exits and executable requests.

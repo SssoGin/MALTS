@@ -74,7 +74,11 @@ def _workspace_format(workspace):
                 if not isinstance(plan,dict) or not isinstance(plan.get('source_root'),str) or not _same(plan['source_root'],root):
                     raise ValueError('Workspace adoption source differs')
                 require_active_binding(store)
-    return {'kind':kind,'schema':schema,'current_schema_opened':schema==SCHEMA_VERSION,'authority_state':'CURRENT_FORMAT_ONLY','write_allowed':False}
+    authority='ADOPTED_BINDING' if kind=='BOUND_V2_STORE' else 'NATIVE_LOCATOR' if kind=='OWNED_NATIVE_STORE' else 'NATIVE_EXPLICIT'
+    return {'kind':kind,'schema':schema,'state_dir':str(state),'authority_kind':authority,
+        'current_schema_opened':schema==SCHEMA_VERSION,'authority_state':'CURRENT_FORMAT_ONLY','write_allowed':False,
+        'locator_contract':{'management_marker':'Namespace ownership only','native_locator_required':authority=='NATIVE_LOCATOR',
+            'adopted_binding_required':authority=='ADOPTED_BINDING'}}
 
 
 def _identity(discovery):
@@ -153,10 +157,11 @@ def inspect_workspace_entry(workspace):
             row=c.execute('SELECT project_id FROM migration_adoption WHERE adoption_id=?',(binding['adoption_id'],)).fetchone()
             ready=workspace_readiness(store,row[0])
             c.execute('COMMIT')
-            return {**ready,'decision':'ADOPTED_WORKSPACE','state_dir':binding['state_dir'],'binding_status':'VERIFIED','adoption_performed':False}
+            return {**ready,'decision':'ADOPTED_WORKSPACE','state_dir':binding['state_dir'],'binding_status':'VERIFIED','adoption_performed':False,
+                'authority_kind':'ADOPTED_BINDING','native_locator_required':False,'native_locator_absence_is_error':False}
     if (root/'.malts/native.json').exists():
         from v2_management import native_location
-        return inspect_native_workspace(native_location(root))
+        return {**inspect_native_workspace(native_location(root)),'authority_kind':'NATIVE_LOCATOR','native_locator_required':True}
     _regular_path(root/'state.db')
     if (root/'state.db').exists():
         with closing(StateStore(root/'state.db',readonly=True)) as store:
@@ -195,7 +200,7 @@ def inspect_native_workspace(workspace):
             raise ValueError('Imported or adopted state requires its verified workspace binding')
         result=workspace_readiness(store)
         c.execute('COMMIT')
-        return {**result,'decision':'NATIVE_WORKSPACE','state_dir':str(root),'binding_status':'EXPLICIT_NATIVE_STORE','adoption_performed':False}
+        return {**result,'decision':'NATIVE_WORKSPACE','state_dir':str(root),'binding_status':'EXPLICIT_NATIVE_STORE','adoption_performed':False,'authority_kind':'NATIVE_EXPLICIT'}
 
 
 def _lifecycle_lock_present(discovery):
@@ -246,7 +251,8 @@ def inspect_entry(*,workspace,tool_root,verify_package=False,refresh_generation=
         'loaded_root':str(LOADED_ROOT),'loaded_identity_source':'EXECUTING_MODULE_PATH',
         'supported_core_schema':SCHEMA_VERSION,'active_identity_source':'TOOL_LOCAL_DISCOVERY',
         'optional_update_checked':False,'runtime_write_fence_established':False,'loaded_package_bytes_verified':False,
-        'deep_package_check_requested':verify_package,'disk_package_integrity_verified':False}
+        'deep_package_check_requested':verify_package,'disk_package_integrity_verified':False,'runtime_discovered':False,
+        'package_check':{'status':'PACKAGE_CHECK_NOT_PERFORMED','requested':verify_package,'independent_of_workspace_binding':True}}
     for retry in range(2):
         stage='DISCOVERY'
         try:
@@ -255,22 +261,32 @@ def inspect_entry(*,workspace,tool_root,verify_package=False,refresh_generation=
                 return {**base,'status':'BLOCKED','reason':'LIFECYCLE_TRANSACTION_OR_RECOVERY_PENDING',
                     'identity_retries':retry,'lock_removed':False}
             loaded_matches=_same(LOADED_ROOT,first['malts_root'])
-            workspace_info=None;read_failed=False;package_verified=False;format_matches=True;refresh=None
+            workspace_info=None;read_failed=False;package_verified=False;format_matches=True;refresh=None;package_error=None;readiness=None
+            package_check={'status':'PACKAGE_CHECK_NOT_PERFORMED','requested':verify_package,'independent_of_workspace_binding':True}
             try:
                 if loaded_matches:
                     if verify_package:
                         stage='VERIFY_PACKAGE'
-                        verified=verify_installed_generation_envelope(first['malts_root'])
-                        manifest=verified['generation_manifest']
-                        if (manifest['generation_id']!=first['generation_id'] or manifest['version']!=first['version'] or
-                                manifest['artifact_sha256'].lower()!=first['artifact_sha256'].lower()):
-                            raise ValueError('Package identity differs from active discovery')
-                        package_verified=True
-                        declared=inspect_contract(first['malts_root'])['contract']
-                        format_matches=declared==current_contract()
+                        try:
+                            verified=verify_installed_generation_envelope(first['malts_root'])
+                            manifest=verified['generation_manifest']
+                            if (manifest['generation_id']!=first['generation_id'] or manifest['version']!=first['version'] or
+                                    manifest['artifact_sha256'].lower()!=first['artifact_sha256'].lower()):
+                                raise LifecycleError('ENTRY_PACKAGE_IDENTITY_MISMATCH','Package identity differs from active discovery')
+                            package_verified=True
+                            declared=inspect_contract(first['malts_root'])['contract']
+                            format_matches=declared==current_contract()
+                            package_check['status']='PACKAGE_CHECK_VERIFIED'
+                        except (LifecycleError,OSError,ValueError,sqlite3.Error) as error:
+                            from v2_diagnostics import entry_error
+                            package_error=entry_error(error,'VERIFY_PACKAGE')
+                            package_check.update(status='PACKAGE_CHECK_UNAVAILABLE' if isinstance(error,OSError) else 'PACKAGE_CHECK_FAILED',
+                                cause_code=package_error['cause_code'],context=package_error['context'])
                     if format_matches:
                         stage='WORKSPACE'
                         workspace_info=_workspace_format(workspace)
+                        if workspace_info.get('state_dir') and workspace_info['schema']==SCHEMA_VERSION and workspace_info.get('authority_state') not in {'SUPERSEDED','PREPARED','RESTORED'}:
+                            stage='WORKSPACE_READINESS';readiness=inspect_workspace_entry(workspace)
                         if refresh_generation is not None and workspace_info['schema']==SCHEMA_VERSION:
                             refresh=_refresh_candidate(refresh_generation,first)
             except (LifecycleError,OSError,ValueError,StateConflict,sqlite3.Error) as error:
@@ -281,13 +297,31 @@ def inspect_entry(*,workspace,tool_root,verify_package=False,refresh_generation=
                 return {**base,'status':'BLOCKED','reason':'LIFECYCLE_TRANSACTION_OR_RECOVERY_PENDING',
                     'identity_retries':retry,'preparation_discarded':True,'lock_removed':False}
             if _identity(first)!=_identity(second):continue
-            if read_failed:return {**base,**read_failed,'identity_retries':retry}
+            if read_failed:
+                binding_valid=workspace_info is not None and workspace_info.get('kind') in {'BOUND_V2_STORE','OWNED_NATIVE_STORE','DIRECT_CANDIDATE_STORE'}
+                return {**base,**read_failed,'identity_retries':retry,'runtime_discovered':True,'package_check':package_check,
+                    'workspace_binding_verified':binding_valid,'workspace_status':'VERIFIED' if binding_valid else 'UNBOUND',
+                    'governance_readiness':'NOT_READY','execution_authorization':'NOT_GRANTED',
+                    'reason':'GOVERNANCE_REVIEW_REQUIRED' if stage=='WORKSPACE_READINESS' else read_failed['reason']}
             report={**base,'active_generation_id':second['generation_id'],'active_root':second['malts_root'],
                 'active_artifact_sha256':second['artifact_sha256'],'workspace':workspace_info,
                 'identity_retries':retry,'preparation_discarded':bool(retry),'disk_package_integrity_verified':package_verified,
-                'optional_update_checked':refresh is not None,'refresh_candidate':refresh}
+                'optional_update_checked':refresh is not None,'refresh_candidate':refresh,'package_check':package_check,'runtime_discovered':True,
+                'workspace_binding_verified':workspace_info is not None and workspace_info.get('kind') in {'BOUND_V2_STORE','OWNED_NATIVE_STORE','DIRECT_CANDIDATE_STORE'},
+                'report_contract':'READ_ONLY_REPORT; optional CLI --strict maps non-compatible conditions to nonzero exit'}
+            report.update(workspace_status='VERIFIED' if report['workspace_binding_verified'] else 'UNBOUND',
+                governance_readiness='READY' if readiness and readiness.get('phase_ready') else 'NOT_READY' if readiness else 'NOT_EVALUATED',
+                execution_authorization='NOT_GRANTED',external_writer_assurance='UNKNOWN')
+            if readiness:report.update(phase_ready=readiness.get('phase_ready',False),workspace_readiness=readiness)
+            if readiness and readiness.get('decision') not in {'ADOPTED_WORKSPACE','NATIVE_WORKSPACE'}:
+                report.update(workspace_binding_verified=False,workspace_status='UNBOUND')
             if not loaded_matches:return {**report,'status':'STALE_PROCESS','reason':'LOADED_ROOT_IS_NOT_ACTIVE'}
             if not format_matches:return {**report,'status':'STALE_PROCESS','reason':'LOADED_FORMAT_CONTRACT_DIFFERS'}
+            if package_error:return {**report,**package_error,
+                'status':'PACKAGE_CHECK_UNAVAILABLE' if package_check['status']=='PACKAGE_CHECK_UNAVAILABLE' else 'BLOCKED',
+                'reason':package_check['status'],'workspace_binding_verified':report['workspace_binding_verified'],'entry_identity_blocked':False,
+                'package_check':package_check,'operation_status':'BLOCKED' if package_check['status']=='PACKAGE_CHECK_UNAVAILABLE' else 'FAILED'}
+            if readiness and readiness.get('decision')=='ADOPTION_REQUIRED':return {**report,'status':'MIGRATION_REQUIRED','reason':'IMPORTED_STORE_REQUIRES_VERIFIED_SOURCE_BINDING'}
             if workspace_info['kind']=='LEGACY_WORKSPACE':return {**report,'status':'MIGRATION_REQUIRED','reason':'LEGACY_DEFINITIONS_REQUIRE_REVIEWED_IMPORT'}
             if workspace_info['schema']!=SCHEMA_VERSION:return {**report,'status':'MIGRATION_REQUIRED','reason':'STORE_SCHEMA_NOT_SUPPORTED_BY_LOADED_READER'}
             if workspace_info.get('authority_state') in {'SUPERSEDED','PREPARED','RESTORED'}:
