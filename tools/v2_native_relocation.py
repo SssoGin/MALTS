@@ -172,6 +172,8 @@ def validate_forward(plan):
 
 
 def apply(plan, *, expected_plan_sha256,journal_root,tool_root=None,apply=False):
+    from v2_diagnostics import require_plan_hash
+    require_plan_hash(plan,expected_plan_sha256,'FORWARD_VALIDATE_PLAN')
     from v2_relocation import _hash,_write,status,_active_runtime,WindowsForwardHandoff
     from v2_adoption import _write_owned
     validate_forward(plan)

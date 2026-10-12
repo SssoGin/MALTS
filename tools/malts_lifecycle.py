@@ -1078,11 +1078,13 @@ def _verify_user_purity(manifest: dict[str, Any], records: list[dict[str, Any]],
     purity = manifest["user_purity"]
     tree_sha256 = sha256_bytes(canonical_json(records))
     if purity["file_count"] != len(records) or purity["tree_sha256"].upper() != tree_sha256:
-        raise LifecycleError(
+        error = LifecycleError(
             "TX_USER_PURITY_BINDING",
             "User-purity inventory does not bind the exact user payload.",
             context,
         )
+        error.counts={'expected_count':purity['file_count'],'actual_count':len(records)}
+        raise error
     expected_revision = f"local-tree-sha256:{tree_sha256}"
     if manifest["source_revision"].casefold() != expected_revision.casefold():
         raise LifecycleError(
@@ -1216,7 +1218,7 @@ def _verified_diagnostic_caches(root: Path, manifest: dict[str, Any], records: l
             code = compile(source_bytes, str(source), "exec", dont_inherit=True, optimize=optimization)
             body = marshal.dumps(code)
             with cache.open("rb") as stream:
-                observed = stream.read(len(body) + 17)
+                observed = stream.read(min(16*1024*1024,len(body)*2+65536)+17)
             header = observed[:16]
             flags = int.from_bytes(header[4:8], "little")
             if flags == 0:
@@ -1225,8 +1227,10 @@ def _verified_diagnostic_caches(root: Path, manifest: dict[str, Any], records: l
                 metadata = importlib.util.source_hash(source_bytes)
             else:
                 metadata = b""
-            expected = importlib.util.MAGIC_NUMBER + struct.pack("<I", flags) + metadata + body
-            valid = len(header) == 16 and flags in (0, 1, 3) and observed == expected
+            expected_header = importlib.util.MAGIC_NUMBER + struct.pack("<I", flags) + metadata
+            from malts_cache_integrity import structural_digest
+            valid = (len(header)==16 and flags in (0,1,3) and header==expected_header and
+                     len(observed)==record['bytes'] and structural_digest(observed[16:])==structural_digest(body))
         except (OSError, SyntaxError, ValueError, OverflowError) as exc:
             raise LifecycleError("TX_DERIVED_CACHE_UNVERIFIED", "Cache cannot be reproduced from verified source.", str(cache)) from exc
         if not valid or sha256_bytes(observed) != record["sha256"]:
@@ -1234,7 +1238,7 @@ def _verified_diagnostic_caches(root: Path, manifest: dict[str, Any], records: l
     return sorted(excluded)
 
 
-def verify_installed_generation_envelope(root_value: str | Path, *, diagnostic_caches: bool = False) -> dict[str, Any]:
+def verify_installed_generation_envelope(root_value: str | Path, *, diagnostic_caches: bool = True) -> dict[str, Any]:
     root = _absolute(root_value)
     if not root.is_dir() or _is_reparse(root):
         raise LifecycleError(
@@ -1393,6 +1397,8 @@ def verify_installed_generation_envelope(root_value: str | Path, *, diagnostic_c
         "release_identity_provenance": release_identity_provenance,
         "metadata_files": list(INSTALLED_GENERATION_METADATA),
         "verified_derived_caches": derived_caches,
+        "derived_cache_inventory": {"verification":"CURRENT_INTERPRETER_VERIFIED_SOURCE_STRUCTURAL_EQUIVALENCE",
+            "excluded_from_user_purity":True,"files":[record for record in records if record['path'] in set(derived_caches)]},
     }
 
 

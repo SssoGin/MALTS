@@ -125,7 +125,8 @@ class Recovery:
 
     def inspect(self) -> dict[str, Any]:
         with self._read() as c:
-            return self._inventory(c)
+            from v2_assurance import assurance
+            return {**self._inventory(c),**assurance()}
 
     @staticmethod
     def _rows(value: Any, fields: set[str], key: str, expected: set[str], label: str) -> dict[str, dict]:
@@ -143,7 +144,7 @@ class Recovery:
         return rows
 
     def _plan(self, report: dict, inventory: dict) -> dict:
-        closed(report, REPORT_FIELDS, 'Recovery review')
+        self._report_contract(report)
         text(report['review_id'], 'review_id')
         text(report['authority_ref'], 'authority_ref')
         if report['basis'] != inventory['binding']:
@@ -201,6 +202,8 @@ class Recovery:
             'assurance': 'OPERATOR_ATTESTED', 'host_facts_independently_verified': False,
             'execution_authorized': False, 'grants_reactivated': False, 'acceptances_revalidated': False,
         }
+        from v2_assurance import assurance
+        result.update(assurance(operator_review=True))
         result['plan_sha256'] = digest(result)
         return result
 
@@ -209,7 +212,7 @@ class Recovery:
             return self._plan(report, self._inventory(c))
 
     def apply(self, report: dict, *, expected_plan_sha256: str) -> dict:
-        closed(report, REPORT_FIELDS, 'Recovery review')
+        self._report_contract(report)
         request_sha = digest(report)
         with self.store.transaction() as c:
             old = c.execute('SELECT request_sha256,plan_sha256,receipt_json,epoch FROM recovery_review WHERE review_id=?', (report['review_id'],)).fetchone()
@@ -248,9 +251,21 @@ class Recovery:
                 'host_facts_independently_verified': False, 'execution_authorized': False,
                 'next_tasks': plan['task_actions'],
             }
+            from v2_assurance import assurance
+            receipt.update(assurance(registered_effects_reconciled=True,operator_review=True))
             c.execute('INSERT INTO recovery_review VALUES (?,?,?,?,?,?)',
                       (report['review_id'], epoch, expected_plan_sha256, request_sha, _json(report), _json(receipt)))
             c.execute('INSERT INTO execution_audit(kind,subject_id,details_json) VALUES (?,?,?)',
                       ('RECOVERY_REVIEW_ACCEPTED', report['review_id'], _json(receipt)))
             c.execute('UPDATE recovery_state SET reconciliation_required=0 WHERE singleton=1 AND epoch=?', (epoch,))
             return receipt
+
+    @staticmethod
+    def _report_contract(report):
+        extra={'registered_effect_coverage','external_writer_coverage','external_writer_isolation_assurance'}
+        closed(report,REPORT_FIELDS | (extra if isinstance(report,dict) and set(report)&extra else set()),'Recovery review')
+        if set(report)&extra:
+            if (report['registered_effect_coverage']!='DATABASE_REGISTERED_EFFECTS' or
+                    report['external_writer_coverage'] not in {'UNKNOWN','OPERATOR_ATTESTED_PROJECT_ROOTS'} or
+                    report['external_writer_isolation_assurance']!='UNKNOWN'):
+                raise StateConflict('External writer isolation cannot be promoted by a declarative review')

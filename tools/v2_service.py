@@ -167,7 +167,8 @@ def execute_request(store,request,*,evidence_reader=None,required_resource_root=
         path=arguments.pop('data_file')
         arguments['data']=Path(path).read_bytes() if evidence_reader is None else evidence_reader(path)
         if not isinstance(arguments['data'],bytes): raise ValueError('Evidence reader must return exact bytes')
-    return {'decision':'REQUEST_PROCESSED','action':request['action'],'result':method(instance,**arguments)}
+    from v2_assurance import assurance
+    return {'decision':'REQUEST_PROCESSED','action':request['action'],'result':method(instance,**arguments),'execution_assurance':assurance()}
 
 
 def safe_error(error):
@@ -175,6 +176,16 @@ def safe_error(error):
     from v2_adoption_host import ControlHandoffError
     from v2_management import ManagementConflict
     from v2_path_io import ManagedPathIOError
+    from v2_diagnostics import PlanHashMismatch
+    from v2_assurance import UnqualifiedAdapter
+    if isinstance(error,UnqualifiedAdapter):return {'decision':'ERROR','error_code':'UNQUALIFIED_ADAPTER','host_authentication':'NOT_ENFORCED','external_writer_isolation':'UNKNOWN','execution_authorized':False}
+    if isinstance(error,PlanHashMismatch):
+        import re
+        result={'decision':'ERROR','error_code':'PLAN_HASH_MISMATCH','cause_code':'PLAN_HASH_MISMATCH','stage':error.stage,
+            'source_kind':error.source_kind,'recovery_action':'RELOAD_ORIGINAL_PLAN_DO_NOT_REPLAY_WITH_NEW_ID'}
+        for key,value in [('expected_plan_sha256',error.expected),('computed_plan_sha256',error.computed)]:
+            if isinstance(value,str) and re.fullmatch('[a-fA-F0-9]{64}',value):result[key]=value
+        return result
     if isinstance(error,ManagedPathIOError):
         return {'decision':'ERROR','error_type':'ManagedPathIOError','error_code':'MANAGED_FILE_IO_FAILED',
                 'operation':error.operation,'path_characters':error.path_characters,'os_error':error.os_error,

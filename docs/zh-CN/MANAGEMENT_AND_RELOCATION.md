@@ -1,6 +1,6 @@
 # MALTS 工作区管理与状态库重定位
 
-MALTS 集中保存项目定义、任务状态、证据与恢复资料，并在业务成果的实际位置检查结果。当前版本为 **2.0.3**。本文说明默认管理布局、旧工作区的审阅采用，以及健康原生或已采用状态库的重定位。安装更新和项目状态迁移是不同操作。
+MALTS 集中保存项目定义、任务状态、证据与恢复资料，并在业务成果的实际位置检查结果。当前版本为 **2.0.4**。本文说明默认管理布局、旧工作区的审阅采用，以及健康原生或已采用状态库的重定位。安装更新和项目状态迁移是不同操作。
 
 ## 1. 默认布局与所有权
 
@@ -68,7 +68,11 @@ Windows 采用交接冻结审阅来源文件并保护目录身份，同时允许
 选定唯一 `$OperationId`、已有授权引用 `$AuthorityRef` 以及新的 `$PlanPath`，将返回 JSON 原样保存为 UTF-8：
 
 ```powershell
-& $PythonExe -B $Cli store-relocation-preflight --workspace $Workspace --operation-id $OperationId --authority-ref $AuthorityRef |
+# NATIVE_EXPLICIT：$OldState 为已有数据库目录，$Workspace 为业务资源根。
+$SourceArguments = @('--old-state-dir', $OldState)
+# NATIVE_LOCATOR 或 ADOPTED：由项目入口解析来源，改用空参数数组。
+# $SourceArguments = @()
+& $PythonExe -B $Cli store-relocation-preflight --workspace $Workspace @SourceArguments --operation-id $OperationId --authority-ref $AuthorityRef |
     Out-File -LiteralPath $PlanPath -Encoding utf8NoBOM
 $Plan = Get-Content -LiteralPath $PlanPath -Raw -Encoding utf8 | ConvertFrom-Json
 & $PythonExe -B $Cli store-relocation-prepare --plan-file $PlanPath --expected-plan-sha256 $Plan.plan_sha256 --tool-root $ToolRoot
@@ -127,3 +131,34 @@ Windows 受管文件复制、哈希、备份核验、恢复及交接文件句柄
 验证覆盖隔离原生初始化、根内采用、外置兼容、真实 SQLite 争用、输入保护、漂移拒绝、原身份接续及权威切换，不代表某个用户项目已经迁移，也不证明任意 Editor 隔离、跨用户 DPAPI 恢复、模型行为或性能收益。项目专属验证和另行授权的保留或清理决定完成前，应保留原始资料。
 
 已有2.0.2的版本1重定位计划及 `PREPARING` 操作记录继续有效：更新运行时后读取原 `store-relocation-status`，用原计划文件、原 `plan_sha256`、原操作 ID 和原目录重新执行 `store-relocation-prepare`。不删除失败尝试、不编辑操作记录、不另起 ID 掩盖未决状态。后续仍须完成新 epoch 的资源与效果审查，再由统一的 `store-relocation-plan`／`store-relocation-apply` 接续；原 `legacy-forward-*` 已采用库接口继续兼容。长路径验证使用自有 Windows 夹具，不能据此外推特定用户工程已迁移。
+
+## 6. 当前入口、诊断与恢复证明
+
+迁址后从项目业务根执行 `entry-status` 和 `workspace`，再读取返回的 `state_dir`；不要在项目脚本中硬编码旧外置库。`entry-status --workspace <old-state>` 对被取代原生库返回 `SUPERSEDED`、`authority_state=SUPERSEDED` 与 `write_allowed=false`，保留原操作标识及接续提示。`COMPATIBLE` 只说明当前格式相容，不代表Task、授权、预算或外部进程就绪。带定位文件的原生库显示 `OWNED_NATIVE_STORE`，显式无定位库显示直接库类别。
+
+`capabilities.schema_migration` 描述自动数据库升级，`store_relocation` 描述已有库搬迁，`legacy_adoption` 描述旧控制资料采用。原 `migration_supported` 仅供兼容，含义是自动schema升级，不可用于判断能否迁址。原生与已采用来源均可采用上文统一操作记录流程；`legacy-forward-*` 仅保留已采用库兼容入口。
+
+CLI的stdout/stderr为严格UTF-8。PowerShell7使用 `Out-File -Encoding utf8NoBOM`；通过.NET子进程捕获时，设置 `StandardOutputEncoding` 与 `StandardErrorEncoding` 为UTF-8，并使用 `ArgumentList`。保存后重新计算计划正文哈希，中文或emoji不得被替换后继续执行。计划不符返回 `PLAN_HASH_MISMATCH`、阶段、来源类型及安全的expected/computed哈希；读取原计划续办，不以新ID掩盖未决效果。包失败保留 `cause_code`、安全上下文及计数；CLI与MCP的 `malts_entry_status` 使用同一诊断实现。MCP只检查其配置项目根，不接受客户端任意路径。
+
+### 6.1 登记效果与外部写者
+
+恢复审查分别记录 `registered_effect_coverage`、`external_writer_coverage` 和 `external_writer_isolation_assurance`。新模板默认外部覆盖及隔离为 `UNKNOWN`；旧报告仍须覆盖全部Project根和登记资源。完成审查后可有 `registered_effects_reconciled=true`，而 `external_writer_isolation=UNKNOWN` 仍成立：操作者对业务根的审阅不等同独立物理隔离。声明 `INDEPENDENTLY_VERIFIED` 不能绕过证据要求。外部effects仍须实际解决；空writers、空pending列表、成功恢复或格式相容均不证明外部进程静默。
+
+CLI、MCP、恢复和Host结果携带 `execution_assurance` 或相应直接字段，显示Host认证未强制、原生adapter未资格化及外部隔离UNKNOWN。可信控制端API仍依靠选定适配器、Task修订、epoch、Grant、预算和当前身份检查；`require_independently_qualified_adapter=true` 的强资格请求以 `UNQUALIFIED_ADAPTER` 拒绝。不能把这些检查外推为任意Editor、原始SQL、跨会话/跨机隔离或无人值守Agent认证。
+
+### 6.2 分层备份验证与隔离恢复
+
+`verify-backup --destination $BackupRoot` 只读核验物理闭包、数据库结构、受管输入和证据引用。`identity_layers` 分别给出备份数据库文件哈希、manifest哈希及语义状态哈希；源数据库字节可能与SQLite备份字节不同，新epoch的恢复语义哈希也会改变，不直接比较不同层级。
+
+```powershell
+& $PythonExe -B $Cli verify-backup --destination $BackupRoot
+# 读取返回的 identity_layers.backup_manifest_sha256 为 $BackupHash；选择不存在的新目录。
+& $PythonExe -B $Cli verify-backup --destination $BackupRoot --mode isolated-recovery --recovery-destination $SmokeRoot --expected-backup-sha256 $BackupHash
+& $PythonExe -B $Cli verify-backup --destination $BackupRoot --mode isolated-recovery --recovery-destination $SmokeRoot --expected-backup-sha256 $BackupHash --apply
+```
+
+隔离检查创建新epoch的恢复库，回读当前用户下的Project/Phase/Task定义、实际计划、依赖结构、恢复记录及存储引用。成功才返回 `content_recovery_verified=true`；结果明确限定解码和引用范围，不证明全部证据明文或跨用户恢复。它不替换生产库，不协调外部写者，不授予resume或执行，不重新激活Phase。失败场景保留，不自动删除。PROJECT计划仍在原业务根核验，STATE计划随闭包恢复。
+
+### 6.3 保全检查的阶段
+
+`workspace-audit --workspace $Workspace` 提供官方只读项目根入口。可附 `--baseline-file` 使用 `malts.preservation.v1` 清单（`files`逐项包含 `path`、`bytes`、`sha256`）检查原始内容；原清单中的文件无论位置均逐项核验。`--mode pre-adoption` 在合法v2新增管理资料后报告 `LEGACY_PREPARATION_SCOPE_STALE`，不把新增资料解释为原文件丢失。`--mode current-v2` 核所属 `.malts` 和有效binding；其他新增项目路径须经审阅，以 `--allow-new-path` 显式提供。UNKNOWN或未审阅新增仍报告待核，不自动认领。项目已有 `verify_preparation.py`、`verify_preservation.py` 属项目集成脚本，应迁移到这一阶段范式；安装不会替用户改写它们。

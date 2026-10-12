@@ -1,5 +1,45 @@
 # Changelog
 
+## 2.0.4 — 2026-10-12
+
+Released 2026-10-12 (Asia/Shanghai, UTC+08:00). MALTS retains its project planning, task continuity, controlled execution, verification, recovery, collaboration and experience workflows, with one shared core for Codex, Claude Code, OpenCode and DeepSeek Harness.
+
+## Fixes and improvements
+
+- **Stable deep installation verification.** Exact payload and metadata identity remain required. Reproducible current-interpreter caches are verified separately without executing cache code; corrupt caches, changed source and unlisted files still fail. Nothing deletes caches or rewrites installed manifests to manufacture success.
+- **Consistent native authority entry.** Superseded original stores report SUPERSEDED and write_allowed=false at entry negotiation; current located-native entries remain distinguishable. Existing task/operation write and execution fences continue to apply.
+- **Actionable safe diagnostics.** Package errors retain cause code, stage, manifest context and counts. Plan-hash mismatch identifies the stage and safe expected/computed hashes with original-ID recovery guidance. MCP adds malts_entry_status for its bound project using the same implementation.
+- **Lifecycle capabilities with separate meanings.** Automatic schema upgrade, existing-store relocation and legacy-control adoption have distinct machine-readable objects. The old migration_supported field remains deprecated compatibility metadata.
+- **Explicit recovery and execution assurance.** Results distinguish reconciled registered effects from external-writer isolation, which remains UNKNOWN without independent proof. Empty database inventories cannot imply global quiescence; a declarative report cannot promote isolation to independently verified. Strong independently qualified adapter requirements are rejected as UNQUALIFIED_ADAPTER.
+- **Isolated backup recovery verification.** An explicit preview/apply mode restores into a new destination, checks definitions, plans, dependency structure and stored references, and reports content_recovery_verified only for its declared current-user scope. It does not replace production state, reactivate a Phase or grant resume/execution. Physical source/backup bytes, manifest and restored semantic identities are reported separately.
+- **Windows UTF-8 and post-migration guidance.** JSON stdout/stderr use strict UTF-8; Chinese/emoji authorization references can round-trip through files and reviewed hashes. Complete source-kind examples include old-state-dir for explicit native stores. A read-only workspace-audit and staged preservation manifest avoid treating legitimate management additions as original-content loss, while unreviewed additions remain visible.
+
+## Upgrade and verification scope
+
+Update through the shared lifecycle. Schema69 and project bindings stay unchanged; installation neither relocates projects nor edits their local preparation scripts. Preserve original journals and recovery materials. Follow the [management and recovery guide](https://github.com/SssoGin/MALTS/blob/v2.0.4/docs/MANAGEMENT_AND_RELOCATION.md).
+
+Tests cover owned fixtures and installed interfaces, including current-interpreter cache reproduction/tampering, authority consistency, Unicode round-trip, UNKNOWN writer coverage, native/adopted relocation and isolated recovery. Scope and actual Windows/Python results are recorded separately at delivery. General external-process isolation, native Agent authentication/qualification, cross-machine/user recovery and performance improvements are not certified by this patch. Stored blob integrity does not prove all evidence plaintext is recoverable. The feedback authors' production projects are not modified or declared migrated.
+
+## 中文说明
+
+发布日期为2026-10-12，采用 Asia/Shanghai（UTC+08:00）。MALTS 保留项目规划、任务接续、受控执行、验证、恢复、协作及经验工作流，Codex、Claude Code、OpenCode 与 DeepSeek Harness 共用一套核心。
+
+### 修复与改进
+
+- **稳定的深度安装核验。** 用户载荷及metadata仍须精确匹配；当前解释器缓存单独从已验证源码复现，不执行缓存代码。损坏缓存、源码变化和未列文件继续拒绝。不删除缓存或改写安装manifest制造成功。
+- **一致的原生库权威入口。** 被取代旧库在入口阶段返回SUPERSEDED和write_allowed=false；当前带定位文件原生入口明确分类，既有Task、操作写入和执行拒绝仍生效。
+- **可用且脱敏的诊断。** 包错误保留原因码、阶段、manifest上下文和计数。计划哈希不符返回阶段、安全的expected/computed哈希及原ID接续提示。MCP增加malts_entry_status，使用同一实现检查其配置项目。
+- **区分生命周期能力。** 自动schema升级、已有库迁址和旧控制资料采用分别提供机器可读对象；原migration_supported仅保留为弃用兼容字段。
+- **明确的恢复与执行证据边界。** 回执区分已协调登记效果与外部写者隔离；后者无独立证明时保持UNKNOWN。数据库清单为空不表示全局静默，声明式报告不能提升为独立隔离证明。要求独立适配器资格的强执行请求以UNQUALIFIED_ADAPTER拒绝。
+- **隔离备份恢复核验。** 明确的预览／应用模式在新目录恢复，回读定义、实际计划、依赖结构及存储引用；content_recovery_verified仅表示声明的当前用户检查范围。不替换生产库、不激活Phase、不授予resume或执行。源文件、备份文件、manifest和恢复语义状态身份分别报告。
+- **Windows UTF-8及迁移后指引。** JSON标准输出和错误输出统一严格UTF-8，中文及emoji授权引用可经保存与审阅哈希往返。完整来源示例补齐显式原生库的old-state-dir。只读workspace-audit及分阶段保全清单区分合法新增管理资料与原内容损失，未审阅新增仍保留待核。
+
+### 升级与验证范围
+
+通过共享生命周期更新，Schema69及项目绑定保持不变；安装不搬项目，也不修改项目本地准备脚本。保留原操作记录与恢复材料，步骤见[管理与恢复核验说明](https://github.com/SssoGin/MALTS/blob/v2.0.4/docs/zh-CN/MANAGEMENT_AND_RELOCATION.md)。
+
+验证使用自有夹具和安装接口，覆盖当前解释器缓存复现及篡改拒绝、权威一致性、Unicode往返、UNKNOWN写者覆盖、原生／已采用迁址及隔离恢复。实际Windows/Python环境和证据范围在交付时分别记录。本补丁不认证通用外部进程隔离、原生Agent身份及资格、跨用户跨机器恢复或性能收益。存储引用完整不等于全部证据明文可恢复。反馈作者的生产项目未由本次修改，也未宣称已迁移。
+
 ## 2.0.3 — 2026-10-10
 
 Released 2026-10-10 (Asia/Shanghai, UTC+08:00). MALTS continues to provide project planning, task continuity, controlled execution, verification, collaboration and experience workflows through one shared core for Codex, Claude Code, OpenCode and DeepSeek Harness. This patch completes existing-store relocation and fixes Windows managed-file path handling.

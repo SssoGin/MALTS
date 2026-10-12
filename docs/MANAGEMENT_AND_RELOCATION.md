@@ -1,6 +1,6 @@
 # MALTS Workspace Management and Store Relocation
 
-MALTS keeps project definitions, task state, evidence and recovery information together while checking business outputs at their actual locations. Current version: **2.0.3**. This guide covers the default management layout, reviewed adoption of a legacy workspace, and relocation of a healthy native or adopted store. Installation and project-state migration are separate operations.
+MALTS keeps project definitions, task state, evidence and recovery information together while checking business outputs at their actual locations. Current version: **2.0.4**. This guide covers the default management layout, reviewed adoption of a legacy workspace, and relocation of a healthy native or adopted store. Installation and project-state migration are separate operations.
 
 ## 1. Default Layout and Ownership
 
@@ -68,7 +68,11 @@ Native stores do not need a fabricated legacy import. Preflight discovers an exi
 Select a unique `$OperationId`, existing `$AuthorityRef` and new `$PlanPath`. Save the exact returned JSON as UTF-8:
 
 ```powershell
-& $PythonExe -B $Cli store-relocation-preflight --workspace $Workspace --operation-id $OperationId --authority-ref $AuthorityRef |
+# NATIVE_EXPLICIT: $OldState is the existing database directory; $Workspace is the business root.
+$SourceArguments = @('--old-state-dir', $OldState)
+# NATIVE_LOCATOR or ADOPTED: resolve through the project entry instead.
+# $SourceArguments = @()
+& $PythonExe -B $Cli store-relocation-preflight --workspace $Workspace @SourceArguments --operation-id $OperationId --authority-ref $AuthorityRef |
     Out-File -LiteralPath $PlanPath -Encoding utf8NoBOM
 $Plan = Get-Content -LiteralPath $PlanPath -Raw -Encoding utf8 | ConvertFrom-Json
 & $PythonExe -B $Cli store-relocation-prepare --plan-file $PlanPath --expected-plan-sha256 $Plan.plan_sha256 --tool-root $ToolRoot
@@ -94,7 +98,7 @@ Review is operator-attested, not independent proof of arbitrary external writer 
 
 ### 4.4 Forward Switch and Verification
 
-Read the original journal's `target.backup_root` as `$BackupRoot`, then save the exact forward plan:
+Save the exact journal-based forward plan for the selected source kind:
 
 ```powershell
 & $PythonExe -B $Cli store-relocation-plan --journal-root $Plan.journal_root |
@@ -127,3 +131,34 @@ If the old store advanced after backup, forward planning/application rejects the
 Verification covers isolated native/internal adoption, external compatibility, actual SQLite contention, guarded inputs, drift rejection, original-ID continuation and authority switching. It does not establish migration of a particular user project, general Editor isolation, cross-user DPAPI recovery, model behavior or performance gains. Keep originals until project-specific verification and any separately authorized retention/cleanup decision are complete.
 
 Existing v2.0.2 version-1 relocation plans and PREPARING journals remain usable. After updating the runtime, read original `store-relocation-status` and repeat `store-relocation-prepare` with the original plan file, plan hash, operation ID and journal. Preserve failed attempts; do not edit the journal or create a new ID to hide unresolved state. Complete current-epoch resource/effect review, then continue through `store-relocation-plan` / `store-relocation-apply`. Existing adopted-store `legacy-forward-*` interfaces remain compatible. Long-path validation uses owned Windows fixtures and does not prove migration of a particular user project.
+
+## 6. Current Entry, Diagnostics and Recovery Proof
+
+After relocation, call `entry-status` and `workspace` with the Project business root, then use the returned `state_dir`. Do not hard-code the old external store in project scripts. A superseded native endpoint reports `SUPERSEDED`, `authority_state=SUPERSEDED` and `write_allowed=false`, retaining its original operation identity and continuation hint. `COMPATIBLE` describes format compatibility, not Task, Grant, budget or external-process readiness. A located native entry is `OWNED_NATIVE_STORE`; an unlocated explicit store retains a direct-store classification.
+
+`capabilities.schema_migration` describes automatic database upgrade; `store_relocation` describes moving an existing store; `legacy_adoption` describes reviewed legacy control adoption. Deprecated `migration_supported` means automatic schema upgrade and never determines relocation support. Native and adopted stores use the unified journal-based commands above; `legacy-forward-*` remains an adopted-store compatibility interface.
+
+CLI stdout/stderr use strict UTF-8. PowerShell7 should save with `Out-File -Encoding utf8NoBOM`. A .NET process capture must set both stream encodings to UTF-8 and use `ArgumentList`. Recheck saved JSON against its reviewed hash; do not apply text after replacement of Chinese characters or emoji. A mismatch reports `PLAN_HASH_MISMATCH`, stage, source kind and safe expected/computed digests. Reload the original plan instead of hiding unresolved effects under a new ID. Package failures preserve a stable cause code, safe context and counts. CLI and MCP `malts_entry_status` share this implementation; MCP inspects its configured project root only.
+
+### 6.1 Registered Effects and External Writers
+
+Recovery review separately declares `registered_effect_coverage`, `external_writer_coverage` and `external_writer_isolation_assurance`. New templates default external coverage and isolation to UNKNOWN; existing reports still require every Project root and registered resource. Successful review may establish `registered_effects_reconciled=true` while `external_writer_isolation=UNKNOWN` remains true. Operator review of business roots is not independently verified physical isolation. Declarative INDEPENDENTLY_VERIFIED does not supply evidence. Actual unresolved effects still block; empty writer/pending lists, a successful restore and format compatibility never prove external-process quiescence.
+
+CLI, MCP, recovery and Host observations expose `execution_assurance` or equivalent direct fields, including authentication not enforced, native adapters unqualified and external isolation UNKNOWN. Trusted-controller APIs still require the selected adapter, current Task revision/epoch/Grant/budget and identity bindings. A request requiring `require_independently_qualified_adapter=true` is rejected as `UNQUALIFIED_ADAPTER`. These service checks do not certify arbitrary Editors, raw SQL clients, cross-session/machine isolation or unattended Agent authentication.
+
+### 6.2 Layered Backup Proof and Isolated Recovery
+
+`verify-backup --destination $BackupRoot` verifies physical closure, database structure, managed inputs and stored evidence references without writes. `identity_layers` distinguishes the backup database file, manifest and semantic-state digests. SQLite backup bytes may differ from source bytes, and restored semantic state changes with epoch; never compare unlike layers.
+
+```powershell
+& $PythonExe -B $Cli verify-backup --destination $BackupRoot
+# Read identity_layers.backup_manifest_sha256 as $BackupHash; select an absent new destination.
+& $PythonExe -B $Cli verify-backup --destination $BackupRoot --mode isolated-recovery --recovery-destination $SmokeRoot --expected-backup-sha256 $BackupHash
+& $PythonExe -B $Cli verify-backup --destination $BackupRoot --mode isolated-recovery --recovery-destination $SmokeRoot --expected-backup-sha256 $BackupHash --apply
+```
+
+Isolated checking restores a new-epoch store and reads current-user Project/Phase/Task definitions, actual plans, dependency structure, recovery history and stored references. Only success returns `content_recovery_verified=true`; its declared decode/reference scope does not certify all evidence plaintext or cross-user recovery. It neither replaces production state nor reconciles external writers, grants resume/execution or activates Phases. Failures are retained without automatic deletion. PROJECT plans are checked at their business root; STATE plans travel with the managed closure.
+
+### 6.3 Preservation Stages
+
+`workspace-audit --workspace $Workspace` provides an official read-only project-root entry. An optional `--baseline-file` uses a `malts.preservation.v1` manifest whose files each contain path, bytes and SHA-256. Every original file is checked regardless of location. Pre-adoption mode reports `LEGACY_PREPARATION_SCOPE_STALE` after legitimate v2 management additions, rather than treating additions as lost original content. Current-v2 mode validates owned management and binding files; other additions require explicit reviewed `--allow-new-path` scope. Unknown additions remain review items. Project-local preparation/preservation scripts should adopt this staged pattern; an installation does not rewrite those scripts automatically.

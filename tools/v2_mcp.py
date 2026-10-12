@@ -329,6 +329,7 @@ def build_server(policy):
     server=Server('malts-v2-candidate',version=f'candidate-interface-{MCP_APPLICATION_INTERFACE_VERSION}')
     empty={'type':'object','additionalProperties':False}
     schemas={
+        'malts_entry_status':{'type':'object','properties':{'verify_package':{'type':'boolean'}},'additionalProperties':False},
         'malts_actions':empty,
         'malts_workflow':{'type':'object','properties':{'topic':{'type':'string','enum':[policy.workflow_topic] if policy.workflow_topic is not None else ['task','phase','artifact','recovery']}},'additionalProperties':False},
         'malts_verify_task':{'type':'object','properties':{'task_id':{'type':'string'}},'required':['task_id'],'additionalProperties':False},
@@ -337,8 +338,9 @@ def build_server(policy):
     }
     @server.list_tools()
     async def list_tools():
-        names=['malts_actions','malts_context','malts_workflow','malts_verify_task']+(['malts_request'] if policy.enable_write else [])
+        names=['malts_actions','malts_context','malts_workflow','malts_verify_task','malts_entry_status']+(['malts_request'] if policy.enable_write else [])
         descriptions={'malts_actions':'Inspect the pinned project policy and available action arguments.',
+            'malts_entry_status':'Read the bound project entry and optional installed package integrity. Uses the configured tool root; exposes safe cause codes and grants no execution.',
             'malts_verify_task':'Recheck current Task acceptance evidence within the bound scope. Preserves history and grants no execution permission.',
             'malts_workflow':'Read one packaged workflow: task (default), phase, artifact or recovery. Select the topic for the requested work instead of searching the whole guide. No file paths or operation permission.',
             'malts_context':'Read bounded current Task state; no implicit initialization or authority.',
@@ -355,8 +357,14 @@ def build_server(policy):
                 if name=='malts_request' and error.validator=='enum' and list(error.path)==['action']:
                     raise PermissionError('Action is not enabled for this client') from None
                 raise ValueError('Tool input schema mismatch') from None
-            result=(policy.contracts() if name=='malts_actions' else (policy.workflow(arguments['topic']) if 'topic' in arguments else policy.workflow()) if name=='malts_workflow'
+            if name=='malts_entry_status':
+                from v2_entry import inspect_entry
+                if policy.tool_root is None:raise ValueError('Verified tool root required for entry diagnostics')
+                result=inspect_entry(workspace=policy.resource_root,tool_root=policy.tool_root,verify_package=arguments.get('verify_package',False))
+            else:result=(policy.contracts() if name=='malts_actions' else (policy.workflow(arguments['topic']) if 'topic' in arguments else policy.workflow()) if name=='malts_workflow'
                     else policy.context(arguments) if name=='malts_context' else policy.verify_task(arguments) if name=='malts_verify_task' else policy.request(arguments))
+            from v2_assurance import assurance
+            if isinstance(result,dict) and 'plan_sha256' not in result:result.setdefault('execution_assurance',assurance())
             return types.CallToolResult(content=[types.TextContent(type='text',text=json.dumps(result,ensure_ascii=False))],structuredContent=result,isError=False)
         except (OSError,ValueError,TypeError,KeyError,sqlite3.Error) as error:
             result=safe_error(error)

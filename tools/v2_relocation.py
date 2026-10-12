@@ -129,6 +129,9 @@ def preflight(*,workspace,target_state_dir=None,operation_id,authority_ref,journ
 
 
 def _validate(plan):
+    if isinstance(plan,dict) and 'plan_sha256' in plan:
+        from v2_diagnostics import require_plan_hash
+        require_plan_hash(plan,plan['plan_sha256'],'PREPARE_VALIDATE_PLAN')
     fields={'format','version','operation_id','workspace_root','old_state_dir','state_dir','journal_root','old_epoch',
         'old_adoption_id','old_state_sha256','source_protocol','closure','authority_ref','profile',
         'external_effect_review_required','same_user_same_machine_required','principal_sha256','execution_authorized','writes_performed','plan_sha256'}
@@ -171,6 +174,8 @@ def _active_runtime(tool_root):
 
 
 def prepare(plan, *, expected_plan_sha256, tool_root=None, apply=False):
+    from v2_diagnostics import require_plan_hash
+    require_plan_hash(plan,expected_plan_sha256,'PREPARE_VALIDATE_PLAN')
     _validate(plan)
     if plan['plan_sha256']!=expected_plan_sha256:raise StateConflict('Reviewed relocation plan differs')
     if tool_root is not None:_active_runtime(tool_root)
@@ -242,6 +247,8 @@ def status(journal_root):
     result={'decision':'RELOCATION_STATUS','plan':plan,'writes_performed':False,'execution_authorized':False,
             'old_store_retained':True,'state':'PREPARING','retained_historical_paths':
             [str(Path(plan['old_state_dir'])/r['path']) for r in plan['closure'] if r['disposition']=='RETAIN_EXTERNAL_HISTORY']}
+    from v2_assurance import assurance
+    result['execution_assurance']=assurance()
     if not (journal/'target.json').exists():return result
     target=json.loads((journal/'target.json').read_text(encoding='utf-8'))
     if target['plan_sha256']!=plan['plan_sha256'] or target['state_dir']!=plan['state_dir']:
@@ -254,6 +261,7 @@ def status(journal_root):
         if recovery[1]:
             inventory=Recovery(store).inspect();result['recovery_inventory']=inventory
             result['recovery_review_template']={'review_id':plan['operation_id']+'-review',
+                'registered_effect_coverage':'DATABASE_REGISTERED_EFFECTS','external_writer_coverage':'UNKNOWN','external_writer_isolation_assurance':'UNKNOWN',
                 'authority_ref':'TODO: reviewed authorization reference','basis':inventory['binding'],
                 'resource_reviews':[{'resource_id':r['resource_id'],'coverage':'UNKNOWN','evidence_ref':'TODO: actual resource and external-writer review'} for r in inventory['resources']],
                 'writer_reviews':[{'run_id':r['run_id'],'state':'UNKNOWN','evidence_ref':'TODO: actual writer handoff'} for r in inventory['writers']],
@@ -265,6 +273,10 @@ def status(journal_root):
             from v2_native_relocation import native_status
             native_status(result,store,journal)
         elif row:result['forward']=ForwardRecovery(store).inspect(adoption_id=plan['operation_id'])
+        from v2_backup import verification_report
+        result['backup_basis']=verification_report(Path(target['backup_root']))['identity_layers']
+        result['restored_epoch_basis']={'epoch':target['epoch'],'state_semantic_sha256':state_hash(store.connection)}
+        result['source_basis']={'state_semantic_sha256':plan['old_state_sha256'],'source_file_sha256':next(r['sha256'] for r in plan['closure'] if r['path']=='state.db')}
     return result
 
 

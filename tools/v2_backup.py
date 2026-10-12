@@ -224,3 +224,46 @@ def restore_backup(source: Path, destination: Path, *, expected_manifest_sha256:
     pending_database.rename(destination/'state.db')
     return {'epoch':epoch,'reconciliation_required':True,'execution_authorized':False,
             'source_watermarks':manifest['watermarks']}
+
+
+def verification_report(source, *, recovery_destination=None,apply=False,expected_manifest_sha256=None):
+    """Read-only byte proof or explicitly applied isolated recovery inspection."""
+    from v2_forward_recovery import state_hash
+    manifest=verify_backup(source)
+    with closing(StateStore(Path(source)/'state.db',readonly=True)) as saved:
+        semantic=state_hash(saved.connection)
+    identity=hashlib.sha256(_json(manifest).encode('utf-8')).hexdigest()
+    result={'decision':'VERIFIED_BACKUP','manifest':manifest,'verification_scope':'STORED_BYTES_AND_REFERENCES',
+        'physical_file_closure_verified':True,'database_structurally_readable':True,'referenced_input_closure_verified':True,
+        'content_recovery_verified':False,'plaintext_recovery_verified':False,'resume_authorized':False,'execution_authorized':False,
+        'writes_performed':False,'identity_layers':{'backup_file_sha256':manifest['database_sha256'],'backup_manifest_sha256':identity,
+            'state_semantic_sha256':semantic,'comparison_rule':'Physical source, backup bytes and restored semantic identities are distinct; never compare unlike layers'}}
+    if recovery_destination is None:return result
+    if expected_manifest_sha256!=identity:raise EvidenceCorrupt('Isolated recovery requires the exact reviewed manifest hash')
+    result.update(decision='ISOLATED_RECOVERY_NOT_APPLIED',mode='ISOLATED_RECOVERY',verification_scope='ISOLATED_CURRENT_USER_DEFINITIONS_AND_STORED_REFERENCES')
+    if not apply:return result
+    outcome=restore_backup(source,recovery_destination,expected_manifest_sha256=identity)
+    from v2_definition_content import decode
+    with closing(StateStore(Path(recovery_destination)/'state.db',readonly=True)) as restored:
+        c=restored.connection
+        for project,goal in c.execute('SELECT project_id,original_goal FROM project'):
+            decode(goal,project,'project-original',project,0,'goal')
+        for project,revision,goal,acceptance in c.execute('SELECT project_id,revision,goal,acceptance_json FROM project_revision'):
+            decode(goal,project,'project',project,revision,'goal');decode(acceptance,project,'project',project,revision,'acceptance')
+        for task, in c.execute('SELECT task_id FROM task'):restored.task(task)
+        for phase,revision,project,goal,boundary,acceptance in c.execute('''SELECT r.phase_id,r.revision,p.project_id,r.goal,r.boundary_json,r.acceptance_json FROM phase_revision r JOIN phase p ON p.phase_id=r.phase_id'''):
+            for field,value in [('goal',goal),('boundary',boundary),('acceptance',acceptance)]:decode(value,project,'phase',phase,revision,field)
+            plan_ref,plan_hash,plan_scope,resource=c.execute('''SELECT r.plan_ref,r.plan_sha256,r.plan_scope,p.resource_root FROM phase_revision r JOIN phase ph ON ph.phase_id=r.phase_id JOIN project p ON p.project_id=ph.project_id WHERE r.phase_id=? AND r.revision=?''',(phase,revision)).fetchone()
+            plan=(restored.path.parent if plan_scope=='STATE' else Path(resource))/plan_ref
+            _regular_path(plan)
+            if _hash(plan)!=plan_hash:raise EvidenceCorrupt('Isolated Phase plan bytes changed')
+        if c.execute('PRAGMA integrity_check').fetchone()[0]!='ok' or c.execute('PRAGMA foreign_key_check').fetchall():raise EvidenceCorrupt('Isolated restored structure invalid')
+        for relative in _managed_paths(c):
+            if _hash(Path(recovery_destination)/relative)!=next(r['sha256'] for r in manifest['managed_files'] if r['path']==relative):raise EvidenceCorrupt('Isolated input changed')
+        blobs=BlobStore(Path(recovery_destination)/'blobs',readonly=True)
+        for digest in manifest['blobs']:blobs.verify(digest)
+        result.update(decision='ISOLATED_RECOVERY_VERIFIED',content_recovery_verified=True,writes_performed=True,restored=outcome,
+            content_scope='Current-user Project/Phase/Task definitions, managed plans and stored blob references; evidence plaintext and cross-user recovery not certified',
+            counts={t:c.execute('SELECT count(*) FROM '+t).fetchone()[0] for t in ('project','phase','task','dependency','recovery_review','evidence')})
+        result['identity_layers'].update(restored_state_semantic_sha256=state_hash(c),restored_file_sha256=_hash(Path(recovery_destination)/'state.db'))
+    return result

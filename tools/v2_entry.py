@@ -56,6 +56,15 @@ def _workspace_format(workspace):
         if tables!={'project','task','task_revision','recovery_state'}:raise ValueError('Unrecognized state database')
     if schema==SCHEMA_VERSION:
         with closing(StateStore(database,readonly=True)) as store:
+            if kind!='BOUND_V2_STORE':
+                from v2_native_authority import current,require_authority
+                fact=current(store.connection)
+                if fact and fact['state']!='ACTIVE':
+                    return {'kind':'SUPERSEDED_NATIVE_STORE' if fact['state']=='SUPERSEDED' else 'RECOVERING_NATIVE_STORE',
+                        'schema':schema,'current_schema_opened':True,'authority_state':fact['state'],'write_allowed':False,
+                        'selected_locator':'.malts/native.json','superseded_by_operation_id':fact['operation_id'],
+                        'recovery_action':'USE_ORIGINAL_STORE_RELOCATION_STATUS_AND_PLAN','journal_ref_sha256':__import__('hashlib').sha256(fact['journal_root'].encode('utf-8')).hexdigest()}
+                require_authority(store)
             if kind=='BOUND_V2_STORE':
                 from v2_adoption import require_active_binding
                 row=store.connection.execute('SELECT state,new_epoch,plan_json FROM migration_adoption WHERE adoption_id=?',(binding['adoption_id'],)).fetchone()
@@ -65,7 +74,7 @@ def _workspace_format(workspace):
                 if not isinstance(plan,dict) or not isinstance(plan.get('source_root'),str) or not _same(plan['source_root'],root):
                     raise ValueError('Workspace adoption source differs')
                 require_active_binding(store)
-    return {'kind':kind,'schema':schema,'current_schema_opened':schema==SCHEMA_VERSION}
+    return {'kind':kind,'schema':schema,'current_schema_opened':schema==SCHEMA_VERSION,'authority_state':'CURRENT_FORMAT_ONLY','write_allowed':False}
 
 
 def _identity(discovery):
@@ -239,6 +248,7 @@ def inspect_entry(*,workspace,tool_root,verify_package=False,refresh_generation=
         'optional_update_checked':False,'runtime_write_fence_established':False,'loaded_package_bytes_verified':False,
         'deep_package_check_requested':verify_package,'disk_package_integrity_verified':False}
     for retry in range(2):
+        stage='DISCOVERY'
         try:
             first=resolve_discovery(tool_root)
             if _lifecycle_lock_present(first):
@@ -249,6 +259,7 @@ def inspect_entry(*,workspace,tool_root,verify_package=False,refresh_generation=
             try:
                 if loaded_matches:
                     if verify_package:
+                        stage='VERIFY_PACKAGE'
                         verified=verify_installed_generation_envelope(first['malts_root'])
                         manifest=verified['generation_manifest']
                         if (manifest['generation_id']!=first['generation_id'] or manifest['version']!=first['version'] or
@@ -258,16 +269,19 @@ def inspect_entry(*,workspace,tool_root,verify_package=False,refresh_generation=
                         declared=inspect_contract(first['malts_root'])['contract']
                         format_matches=declared==current_contract()
                     if format_matches:
+                        stage='WORKSPACE'
                         workspace_info=_workspace_format(workspace)
                         if refresh_generation is not None and workspace_info['schema']==SCHEMA_VERSION:
                             refresh=_refresh_candidate(refresh_generation,first)
-            except (LifecycleError,OSError,ValueError,sqlite3.Error):read_failed=True
+            except (LifecycleError,OSError,ValueError,StateConflict,sqlite3.Error) as error:
+                from v2_diagnostics import entry_error
+                read_failed=entry_error(error,stage)
             second=resolve_discovery(tool_root)
             if _lifecycle_lock_present(second):
                 return {**base,'status':'BLOCKED','reason':'LIFECYCLE_TRANSACTION_OR_RECOVERY_PENDING',
                     'identity_retries':retry,'preparation_discarded':True,'lock_removed':False}
             if _identity(first)!=_identity(second):continue
-            if read_failed:return {**base,'status':'BLOCKED','reason':'ENTRY_IDENTITY_OR_FORMAT_UNAVAILABLE','identity_retries':retry}
+            if read_failed:return {**base,**read_failed,'identity_retries':retry}
             report={**base,'active_generation_id':second['generation_id'],'active_root':second['malts_root'],
                 'active_artifact_sha256':second['artifact_sha256'],'workspace':workspace_info,
                 'identity_retries':retry,'preparation_discarded':bool(retry),'disk_package_integrity_verified':package_verified,
@@ -276,9 +290,14 @@ def inspect_entry(*,workspace,tool_root,verify_package=False,refresh_generation=
             if not format_matches:return {**report,'status':'STALE_PROCESS','reason':'LOADED_FORMAT_CONTRACT_DIFFERS'}
             if workspace_info['kind']=='LEGACY_WORKSPACE':return {**report,'status':'MIGRATION_REQUIRED','reason':'LEGACY_DEFINITIONS_REQUIRE_REVIEWED_IMPORT'}
             if workspace_info['schema']!=SCHEMA_VERSION:return {**report,'status':'MIGRATION_REQUIRED','reason':'STORE_SCHEMA_NOT_SUPPORTED_BY_LOADED_READER'}
+            if workspace_info.get('authority_state') in {'SUPERSEDED','PREPARED','RESTORED'}:
+                return {**report,'status':'SUPERSEDED' if workspace_info['authority_state']=='SUPERSEDED' else 'RECOVERY_REQUIRED',
+                    'reason':'NATIVE_AUTHORITY_NOT_ACTIVE','cause_code':'NATIVE_AUTHORITY_'+workspace_info['authority_state'],
+                    'authority_state':workspace_info['authority_state'],'write_allowed':False,'recovery_action':workspace_info['recovery_action']}
             if refresh is not None and refresh['status']=='OPTIONAL_REFRESH':
                 return {**report,'status':'OPTIONAL_REFRESH','reason':'EXPLICIT_NEWER_FORMAT_COMPATIBLE_CANDIDATE','current_format_compatible':True}
             return {**report,'status':'COMPATIBLE','reason':'CURRENT_STORE_FORMAT_MATCHES','execution_readiness_evaluated':False}
-        except (LifecycleError,OSError,ValueError,sqlite3.Error):
-            return {**base,'status':'BLOCKED','reason':'ENTRY_IDENTITY_OR_FORMAT_UNAVAILABLE','identity_retries':retry}
+        except (LifecycleError,OSError,ValueError,StateConflict,sqlite3.Error) as error:
+            from v2_diagnostics import entry_error
+            return {**base,**entry_error(error,stage),'identity_retries':retry}
     return {**base,'status':'BLOCKED','reason':'ACTIVE_IDENTITY_CHANGED_REPEATEDLY','identity_retries':1,'preparation_discarded':True}

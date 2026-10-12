@@ -3,6 +3,8 @@
 from __future__ import annotations
 import sys
 sys.dont_write_bytecode = True
+if hasattr(sys.stdout,'reconfigure'):sys.stdout.reconfigure(encoding='utf-8',errors='strict')
+if hasattr(sys.stderr,'reconfigure'):sys.stderr.reconfigure(encoding='utf-8',errors='strict')
 
 import argparse
 import json
@@ -180,6 +182,11 @@ def main(argv=None):
     relocate.add_argument('--authority-ref',required=True)
     relocation_status=sub.add_parser('store-relocation-status')
     relocation_status.add_argument('--journal-root',type=Path,required=True)
+    workspace_audit=sub.add_parser('workspace-audit')
+    workspace_audit.add_argument('--workspace',type=Path,required=True)
+    workspace_audit.add_argument('--baseline-file',type=Path)
+    workspace_audit.add_argument('--mode',choices=['pre-adoption','current-v2'],default='current-v2')
+    workspace_audit.add_argument('--allow-new-path',action='append',default=[])
     relocation_plan=sub.add_parser('store-relocation-plan')
     relocation_plan.add_argument('--journal-root',type=Path,required=True)
     for command in ('store-relocation-prepare','legacy-forward-apply','store-relocation-apply'):
@@ -334,6 +341,10 @@ def main(argv=None):
     save.add_argument('--apply', action='store_true')
     check = sub.add_parser('verify-backup')
     check.add_argument('--destination', type=Path, required=True)
+    check.add_argument('--mode',choices=['stored','isolated-recovery'],default='stored')
+    check.add_argument('--recovery-destination',type=Path)
+    check.add_argument('--expected-backup-sha256')
+    check.add_argument('--apply',action='store_true')
     restore = sub.add_parser('restore')
     restore.add_argument('--backup-root', type=Path, required=True)
     restore.add_argument('--destination', type=Path, required=True)
@@ -529,6 +540,9 @@ def main(argv=None):
         elif args.command == 'workspace':
             from v2_entry import inspect_workspace_entry
             result=inspect_workspace_entry(args.workspace)
+        elif args.command == 'workspace-audit':
+            from v2_workspace_audit import audit
+            result=audit(args.workspace,baseline=load_request_json(args.baseline_file) if args.baseline_file else None,mode=args.mode,allow_new_paths=args.allow_new_path)
         elif args.command in {'disaster-forward-plan','disaster-forward-status'}:
             with closing(StateStore(args.state_dir/'state.db',readonly=True)) as store:
                 disaster=UnavailableStoreRecovery(store)
@@ -692,8 +706,10 @@ def main(argv=None):
                 (args.state_dir/'blobs').mkdir()
             result = {'decision': 'INITIALIZED', 'project_id': args.project_id, 'state_dir': str(args.state_dir)}
         elif args.command == 'verify-backup':
-            result = {'decision': 'VERIFIED_BACKUP', 'manifest': verify_backup(args.destination),
-                      'verification_scope':'STORED_BYTES_AND_REFERENCES','plaintext_recovery_verified':False}
+            from v2_backup import verification_report
+            if args.mode=='isolated-recovery' and args.recovery_destination is None:raise ValueError('New isolated recovery destination required')
+            if args.mode=='stored' and (args.apply or args.recovery_destination is not None):raise ValueError('Stored verification is read-only')
+            result=verification_report(args.destination,recovery_destination=args.recovery_destination,apply=args.apply,expected_manifest_sha256=args.expected_backup_sha256)
         elif args.command=='request' and args.tool_root is not None:
             from v2_runtime_admission import execute_admitted_request
             result=execute_admitted_request(tool_root=args.tool_root,state_dir=args.state_dir,request=request)
@@ -728,7 +744,20 @@ def main(argv=None):
                     result = {'decision': 'BACKUP_CREATED', 'manifest': backup(store, BlobStore(args.state_dir/'blobs', readonly=True), args.destination)}
                 else:
                     result=execute_request(store,request)
-        print(json.dumps(result, ensure_ascii=False))
+        from v2_assurance import assurance
+        if isinstance(result,dict) and 'plan_sha256' not in result:result.setdefault('execution_assurance',assurance())
+        if args.command=='capabilities':
+            result.update(schema_migration={'supported':False,'scope':'AUTOMATIC_DATABASE_SCHEMA_UPGRADE'},
+                store_relocation={'supported':True,'source_kinds':['ADOPTED','NATIVE_EXPLICIT','NATIVE_LOCATOR'],'default_target':'.malts/state','recovery_review_required':True},
+                legacy_adoption={'supported':True,'scope':'WINDOWS_GOVERNED_CONTROL_FILES'},
+                deprecated_fields={'migration_supported':'Use schema_migration.supported; this field never described store relocation'},
+                isolated_backup_recovery={'supported':True,'command':'verify-backup --mode isolated-recovery','resume_authorized':False},
+                encoding_contract={'stdout':'UTF-8','stderr':'UTF-8','plan_files':'UTF-8 or UTF-8 BOM'})
+        serialized=json.dumps(result, ensure_ascii=False)
+        if args.command in {'store-relocation-preflight','store-relocation-plan'} and isinstance(result,dict) and 'plan_sha256' in result:
+            from v2_diagnostics import require_plan_hash
+            require_plan_hash(json.loads(serialized),result['plan_sha256'],'PLAN_SERIALIZATION_SELF_CHECK')
+        print(serialized)
         return 0
     except (OSError, ValueError, TypeError, KeyError, sqlite3.Error) as error:
         print(json.dumps(safe_error(error),ensure_ascii=False),file=sys.stderr)

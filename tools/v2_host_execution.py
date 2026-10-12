@@ -272,6 +272,8 @@ class HostExecutions:
         return task
 
     def prepare(self,*,dispatch_id,attempt_id,task_id,task_revision,strategy_ref,request,authority_ref,recovery_run_id=None):
+        from v2_assurance import require_adapter_assurance
+        require_adapter_assurance(request)
         if recovery_run_id is not None:_text(recovery_run_id,'recovery_run_id')
         for name,value in (('dispatch_id',dispatch_id),('attempt_id',attempt_id),('strategy_ref',strategy_ref),('authority_ref',authority_ref)):
             _text(value,name)
@@ -488,8 +490,9 @@ class HostExecutions:
                     c.execute("UPDATE task SET status='READY' WHERE task_id=? AND revision=? AND status='RUNNING'",(row['task_id'],revision))
             self._audit(c,'HOST_OBSERVATION_RECORDED',dispatch_id,{'invocation_id':invocation_id,'state':state,
                 'quiesced':value['quiesced'],'historical_epoch_or_revision':historical,'task_accepted':False})
+            from v2_assurance import assurance
             return {'decision':'OBSERVED','state':state,'quiesced':value['quiesced'],'historical_epoch_or_revision':historical,
-                    'task_accepted':False,'host_called':True,'quiescence_scope':row['quiescence_scope']}
+                    'task_accepted':False,'host_called':True,'quiescence_scope':row['quiescence_scope'],'execution_assurance':assurance()}
 
     def status(self,*,project_id):
         c=self.store.connection

@@ -1,6 +1,6 @@
 ﻿# MALTS 控制端操作参考
 
-控制端使用已验证运行时和所选状态查询任务、执行审阅请求。当前 Core 格式 Schema69，版本 **2.0.3**。普通项目可使用已安装 Skill，下列命令说明控制端接口。演示使用另行选择的新目录，不调用模型或安装宿主。
+控制端使用已验证运行时和所选状态查询任务、执行审阅请求。当前 Core 格式 Schema69，版本 **2.0.4**。普通项目可使用已安装 Skill，下列命令说明控制端接口。演示使用另行选择的新目录，不调用模型或安装宿主。
 
 <a id="v2-start"></a>
 ## 1. 第一个完整本地任务
@@ -38,9 +38,9 @@ request('grant.record', grant_id='G1', task_id='T1', task_revision=1, actor='dem
         source_ref='user:approved-isolated-file-demo', resource='hello.txt', effect='write')
 p = request('operation.prepare', operation_id='OP1', grant_id='G1', actor='demo',
             resource='hello.txt', effect='write', capture_authority_ref='user:approved-synthetic-demo',
-            parameters={'tool': 'create-file', 'path': 'hello.txt', 'content': 'Hello MALTS 2.0.3\n'})
+            parameters={'tool': 'create-file', 'path': 'hello.txt', 'content': 'Hello MALTS 2.0.4\n'})
 request('operation.create-file', operation_id='OP1', actor='demo', expected_request_hash=p['request_hash'])
-assert (demo / 'hello.txt').read_bytes() == b'Hello MALTS 2.0.3\n'
+assert (demo / 'hello.txt').read_bytes() == b'Hello MALTS 2.0.4\n'
 descriptor = {'owner': 'DEMO', 'target': {'task_id': 'T1', 'task_revision': 1, 'criterion': 'Integrity'},
               'content_class': 'synthetic', 'sensitivity': 'project', 'redaction_policy_version': 'demo-v1',
               'verification_scope': 'Isolated synthetic file integrity only',

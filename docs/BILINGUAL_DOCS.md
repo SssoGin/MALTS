@@ -1,6 +1,6 @@
 # MALTS Bilingual Documentation and Templates
 
-English and Simplified Chinese guides describe the same MALTS product, currently **2.0.3**.
+English and Simplified Chinese guides describe the same MALTS product, currently **2.0.4**.
 
 ## User Documentation
 
