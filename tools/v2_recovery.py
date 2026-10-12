@@ -26,6 +26,8 @@ TABLES = (
 )
 REPORT_FIELDS = {'review_id', 'authority_ref', 'basis', 'resource_reviews',
                  'writer_reviews', 'task_actions', 'unresolved_external_effects'}
+LEGACY_PLAN_FIELDS={'decision','binding','review_id','report_sha256','blockers','task_actions','assurance',
+                    'host_facts_independently_verified','execution_authorized','grants_reactivated','acceptances_revalidated'}
 TASK_ACTIONS = {'REVERIFY', 'KEEP_PAUSED', 'KEEP_HISTORY', 'CANCEL'}
 
 
@@ -225,7 +227,9 @@ class Recovery:
                 return json.loads(old[2])
             inventory = self._inventory(c)
             plan = self._plan(report, inventory)
-            if plan['plan_sha256'] != expected_plan_sha256:
+            legacy_hash=digest({key:plan[key] for key in LEGACY_PLAN_FIELDS})
+            legacy_plan_used=set(report)==REPORT_FIELDS and expected_plan_sha256==legacy_hash
+            if plan['plan_sha256'] != expected_plan_sha256 and not legacy_plan_used:
                 raise StateConflict('Recovery apply does not match the reviewed plan hash')
             if plan['blockers']:
                 raise StateConflict('Recovery remains blocked: ' + ', '.join(plan['blockers']))
@@ -250,6 +254,7 @@ class Recovery:
                 'plan_sha256': expected_plan_sha256, 'assurance': 'OPERATOR_ATTESTED',
                 'host_facts_independently_verified': False, 'execution_authorized': False,
                 'next_tasks': plan['task_actions'],
+                'legacy_plan_contract_used':legacy_plan_used,
             }
             from v2_assurance import assurance
             receipt.update(assurance(registered_effects_reconciled=True,operator_review=True))
