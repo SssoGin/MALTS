@@ -357,7 +357,7 @@ def _codex_effective_configurations(tool_roots,*,lifecycle_root=None,config_file
         if str(workspace) in seen:continue
         seen.add(str(workspace))
         if 'codex' not in tool_roots:continue
-        layers=[Path(tool_roots['codex'])/'config.toml']+[p for _,p,_ in project_configuration_locations([workspace],tool_roots)]
+        layers=[Path(tool_roots['codex'])/'config.toml']+[p for _,p,_ in _codex_project_configuration_locations([workspace],tool_roots)]
         layers=list(dict.fromkeys(layers));merged={};sources={};global_names=set();read=[]
         def merge(left,right):
             result=copy.deepcopy(left)

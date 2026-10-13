@@ -1,10 +1,12 @@
 # Changelog
 
-## v2.0.9 — 2026-10-13
+## v2.0.9 — 2026-10-14
 
 ### Four-Host configuration management
 
 Claude Code project/local entries, OpenCode JSON/JSONC layers and DeepSeek Harness selected profile/home/explicit overlays use the same reviewed plan, preserving execution and original-operation recovery as Codex. Diagnosis follows native precedence; actual Host loading, trust and unselected overrides remain separately unverified. Interpreter, binding, environment, permissions and unrelated configuration are retained.
+
+Shared four-Host workspace checks keep each native format in its own resolver; JSON and Cordis files are not treated as Codex TOML when all Hosts are selected together.
 
 ### Configuration safety and recovery
 
@@ -24,11 +26,13 @@ Verification includes four native configuration formats and scope rules, secret-
 
 ## 简体中文
 
-发布日期：2026-10-13（北京时间，UTC+08:00）。
+发布日期：2026-10-14（北京时间，UTC+08:00）。
 
 ### 四端配置管理
 
 Claude Code 的项目与本地条目、OpenCode 的 JSON/JSONC 配置层，以及 DeepSeek Harness 的所选 Profile、Home 和显式覆盖层，共用与 Codex 相同的审阅计划、保留原配置的执行和原操作恢复流程。诊断遵循原生优先级；实际宿主加载、信任和未选择的覆盖层分别保留未知。解释器、绑定、环境、权限及无关配置保持原选择。
+
+四端联合检查同一工作区时，各原生格式由对应解析器处理；不会把其他宿主的 JSON 或 Cordis 文件当作 Codex TOML 解析。
 
 ### 配置安全与恢复
 
