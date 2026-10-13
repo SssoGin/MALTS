@@ -17,9 +17,9 @@ import subprocess
 LEDGER = Path('runtime/generation-retirements')
 
 
-def assert_idle(lifecycle, root, *, operation_id=None):
+def assert_idle(lifecycle, root, *, operation_id=None,project_operation_id=None):
     from lifecycle_consolidation import assert_idle as consolidation_idle
-    consolidation_idle(lifecycle,root)
+    consolidation_idle(lifecycle,root,project_operation_id=project_operation_id)
     ledger=Path(root)/LEDGER
     if not ledger.exists():return
     lifecycle._assert_no_reparse(Path(root),ledger)

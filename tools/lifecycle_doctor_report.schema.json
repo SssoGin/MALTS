@@ -198,7 +198,7 @@
               "const": "NOT_VERIFIED"
             },
             "scope": {
-              "const": "USER_AND_SELECTED_CODEX_PROJECT_LAYERS"
+              "enum": ["USER_AND_SELECTED_CODEX_PROJECT_LAYERS", "SELECTED_NATIVE_HOST_DISK_LAYERS"]
             },
             "complete_global_inventory": {
               "const": false

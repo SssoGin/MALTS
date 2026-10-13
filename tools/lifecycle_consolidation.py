@@ -18,8 +18,11 @@ MARKER=Path('runtime/consolidation-pending.json')
 TERMINAL={'COMMITTED','ROLLED_BACK'}
 
 
-def assert_idle(lc,root,*,operation_id=None):
+def assert_idle(lc,root,*,operation_id=None,project_operation_id=None):
     root=Path(root)
+    from mcp_project_ops import assert_idle as project_idle
+    try:project_idle(root,operation_id=project_operation_id)
+    except ValueError:raise lc.LifecycleError('PROJECT_CONFIG_RECOVERY_REQUIRED','Recover the original project configuration operation before lifecycle mutation.') from None
     marker=root/MARKER
     journals=[]
     if marker.exists():

@@ -1,5 +1,52 @@
 # Changelog
 
+## v2.0.9 — 2026-10-13
+
+### Four-Host configuration management
+
+Claude Code project/local entries, OpenCode JSON/JSONC layers and DeepSeek Harness selected profile/home/explicit overlays use the same reviewed plan, preserving execution and original-operation recovery as Codex. Diagnosis follows native precedence; actual Host loading, trust and unselected overrides remain separately unverified. Interpreter, binding, environment, permissions and unrelated configuration are retained.
+
+### Configuration safety and recovery
+
+New configuration plans and recovery preimages protect whole-file payloads with Windows current-user DPAPI instead of exposing reversible hex. Closed plan validation binds context, target identities, layer fingerprints and bounded payloads. Writers reject hardlinks and changed file identities. Recovery supports interrupted multi-file operations and configurations whose protected plans exceed 1 MiB; divergent external edits require review. Unsettled project operations block lifecycle mutation. Native Harness expressions outside MALTS are preserved without evaluation.
+
+### MCP dependency fixes
+
+The MCP Python SDK pin becomes 1.28.1, including upstream fixes for experimental tasks, authenticated HTTP sessions and WebSocket origin validation. MALTS standard and dedicated services retain stdio; no network transport or experimental task API is enabled. The ordinary installation lifecycle prepares the new owned environment; independently selected project interpreters remain their owner's responsibility.
+
+The owned environment also pins pip 26.2 and setuptools 83.0.0. Its installer upgrades pip before SDK installation and requires binary wheels, avoiding source-build execution. This repairs recorded installer-package advisories without changing global Python or provider environments; unavailable compatible wheels stop installation for review.
+
+### Upgrade and verification
+
+Use the ordinary reviewed four-Host update, then reconnect clients that have not reloaded their configuration. Existing Projects, stores, bindings, Grants and Phase/Task history retain their contracts; no workspace adoption or business-state relocation is performed. Project interpreters remain explicitly selected. Protected plans require their original Windows user; divergent external edits require review before recovery.
+
+Verification includes four native configuration formats and scope rules, secret-free plan previews, preserving apply/restore and interrupted multi-file recovery, hardlink rejection, lifecycle admission, two actual competing processes, eight actual standard/dedicated stdio connections and dependency advisory checks. These checks do not establish that every existing Host session reloaded. Harness bundle/group/include composition and dynamic MALTS expressions remain outside the bounded disk editor; native trust/managed and unselected overrides remain unobserved.
+
+## 简体中文
+
+发布日期：2026-10-13（北京时间，UTC+08:00）。
+
+### 四端配置管理
+
+Claude Code 的项目与本地条目、OpenCode 的 JSON/JSONC 配置层，以及 DeepSeek Harness 的所选 Profile、Home 和显式覆盖层，共用与 Codex 相同的审阅计划、保留原配置的执行和原操作恢复流程。诊断遵循原生优先级；实际宿主加载、信任和未选择的覆盖层分别保留未知。解释器、绑定、环境、权限及无关配置保持原选择。
+
+### 配置安全与恢复
+
+新计划及恢复前像通过 Windows 当前用户 DPAPI 保护整份配置，替代可逆十六进制内容。封闭格式校验绑定上下文、目标身份、层指纹及有界载荷。写入拒绝硬链接和文件身份漂移；恢复支持文件间中断及加密计划超过 1 MiB 的配置，外来修改须审阅。未结清的项目操作阻止生命周期变更；无关 Harness 原生表达式保留但不求值。
+
+### MCP 依赖修复
+
+MCP Python SDK 固定版本更新为 1.28.1，包含上游实验任务、HTTP 会话主体和 WebSocket 来源校验的安全修复。MALTS 标准及专用服务仍使用 stdio；不启用新的网络传输或实验任务接口。新依赖环境通过普通安装生命周期准备，项目自己选择的解释器仍由其所有者维护。
+
+所属环境同时固定 pip 26.2 与 setuptools 83.0.0。安装器先更新 pip，再安装 SDK，并要求二进制 wheel，避免执行源码构建。这修复安装工具的已知公告对应版本，不改变全局 Python 或宿主环境；没有兼容 wheel 时停止安装并说明。
+
+
+
+### 升级与验证范围
+
+通过普通四端更新计划完成升级，再重连尚未加载新配置的宿主。已有 Project、状态库、binding、Grant 和 Phase／Task 历史保持原合同；不重复采用工作区，不搬动业务状态。专用项目的解释器保持明确选择；加密计划需原 Windows 用户解密，外来修改须先审阅再恢复。
+
+验证覆盖四种原生配置格式与作用域、计划预览不暴露敏感值、保留配置的应用和恢复、文件间中断、硬链接拒绝、生命周期互斥、两个真实进程竞争、八次标准／专用服务 stdio 连接及依赖公告检查。这些结果不证明全部已有宿主会话重新加载。Harness 的 bundle、group、include 组合及 MALTS 动态表达式仍不在有界磁盘编辑范围；宿主信任、受管层及未选择的覆盖仍待实际核实。
 
 ## v2.0.8 — 2026-10-13
 

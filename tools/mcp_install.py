@@ -247,7 +247,7 @@ def prepare(plan,payload_root,transaction_root):
         requirements=folder/'requirements.txt'
         if requirements.exists() and _read(requirements)!=requirement:raise ConfigError('MCP_RECOVERY_REQUIREMENTS_DRIFT')
         requirements.write_bytes(requirement)
-        _run([plan['python'],'-B','-m','pip','install','--disable-pip-version-check','--no-input','--no-cache-dir','-r',requirements])
+        prepare_packages(plan['python'],packages_required,requirements)
         owner['state']='READY';write_json(marker,owner)
     _run([plan['python'],'-B','-c','import mcp, anyio, jsonschema, yaml; from mcp.server.lowlevel import Server'])
     packages=json.loads(_run([plan['python'],'-B','-m','pip','list','--format=json','--disable-pip-version-check']))
@@ -270,20 +270,30 @@ def prepare(plan,payload_root,transaction_root):
             with backup.open('xb') as stream:stream.write(raw)
     return {'status':'DEPENDENCIES_READY','required':True}
 
+
+def prepare_packages(python,packages_required,requirements):
+    # Upgrade the environment's own installer before it processes SDK wheels.
+    # Older retained packages remain recoverable; this does not alter global
+    # Python, the provider's environment or a project's chosen interpreter.
+    bootstrap=[version for name,version in packages_required if name.lower()=='pip']
+    if len(bootstrap)>1:raise ConfigError('MCP_REQUIREMENTS_PROFILE_INVALID')
+    if bootstrap:
+        _run([python,'-B','-m','pip','install','--disable-pip-version-check','--no-input','--no-cache-dir','--only-binary=:all:','--no-deps','pip=='+bootstrap[0]])
+    _run([python,'-B','-m','pip','install','--disable-pip-version-check','--no-input','--no-cache-dir','--only-binary=:all:','-r',requirements])
+
 @contextmanager
 def exclusive(path):
     _path(path)
     if os.name=='nt':
-        import ctypes as c,msvcrt
-        fn=c.WinDLL('kernel32',use_last_error=True).CreateFileW
-        fn.argtypes=[c.c_wchar_p,c.c_ulong,c.c_ulong,c.c_void_p,c.c_ulong,c.c_ulong,c.c_void_p];fn.restype=c.c_void_p
-        handle=fn(str(path),0xC0000000,0,None,3,0x00200000,None)
-        if handle==c.c_void_p(-1).value:raise ConfigError('MCP_CONFIG_EXCLUSIVE_ACCESS_UNAVAILABLE')
-        fd=msvcrt.open_osfhandle(handle,os.O_RDWR|os.O_BINARY)
-        with os.fdopen(fd,'r+b') as stream:yield stream
+        from v2_file_update import exclusive_existing_file
+        with exclusive_existing_file(path) as stream: yield stream
     else:
-        import fcntl
-        with path.open('r+b') as stream:
+        import fcntl,stat
+        fd=os.open(path,os.O_RDWR|os.O_NOFOLLOW)
+        with os.fdopen(fd,'r+b') as stream:
+            info=os.fstat(stream.fileno())
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink!=1: raise ConfigError('MCP_CONFIG_ORDINARY_SINGLE_LINK_REQUIRED')
+            if (info.st_dev,info.st_ino)!=(path.stat().st_dev,path.stat().st_ino): raise ConfigError('MCP_CONFIG_IDENTITY_CHANGED')
             fcntl.flock(stream.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
             yield stream
 

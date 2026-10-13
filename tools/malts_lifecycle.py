@@ -6974,6 +6974,9 @@ def build_parser() -> argparse.ArgumentParser:
     for name in ('lifecycle-root','tool-root','workspace','config-path'):project_plan.add_argument('--'+name,required=True)
     project_plan.add_argument('--strategy',choices=('inherit-global','stable-project'),required=True)
     project_plan.add_argument('--server-name',default='malts');project_plan.add_argument('--operation-id')
+    project_plan.add_argument('--host',choices=('codex','claude','claude-code','opencode','deepseek-harness'),default='codex')
+    project_plan.add_argument('--profile',default='desktop')
+    project_plan.add_argument('--overlay',action='append',default=[])
     project_plan.add_argument('--out');project_plan.add_argument('--apply',action='store_true')
     project_execute=subparsers.add_parser('mcp-project-execute')
     project_execute.add_argument('--plan',required=True);project_execute.add_argument('--expected-plan-hash',required=True);project_execute.add_argument('--apply',action='store_true')
@@ -6988,13 +6991,14 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command.startswith('mcp-project-'):
             import mcp_project
+            from mcp_project_ops import control_read as mcp_project_ops_read
             if args.command=='mcp-project-plan':
-                plan=mcp_project.make_plan(lifecycle_root=args.lifecycle_root,tool_root=args.tool_root,workspace=args.workspace,config_path=args.config_path,strategy=args.strategy,server_name=args.server_name,operation_id=args.operation_id)
+                plan=mcp_project.make_plan(lifecycle_root=args.lifecycle_root,tool_root=args.tool_root,workspace=args.workspace,config_path=args.config_path,strategy=args.strategy,server_name=args.server_name,operation_id=args.operation_id,host=args.host,profile=args.profile,overlays=args.overlay)
                 if args.apply:
                     if not args.out or _absolute(args.out).exists():raise LifecycleError('PROJECT_PLAN_OUTPUT','Supply a new exact plan destination.')
                     write_json(_absolute(args.out),plan)
                 result={'status':'PASS','mode':'APPLY' if args.apply else 'DRY_RUN','writes_performed':args.apply,'plan':plan,'plan_hash':plan['plan_hash']}
-            elif args.command=='mcp-project-execute':result=mcp_project.execute(load_json(_absolute(args.plan)),args.expected_plan_hash,apply=args.apply)
+            elif args.command=='mcp-project-execute':result=mcp_project.execute(mcp_project_ops_read(_absolute(args.plan)),args.expected_plan_hash,apply=args.apply)
             else:result=mcp_project.recover(args.lifecycle_root,args.operation_id,apply=args.apply,restore=args.restore)
         elif args.command.startswith("consolidate-"):
             import lifecycle_consolidation as consolidation

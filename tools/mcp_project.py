@@ -1,4 +1,4 @@
-"""Explicit Codex project-entry plans; no discovery writes or project adoption."""
+"""Preserving native project plans; retained v1 records remain recovery inputs."""
 import copy
 import hashlib
 import json
@@ -90,7 +90,7 @@ def edit_entry(raw,name,entry):
     if prune(after)!=prune(expected):raise ConfigError('UNRELATED_CONFIGURATION_CHANGED')
     return result
 
-def make_plan(*,lifecycle_root,tool_root,workspace,config_path,strategy,server_name='malts',operation_id=None):
+def _legacy_make_plan(*,lifecycle_root,tool_root,workspace,config_path,strategy,server_name='malts',operation_id=None):
     root=_path(lifecycle_root);tool=_path(tool_root);workspace=_path(workspace);path=_path(config_path)
     if path!=workspace/'.codex/config.toml':raise ConfigError('PROJECT_CONFIGURATION_BOUNDARY')
     if strategy not in {'inherit-global','stable-project'}:raise ConfigError('PROJECT_STRATEGY_INVALID')
@@ -137,7 +137,10 @@ def make_plan(*,lifecycle_root,tool_root,workspace,config_path,strategy,server_n
     plan['policy_comparison']={'interpreter_preserved':strategy=='stable-project' or entry is None,'fixed_binding_retained':strategy=='stable-project','write_permissions_added':False,'environment_values_disclosed':False}
     plan['plan_hash']=digest(canonical(plan));return plan
 
-def checked_plan(plan,expected_hash):
+def _legacy_checked_plan(plan,expected_hash):
+    fields={'profile','operation_id','lifecycle_root','tool_root','workspace','config_path','strategy','server_name','before_sha256','after_sha256','after_hex','guards','changes','host_session_connection','requires_reconnect','writes_performed','expected_effective_configuration','policy_comparison','plan_hash'}
+    if not isinstance(plan,dict) or set(plan)!=fields:raise ConfigError('PROJECT_PLAN_SHAPE_INVALID')
+    if not isinstance(plan['after_hex'],str) or len(plan['after_hex'])>2*1048576:raise ConfigError('PROJECT_PLAN_BYTE_BUDGET')
     body=dict(plan);claimed=body.pop('plan_hash',None)
     if claimed!=expected_hash or digest(canonical(body))!=claimed or plan.get('profile')!='malts.project-mcp-plan.v1':raise ConfigError('PROJECT_PLAN_HASH_MISMATCH')
     if _path(plan['config_path'])!=_path(plan['workspace'])/'.codex/config.toml':raise ConfigError('PROJECT_CONFIGURATION_BOUNDARY')
@@ -145,8 +148,8 @@ def checked_plan(plan,expected_hash):
     if digest(bytes.fromhex(plan['after_hex']))!=plan['after_sha256']:raise ConfigError('PROJECT_AFTERIMAGE_HASH_MISMATCH')
     return _path(plan['lifecycle_root'])/'runtime/mcp/project-operations'/plan['operation_id']
 
-def execute(plan,expected_hash,*,apply=False,recovery=False,restore=False):
-    directory=checked_plan(plan,expected_hash);path=_path(plan['config_path'])
+def _legacy_execute(plan,expected_hash,*,apply=False,recovery=False,restore=False):
+    directory=_legacy_checked_plan(plan,expected_hash);path=_path(plan['config_path'])
     if not apply:return {'status':'PASS','mode':'DRY_RUN','writes_performed':False,'plan_hash':expected_hash,'changes':plan['changes'],'host_session_connection':'NOT_VERIFIED'}
     if os.name!='nt':raise ConfigError('PROJECT_EDIT_WINDOWS_PROFILE_REQUIRED')
     from v2_runtime_mutex import RuntimeMutex
@@ -159,7 +162,7 @@ def execute(plan,expected_hash,*,apply=False,recovery=False,restore=False):
         if journal and not recovery and journal['state']!='COMMITTED':raise ConfigError('PROJECT_RECOVERY_REQUIRED')
         if recovery and journal is None:raise ConfigError('PROJECT_RECOVERY_NOT_FOUND')
         if journal is None:
-            fresh=make_plan(lifecycle_root=plan['lifecycle_root'],tool_root=plan['tool_root'],workspace=plan['workspace'],config_path=path,strategy=plan['strategy'],server_name=plan['server_name'],operation_id=plan['operation_id'])
+            fresh=_legacy_make_plan(lifecycle_root=plan['lifecycle_root'],tool_root=plan['tool_root'],workspace=plan['workspace'],config_path=path,strategy=plan['strategy'],server_name=plan['server_name'],operation_id=plan['operation_id'])
             if fresh['after_sha256']!=plan['after_sha256']:raise ConfigError('PROJECT_PLAN_STALE')
             if not plan['changes']:
                 return {'status':'PASS','mode':'NO_OP','writes_performed':False,'host_session_connection':'NOT_VERIFIED'}
@@ -190,8 +193,39 @@ def execute(plan,expected_hash,*,apply=False,recovery=False,restore=False):
             journal['state']='RESTORED' if restore else 'COMMITTED';write_json(journal_path,journal)
         return {'status':'PASS','mode':journal['state'],'writes_performed':bool(plan['changes']) or restore,'recovery_directory':str(directory),'host_session_connection':'NOT_VERIFIED','next_step':'Reconnect the selected Host and verify its loaded endpoint separately.'}
 
-def recover(lifecycle_root,operation_id,*,apply=False,restore=False):
+def _legacy_recover(lifecycle_root,operation_id,*,apply=False,restore=False):
     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}',operation_id):raise ConfigError('PROJECT_OPERATION_ID_INVALID')
     directory=_path(lifecycle_root)/'runtime/mcp/project-operations'/operation_id
-    plan=json.loads(_read(directory/'plan.json'))
-    return execute(plan,plan['plan_hash'],apply=apply,recovery=True,restore=restore)
+    from mcp_project_ops import control_read
+    plan=control_read(directory/'plan.json')
+    if plan.get('operation_id')!=operation_id or not _same(plan.get('lifecycle_root'),lifecycle_root):raise ConfigError('PROJECT_RECOVERY_CONTEXT_CHANGED')
+    return _legacy_execute(plan,plan['plan_hash'],apply=apply,recovery=True,restore=restore)
+
+
+def make_plan(**kwargs):
+    from mcp_project_ops import make_plan as create
+    return create(**kwargs)
+
+
+def checked_plan(plan,expected_hash):
+    if isinstance(plan,dict) and plan.get('profile')=='malts.project-mcp-plan.v1':return _legacy_checked_plan(plan,expected_hash)
+    from mcp_project_ops import checked_plan as check
+    return check(plan,expected_hash)
+
+
+def execute(plan,expected_hash,**kwargs):
+    if isinstance(plan,dict) and plan.get('profile')=='malts.project-mcp-plan.v1':
+        directory=_legacy_checked_plan(plan,expected_hash)
+        from mcp_project_ops import control_read
+        if kwargs.get('apply') and (not (directory/'journal.json').exists() or control_read(directory/'plan.json')!=plan):raise ConfigError('PROJECT_LEGACY_PLAN_REQUIRES_ORIGINAL_RECORD')
+        return _legacy_execute(plan,expected_hash,**kwargs)
+    from mcp_project_ops import execute as apply_plan
+    return apply_plan(plan,expected_hash,**kwargs)
+
+
+def recover(lifecycle_root,operation_id,**kwargs):
+    from mcp_project_ops import recover as recover_plan,control_read
+    if not isinstance(operation_id,str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}',operation_id):raise ConfigError('PROJECT_OPERATION_ID_INVALID')
+    plan=control_read(_path(lifecycle_root)/'runtime/mcp/project-operations'/operation_id/'plan.json')
+    if plan.get('profile')=='malts.project-mcp-plan.v1':return _legacy_recover(lifecycle_root,operation_id,**kwargs)
+    return recover_plan(lifecycle_root,operation_id,**kwargs)

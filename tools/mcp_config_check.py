@@ -59,8 +59,8 @@ def _document(host,raw):
     text=raw.decode('utf-8-sig')
     if host=='codex':return tomllib.loads(text)
     # A generated Cordis JSON fragment may have standalone YAML comments.
-    if host=='deepseek-harness':text='\n'.join(line for line in text.splitlines() if not line.lstrip().startswith('#'))
-    try:return _json(text)
+    json_text='\n'.join(line for line in text.splitlines() if not line.lstrip().startswith('#')) if host=='deepseek-harness' else text
+    try:return _json(json_text)
     except json.JSONDecodeError:
         if host=='opencode':
             # Preserve quoted strings while stripping JSONC comments/trailing commas.
@@ -77,7 +77,7 @@ def _document(host,raw):
     for event in yaml.parse(text):
         count+=1
         if count>10000:raise ConfigError('CONFIGURATION_NODE_BUDGET')
-        if isinstance(event,yaml.events.AliasEvent) or getattr(event,'anchor',None) or getattr(event,'tag',None):
+        if isinstance(event,yaml.events.AliasEvent) or getattr(event,'anchor',None) or getattr(event,'tag',None) not in (None,'tag:yaml.org,2002:js'):
             raise ConfigError('UNSUPPORTED_YAML_REFERENCE_OR_TAG')
         if isinstance(event,(yaml.events.SequenceStartEvent,yaml.events.MappingStartEvent)):depth+=1
         if isinstance(event,(yaml.events.SequenceEndEvent,yaml.events.MappingEndEvent)):depth-=1
@@ -86,6 +86,9 @@ def _document(host,raw):
     def mapping(loader,node):
         return _pairs([(loader.construct_object(k),loader.construct_object(v)) for k,v in node.value])
     Loader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,mapping)
+    # Preserve native expressions as inert data. No expression is evaluated;
+    # dynamic MALTS command/binding fields remain invalid at their consumers.
+    Loader.add_constructor('tag:yaml.org,2002:js',lambda loader,node: {'__malts_opaque_native_js__':loader.construct_scalar(node)})
     return yaml.load(text,Loader=Loader)
 
 
@@ -94,6 +97,11 @@ def _entries(host,data):
         if not isinstance(data,list):raise ConfigError('UNSUPPORTED_CONFIGURATION_FORMAT')
         for patch in data:
             if not isinstance(patch,dict):raise ConfigError('UNSUPPORTED_CONFIGURATION_FORMAT')
+            config=patch.get('config')
+            if isinstance(config,dict) and _malts(config.get('serverName',patch.get('id','')),config):
+                # An explicit ID patch can carry the only live generation
+                # reference in this file, even without an insertion row.
+                yield config.get('serverName',patch.get('id','')),config
             inserted=patch.get('insert',[])
             if not isinstance(inserted,list):raise ConfigError('INVALID_CORDIS_INSERT')
             for row in inserted:
@@ -105,10 +113,9 @@ def _entries(host,data):
         if not isinstance(data,dict):raise ConfigError('UNSUPPORTED_CONFIGURATION_FORMAT')
         key={'codex':'mcp_servers','claude':'mcpServers','opencode':'mcp'}[host]
         surfaces=[data]
-        if host=='claude':
-            projects=data.get('projects',{})
-            if not isinstance(projects,dict):raise ConfigError('UNSUPPORTED_CONFIGURATION_FORMAT')
-            surfaces.extend(v for v in projects.values() if isinstance(v,dict))
+        # Embedded Claude local entries require a selected workspace and native
+        # precedence. They are resolved by mcp_layers, never flattened across
+        # unrelated projects into this file-only comparison.
         for surface in surfaces:
             entries=surface.get(key,{})
             if not isinstance(entries,dict):raise ConfigError('INVALID_MCP_SECTION')
@@ -194,6 +201,11 @@ def _binding(values):
         except Exception:return ['INSTALLED_MCP_DISCOVERY_FAILED'],{}
     state=_path(values['state-dir']);resource=_path(values['resource-root'])
     issues=[];expected={}
+    if Path(values['script']).name=='mcp_launcher.py':
+        try:
+            from malts_lifecycle import resolve_discovery
+            resolve_discovery(values['tool-root'])
+        except Exception:issues.append('INSTALLED_MCP_DISCOVERY_FAILED')
     if not resource.is_dir():issues.append('RESOURCE_ROOT_MISSING')
     if not state.is_dir():issues.append('STATE_DIRECTORY_MISSING')
     db=state/'state.db';_regular_path(db)
@@ -316,7 +328,7 @@ def endpoint_kind(values):
     return 'PROJECT_BOUND_STABLE' if values.get('project-bound') else 'STANDARD_STABLE'
 
 
-def project_configuration_locations(workspaces,tool_roots):
+def _codex_project_configuration_locations(workspaces,tool_roots):
     """Inspect only the selected directories and bounded ancestor names, never recurse."""
     locations=[]
     if 'codex' not in tool_roots:return locations
@@ -336,7 +348,7 @@ def project_configuration_locations(workspaces,tool_roots):
     return locations
 
 
-def effective_configurations(tool_roots,*,lifecycle_root=None,config_files=None,workspaces=None,document_overrides=None):
+def _codex_effective_configurations(tool_roots,*,lifecycle_root=None,config_files=None,workspaces=None,document_overrides=None):
     import copy
     roots=[_path(p) for p in workspaces or []]
     roots += [Path(p).parent.parent for h,p in config_files or [] if HOSTS.get(h)=='codex' and Path(p).parent.name=='.codex' and not _same(Path(p),Path(tool_roots.get('codex',''))/'config.toml')]
@@ -381,6 +393,38 @@ def effective_configurations(tool_roots,*,lifecycle_root=None,config_files=None,
     return rows
 
 
+def project_configuration_locations(workspaces,tool_roots):
+    from mcp_layers import locations
+    rows=[]
+    for host,tool in tool_roots.items():
+        canonical=HOSTS.get(host)
+        if canonical is None:continue
+        for workspace in workspaces or []:
+            profiles=['desktop']
+            if canonical=='deepseek-harness' and (Path(tool)/'profiles').is_dir():
+                profiles=[p.name for p in (Path(tool)/'profiles').iterdir() if p.is_dir()]
+                if len(profiles)>32:raise ConfigError('PROFILE_ENTRY_BUDGET')
+            for profile in profiles:
+                rows.extend((canonical,Path(row['path']),Path(tool)) for row in locations(canonical,tool,workspace,profile=profile))
+    return rows
+
+
+def effective_configurations(tool_roots,*,lifecycle_root=None,config_files=None,workspaces=None,document_overrides=None):
+    from mcp_layers import effective_rows
+    # Preserve the existing Codex report contract, including explicitly selected
+    # project files, while resolving the other native formats independently.
+    rows=_codex_effective_configurations(tool_roots,lifecycle_root=lifecycle_root,config_files=config_files,workspaces=workspaces,document_overrides=document_overrides)
+    for host,tool in tool_roots.items():
+        canonical=HOSTS.get(host)
+        if canonical in (None,'codex'):continue
+        for workspace in workspaces or []:
+            profiles=['desktop']
+            if canonical=='deepseek-harness' and (Path(tool)/'profiles').is_dir():profiles=[p.name for p in (Path(tool)/'profiles').iterdir() if p.is_dir()]
+            if len(profiles)>32:raise ConfigError('PROFILE_ENTRY_BUDGET')
+            for profile in profiles:rows.extend(effective_rows(canonical,tool,workspace,lifecycle_root=lifecycle_root,profile=profile,overrides=document_overrides))
+    return rows
+
+
 def scan_configurations(tool_roots,*,lifecycle_root=None,config_files=None,replacements=None,workspaces=None):
     report={'format':'malts.mcp-configuration-check','mode':'READ_ONLY','writes_performed':False,'execution_authorized':False,'atomic_snapshot':False,'scope':'KNOWN_HOST_LOCATIONS_AND_EXPLICIT_FILES','complete_global_inventory':False,'files':[]}
     try:
@@ -402,7 +446,7 @@ def scan_configurations(tool_roots,*,lifecycle_root=None,config_files=None,repla
         report['reprojection_required']=[{'host':file['host'],'path':file['path'],'server_name':entry['server_name'],'status':entry['status'],'issues':entry['issues'],'suggested_values':entry.get('suggested_values',{}),'regeneration_arguments':entry.get('regeneration_arguments',[])} for file in report['files'] for entry in file['entries'] if entry['status'] in {'INVALID','DIFFERENT','VALID_OLDER_GENERATION'}]
         report['effective_configuration']=effective_configurations(tool_roots,lifecycle_root=lifecycle_root,config_files=config_files,workspaces=workspaces)
         if report['status']!='CHECK_FAILED' and any(r['status']=='NOT_VERIFIED' for r in report['effective_configuration']):report['status']='UNVERIFIED'
-        report['effective_configuration_coverage']={'selected_workspaces':[str(p) for p in workspaces or []],'unsupported_project_hosts':[h for h in tool_roots if HOSTS.get(h)!='codex'],'host_session_connection':'NOT_VERIFIED','scope':'USER_AND_SELECTED_CODEX_PROJECT_LAYERS','complete_global_inventory':False}
+        report['effective_configuration_coverage']={'selected_workspaces':[str(p) for p in workspaces or []],'unsupported_project_hosts':[],'host_session_connection':'NOT_VERIFIED','scope':'SELECTED_NATIVE_HOST_DISK_LAYERS','complete_global_inventory':False}
     except Exception as exc:
         report.update(status='CHECK_FAILED',reason=str(exc) if isinstance(exc,ConfigError) else 'CONFIGURATION_SCAN_FAILED',reprojection_required=[])
     return report

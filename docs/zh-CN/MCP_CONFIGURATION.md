@@ -4,7 +4,7 @@
 
 模型上下文协议（Model Context Protocol，MCP）让 Agent 宿主调用外部工具。MALTS 通过本机进程的标准输入输出（stdio）与 Python 服务通信，不需要开放网络监听端口。
 
-MALTS 2.0.8 为所选宿主安装和更新必需的 `malts` MCP 服务；针对受管理和项目专用条目的配置对比与诊断入口继续有效。
+MALTS 2.0.9 为所选宿主安装和更新必需的 `malts` MCP 服务；针对受管理和项目专用条目的配置对比与诊断入口继续有效。
 
 ## 目的与维护职责
 
@@ -61,7 +61,9 @@ python -B "$runtime/tools/malts_v2.py" mcp-config `
 | OpenCode | `opencode.json`；`opencode.jsonc` | JSON／JSONC `mcp`，支持注释和末尾逗号 |
 | DeepSeek Harness | `profiles/<profile>/cordis.patch.yml` | 包含 `@deepseek-ai/dsh-mcp-client` 的 Cordis 插入补丁 |
 
-生成的 Cordis JSON 即使带有独立 YAML 注释行，也无需额外解析器。安装的 MCP 环境包含解析块式 YAML 的 PyYAML；另行选用的诊断解释器也需要该解析器。安全解析拒绝标签、锚点、别名、重复键及过深嵌套。解析器缺失时为 `UNSUPPORTED`，不能算检查通过；诊断不会自行安装依赖。不使用 PyYAML 时，核心 JSON／TOML 操作仍然可用。
+生成的 Cordis JSON 即使带有独立 YAML 注释行，也无需额外解析器。安装的 MCP 环境包含解析块式 YAML 的 PyYAML；另行选用的诊断解释器也需要该解析器。MALTS 2.0.9将 MALTS 之外的原生 `!!js` 保留为不可执行数据，拒绝 MALTS 中的动态字段、其他标签、锚点、别名、重复键及过深嵌套。解析器缺失时为 `UNSUPPORTED`，不能算检查通过；诊断不会自行安装依赖。不使用 PyYAML 时，核心 JSON／TOML 操作仍然可用。
+
+MALTS 2.0.9在生命周期所属环境中固定 MCP 1.28.1、jsonschema 4.25.1、PyYAML 6.0.2、pip 26.2、setuptools 83.0.0；先更新该环境的 pip，再安装兼容的二进制 wheel，没有兼容 wheel 时停止准备。这处理已知依赖公告对应版本，同时保持 stdio 及原有权限，不更新全局 Python 或专用项目独立选择的解释器。
 
 项目级配置或自定义文件可通过精确位置纳入：
 
@@ -115,9 +117,18 @@ python -B "$runtime/tools/malts_lifecycle.py" doctor `
 
 检查共享安装时传入实际登记的完整宿主集合。重复 `--workspace` 可选择多个目录，重复 `--host-config HOST=ABSOLUTE_PATH` 可选择自定义文件。普通安装和更新脚本分别接受对应的 `-Workspace`、`-HostConfig` 数组。升级计划绑定所选项目文件指纹，拒绝预览后的修改，并在安装后报告同一检查范围。这些参数用于检查，不自动编辑项目配置。
 
-对 Codex，MALTS 读取用户文件，以及已识别 Git 项目根到所选工作区的 `.codex/config.toml`；没有 Git 根时以所选工作区为边界。最近的已检查层优先，嵌套表按字段合并。仅含 `enabled=false` 的局部表也可能禁用继承服务。报告保留逐文件合法性，另用 `effective_configuration` 说明来源、端点模式、代际、启用状态、同名覆盖、环境变量键名及写策略标记。同版本标准端点和专用端点仍有不同参数合同；不同服务器名称可以并存。
+MALTS 2.0.9按每个宿主自己的规则解析所选磁盘配置层：
 
-这一结论是**项目受信任时的磁盘配置层解析**。Profile 文件、命令行覆盖、受管要求和宿主实际加载的连接无法观测，报告明确保留 `NOT_VERIFIED`。其他宿主继续支持有界的显式文件检查，其项目层优先级不从 Codex 类推。不可读或不支持的层不能证明有效连接健康。优先级依据见 [Codex 官方配置说明](https://developers.openai.com/codex/config-basic/)。
+| 宿主 | 所选配置层及优先级 | 保留原配置的编辑范围 |
+|---|---|---|
+| Codex | 用户 TOML，然后是 Git 项目根到工作区的 `.codex/config.toml`；嵌套表合并 | 所选项目 TOML 条目及子表 |
+| Claude Code | 用户 `~/.claude.json`、项目 `.mcp.json`、该工作区的本地 `projects` 段；高层条目整体替换低层条目 | 所选项目条目或准确的本地嵌入段，保留其他项目 |
+| OpenCode | 全局 `config.json`、`opencode.json`、`opencode.jsonc`，有界项目文件，再按原生向上顺序处理 `.opencode` 目录；嵌套字段合并 | 所选 JSON/JSONC 条目；继承方案核对所有已检查的覆盖条目 |
+| DeepSeek Harness | 所选 Profile 补丁、Home 补丁，再到明确选择的命令行覆盖层；ID 补丁整体替换插件配置 | Profile、Home 或所选覆盖层中的已知 MCP 插入条目或 ID 配置 |
+
+Claude 的禁用与审批设置参与检查，但不授予信任或自动批准项目服务。OpenCode 的环境变量、命令行、远程及受管覆盖层仍须另行选择和核实。Harness 的 bundle 补丁、原生分组与 include，以及 MALTS 中的动态表达式不属于这一磁盘解析范围。MALTS 以不可执行数据保留无关配置中的原生 `!!js`，不求值。覆盖文件只有在宿主实际通过 `--patch` 加载后才生效；不会创建假定自动加载的项目文件。
+
+磁盘解析以宿主实际加载这些配置层为前提。报告对实际连接、信任及未观测层保留 `NOT_VERIFIED`；不支持或不可读的输入不能证明连接健康。规则依据见 [Codex 配置说明](https://developers.openai.com/codex/config-basic/)、[Claude MCP 作用域](https://code.claude.com/docs/en/mcp)、[OpenCode 配置说明](https://docs.opencode.ai/docs/config/)及 [Harness 加载器](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/boot/app-boot/README.md)。
 
 ## 保留专用端点
 
@@ -127,7 +138,7 @@ python -B "$runtime/tools/malts_lifecycle.py" doctor `
 
 ## 审阅项目配置变更与恢复
 
-内置的保留式编辑目前支持明确选择的 Codex 项目 TOML 文件。其他宿主使用稳定配置片段及其正式配置方式；没有宣称已验证这些宿主的自动项目文件编辑。
+四端共用计划、执行和原操作恢复命令。`--host` 选择 `codex`、`claude-code`、`opencode` 或 `deepseek-harness`，缺省为 Codex。Claude 的 `--config-path` 选择 `.mcp.json` 或用户文件中的准确本地项目段；Harness 以 `--profile` 选择 Profile，显式工作区补丁还须同时传入 `--overlay`，与宿主实际 `--patch` 列表对应。只支持已经存在的所选文件，不初始化配置或业务项目。
 
 ```powershell
 python -B "$runtime/tools/malts_lifecycle.py" mcp-project-plan `
@@ -138,11 +149,21 @@ python -B "$runtime/tools/malts_lifecycle.py" mcp-project-plan `
   --server-name 'malts' --strategy 'stable-project'
 ```
 
-`stable-project` 只改变启动参数，保留解释器、环境、权限、无关设置、注释和编码。用户明确选择 `inherit-global` 后，才移除所选同名项目条目及其子表，以继承全局入口。该方案拒绝不同解释器、专用环境或自定义设置、禁用条目、受保护内容捕获以及写入、actor、Task 等限定策略；这些入口须保留，或另行审阅宿主变更。不删除整个文件，不以禁用条目代替继承，不重命名服务器，也不重新采用工作区。
+其余宿主使用同一命令和以下原生选择。`$workspace`、`$tool`、`$lifecycle` 为已经核实的绝对路径；`$runtime` 指已核实的安装运行根。以下命令只预览，不带 `--apply`：
 
-先审阅计划，再增加 `--out '<新的本机计划.json>' --apply` 保存。计划和恢复前像可能含本机敏感内容，不能公开。通过 `mcp-project-execute --plan '<计划.json>' --expected-plan-hash '<已审阅哈希>' --apply` 应用。Windows 独占文件句柄与指纹保护预览后的内容；已检查的上级和用户配置层也必须一致。重复已完成的变更返回无变化结果。
+```powershell
+python -B "$runtime/tools/malts_lifecycle.py" mcp-project-plan --host claude-code --lifecycle-root $lifecycle --tool-root $tool --workspace $workspace --config-path "$workspace/.mcp.json" --server-name malts --strategy stable-project
+python -B "$runtime/tools/malts_lifecycle.py" mcp-project-plan --host opencode --lifecycle-root $lifecycle --tool-root $tool --workspace $workspace --config-path "$workspace/opencode.jsonc" --server-name malts --strategy stable-project
+python -B "$runtime/tools/malts_lifecycle.py" mcp-project-plan --host deepseek-harness --profile desktop --overlay "$workspace/selected.patch.yml" --lifecycle-root $lifecycle --tool-root $tool --workspace $workspace --config-path "$workspace/selected.patch.yml" --server-name malts --strategy stable-project
+```
 
-操作中断后使用 `mcp-project-recover --lifecycle-root '<根>' --operation-id '<原操作ID>'`，审阅后应用同一操作的恢复。该命令的 `--restore` 仅在当前文件仍与记录的变更后像完全相同时恢复前像；后续用户修改保留并交由审阅，不覆盖新内容，不换ID重放不确定效果。恢复资料位于 `runtime/mcp/project-operations/<操作ID>`。
+Claude 本地作用域改为选择已有的用户 `.claude.json`，只编辑所选工作区的 `projects` 条目。Harness 的 Profile 或 Home 配置可选择对应的已有 `cordis.patch.yml`，实际 Profile 和覆盖层顺序须明确。稳定入口转换保留原禁用设置；全局继承拒绝这类设置，不隐式启用服务。
+
+`stable-project` 只改变启动参数，保留解释器、环境、权限、无关设置、注释和编码。用户明确选择 `inherit-global` 后，才移除已检查范围内的同名项目覆盖条目及其子表，以继承已核实的标准入口。涉及多个文件时共同绑定计划；不能只移除一层后仍被另一层覆盖。该方案拒绝不同解释器、专用环境或自定义设置、禁用条目、受保护内容捕获以及写入、actor、Task 等限定策略；这些入口须保留，或另行审阅宿主变更。不删除整个文件，不以禁用条目代替继承，不重命名服务器，也不重新采用工作区。
+
+先审阅计划，再增加 `--out '<新的本机计划.json>' --apply` 保存。新计划不再以明文或可逆十六进制包含整份配置；变更后像和恢复前像用 Windows 当前用户 DPAPI 加密，并绑定原操作、目标和宿主上下文。计划仍含私有路径和指纹，不能公开，也不能跨用户解密；旧操作记录只用于其原操作恢复，不改写历史。通过 `mcp-project-execute --plan '<计划.json>' --expected-plan-hash '<已审阅哈希>' --apply` 应用。Windows 独占文件句柄与指纹保护预览后的内容；已检查的上级和用户配置层也必须一致。重复已完成的变更返回无变化结果。
+
+操作中断后使用 `mcp-project-recover --lifecycle-root '<根>' --operation-id '<原操作ID>'`，审阅后应用同一操作的恢复。该命令的 `--restore` 仅在各文件仍与原操作记录的前像或后像相符时恢复前像，支持文件间中断；后续用户修改保留并交由审阅，不覆盖新内容，不换ID重放不确定效果。恢复资料位于 `runtime/mcp/project-operations/<操作ID>`。未结清的配置操作阻止新的配置写入和安装生命周期变更；先恢复原操作。普通、无链接、单硬链接的本地文件才允许写入，回读和层指纹须一致。
 
 磁盘变更后重新连接所选宿主。标准入口通过 `malts_installation` 和面向既有工作区的 `malts_entry_status` 核实实际加载；保留的专用入口通过其固定项目工具核实。冷连接、宿主加载、治理就绪和业务执行权限分别报告。
 

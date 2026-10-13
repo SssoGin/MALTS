@@ -1,6 +1,6 @@
 # Security
 
-Security and privacy apply to the whole MALTS workflow, installation and distribution. Current version: **2.0.8**.
+Security and privacy apply to the whole MALTS workflow, installation and distribution. Current version: **2.0.9**.
 
 ## Verify Before Use
 
@@ -55,3 +55,5 @@ Ordinary new workspaces use `workspace-init` to place task state, managed eviden
 ## Installed MCP Integration
 
 Host configurations can contain credentials and private paths. The installer preserves their unrelated bytes, does not publish them or include their values in configuration plans, and retains exact local preimages only for recovery. Standard MCP startup and tool errors do not echo arbitrary input values. Default MCP access is read-only; selecting a workspace is not execution permission. Dependency packages are installed into the lifecycle-owned environment, never into a provider or another application’s environment.
+
+New project configuration plans use current-user DPAPI for afterimages and recovery preimages, bound to Host, operation and exact target. Metadata remains private. Closed shapes and byte limits precede decryption; approved edits use exclusive single-link file handles and reject changed layers. Interrupted operations retain their original journal and block lifecycle mutation until recovery.

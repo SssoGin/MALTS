@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Project-scoped SDK-backed stdio bridge; no install, init, Grant creation or cutover.
 
-Tested SDK profile: mcp 1.26.0, legacy MCP through 2025-11-25. This module does
+SDK profile: mcp 1.28.1, legacy MCP through 2025-11-25. This module does
 not claim the 2026-07-28 per-request-metadata protocol or OS-level authentication.
 """
 import sys

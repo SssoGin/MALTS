@@ -510,7 +510,7 @@ def main(argv=None):
                                          'preview_characters':2048,'max_protected_preview_characters':32768,
                                          'preview_verifies_full_body':False,'controller_refresh':'definition.refresh-preview'},
                     'qualification':'SCOPED_RUNTIME_QUALIFICATION','qualification_scope':'Capabilities are per interface/profile; no whole-Host or business acceptance is implied','actions':actions,
-                    'optional_mcp_bridge':{'entry':'v2_mcp.py','default_mode':'READ_ONLY','tested_sdk':'1.26.0',
+                    'optional_mcp_bridge':{'entry':'v2_mcp.py','default_mode':'READ_ONLY','tested_sdk':'1.28.1',
                         'tested_protocol':'2025-11-25','runtime_dependency_checked':False,
                         'modern_protocol_qualified':False,'native_host_integration_qualified':False},
                     'host_authentication_enforced':False,'unmediated_host_actions_controlled':False,

@@ -4,7 +4,7 @@
 
 The Model Context Protocol (MCP) lets an Agent Host call external tools. MALTS uses local standard input/output (stdio) communication with its Python service; it does not require a network listening port.
 
-MALTS 2.0.8 installs and updates the required `malts` MCP service for the selected Hosts. The comparison and diagnostic commands remain available for managed and project-specific entries.
+MALTS 2.0.9 installs and updates the required `malts` MCP service for the selected Hosts. The comparison and diagnostic commands remain available for managed and project-specific entries.
 
 ## Purpose And Ownership
 
@@ -61,7 +61,9 @@ Exit code 0 means the selected entry agrees and its checked references are curre
 | OpenCode | `opencode.json`; `opencode.jsonc` | JSON/JSONC `mcp`, including comments and trailing commas |
 | DeepSeek Harness | `profiles/<profile>/cordis.patch.yml` | Cordis insert patches with `@deepseek-ai/dsh-mcp-client` |
 
-Generated Cordis JSON with standalone YAML comments works without an additional parser. The installed MCP environment includes PyYAML for block YAML; a separately selected diagnostic interpreter also needs that parser. Safe parsing rejects tags, anchors, aliases, duplicate keys and excessive nesting. Missing parser support is `UNSUPPORTED`, not a successful check; inspection never installs a dependency. JSON/TOML core operations remain available without PyYAML.
+Generated Cordis JSON with standalone YAML comments works without an additional parser. The installed MCP environment includes PyYAML for block YAML; a separately selected diagnostic interpreter also needs that parser. MALTS 2.0.9 preserves native `!!js` as inert data outside MALTS, rejects dynamic MALTS fields, other tags, anchors, aliases, duplicate keys and excessive nesting. Missing parser support is `UNSUPPORTED`, not a successful check; inspection never installs a dependency. JSON/TOML core operations remain available without PyYAML.
+
+MALTS 2.0.9 pins MCP 1.28.1, jsonschema 4.25.1, PyYAML 6.0.2, pip 26.2 and setuptools 83.0.0 in the lifecycle-owned environment. It updates that environment's pip before installing compatible binary wheels; unavailable wheels stop preparation. This addresses recorded dependency advisories while preserving stdio and the existing permissions. It does not update global Python or a dedicated project's independently chosen interpreter.
 
 For project-local or custom files, supply an exact location:
 
@@ -115,9 +117,18 @@ python -B "$runtime/tools/malts_lifecycle.py" doctor `
 
 Supply the complete registered Host set when inspecting a shared installation. Repeated `--workspace` selects additional directories; repeated `--host-config HOST=ABSOLUTE_PATH` selects custom files. `Install-MALTS.ps1` and `Update-MALTS.ps1` accept the corresponding `-Workspace` and `-HostConfig` arrays. The reviewed update plan binds selected project-file fingerprints, rejects intervening edits, and returns the same selected scope after installation. These inputs request inspection, not automatic project-file editing.
 
-For Codex, MALTS reads the user file and `.codex/config.toml` layers from the detected Git project root through the selected workspace; without a Git root its boundary is the selected workspace. The closest checked layer wins and nested table settings are merged. A partial `enabled=false` table can disable the inherited server. Reports retain individual file validity and separately give `effective_configuration`: source, endpoint kind, generation, enabled state, same-name shadowing, environment key names and write-policy flags. Same-version standard and project-bound endpoints have different parameter contracts. Different server names can coexist.
+MALTS 2.0.9 resolves each Host's own selected disk layers:
 
-This is disk-layer analysis **conditional on the project being trusted**. Profile files, CLI overrides, managed requirements and the Host's actual loaded connection are not observed; reports explicitly say `NOT_VERIFIED`. Other Hosts retain bounded explicit-file diagnostics but their project-layer precedence is not inferred from Codex. A failed or unsupported layer cannot prove a healthy effective connection. See [Codex configuration precedence](https://developers.openai.com/codex/config-basic/).
+| Host | Selected layers and precedence | Scope of preserving edits |
+|---|---|---|
+| Codex | User TOML, then Git-root-to-workspace `.codex/config.toml`; nested tables merge | Selected project TOML entry and child tables |
+| Claude Code | User `~/.claude.json`, project `.mcp.json`, then that workspace's local `projects` section; a higher entry replaces the whole lower entry | Selected project entry or exact embedded local section; other projects stay intact |
+| OpenCode | Global `config.json`, `opencode.json`, `opencode.jsonc`; bounded project files; native upward `.opencode` directory order; nested fields merge | Selected JSON/JSONC entry; inheritance reviews every checked overriding entry |
+| DeepSeek Harness | Selected profile patch, home patch, then explicitly selected CLI overlays; an ID patch replaces the entire plugin config | Known MCP insertion or ID config in profile/home/selected overlay |
+
+Claude disabled/approval settings are inspected without granting trust or accepting a project server. OpenCode environment/CLI/remote/managed overrides remain unobserved unless separately selected and verified. Harness bundle patches, native groups/includes and dynamic MALTS expressions are not resolved by this disk profile. Native `!!js` values outside MALTS remain inert and unchanged; MALTS never evaluates them. An overlay is effective only when the Host actually loads it with `--patch`; MALTS does not invent an automatically loaded project file.
+
+Disk analysis is conditional on the Host loading the selected layers. Reports retain `NOT_VERIFIED` for actual connections, trust and unobserved layers. Unsupported or unreadable input cannot prove a healthy connection. Contracts follow the [Codex configuration guide](https://developers.openai.com/codex/config-basic/), [Claude MCP scopes](https://code.claude.com/docs/en/mcp), [OpenCode configuration](https://docs.opencode.ai/docs/config/) and [Harness Loader](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/boot/app-boot/README.md).
 
 ## Retaining A Dedicated Endpoint
 
@@ -127,7 +138,7 @@ The dedicated endpoint continues to expose its existing fixed-project interface.
 
 ## Reviewed Project Entry Changes And Recovery
 
-The built-in preserving edit profile currently supports an explicitly selected Codex project TOML file. Other Hosts use stable fragment generation and their supported configuration mechanism; MALTS does not claim an untested automatic project-file editor for them.
+All four Hosts use the same plan, execute and original-operation recovery commands. Select `--host codex|claude-code|opencode|deepseek-harness` (default Codex). Claude selects `.mcp.json` or the exact embedded local project section by `--config-path`. Harness selects its profile with `--profile`; a workspace overlay also needs `--overlay`, matching the Host's actual `--patch` list. Selected files must already exist; this does not initialize configuration or business projects.
 
 ```powershell
 python -B "$runtime/tools/malts_lifecycle.py" mcp-project-plan `
@@ -138,11 +149,21 @@ python -B "$runtime/tools/malts_lifecycle.py" mcp-project-plan `
   --server-name 'malts' --strategy 'stable-project'
 ```
 
+Use the same command with the native selection below. `$workspace`, `$tool` and `$lifecycle` are verified absolute paths; `$runtime` is MALTS 2.0.9 being tested. These are review commands, without `--apply`:
+
+```powershell
+python -B "$runtime/tools/malts_lifecycle.py" mcp-project-plan --host claude-code --lifecycle-root $lifecycle --tool-root $tool --workspace $workspace --config-path "$workspace/.mcp.json" --server-name malts --strategy stable-project
+python -B "$runtime/tools/malts_lifecycle.py" mcp-project-plan --host opencode --lifecycle-root $lifecycle --tool-root $tool --workspace $workspace --config-path "$workspace/opencode.jsonc" --server-name malts --strategy stable-project
+python -B "$runtime/tools/malts_lifecycle.py" mcp-project-plan --host deepseek-harness --profile desktop --overlay "$workspace/selected.patch.yml" --lifecycle-root $lifecycle --tool-root $tool --workspace $workspace --config-path "$workspace/selected.patch.yml" --server-name malts --strategy stable-project
+```
+
+For Claude local scope, select the existing user `.claude.json` instead; only the chosen workspace's `projects` entry is edited. For a Harness profile or home override, select its existing `cordis.patch.yml`; keep the actual profile and overlay order explicit. Stable conversion retains disabled settings. Global inheritance rejects them rather than enabling a service implicitly.
+
 `stable-project` changes only the launch argv, preserving interpreter, environment, policy, unrelated settings, comments and encoding. `inherit-global` removes only the selected same-name project entry and its child tables after the user explicitly chooses that strategy. It refuses different interpreters, environment/custom settings, disabled entries, protected capture and bounded write/actor/Task policies. Such entries need retention or a separately reviewed Host change. No whole-file deletion, disabled replacement, server renaming or workspace adoption occurs.
 
-Review the plan before saving it with `--out '<new-private-plan.json>' --apply`. Plans and recovery preimages are local sensitive material and must not be published. Apply the saved plan with `mcp-project-execute --plan '<plan.json>' --expected-plan-hash '<reviewed-hash>' --apply`. An exclusive Windows file handle and checked fingerprints protect against drift; inspected parent/user layers must still agree. Repeating a settled change is a no-op.
+Review the plan before saving it with `--out '<new-private-plan.json>' --apply`. New plans no longer contain whole configurations in plaintext or reversible hex. Afterimages and recovery preimages use Windows current-user DPAPI, bound to the original operation, target and Host context. Plans still contain private paths and fingerprints; do not publish them or expect another user to decrypt them. Retained legacy records recover only their original operation and are not rewritten. Apply the saved plan with `mcp-project-execute --plan '<plan.json>' --expected-plan-hash '<reviewed-hash>' --apply`. An exclusive Windows file handle and checked fingerprints protect against drift; inspected parent/user layers must still agree. Repeating a settled change is a no-op.
 
-If an operation is interrupted, use `mcp-project-recover --lifecycle-root '<root>' --operation-id '<original-id>'`, then apply the reviewed recovery. The same command's `--restore` restores the saved preimage only while the current file still exactly matches the recorded afterimage. Divergent content is preserved and requires review; recovery never overwrites subsequent user edits or replays an uncertain effect under another ID. Recovery files live under `runtime/mcp/project-operations/<operation-id>`.
+If an operation is interrupted, use `mcp-project-recover --lifecycle-root '<root>' --operation-id '<original-id>'`, then apply the reviewed recovery. The same command's `--restore` restores the saved preimage only while every selected file matches that operation's recorded beforeimage or afterimage, including interruption between files. Divergent content is preserved and requires review; recovery never overwrites subsequent user edits or replays an uncertain effect under another ID. Recovery files live under `runtime/mcp/project-operations/<operation-id>`. Unsettled configuration operations block new configuration writes and installation lifecycle mutations until original recovery. Writers require ordinary, non-reparse, single-link local files, verified readback and unchanged layer fingerprints.
 
 After the disk change, reconnect the selected Host. Verify the actual standard endpoint with `malts_installation` and `malts_entry_status` for the existing workspace; verify a retained dedicated endpoint through its fixed-project tools. Cold connection, loaded Host, governance readiness and business execution authorization remain separate results.
 

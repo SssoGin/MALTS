@@ -1,6 +1,6 @@
 # 多 Agent 长任务调度与成长系统
 
-MALTS（Multi-Agent Long-Task Scheduling and Growth System，多 Agent 长任务调度与成长系统）围绕目标、可检查结果、可恢复执行和经验评估组织 AI Agent 项目工作。默认由单 Agent 执行，已授权协作使用同一项目和验收模型。当前实现为 **2.0.8**。
+MALTS（Multi-Agent Long-Task Scheduling and Growth System，多 Agent 长任务调度与成长系统）围绕目标、可检查结果、可恢复执行和经验评估组织 AI Agent 项目工作。默认由单 Agent 执行，已授权协作使用同一项目和验收模型。当前实现为 **2.0.9**。
 
 ## 工作区权威、进入与并发
 
@@ -541,4 +541,4 @@ Capabilities 可查询当前动作合同。详细操作和示例见[控制端操
 
 ### 项目 MCP 入口与升级检查
 
-普通只读项目继承全局标准入口；需要固定绑定、解释器、环境或权限的项目保留专用入口。使用 `--workspace`／`--host-config` 将所选项目纳入更新、Doctor 和退役检查，配置覆盖与当前聊天加载分别验证。专用入口可通过 `mcp-config --stable` 跟随活动代际，固定状态和权限仍受原合同约束。Codex 的配置整理提供预览、指纹、前像与原操作恢复，不重建项目状态。具体命令、策略差异及边界见 [MCP 配置说明](MCP_CONFIGURATION.md#所选项目的配置)。
+普通只读项目继承全局标准入口；需要固定绑定、解释器、环境或权限的项目保留专用入口。使用 `--workspace`／`--host-config` 将所选项目纳入更新、Doctor 和退役检查，配置覆盖与当前聊天加载分别验证。专用入口可通过 `mcp-config --stable` 跟随活动代际，固定状态和权限仍受原合同约束。MALTS 2.0.9 的四端配置整理提供预览、层指纹、加密前像与原操作恢复，不重建项目状态；按各宿主原生作用域处理，实际加载另行核实。具体命令、策略差异及边界见 [MCP 配置说明](MCP_CONFIGURATION.md#所选项目的配置)。
