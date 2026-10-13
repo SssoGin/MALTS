@@ -2836,9 +2836,14 @@ def _same_generation_disposition(
 def _operation_actions(context_hash: str, context: dict[str, Any], operation: str) -> list[dict[str, Any]]:
     targets = context["tool_roots"]
     if context.get("plan_disposition") == "NO_OP":
-        return [
+        actions = [
             {"action_id": "ACT-CONTEXT", "kind": "verify", "target": f"context-sha256:{context_hash}", "dependencies": [], "destructive": False},
         ]
+        if 'mcp_installation' in context:
+            for index,row in enumerate(context['mcp_installation']['configurations']):
+                actions.append({'action_id':f'ACT-MCP-{index}','kind':'verify','target':row['path'],
+                                'dependencies':['ACT-CONTEXT'],'destructive':False})
+        return actions
     actions = [
         {"action_id": "ACT-CONTEXT", "kind": "verify", "target": f"context-sha256:{context_hash}", "dependencies": [], "destructive": False},
         {"action_id": "ACT-STAGE", "kind": "copy" if operation != "uninstall" else "verify", "target": context["staging_root"], "dependencies": ["ACT-CONTEXT"], "destructive": False},
@@ -2884,9 +2889,24 @@ def _operation_actions(context_hash: str, context: dict[str, Any], operation: st
         )
         previous = "ACT-PREVIEW-MANIFEST"
     actions.append({"action_id": "ACT-POSTVALIDATE", "kind": "verify", "target": context["lifecycle_root"], "dependencies": [previous], "destructive": False})
+    mcp_dependencies=[]
+    if 'mcp_installation' in context:
+        mcp = context['mcp_installation']
+        actions.append({'action_id':'ACT-MCP-ENV','kind':'create','target':mcp['environment'],
+                        'dependencies':['ACT-SNAPSHOT'],'destructive':False})
+        for action in actions:
+            if action['action_id']=='ACT-PREVALIDATE':action['dependencies'].append('ACT-MCP-ENV')
+        for index,row in enumerate(mcp['configurations']):
+            action_id=f'ACT-MCP-{index}'
+            actions.append({'action_id':action_id,'kind':'merge','target':row['path'],
+                            'dependencies':['ACT-POSTVALIDATE'],'destructive':False})
+            mcp_dependencies.append(action_id)
+        actions.append({'action_id':'ACT-MCP-CONNECTION','kind':'verify','target':mcp['runtime_root'],
+                        'dependencies':mcp_dependencies,'destructive':False})
+        mcp_dependencies=['ACT-MCP-CONNECTION']
     for index, locator in enumerate(context["expected_cleanup"], start=1):
         actions.append({"action_id": f"ACT-CLEAN-{index}", "kind": "delete", "target": locator, "dependencies": ["ACT-POSTVALIDATE"], "destructive": True})
-    dependencies = ["ACT-POSTVALIDATE", *(f"ACT-CLEAN-{index}" for index in range(1, len(context["expected_cleanup"]) + 1))]
+    dependencies = ["ACT-POSTVALIDATE", *mcp_dependencies, *(f"ACT-CLEAN-{index}" for index in range(1, len(context["expected_cleanup"]) + 1))]
     actions.append({"action_id": "ACT-ZERO-RESIDUE", "kind": "verify", "target": context["lifecycle_root"], "dependencies": dependencies, "destructive": False})
     return actions
 
@@ -2950,6 +2970,13 @@ def _validate_planned_write_path_bounds(
 
     for modification in modifications:
         atomic_targets.append(("planned user modification", Path(modification["locator"])))
+    if 'mcp_installation' in context:
+        mcp = context['mcp_installation']
+        direct_targets.append(('MCP environment interpreter', Path(mcp['python'])))
+        atomic_targets.extend((('MCP launcher', Path(mcp['runtime_root']) / 'mcp_launcher.py'),
+                               ('MCP record', Path(mcp['runtime_root']) / 'installation.json')))
+        for row in mcp['configurations']:
+            atomic_targets.append(('Host MCP configuration', Path(row['path'])))
 
     for purpose, path in [*direct_targets, *atomic_targets]:
         absolute = _absolute(path)
@@ -3233,6 +3260,14 @@ def _make_plan_resolved(
     context["residue_records"] = residue_records
     context["expected_cleanup"] = expected_cleanup
     context["modification_observations"] = modifications
+    if artifact is not None and (artifact['root'] / 'payload/tools/mcp_install.py').is_file():
+        from mcp_install import make_plan as make_mcp_plan
+        context['mcp_installation'] = make_mcp_plan(root, normalized_tools, artifact['root'] / 'payload', operation_id)
+    elif operation == 'uninstall' and active_record is not None and (Path(active_record['root']) / 'tools/mcp_install.py').is_file():
+        verify_installed_generation_envelope(Path(active_record['root']))
+        from mcp_install import make_plan as make_mcp_plan
+        context['mcp_installation'] = make_mcp_plan(root, normalized_tools, Path(active_record['root']), operation_id, removal=True)
+    _validate_planned_write_path_bounds(context, artifact, modifications)
     context_hash = sha256_bytes(canonical_json(context))
     actions = _operation_actions(context_hash, context, operation)
     plan_contract = {
@@ -3258,6 +3293,10 @@ def _make_plan_resolved(
         "plan_hash": "0" * 64,
         "created_at": now,
     }
+    if 'mcp_installation' in context:
+        plan_contract['acceptance_matrix'].append({'criterion_id':'AC-MCP','hard':True,
+            'verification':'required MCP dependencies, preserving owned Host configuration, cold stdio connection and original-operation recovery',
+            'expected_result':'PASS'})
     plan_contract["plan_hash"] = canonical_plan_hash(plan_contract)
     _validate_contract("update-plan", plan_contract)
     return {
@@ -3494,6 +3533,10 @@ def validate_plan_envelope(envelope: dict[str, Any]) -> tuple[dict[str, Any], di
     if sorted(plan["expected_cleanup"], key=str.casefold) != sorted(context["expected_cleanup"], key=str.casefold):
         raise LifecycleError("TX_CONTEXT_BINDING", "Plan/context cleanup mismatch.")
     _validate_preview_context(context)
+    if 'mcp_installation' in context:
+        from mcp_install import validate as validate_mcp_plan
+        validate_mcp_plan(context['mcp_installation'], context['lifecycle_root'], context['tool_roots'],
+                          operation_id=context['operation_id'], removal=context['operation']=='uninstall')
     return plan, context
 
 
@@ -3512,6 +3555,9 @@ def _verify_plan_inputs(
 ) -> dict[str, Any] | None:
     if plan["plan_hash"] != expected_plan_hash.upper():
         raise LifecycleError("TX_EXPECTED_PLAN_HASH", "Explicit expected plan hash does not match the plan.")
+    if 'mcp_installation' in context:
+        from mcp_install import verify_inputs as verify_mcp_inputs
+        verify_mcp_inputs(context['mcp_installation'])
     root = _absolute(context["lifecycle_root"])
     if _registry_digest(root) != context["registry_sha256"]:
         raise LifecycleError("TX_INPUT_DRIFT", "Installation registry changed after planning.", str(_registry_path(root)))
@@ -5689,6 +5735,12 @@ def _execute_plan_with_artifact(
     plan, context = validate_plan_envelope(envelope)
     artifact = _verify_plan_inputs(plan, context, expected_plan_hash, artifact)
     if plan.get("disposition", "EXECUTE") == "NO_OP":
+        if apply and 'mcp_installation' in context:
+            from mcp_install import verify_ready as verify_mcp_ready
+            result = verify_mcp_ready(context['mcp_installation'], Path(context['generation_root']), context['target_version'])
+            return {'status':'NO_OP','mode':'APPLY','operation_id':plan['operation_id'],
+                    'operation':plan['operation'],'plan_hash':plan['plan_hash'],
+                    'generation_unchanged':True,'mcp_installation':result,'writes_performed':False}
         return {
             "status": "NO_OP",
             "mode": "APPLY" if apply else "DRY_RUN",
@@ -5757,6 +5809,9 @@ def _execute_plan_with_artifact(
                 Path(context["staging_root"]),
             )
         _verify_plan_inputs(plan, context, expected_plan_hash, artifact)
+        if 'mcp_installation' in context:
+            from mcp_install import prepare as prepare_mcp
+            prepare_mcp(context['mcp_installation'], Path(context['staging_root']), transaction_root)
         _set_state(transaction_root, journal, "PREVALIDATE", evidence="lifecycle:prevalidate", fault_at=fault_at)
         v2_activation_started = (context.get('target_version', '').split('.')[0] == '2'
                                  and plan['operation'] in {'install', 'update', 'repair', 'finalize'})
@@ -5789,6 +5844,10 @@ def _execute_plan_with_artifact(
         registry["lifecycle_state"] = "uninstalled" if plan["operation"] == "uninstall" else "stable"
         registry["updated_at"] = _now()
         write_json(_registry_path(root), registry)
+        mcp_result = None
+        if 'mcp_installation' in context:
+            from mcp_install import apply as apply_mcp
+            mcp_result = apply_mcp(context['mcp_installation'], Path(context['generation_root'] or root), transaction_root, context['target_version'])
         _set_state(transaction_root, journal, "COMMIT", evidence="lifecycle:commit", fault_at=fault_at)
         _commit(root, context, journal, envelope, transaction_root, fault_at=fault_at)
         final_scan = scan_residue(root, context["tool_roots"], plan_context=context)
@@ -5805,6 +5864,8 @@ def _execute_plan_with_artifact(
             "residue_scan": final_scan,
             "writes_performed": True,
         }
+        if mcp_result is not None:
+            result['mcp_installation'] = mcp_result
         if context.get("preview_contract") is not None:
             result.update(
                 {
@@ -6092,6 +6153,9 @@ def _recover_transaction_exclusive(root_value: str | Path, *, operation_id: str 
             registry["lifecycle_state"] = "uninstalled" if plan["operation"] == "uninstall" else "stable"
             registry["updated_at"] = _now()
             write_json(_registry_path(root), registry)
+            if 'mcp_installation' in context:
+                from mcp_install import apply as apply_mcp
+                apply_mcp(context['mcp_installation'], Path(context['generation_root'] or root), transaction_root, context['target_version'])
             _set_state(transaction_root, journal, "COMMIT", evidence="recovery:resume-clean", fault_at=fault_at)
         else:
             cleanup_result = {"deleted": [], "preserved": []}

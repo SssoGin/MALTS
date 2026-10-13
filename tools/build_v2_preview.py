@@ -8,7 +8,7 @@ ROOT=Path(__file__).resolve().parent.parent
 
 def collect_inputs(root):
     root=Path(root);tools=root/'tools';available={p.stem:p for p in tools.glob('*.py')}
-    collected={};todo=['malts_v2','v2_mcp','v2_host_execution','v2_windows_job','v2_process_host','v2_codex_profile']
+    collected={};todo=['malts_v2','v2_mcp','mcp_entry','mcp_launcher','mcp_connection_check','v2_host_execution','v2_windows_job','v2_process_host','v2_codex_profile']
     def read(path):
         _regular_path(path)
         key=path.relative_to(root).as_posix()

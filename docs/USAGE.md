@@ -1,6 +1,6 @@
 # Use MALTS in a Project
 
-Project work begins with a checkable goal and continues through planning, execution, verification and delivery. MALTS workflows preserve the facts needed for interruption, collaboration and future review. Current version: **2.0.6**; controller protocols are in [Operations](V2_PREVIEW_USAGE.md).
+Project work begins with a checkable goal and continues through planning, execution, verification and delivery. MALTS workflows preserve the facts needed for interruption, collaboration and future review. Current version: **2.0.7**; controller protocols are in [Operations](V2_PREVIEW_USAGE.md).
 
 ## Enter an existing workspace
 
@@ -151,3 +151,7 @@ A helpful check can be tried in suitable future work; one success does not justi
 ## Workspace Management Data and Migration
 
 Ordinary new workspaces use `workspace-init` to place task state, managed evidence and recovery data under an owned `.malts` directory; explicit external layouts remain supported. Installation updates do not move existing projects. Healthy adopted stores can relocate through a read-only plan, backup/restore, current-effect review and formal forward switch. The new epoch does not restore old Grants/acceptance or activate a Phase automatically. Retain old stores, external historical references and source capsules according to their actual dependencies. See [workspace management and store relocation](MANAGEMENT_AND_RELOCATION.md) for steps and limits.
+
+## Installed MCP Integration
+
+MCP is installed and enabled for every selected Host as part of ordinary installation and updates. Verify `malts_installation` after the Host reloads. Use the current opted-in workspace with Task tools; basic status and packaged workflows work before project initialization. Installation creates no Project, Phase or execution Grants. Existing project-specific permissions remain explicit. See [MCP configuration](MCP_CONFIGURATION.md) for tool arguments, preserving updates, connection checks and recovery.

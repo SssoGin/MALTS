@@ -147,7 +147,7 @@
     },
     "hostBinding": {
       "type": "object", "additionalProperties": false,
-      "properties": {"script": {"type": "string"}, "state-dir": {"type": "string"}, "resource-root": {"type": "string"}, "project-id": {"type": "string"}}
+      "properties": {"script": {"type": "string"}, "state-dir": {"type": "string"}, "resource-root": {"type": "string"}, "project-id": {"type": "string"}, "tool-root": {"type": "string"}}
     },
     "reprojection": {
       "type": "object", "additionalProperties": false,

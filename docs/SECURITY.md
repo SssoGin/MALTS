@@ -1,6 +1,6 @@
 # Security
 
-Security and privacy apply to the whole MALTS workflow, installation and distribution. Current version: **2.0.6**.
+Security and privacy apply to the whole MALTS workflow, installation and distribution. Current version: **2.0.7**.
 
 ## Verify Before Use
 
@@ -51,3 +51,7 @@ Failure preserves the original adoption ID, plan, owned seals and private handof
 ## Workspace Management Data and Migration
 
 Ordinary new workspaces use `workspace-init` to place task state, managed evidence and recovery data under an owned `.malts` directory; explicit external layouts remain supported. Installation updates do not move existing projects. Healthy adopted stores can relocate through a read-only plan, backup/restore, current-effect review and formal forward switch. The new epoch does not restore old Grants/acceptance or activate a Phase automatically. Retain old stores, external historical references and source capsules according to their actual dependencies. See [workspace management and store relocation](MANAGEMENT_AND_RELOCATION.md) for steps and limits.
+
+## Installed MCP Integration
+
+Host configurations can contain credentials and private paths. The installer preserves their unrelated bytes, does not publish them or include their values in configuration plans, and retains exact local preimages only for recovery. Standard MCP startup and tool errors do not echo arbitrary input values. Default MCP access is read-only; selecting a workspace is not execution permission. Dependency packages are installed into the lifecycle-owned environment, never into a provider or another application’s environment.

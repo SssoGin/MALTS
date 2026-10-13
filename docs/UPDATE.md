@@ -1,10 +1,10 @@
 # Update MALTS
 
-An update selects verified source content and changes the chosen installation through a reviewed transaction. The updater preserves project work and user-owned configuration according to its plan; it does not select a new goal or migrate projects automatically. Current version: **2.0.6**.
+An update selects verified source content and changes the chosen installation through a reviewed transaction. The updater preserves project work and user-owned configuration according to its plan; it does not select a new goal or migrate projects automatically. Current version: **2.0.7**.
 
 ## Before Updating
 
-Inspect the installed identity, intended source, workspace binding, user edits, relevant writers and pending effects. Preserve recovery materials. The updater does not pull Git and performs no automatic repository selection, automatic ZIP download, provider call or implicit project migration. Current version remains **2.0.6**.
+Inspect the installed identity, intended source, workspace binding, user edits, relevant writers and pending effects. Preserve recovery materials. The updater does not pull Git and performs no automatic repository selection, automatic ZIP download, provider call or implicit project migration. Current version remains **2.0.7**.
 
 Compare the active source kind/hash, intended repository/package identity and actual selected tool roots. Identify whether a normal version update or same-version content consolidation is needed. Preserve required transaction snapshots and project backups for their different recovery purposes.
 
@@ -100,4 +100,8 @@ Entry, package checking, workspace authority, governance readiness, Task continu
 
 Read the exact installed `MALTS_BOOT_PATH` from the selected tool's managed instruction, then require successful discovery before selecting the runtime or update source. Do not substitute a historical root or a machine-global Boot file.
 
-MALTS 2.0.6 reports external MCP references after successful updates and root consolidation. Inspect the advisory, regenerate a fragment for the verified runtime and workspace binding, review its Host-owned deployment, and verify the real connection separately. Configuration drift does not roll back a committed update. See [MCP configuration checks](MCP_CONFIGURATION.md).
+The update plan includes the required MCP environment and every selected Host’s managed `malts` entry. It retains unrelated settings and detects changes to the managed entry before activation. Package dependencies are checked against their pinned versions; the fixed launcher resolves the new active generation on its next start. An exact same-generation update performs connection checks without rewriting the installation.
+
+Dependency or configuration failure is an installation failure, not an advisory success. Before activation, the previous installation is retained. After v2 activation starts, preserve the original operation and use lifecycle recovery to complete it forward; already written exact configuration after-images are recognized without replaying under a new identity. Local configuration preimages remain under `runtime/mcp/history/<operation-id>` and are excluded from public packages. Recovery refuses divergent user content. A missing managed installation may require an explicit repair plan.
+
+Older manually configured project endpoints remain separate and retain their own scope and permission settings. External-reference diagnostics for those endpoints remain read-only. Restart or reconnect clients that still use an old process and verify `malts_installation` in the actual Host. See [MCP configuration](MCP_CONFIGURATION.md).

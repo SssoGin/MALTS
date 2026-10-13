@@ -1,3 +1,6 @@
-# Optional stdio bridge only. Core and CLI remain standard-library consumers.
-# Tested legacy MCP SDK profile; not a claim of 2026-07-28 protocol support.
+# Required installed stdio service. The installer creates its own environment.
+# Core and CLI remain standard-library consumers. Supported SDK profile only;
+# this is not a claim of 2026-07-28 protocol support.
 mcp==1.26.0
+jsonschema==4.25.1
+PyYAML==6.0.2

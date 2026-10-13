@@ -1,5 +1,61 @@
 # Changelog
 
+## v2.0.7 — 2026-10-13
+
+### English
+
+Release date: 2026-10-13, Asia/Shanghai (UTC+08:00).
+
+MALTS retains its full project, task, verification, recovery, collaboration and experience workflows. This maintenance release makes MCP part of ordinary installation and updates for Codex, Claude Code, OpenCode and DeepSeek Harness.
+
+### Required MCP setup
+
+- Installation creates a lifecycle-owned Python environment with pinned MCP, JSON-schema and safe YAML dependencies. It registers the enabled `malts` service for each selected Host; a separate opt-in step is no longer needed.
+- A fixed launcher resolves the active generation through verified Host Boot/registry/pointer identity, so future version updates do not leave the managed service pointing at a retired script.
+- Configuration edits preserve unrelated model settings, accounts, other MCP servers, comments and text encoding. Only installer-owned entries are maintained; conflicting unowned entries and user edits stop the affected operation. Local configuration preimages remain available for recovery and never enter public packages.
+
+### Workspace use and permission
+
+- Installation status and packaged workflows are available before a project exists. Project tools take the current workspace and verify its existing native/adopted locator per request, including the current state directory after relocation.
+- Available tools cover version/readiness, workflow reference, workspace entry, project contract, Task context and current acceptance evidence. The default service is read-only; installation does not create a global Project, adopt a workspace, issue Grants, launch Agents or activate a Phase. Explicit controller execution and bounded write endpoints retain their existing policy.
+
+### Update, recovery and verification
+
+- Dependency preparation precedes activation. Managed configuration and actual stdio connections must pass before installation reports success. An exact same-generation update checks connections without rewriting the installed generation.
+- Failure after v2 activation retains the original transaction for forward recovery. Exact already-written configuration after-images are recognized; divergent user content is preserved for review. Uninstall removes only the owned service entry and retains other settings/recovery material.
+- Four-Host configuration formats and isolated cold connections are checked. A cold connection proves a newly started server, not that every already-running Host session has reloaded. Reconnect/restart such clients and invoke `malts_installation` to confirm 2.0.7.
+
+### Upgrade requirements and limits
+
+Use the ordinary reviewed Update plan for the installation’s actual registered Hosts. Core state remains Schema69; this update performs no business-project migration. First MCP setup needs the pinned Python packages; the ZIP does not bundle their wheels, so offline setup requires an existing verified environment or an available local package source. Existing manually configured project endpoints retain their own bindings and permissions. No model performance, cost saving, arbitrary external-writer fencing or automatic write authority is claimed.
+
+### 中文说明
+
+发布日期：2026-10-13，采用 Asia/Shanghai（UTC+08:00）。
+
+MALTS 保留完整的项目、任务、验证、恢复、协作与经验工作流。本次维护版本将 MCP 纳入 Codex、Claude Code、OpenCode 和 DeepSeek Harness 的普通安装与更新。
+
+### 必需的 MCP 配置
+
+- 安装建立生命周期维护的独立 Python 环境，包含固定版本的 MCP、JSON Schema 和安全 YAML 依赖；为每个所选宿主注册并启用 `malts` 服务，不再需要另行选择开启。
+- 固定入口通过核实后的宿主 Boot、注册表和活动指针解析当前代际，避免后续更新让受管理服务继续引用已退役脚本。
+- 配置修改保留无关模型设置、账号、其他 MCP 服务、注释及文本编码。仅维护安装器拥有的条目；未经管理的同名条目和用户修改会阻止相关操作。本机配置前像用于恢复，不进入公开包。
+
+### 工作区使用与权限
+
+- 项目尚未建立时即可读取安装状态及工作流说明。项目工具接收当前工作区，每次请求核验已有原生或采用定位，包括重定位后的当前状态目录。
+- 工具覆盖版本与就绪状态、工作流说明、工作区入口、项目合同、任务上下文和当前验收证据。默认服务只读；安装不创建全局项目、不采用工作区、不发放 Grant、不启动 Agent，也不激活阶段。控制端执行和明确限定的写端点继续遵循原有策略。
+
+### 更新、恢复与验证
+
+- 激活前准备依赖；受管理配置和实际 stdio 连接必须通过，安装才报告成功。准确的同代际更新检查连接，不重写已安装代际。
+- v2 激活后失败保留原事务用于前向恢复；已经写入且完全匹配的配置后像可以识别，不同的用户内容保留供审阅。卸载仅移除受管理服务条目，保留其他设置及恢复资料。
+- 检查四端配置格式和隔离冷连接。冷连接证明新启动服务可用，不能证明所有已有宿主会话已重新加载。必要时重连或重启客户端，调用 `malts_installation` 确认 2.0.7。
+
+### 升级要求与限制
+
+使用普通审阅后的更新计划，传入该安装实际登记的宿主。核心状态仍为 Schema69，不进行业务项目迁移。首次 MCP 配置需要取得固定版本的 Python 依赖；ZIP 不包含其 wheel，离线配置须已有核验过的环境或可用的本地包源。已有人工配置的项目端点保留各自绑定和权限。不声明模型性能、费用节省、任意外部写者阻断或自动写入权限。
+
 ## v2.0.6 — 2026-10-13
 
 ### English

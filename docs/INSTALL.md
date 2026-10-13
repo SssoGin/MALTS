@@ -1,6 +1,6 @@
 # Install MALTS
 
-Install MALTS into the Agent tools you choose. One shared core supplies project work, continuity, verification and experience workflows; each tool receives its own native entry. Current version: **2.0.6**. Installation is review-first and does not call a model, install the Host application or adopt existing projects.
+Install MALTS into the Agent tools you choose. One shared core supplies project work, continuity, verification and experience workflows; each tool receives its own native entry. Current version: **2.0.7**. Installation is review-first and does not call a model, install the Host application or adopt existing projects.
 
 ## Prerequisites
 
@@ -17,7 +17,7 @@ Use short, explicit roots with no ambiguous links/protected overlaps. Lifecycle 
 
 ## Repository Installation (Primary)
 
-Use a reviewed checkout of the [public repository](https://github.com/SssoGin/MALTS). Check the actual remote/ref and confirm `MALTS_RELEASE.json` and `VERSION` both identify 2.0.6. A documentation revision on `main` can retain the same version while having its own exact source-tree identity. The installer checks the actual selected tree; do not add business files or caches inside it.
+Use a reviewed checkout of the [public repository](https://github.com/SssoGin/MALTS). Check the actual remote/ref and confirm `MALTS_RELEASE.json` and `VERSION` both identify 2.0.7. A documentation revision on `main` can retain the same version while having its own exact source-tree identity. The installer checks the actual selected tree; do not add business files or caches inside it.
 
 | Host | Entry | Scope |
 |---|---|---|
@@ -68,11 +68,11 @@ Do not replace a meaningful failure with a manual file copy or a success label. 
 
 ## Optional Offline Archive
 
-The current Release attachment is `MALTS-2.0.6.zip`. A same-version reissue has its own qualified package, source commit and SHA-256 in the Release notes. Verify the exact downloaded revision before offline installation. GitHub-generated source archives follow the current version tag. The current tag, qualified repository and MALTS-uploaded package should identify the same source revision, although archive layouts differ.
+The current Release attachment is `MALTS-2.0.7.zip`. A same-version reissue has its own qualified package, source commit and SHA-256 in the Release notes. Verify the exact downloaded revision before offline installation. GitHub-generated source archives follow the current version tag. The current tag, qualified repository and MALTS-uploaded package should identify the same source revision, although archive layouts differ.
 
 ```powershell
-.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.6.zip
-.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.6.zip -ExtractOutput '<new-extraction-root>' -Apply
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.7.zip
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.7.zip -ExtractOutput '<new-extraction-root>' -Apply
 ```
 
 Obtain the verifier from the matching reviewed source. Run the extracted payload's lifecycle entry with `-ReleaseRoot '<extracted-package-root>'`, then the same plan/hash sequence. Harness uses the same lifecycle entry with ReleaseRoot and every Host registered to that installation. Never copy a payload into an active generation. See [Release Archive](RELEASE_ARTIFACT.md).
@@ -132,6 +132,12 @@ CPython marshal serialization can vary in immutable-object sharing and reference
 
 ## Checking Host MCP Configuration
 
-MALTS 2.0.6 includes read-only configuration diagnostics. A successful MALTS installation does not establish that separately stored MCP client settings still point to an existing script and the selected workspace state. After an update or relocation, inspect [MCP configuration and recovery](MCP_CONFIGURATION.md). Regenerate a fragment with `mcp-config` and review its deployment manually when an entry needs correction.
+When the planning interpreter lacks a YAML parser, the plan seals the exact configuration bytes and desired managed entry with `yaml_preparation_deferred=true`. After dependency setup and before activation, the installer parses the structure, checks ownership/conflicts and binds the exact after-image to the original plan. Failure at this step stops before Host configuration or installation activation.
 
-Configuration checks do not start a client, edit a Host file or grant execution permission. Preserve the selected Python interpreter and explicit permission settings when applying a reviewed fragment; verify the actual MCP connection separately.
+MCP is a required part of the installation for every selected Host. The same reviewed plan includes its dependency environment, fixed launcher, managed `malts` entry, exact configuration preimages and a real stdio connection check. Success requires `mcp_installation.status=READY`; file deployment alone is insufficient. There is no separate enable-MCP switch.
+
+The lifecycle-owned environment is under `runtime/mcp/env-<requirements-digest>`, outside immutable generations. The launcher loads the generation verified through that Host’s Boot, registry and pointer. Codex uses `config.toml`; Claude Code uses the sibling `.claude.json`; OpenCode uses its existing `opencode.json` or `opencode.jsonc`; Harness uses each existing profile’s `cordis.patch.yml`, or a new `default` profile if none exists. Other settings and MCP servers remain intact. A conflicting unowned `malts` entry or edits to a managed entry stop the affected operation instead of being overwritten.
+
+First installation needs access to the pinned Python packages. The MALTS ZIP does not bundle their wheels. An offline installation therefore needs an already verified managed environment or an available local package source; offline dependency failure leaves installation incomplete. The installer records installed dependency versions. It does not change PATH or install packages into another application’s environment.
+
+Reload the Host if it does not reload configuration automatically, then call `malts_installation`. It should report `MCP_READY` and version `2.0.7`. A cold connection check establishes a newly started server; it cannot switch an already running Host process. For existing project-specific endpoints and detailed diagnostics, see [MCP configuration](MCP_CONFIGURATION.md).

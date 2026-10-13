@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Optional SDK-backed stdio bridge; no install, init, Grant creation or cutover.
+"""Project-scoped SDK-backed stdio bridge; no install, init, Grant creation or cutover.
 
 Tested SDK profile: mcp 1.26.0, legacy MCP through 2025-11-25. This module does
 not claim the 2026-07-28 per-request-metadata protocol or OS-level authentication.
@@ -321,7 +321,7 @@ class BoundProject:
 
 
 def build_server(policy):
-    # Optional dependency is loaded only for this entry, never for core/CLI.
+    # Transport dependencies are loaded only for this entry, never for core/CLI.
     import anyio
     import jsonschema
     import mcp.types as types
@@ -408,7 +408,7 @@ def main():
         anyio.run(run)
         return 0
     except ImportError:
-        print('MCP_SDK_REQUIRED: install the candidate optional requirements in an isolated environment.',file=sys.stderr); return 2
+        print('MCP_SDK_REQUIRED: use the managed MCP environment created by the normal installer.',file=sys.stderr); return 2
     except (OSError,ValueError,TypeError,KeyError,sqlite3.Error) as error:
         print(json.dumps(safe_error(error)),file=sys.stderr); return 2
 

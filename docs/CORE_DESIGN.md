@@ -1,6 +1,6 @@
 # Multi-Agent Long-Task Scheduling and Growth System
 
-MALTS (Multi-Agent Long-Task Scheduling and Growth System) organizes AI-agent project work around goals, checkable results, recoverable execution and assessed experience. The default executor is one Agent; approved collaboration uses the same project and acceptance model. The current implementation is **2.0.6**.
+MALTS (Multi-Agent Long-Task Scheduling and Growth System) organizes AI-agent project work around goals, checkable results, recoverable execution and assessed experience. The default executor is one Agent; approved collaboration uses the same project and acceptance model. The current implementation is **2.0.7**.
 
 ## Workspace authority, entry, and concurrency
 
@@ -589,3 +589,7 @@ Deep entry verification separates the exact installed user payload from reproduc
 ## State and Continuation After Recovery
 
 Entry, package checking, workspace authority, governance readiness, Task continuation and execution permission are verified separately. Relocation status supplies original-journal next actions; workspace-final-verify produces a read-only current closure; recovery-next-task-actions explains paused Tasks. Reviewed task.resume-after-recovery prepares only its matching Task as READY, retaining budgets and invalid old Grants/acceptance; new execution still follows current permission/effect contracts. See [recovery verification](MANAGEMENT_AND_RELOCATION.md#7-entry-reports-relocation-next-actions-and-final-verification) for responsibilities, strict exits and executable requests.
+
+## Installed MCP Integration
+
+The installation owns a fixed MCP launcher and isolated dependency environment outside immutable generations. Each start verifies Boot, registry, pointer and generation identity before loading the active implementation. Host edits are limited to a fingerprinted `malts` entry with saved preimages; user drift blocks writes. Dependency preparation occurs before activation; configuration and actual connection checks are required before commit. Post-activation failure uses the original transaction’s forward recovery. Per-request workspace selection verifies the existing locator and prevents a shared global Project or an implicit permission increase. The standard endpoint is read-only; configured execution remains subject to existing Grants and controller checks.

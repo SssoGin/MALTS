@@ -234,6 +234,7 @@ $summary = [ordered]@{
     plan_path = $PlanPath
     plan_hash = $planHash
     action_count = @($writtenPlan.plan_contract.actions).Count
+    mcp_required = ($null -ne $writtenPlan.execution_context.PSObject.Properties['mcp_installation'])
     destructive_action_count = @($writtenPlan.plan_contract.actions | Where-Object { $_.destructive }).Count
     user_modification_count = @($writtenPlan.plan_contract.user_modifications).Count
     expected_cleanup_count = @($writtenPlan.plan_contract.expected_cleanup).Count

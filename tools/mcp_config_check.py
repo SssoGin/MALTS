@@ -125,7 +125,7 @@ def _launch(host,entry):
     if not isinstance(executable,str) or not isinstance(args,list) or any(not isinstance(v,str) for v in args):
         raise ConfigError('INVALID_MCP_COMMAND')
     if len(args)>64:raise ConfigError('MCP_ARGUMENT_BUDGET')
-    indexes=[i for i,v in enumerate(args) if Path(v).name=='v2_mcp.py']
+    indexes=[i for i,v in enumerate(args) if Path(v).name in {'v2_mcp.py','mcp_launcher.py'}]
     if len(indexes)!=1:raise ConfigError('MALTS_SCRIPT_ARGUMENT_MISSING_OR_AMBIGUOUS')
     index=indexes[0];values={'script':args[index],'command':executable}
     value_flags={'state-dir','resource-root','project-id','tool-root','actor','authority-ref','task-id','task-revision','dispatch-id','workflow-topic'}
@@ -147,12 +147,26 @@ def _launch(host,entry):
                 value=args[i]
             values[name]=value
         i+=1
-    if any(k not in values for k in ('state-dir','resource-root','project-id')):raise ConfigError('MALTS_BINDING_ARGUMENT_MISSING')
+    if Path(values['script']).name=='mcp_launcher.py':
+        if set(values)!={'script','command','tool-root'}:raise ConfigError('INSTALLED_MCP_ARGUMENT_INVALID')
+    elif any(k not in values for k in ('state-dir','resource-root','project-id')):raise ConfigError('MALTS_BINDING_ARGUMENT_MISSING')
     return values
 
 
 def _generation(script,lifecycle_root):
     script=_path(script)
+    if script.name=='mcp_launcher.py':
+        lifecycle=_path(lifecycle_root) if lifecycle_root is not None else script.parent.parent.parent
+        if not _same(script,lifecycle/'runtime/mcp/mcp_launcher.py'):return 'LAUNCHER_LOCATION_INVALID',None,None
+        try:
+            ledger=_json(_read(lifecycle/'runtime/mcp/installation.json').decode('utf-8-sig'))
+            registry=_json(_read(lifecycle/'registry/installation_registry.json').decode('utf-8-sig'))
+            if ledger.get('profile')!='malts.required-mcp.v1' or hashlib.sha256(_read(script)).hexdigest().upper()!=ledger['launcher_sha256']:
+                return 'LAUNCHER_UNVERIFIED',None,None
+            active=[r for r in registry['generations'] if r['state']=='active']
+            if len(active)!=1 or registry['lifecycle_state']!='stable':return 'GENERATION_UNVERIFIED',None,None
+            return 'CURRENT',active[0]['generation_id'],script
+        except (OSError,ValueError,KeyError):return 'LAUNCHER_UNVERIFIED',None,None
     root=script.parent.parent
     lifecycle=_path(lifecycle_root) if lifecycle_root is not None else root.parent.parent
     try:registry=_json(_read(lifecycle/'registry/installation_registry.json').decode('utf-8-sig'))
@@ -172,6 +186,12 @@ def _generation(script,lifecycle_root):
 
 
 def _binding(values):
+    if Path(values['script']).name=='mcp_launcher.py':
+        try:
+            from malts_lifecycle import resolve_discovery
+            resolve_discovery(values['tool-root'])
+            return [],{}
+        except Exception:return ['INSTALLED_MCP_DISCOVERY_FAILED'],{}
     state=_path(values['state-dir']);resource=_path(values['resource-root'])
     issues=[];expected={}
     if not resource.is_dir():issues.append('RESOURCE_ROOT_MISSING')
@@ -243,13 +263,13 @@ def inspect_configuration(*,host,config_path,lifecycle_root=None,expected=None,s
                         if not equivalent:item['differences'].append({'field':field,'observed':'REDACTED' if field in {'actor','authority-ref'} else before,'expected':'REDACTED' if field in {'actor','authority-ref'} else after})
                 item['issues']=list(dict.fromkeys(issues))
                 item['generation_id']=identity
-                item['binding']={key:values[key] for key in ('script','state-dir','resource-root','project-id')}
+                item['binding']={key:values[key] for key in ('script','state-dir','resource-root','project-id','tool-root') if key in values}
                 item['suggested_values']=corrections
                 if issues:item['status']='INVALID'
                 elif item['differences']:item['status']='DIFFERENT'
                 if issues or item['differences'] or generation=='VALID_OLDER_GENERATION':
                     script=current or (Path(lifecycle_root)/'generations'/ '<active-generation>'/'tools/v2_mcp.py' if lifecycle_root else None)
-                    if script is not None:
+                    if script is not None and Path(values['script']).name!='mcp_launcher.py':
                         argv=['python','-B',str(script.with_name('malts_v2.py')),'mcp-config','--host',host,'--state-dir',corrections.get('state-dir',values['state-dir']),'--resource-root',values['resource-root'],'--project-id',values['project-id'],'--server-name',str(name)]
                         if tool_root is not None:argv+=['--tool-root',str(tool_root)]
                         item['regeneration_arguments']=argv

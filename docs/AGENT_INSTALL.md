@@ -1,6 +1,6 @@
 # Agent-Assisted Installation
 
-An Agent can inspect and execute the user’s approved MALTS installation/update. Current version is **2.0.6**; inspection does not expand the authorization.
+An Agent can inspect and execute the user’s approved MALTS installation/update. Current version is **2.0.7**; inspection does not expand the authorization.
 
 ## Source Selection
 
@@ -35,3 +35,7 @@ Require matching tool Boot, registry, pointer, identity and VERSION. Verify work
 Discover from each selected tool's exact Boot, not a path remembered from another tool. For a shared lifecycle, verify all selected projections against the same active identity, including Harness. Its configuration root remains separate; diagnosis covers all Hosts registered to the shared installation.
 
 Native discovery can remain stale after files were updated because a running Host loaded an earlier process/configuration. Reload normally and observe the current interface. Configuration presence, capability advertisement and effective invocation are separate results; report unavailable layers without fabricating them.
+
+## Installed MCP Integration
+
+MCP is installed and enabled for every selected Host as part of ordinary installation and updates. Verify `malts_installation` after the Host reloads. Use the current opted-in workspace with Task tools; basic status and packaged workflows work before project initialization. Installation creates no Project, Phase or execution Grants. Existing project-specific permissions remain explicit. See [MCP configuration](MCP_CONFIGURATION.md) for tool arguments, preserving updates, connection checks and recovery.

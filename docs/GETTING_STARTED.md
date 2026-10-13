@@ -1,10 +1,10 @@
 # Getting Started with MALTS
 
-To begin, select an installed Agent tool and a verified MALTS source, review an installation plan, check native loading, then define a bounded project goal. Current version: **2.0.6**.
+To begin, select an installed Agent tool and a verified MALTS source, review an installation plan, check native loading, then define a bounded project goal. Current version: **2.0.7**.
 
 ## 1. Understand the Model
 
-MALTS preserves goals, current progress, evidence and recovery across finite project work. Single Agent is the normal path; collaboration and experience review are selected by actual need. The current implementation is **2.0.6**.
+MALTS preserves goals, current progress, evidence and recovery across finite project work. Single Agent is the normal path; collaboration and experience review are selected by actual need. The current implementation is **2.0.7**.
 
 ### Initialization Versus Ordinary Entry
 
@@ -16,7 +16,7 @@ The verified path uses Windows, Python3.11+ and PowerShell; PowerShell7 is recom
 
 ## 3. Verify the Repository Source
 
-Review remote/ref, VERSION and MALTS_RELEASE.json. Use the exact reviewed 2.0.6 tree; the current MALTS ZIP identifies its exact source revision and digest in the Release notes, while platform source archives follow their tag. See [Install](INSTALL.md) for inventory verification.
+Review remote/ref, VERSION and MALTS_RELEASE.json. Use the exact reviewed 2.0.7 tree; the current MALTS ZIP identifies its exact source revision and digest in the Release notes, while platform source archives follow their tag. See [Install](INSTALL.md) for inventory verification.
 
 Run the installation entry from the actual reviewed repository root. Keep credentials, project outputs and caches outside that distribution tree. The release identity binds exact user/repository-only inventories, so a modified or incomplete source must be corrected before planning.
 
@@ -65,3 +65,7 @@ Controllers can run the [isolated file example](V2_PREVIEW_USAGE.md#v2-start) to
 ## Workspace Management Data and Migration
 
 Ordinary new workspaces use `workspace-init` to place task state, managed evidence and recovery data under an owned `.malts` directory; explicit external layouts remain supported. Installation updates do not move existing projects. Healthy adopted stores can relocate through a read-only plan, backup/restore, current-effect review and formal forward switch. The new epoch does not restore old Grants/acceptance or activate a Phase automatically. Retain old stores, external historical references and source capsules according to their actual dependencies. See [workspace management and store relocation](MANAGEMENT_AND_RELOCATION.md) for steps and limits.
+
+## Installed MCP Integration
+
+MCP is installed and enabled for every selected Host as part of ordinary installation and updates. Verify `malts_installation` after the Host reloads. Use the current opted-in workspace with Task tools; basic status and packaged workflows work before project initialization. Installation creates no Project, Phase or execution Grants. Existing project-specific permissions remain explicit. See [MCP configuration](MCP_CONFIGURATION.md) for tool arguments, preserving updates, connection checks and recovery.

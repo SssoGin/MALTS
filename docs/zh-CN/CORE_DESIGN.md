@@ -1,6 +1,6 @@
 # 多 Agent 长任务调度与成长系统
 
-MALTS（Multi-Agent Long-Task Scheduling and Growth System，多 Agent 长任务调度与成长系统）围绕目标、可检查结果、可恢复执行和经验评估组织 AI Agent 项目工作。默认由单 Agent 执行，已授权协作使用同一项目和验收模型。当前实现为 **2.0.6**。
+MALTS（Multi-Agent Long-Task Scheduling and Growth System，多 Agent 长任务调度与成长系统）围绕目标、可检查结果、可恢复执行和经验评估组织 AI Agent 项目工作。默认由单 Agent 执行，已授权协作使用同一项目和验收模型。当前实现为 **2.0.7**。
 
 ## 工作区权威、进入与并发
 
@@ -534,3 +534,7 @@ Capabilities 可查询当前动作合同。详细操作和示例见[控制端操
 ## 恢复后的状态与接续
 
 入口、包检查、工作区权威、治理就绪、Task可继续及业务授权分别核验。迁址状态提供原journal的下一步，workspace-final-verify生成只读当前闭包，recovery-next-task-actions解释暂停Task。经审阅的task.resume-after-recovery只准备匹配Task为READY，继续保留预算、旧Grant及验收失效；新执行仍按当前权限和效果合同处理。职责、严格退出和可执行请求见[恢复核验说明](MANAGEMENT_AND_RELOCATION.md#7-入口报告迁址下一步与最终核验)。
+
+## 已安装 MCP 的集成
+
+安装维护固定的 MCP 入口和独立依赖环境，两者均位于不可变代际之外。每次启动先核对 Boot、注册表、活动指针和代际身份，再加载当前实现。宿主修改限定在有指纹和前像的 `malts` 条目，用户修改会阻止写入。依赖在激活前准备，配置及实际连接在提交前核验；激活后失败沿原事务向前恢复。每次项目请求核对已有工作区定位，避免共享全局项目或隐式提高权限。标准端点只读，受配置的执行继续受现有 Grant 和控制端检查约束。

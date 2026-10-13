@@ -8,7 +8,7 @@ MALTS is an operating framework for AI Agent project work. It connects goal clar
 
 One Agent is the default executor. When independent investigation, implementation or verification helps, explicitly authorized Agents can share the work. The main Agent remains responsible for integration, acceptance and delivery. The same goals, stages, verification and recovery methods apply to both modes.
 
-The current version is **2.0.6**. This page describes MALTS as a complete system; version-specific changes and upgrade implications are in the [Changelog](CHANGELOG.md).
+The current version is **2.0.7**. This page describes MALTS as a complete system; version-specific changes and upgrade implications are in the [Changelog](CHANGELOG.md).
 
 ## Problems it addresses
 
@@ -68,6 +68,7 @@ Workflows are delivered as Skills: method packages an Agent can discover and use
 
 | Capability | Default | When useful |
 |---|---|---|
+| MCP tools | Installed and enabled with each selected Host | Query current progress, workflows and verification |
 | Single Agent | Normal execution path | Ordinary work and strongly dependent tasks |
 | Project and long-work records | Selected according to need | Work spans turns/stages/windows and needs persistent goals/progress |
 | Multi-Agent scheduling | Requires explicit delegation scope | Responsibilities/resources/results can be separated with useful value |
@@ -191,7 +192,7 @@ MALTS provides reviewed legacy-workspace adoption and long-project readiness que
 
 ## Version
 
-Current release: **2.0.6**. See the [MALTS 2.0.6 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.0.6) for notes/optional offline ZIP and [Changelog](CHANGELOG.md) for history.
+Current release: **2.0.7**. See the [MALTS 2.0.7 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.0.7) for notes/optional offline ZIP and [Changelog](CHANGELOG.md) for history.
 
 ## Documentation languages
 
@@ -205,6 +206,6 @@ Some Agent methods draw on [andrej-karpathy-skills](https://github.com/multica-a
 
 MALTS uses the [MIT License](LICENSE).
 
-### Host MCP Configuration Diagnostics
+### MCP Installation And Use
 
-Installation discovery and a Host's saved MCP settings are separate checks. For read-only diagnosis and recovery steps, see [MCP configuration](docs/MCP_CONFIGURATION.md). Version 2.0.6 provides fragment generation, comparison and external-configuration diagnostics.
+Installation and updates include the `malts` MCP entry for every selected Host. The installer provisions a private dependency environment, preserves unrelated settings, and tests a real stdio connection. MCP provides installed-version checks, packaged workflows, workspace readiness, Task context and current-evidence verification. Supply the current opted-in workspace for project queries; installation creates no global Project or execution rights. Restart or reconnect a Host that has not reloaded its configuration. See [MCP configuration](docs/MCP_CONFIGURATION.md).

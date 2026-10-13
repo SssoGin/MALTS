@@ -2,13 +2,34 @@
 
 [中文](zh-CN/MCP_CONFIGURATION.md) · [Installation](INSTALL.md) · [Lifecycle](LIFECYCLE.md) · [Workspace relocation](MANAGEMENT_AND_RELOCATION.md)
 
-MALTS 2.0.6 provides the comparison and diagnostic commands described here alongside the existing `mcp-config` fragment generator.
+The Model Context Protocol (MCP) lets an Agent Host call external tools. MALTS uses local standard input/output (stdio) communication with its Python service; it does not require a network listening port.
+
+MALTS 2.0.7 installs and updates the required `malts` MCP service for the selected Hosts. The comparison and diagnostic commands remain available for managed and project-specific entries.
 
 ## Purpose And Ownership
 
-A Host launches a MALTS MCP server using its saved interpreter, script path, workspace state and Project arguments. An installation update can change the active generation; root consolidation can change the lifecycle location; a workspace relocation can change the state directory. A previously correct Host entry can therefore become stale while the MALTS installation remains healthy.
+A Host launches the managed MALTS MCP service through its saved interpreter and fixed launcher. The service resolves the active installation and verifies project bindings per request. Separately configured project-specific endpoints retain their explicit state, Project and permission arguments; those references can become stale after an update or relocation while the installed core remains healthy.
 
-MALTS generates configuration fragments and can inspect recognized entries. The Host owns its configuration file. Inspection does not execute a configured command, register a server, edit that file, change a Task or grant permission. A current configuration is one prerequisite for a connection; it is not a live connection test or business acceptance.
+The installer maintains its fingerprinted `malts` entry within the Host's file; the rest of that file remains Host/user-owned. Fragment generation and read-only inspection do not execute configured commands, edit files, change Tasks or grant permission. Configuration agreement is distinct from the installer's cold connection test and from business acceptance.
+
+## Automatic Installation And Workspace Use
+
+The ordinary installation/update command provisions the `malts` entry automatically; do not manually generate a Project binding just to finish installation. The installer manages only this entry and its own interpreter environment. A reviewed configuration plan contains paths and fingerprints, not unrelated configuration values. Existing settings, comments, model accounts and other servers remain outside its ownership. User edits to the managed entry produce a conflict requiring review.
+
+The fixed `runtime/mcp/mcp_launcher.py` resolves and verifies the selected Host’s active generation. Basic installation and workflow tools work without a project. For project tools, supply the current workspace explicitly; the server validates its native locator or adopted binding on each request and reads the current store. It never invents a global database or retains a process-wide selected project. Workspace relocation is therefore followed through the verified locator.
+
+| Tool | Use |
+|---|---|
+| `malts_installation` | Read installed version and service readiness |
+| `malts_workflow` | Read one task, phase, artifact or recovery workflow |
+| `malts_entry_status` | Check workspace binding and readiness; optionally verify the package |
+| `malts_actions` | Read the selected project contract and current read-only policy |
+| `malts_context` | Read the selected Task’s current state, dependencies and recovery context |
+| `malts_verify_task` | Recheck current acceptance evidence without rewriting history |
+
+For example, invoke `malts_context` with `{"workspace":"<absolute-current-project-workspace>","task_id":"<actual-task-id>"}`. If startup cwd already equals that verified workspace, it can supply the default; otherwise pass the path. A project that has not opted in receives a binding error rather than a new database. Use the existing approved project initialization or adoption workflow first.
+
+The standard endpoint is read-only. Installation does not mint Grants, launch Agents, activate a Phase or bypass controller checks. Explicitly bounded write endpoints continue to use existing Project/Task/actor policy and runtime Grants; the fragment comparison section below applies to those endpoints. Cold connection checks verify a newly started server, while actual Host loading still needs reconnect/restart where necessary. Uninstall removes the owned `malts` entry while preserving unrelated settings and local recovery material.
 
 ## Compare A Selected Entry
 
@@ -40,7 +61,7 @@ Exit code 0 means the selected entry agrees and its checked references are curre
 | OpenCode | `opencode.json`; `opencode.jsonc` | JSON/JSONC `mcp`, including comments and trailing commas |
 | DeepSeek Harness | `profiles/<profile>/cordis.patch.yml` | Cordis insert patches with `@deepseek-ai/dsh-mcp-client` |
 
-Generated Cordis JSON with standalone YAML comments works without an additional parser. Block YAML requires optional PyYAML in the diagnostic Python environment. Safe parsing rejects tags, anchors, aliases, duplicate keys and excessive nesting. Missing parser support is `UNSUPPORTED`, not a successful check; inspection never installs a dependency. JSON/TOML core operations remain available without PyYAML.
+Generated Cordis JSON with standalone YAML comments works without an additional parser. The installed MCP environment includes PyYAML for block YAML; a separately selected diagnostic interpreter also needs that parser. Safe parsing rejects tags, anchors, aliases, duplicate keys and excessive nesting. Missing parser support is `UNSUPPORTED`, not a successful check; inspection never installs a dependency. JSON/TOML core operations remain available without PyYAML.
 
 For project-local or custom files, supply an exact location:
 
@@ -64,10 +85,10 @@ Pass the actual registered tool set for the installation. Files are limited to 1
 | `VALID_OLDER_GENERATION` | The referenced older generation is still registered and present. Review an update; it is not a missing-script error. |
 | `DIFFERENT` | The deployed entry differs from the selected binding or policy. Review individual differences. |
 | `INVALID` | A script/state/resource reference is missing, a generation is unregistered, or a Project/workspace binding is inconsistent. Generate and review a correction. |
-| `NOT_CONFIGURED` | No recognized selected entry exists. MCP setup is optional; this does not mean it was checked successfully. |
+| `NOT_CONFIGURED` | No recognized selected entry exists. The required managed entry is absent, or the selected project-specific entry has not been configured; this is not a successful setup. |
 | `UNSUPPORTED` / `CHECK_FAILED` | The representation, parser, access or bounded check could not establish the result. Resolve that condition before declaring it healthy. |
 
-The aggregate external report uses `DRIFT` for changed/invalid/older entries and `UNVERIFIED` for unsupported formats. Installation trust remains separately reported. An external entry can make `doctor` return `DEGRADED` with `core_trust=LOCALLY_CONSISTENT`; that does not justify reinstalling or rolling back a healthy payload. `doctor-repair-plan` covers the installation's managed files, not Host-owned configuration.
+The aggregate external report uses `DRIFT` for changed/invalid/older entries and `UNVERIFIED` for unsupported formats. Installation trust remains separately reported. An external entry can make `doctor` return `DEGRADED` with `core_trust=LOCALLY_CONSISTENT`; that does not justify rolling back a healthy payload. Lifecycle repair covers the installer-owned `malts` entry under its reviewed plan; unowned project-specific configuration is not automatically replaced.
 
 ## Update And Relocation Recovery
 

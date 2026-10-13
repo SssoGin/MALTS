@@ -1,10 +1,10 @@
 # Capability And Skill Governance
 
-A Skill describes a method; a capability describes what a Host or component can provide; exposure determines what is discoverable; authorization determines which effects may execute. MALTS records these decisions separately so source visibility or a routing recommendation cannot expand permission. Current version: **2.0.6**.
+A Skill describes a method; a capability describes what a Host or component can provide; exposure determines what is discoverable; authorization determines which effects may execute. MALTS records these decisions separately so source visibility or a routing recommendation cannot expand permission. Current version: **2.0.7**.
 
 ## 1. Status And Purpose
 
-Capability governance explains what a workflow can use, which sources are reviewed and how native exposure differs from execution permission. It applies to the whole product, currently **2.0.6**. It is not a third-party package manager.
+Capability governance explains what a workflow can use, which sources are reviewed and how native exposure differs from execution permission. It applies to the whole product, currently **2.0.7**. It is not a third-party package manager.
 
 Without this separation, a catalog can become a second source of operating rules: a copied Skill drifts from its original, a display name is mistaken for an installed implementation, or a high-ranked method is treated as authorized. Governance retains the source identity and makes review/exposure decisions inspectable before any effect.
 
@@ -136,3 +136,7 @@ Check source identity and schema, dependency closure, current eligibility, inten
 A reviewable capability result states source revision/hash, declared interface, selected tool/profile, exposure outcome, checks performed and unavailable checks. Inspect conflicts or missing dependencies before accepting an entry as usable. Parsing a schema or discovering a bridge accepts only that part of the contract.
 
 Runtime capability evidence additionally distinguishes unsupported, provider-unconfigured, configured-unverified, inherited/static and effectively observed bindings. The classifier consumes existing evidence; it does not run a provider call or establish a multi-Agent behavior result. Its g4_status remains NOT_RUN even when preconditions are met. An effective concurrency ceiling must come from the observed profile rather than directory count or requested model names.
+
+## Installed MCP Integration
+
+MCP is installed and enabled for every selected Host as part of ordinary installation and updates. Verify `malts_installation` after the Host reloads. Use the current opted-in workspace with Task tools; basic status and packaged workflows work before project initialization. Installation creates no Project, Phase or execution Grants. Existing project-specific permissions remain explicit. See [MCP configuration](MCP_CONFIGURATION.md) for tool arguments, preserving updates, connection checks and recovery.
