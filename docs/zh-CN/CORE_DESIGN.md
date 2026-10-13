@@ -280,28 +280,28 @@ MALTS 提供可恢复轮次，不延长上下文窗口，也不自动监视和�
 
 Completion 是 evidentiary claim，必须由 verification records 支撑，而不是主观信心。
 
-Phase 或 final delivery 前，Agent 应审阅 `DELIVERY_CHECKLIST.en.md`，并在 `WORK_TASK_REPORT.md` 或最终 user-facing report 中记录审阅。
+在阶段结束或最终交付前，Agent 应审阅 `DELIVERY_CHECKLIST.en.md`，并在 `WORK_TASK_REPORT.md` 或面向用户的最终报告中记录检查结果。
 
-Report 应包含：
+报告应包含：
 
-- result
-- changed files or artifacts
-- verification performed
-- skipped or failed checks
-- known risks
-- recovery point
-- next step
-- growth review and memory-write decision when applicable
+- 结果
+- 变更的文件或产物
+- 已执行的验证
+- 跳过或失败的检查
+- 已知风险
+- 恢复点
+- 下一步
+- 适用时的成长审阅与是否写入记忆的决定
 
-Termination 有三种实际状态：
+工作结束可分为三种实际状态：
 
-| State | 含义 | Delivery behavior |
+| 状态 | 含义 | 交付处理 |
 |---|---|---|
-| Ideal | 所有 acceptance criteria 通过，risks 已关闭或接受 | 正常交付 |
-| Pragmatic | 核心目标已满足，但存在透明残余风险 | 带 risk list 交付 |
-| Forced | 用户停止、预算耗尽、环境阻塞或方向不确定 | 保存 state 和 recovery path |
+| 理想结束（Ideal） | 所有验收条件通过，风险已关闭或明确接受 | 正常交付 |
+| 满足主要目标（Pragmatic） | 核心目标已满足，但仍有明确说明的残余风险 | 附风险清单交付 |
+| 提前结束（Forced） | 用户要求停止、预算耗尽、环境阻塞或方向尚未确定 | 保存当前状态和恢复路径 |
 
-如果 verification 不完整，delivery record 必须明确说明限制。部分验证的结果不是完全验证的交付。
+验证不完整时，交付记录必须明确说明限制。部分验证的结果不能当作完全验证的交付。
 
 成果的内容、所属阶段、版本、来源和依赖分别记录。跨任务共享前核当前内容和资格；替代、失效或退役的成果保留历史解释，不能由旧链接自动升级为另一份当前成果。
 
