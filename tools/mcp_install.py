@@ -33,7 +33,9 @@ def locations(tool_roots):
         elif host=='claude':paths=[root.parent/'.claude.json']
         elif host=='opencode':
             paths=[p for p in (root/'opencode.json',root/'opencode.jsonc') if p.exists()]
-            if len(paths)>1:raise ConfigError('AMBIGUOUS_OPENCODE_CONFIGURATION')
+            # OpenCode loads JSON then JSONC and merges them. Keep identical
+            # owned entries in both present global layers so updates/uninstall
+            # retain ownership rather than orphan a lower-layer registration.
             if not paths:paths=[root/'opencode.json']
         else:
             profiles=root/'profiles';_path(profiles)

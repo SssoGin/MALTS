@@ -136,7 +136,7 @@ CPython的marshal序列化会因模块加载后的不可变对象共享和引用
 
 MCP 是每个所选宿主的必需安装项。同一份审阅计划包含独立依赖环境、固定启动入口、受管理的 `malts` 条目、准确的配置前像和实际 stdio 连接检查。成功结果必须包含 `mcp_installation.status=READY`；仅部署文件不能算安装完成。不需要另行开启 MCP。
 
-生命周期目录中的 `runtime/mcp/env-<requirements-digest>` 保存独立环境，位于不可变安装代际之外。固定入口通过该宿主的 Boot、注册表和活动指针核实当前代际，再启动服务。Codex 使用 `config.toml`，Claude Code 使用工具根旁的 `.claude.json`，OpenCode 使用已有的 `opencode.json` 或 `opencode.jsonc`；Harness 配置各已有 profile 的 `cordis.patch.yml`，没有 profile 时创建 `default`。其他设置和 MCP 服务保留。未经 MALTS 管理的同名 `malts` 条目，或用户对受管理条目的修改，会阻止相关操作，不能直接覆盖。
+生命周期目录中的 `runtime/mcp/env-<requirements-digest>` 保存独立环境，位于不可变安装代际之外。固定入口通过该宿主的 Boot、注册表和活动指针核实当前代际，再启动服务。Codex 使用 `config.toml`，Claude Code 使用工具根旁的 `.claude.json`，OpenCode 使用已有的 `opencode.json` 和／或 `opencode.jsonc`；两者同时存在时，在两个合并层中维护相同的受管理条目；Harness 配置各已有 profile 的 `cordis.patch.yml`，没有 profile 时创建 `default`。其他设置和 MCP 服务保留。未经 MALTS 管理的同名 `malts` 条目，或用户对受管理条目的修改，会阻止相关操作，不能直接覆盖。
 
 首次安装需要取得已固定版本的 Python 依赖；MALTS ZIP 不包含这些依赖的 wheel。因此，离线安装须已有核验过的受管理环境，或提供可用的本地包源；离线依赖失败时，安装仍未完成。安装器记录实际依赖版本，不修改 PATH，也不向其他应用的 Python 环境安装包。
 

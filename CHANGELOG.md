@@ -11,6 +11,7 @@ MALTS retains its full project, task, verification, recovery, collaboration and 
 ### Required MCP setup
 
 - Installation creates a lifecycle-owned Python environment with pinned MCP, JSON-schema and safe YAML dependencies. It registers the enabled `malts` service for each selected Host; a separate opt-in step is no longer needed.
+- OpenCode JSON and JSONC global layers can coexist. The installer preserves both files and maintains the same owned entry in their merged configuration.
 - A fixed launcher resolves the active generation through verified Host Boot/registry/pointer identity, so future version updates do not leave the managed service pointing at a retired script.
 - Configuration edits preserve unrelated model settings, accounts, other MCP servers, comments and text encoding. Only installer-owned entries are maintained; conflicting unowned entries and user edits stop the affected operation. Local configuration preimages remain available for recovery and never enter public packages.
 
@@ -38,6 +39,7 @@ MALTS 保留完整的项目、任务、验证、恢复、协作与经验工作�
 ### 必需的 MCP 配置
 
 - 安装建立生命周期维护的独立 Python 环境，包含固定版本的 MCP、JSON Schema 和安全 YAML 依赖；为每个所选宿主注册并启用 `malts` 服务，不再需要另行选择开启。
+- OpenCode 全局 JSON 与 JSONC 配置可同时存在。安装器保留两个文件，在合并配置层中维护相同的受管理条目。
 - 固定入口通过核实后的宿主 Boot、注册表和活动指针解析当前代际，避免后续更新让受管理服务继续引用已退役脚本。
 - 配置修改保留无关模型设置、账号、其他 MCP 服务、注释及文本编码。仅维护安装器拥有的条目；未经管理的同名条目和用户修改会阻止相关操作。本机配置前像用于恢复，不进入公开包。
 
