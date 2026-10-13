@@ -129,7 +129,7 @@ def _launch(host,entry):
     if len(indexes)!=1:raise ConfigError('MALTS_SCRIPT_ARGUMENT_MISSING_OR_AMBIGUOUS')
     index=indexes[0];values={'script':args[index],'command':executable}
     value_flags={'state-dir','resource-root','project-id','tool-root','actor','authority-ref','task-id','task-revision','dispatch-id','workflow-topic'}
-    switches={'enable-write','allow-protected-input-capture'}
+    switches={'enable-write','allow-protected-input-capture','project-bound'}
     i=index+1
     while i<len(args):
         token=args[i]
@@ -147,7 +147,7 @@ def _launch(host,entry):
                 value=args[i]
             values[name]=value
         i+=1
-    if Path(values['script']).name=='mcp_launcher.py':
+    if Path(values['script']).name=='mcp_launcher.py' and not values.get('project-bound'):
         if set(values)!={'script','command','tool-root'}:raise ConfigError('INSTALLED_MCP_ARGUMENT_INVALID')
     elif any(k not in values for k in ('state-dir','resource-root','project-id')):raise ConfigError('MALTS_BINDING_ARGUMENT_MISSING')
     return values
@@ -186,7 +186,7 @@ def _generation(script,lifecycle_root):
 
 
 def _binding(values):
-    if Path(values['script']).name=='mcp_launcher.py':
+    if Path(values['script']).name=='mcp_launcher.py' and not values.get('project-bound'):
         try:
             from malts_lifecycle import resolve_discovery
             resolve_discovery(values['tool-root'])
@@ -222,8 +222,8 @@ def _malts(name,entry):
     if isinstance(name,str) and name.lower().startswith('malts'):return True
     if not isinstance(entry,dict):return False
     args=entry.get('args',[])
-    return (isinstance(args,list) and any(isinstance(v,str) and Path(v).name=='v2_mcp.py' for v in args)) or (
-        isinstance(entry.get('command'),list) and any(isinstance(v,str) and Path(v).name=='v2_mcp.py' for v in entry['command']))
+    return (isinstance(args,list) and any(isinstance(v,str) and Path(v).name in {'v2_mcp.py','mcp_launcher.py'} for v in args)) or (
+        isinstance(entry.get('command'),list) and any(isinstance(v,str) and Path(v).name in {'v2_mcp.py','mcp_launcher.py'} for v in entry['command']))
 
 
 def inspect_configuration(*,host,config_path,lifecycle_root=None,expected=None,server_name=None,tool_root=None,replacements=None,check_interpreter=False):
@@ -252,7 +252,7 @@ def inspect_configuration(*,host,config_path,lifecycle_root=None,expected=None,s
                 if generation=='VALID_OLDER_GENERATION':item['status']='VALID_OLDER_GENERATION'
                 if current is not None:corrections['script']=str(current)
                 for old,new in (replacements or {}).items():
-                    if _same(values['state-dir'],old) and not _same(old,new):
+                    if 'state-dir' in values and _same(values['state-dir'],old) and not _same(old,new):
                         corrections['state-dir']=str(new);issues.append('STATE_RELOCATED')
                 if desired:
                     fields=('script','state-dir','resource-root','project-id','tool-root','task-id','task-revision','dispatch-id','workflow-topic','enable-write','allow-protected-input-capture','actor','authority-ref')
@@ -263,6 +263,9 @@ def inspect_configuration(*,host,config_path,lifecycle_root=None,expected=None,s
                         if not equivalent:item['differences'].append({'field':field,'observed':'REDACTED' if field in {'actor','authority-ref'} else before,'expected':'REDACTED' if field in {'actor','authority-ref'} else after})
                 item['issues']=list(dict.fromkeys(issues))
                 item['generation_id']=identity
+                item['endpoint_kind']=endpoint_kind(values)
+                item['enabled']=entry.get('enabled',entry.get('disabled') is not True)
+                item['policy']={'write_enabled':values.get('enable-write',False),'protected_capture':values.get('allow-protected-input-capture',False),'environment_keys':sorted(entry.get('env',entry.get('environment',{}))) if isinstance(entry.get('env',entry.get('environment',{})),dict) else []}
                 item['binding']={key:values[key] for key in ('script','state-dir','resource-root','project-id','tool-root') if key in values}
                 item['suggested_values']=corrections
                 if issues:item['status']='INVALID'
@@ -275,7 +278,8 @@ def inspect_configuration(*,host,config_path,lifecycle_root=None,expected=None,s
                         item['regeneration_arguments']=argv
                         item['regeneration_note']='Review the generated fragment; preserve the selected Python interpreter and explicit Host authority policy. No registration or permission is applied.'
             except Exception as exc:
-                item.update(status='CHECK_FAILED',issues=[str(exc) if isinstance(exc,ConfigError) else 'ENTRY_CHECK_FAILED'])
+                partial=host=='codex' and path.parent.name=='.codex' and isinstance(entry,dict) and 'args' not in entry
+                item.update(status='PARTIAL_PROJECT_LAYER' if partial else 'CHECK_FAILED',issues=[] if partial else [str(exc) if isinstance(exc,ConfigError) else 'ENTRY_CHECK_FAILED'])
         if _read(path)!=raw:raise ConfigError('CONFIGURATION_CHANGED_DURING_CHECK')
         statuses={row['status'] for row in report['entries']}
         report['status']=('CHECK_FAILED' if 'CHECK_FAILED' in statuses else 'INVALID' if 'INVALID' in statuses else 'DIFFERENT' if 'DIFFERENT' in statuses else 'VALID_OLDER_GENERATION' if 'VALID_OLDER_GENERATION' in statuses else 'CURRENT' if statuses else 'NOT_CONFIGURED')
@@ -307,10 +311,81 @@ def configuration_locations(tool_roots):
     return locations
 
 
-def scan_configurations(tool_roots,*,lifecycle_root=None,config_files=None,replacements=None):
+def endpoint_kind(values):
+    if Path(values['script']).name=='v2_mcp.py':return 'PROJECT_BOUND_VERSIONED'
+    return 'PROJECT_BOUND_STABLE' if values.get('project-bound') else 'STANDARD_STABLE'
+
+
+def project_configuration_locations(workspaces,tool_roots):
+    """Inspect only the selected directories and bounded ancestor names, never recurse."""
+    locations=[]
+    if 'codex' not in tool_roots:return locations
+    for value in workspaces or []:
+        workspace=_path(value)
+        if not workspace.is_dir():raise ConfigError('WORKSPACE_DIRECTORY_REQUIRED')
+        # Codex scans from the project root through cwd. A missing VCS marker
+        # leaves the selected workspace as our boundary; disclose other layers.
+        ancestors=[workspace,*workspace.parents]
+        if len(ancestors)>64:raise ConfigError('PROJECT_LAYER_DEPTH_BUDGET')
+        project=next((p for p in ancestors if (p/'.git').exists()),workspace)
+        selected=[]
+        for path in ancestors:
+            selected.append(path)
+            if path==project:break
+        for path in reversed(selected):locations.append(('codex',path/'.codex/config.toml',Path(tool_roots['codex'])))
+    return locations
+
+
+def effective_configurations(tool_roots,*,lifecycle_root=None,config_files=None,workspaces=None,document_overrides=None):
+    import copy
+    roots=[_path(p) for p in workspaces or []]
+    roots += [Path(p).parent.parent for h,p in config_files or [] if HOSTS.get(h)=='codex' and Path(p).parent.name=='.codex' and not _same(Path(p),Path(tool_roots.get('codex',''))/'config.toml')]
+    rows=[];seen=set()
+    for workspace in roots:
+        if str(workspace) in seen:continue
+        seen.add(str(workspace))
+        if 'codex' not in tool_roots:continue
+        layers=[Path(tool_roots['codex'])/'config.toml']+[p for _,p,_ in project_configuration_locations([workspace],tool_roots)]
+        layers=list(dict.fromkeys(layers));merged={};sources={};global_names=set();read=[]
+        def merge(left,right):
+            result=copy.deepcopy(left)
+            for k,v in right.items():result[k]=merge(result[k],v) if k in result and isinstance(result[k],dict) and isinstance(v,dict) else copy.deepcopy(v)
+            return result
+        try:
+            for index,path in enumerate(layers):
+                if not path.exists():continue
+                raw=_read(path);read.append((path,raw))
+                proposed=(document_overrides or {}).get(str(path),raw)
+                data=_document('codex',proposed)
+                entries=data.get('mcp_servers',{})
+                if not isinstance(entries,dict):raise ConfigError('INVALID_MCP_SECTION')
+                if index==0:global_names=set(entries)
+                for name,entry in entries.items():
+                    if _malts(name,entry) or name in merged:
+                        if not isinstance(entry,dict):raise ConfigError('INVALID_MCP_ENTRY')
+                        merged[name]=merge(merged.get(name,{}),entry);sources[name]=path
+            if any(_read(path)!=raw for path,raw in read):raise ConfigError('CONFIGURATION_CHANGED_DURING_CHECK')
+            if not merged:rows.append({'host':'codex','workspace':str(workspace),'status':'NOT_CONFIGURED','host_session_connection':'NOT_VERIFIED'})
+            for name,entry in merged.items():
+                values=_launch('codex',entry);status,identity,_=_generation(values['script'],lifecycle_root)
+                issues,_=_binding(values);enabled=entry.get('enabled',True)
+                source='USER' if _same(sources[name],layers[0]) else 'PROJECT'
+                rows.append({'host':'codex','workspace':str(workspace),'server_name':name,'source':source,'source_path':str(sources[name]),'checked_layers':[str(p) for p,_ in read],
+                    'status':'DISABLED' if enabled is False else 'INVALID' if issues else status,'generation_id':identity,'endpoint_kind':endpoint_kind(values),'enabled':enabled,
+                    'global_entry_shadowed':source=='PROJECT' and name in global_names,'issues':issues,'entry_sha256':hashlib.sha256(json.dumps(entry,sort_keys=True).encode()).hexdigest(),
+                    'policy':{'write_enabled':values.get('enable-write',False),'protected_capture':values.get('allow-protected-input-capture',False),'environment_keys':sorted(entry.get('env',{})) if isinstance(entry.get('env',{}),dict) else []},
+                    'host_session_connection':'NOT_VERIFIED','resolution_scope':'CHECKED_DISK_LAYERS_IF_PROJECT_TRUSTED','unchecked_layers':['Profile','CLI overrides','managed requirements','project trust/session loading'],
+                    'recommendation':'REVIEW_INHERIT_GLOBAL_OR_KEEP_PROJECT_POLICY' if source=='PROJECT' else 'USE_STANDARD_WORKSPACE_REQUESTS' if endpoint_kind(values)=='STANDARD_STABLE' else 'KEEP_PROJECT_POLICY'})
+        except Exception as exc:
+            rows.append({'host':'codex','workspace':str(workspace),'status':'NOT_VERIFIED','reason':str(exc) if isinstance(exc,ConfigError) else 'PROJECT_CONFIGURATION_CHECK_FAILED','host_session_connection':'NOT_VERIFIED'})
+    return rows
+
+
+def scan_configurations(tool_roots,*,lifecycle_root=None,config_files=None,replacements=None,workspaces=None):
     report={'format':'malts.mcp-configuration-check','mode':'READ_ONLY','writes_performed':False,'execution_authorized':False,'atomic_snapshot':False,'scope':'KNOWN_HOST_LOCATIONS_AND_EXPLICIT_FILES','complete_global_inventory':False,'files':[]}
     try:
         locations=configuration_locations(tool_roots)
+        locations+=project_configuration_locations(workspaces,tool_roots)
         for tool,path in config_files or []:
             host=HOSTS.get(tool)
             if host is None:raise ConfigError('UNSUPPORTED_CONFIGURATION_HOST')
@@ -325,6 +400,9 @@ def scan_configurations(tool_roots,*,lifecycle_root=None,config_files=None,repla
         states={r['status'] for r in report['files']}
         report['status']='CHECK_FAILED' if 'CHECK_FAILED' in states else 'DRIFT' if states&{'INVALID','DIFFERENT','VALID_OLDER_GENERATION'} else 'UNVERIFIED' if 'UNSUPPORTED' in states else 'CURRENT' if 'CURRENT' in states else 'NOT_CONFIGURED'
         report['reprojection_required']=[{'host':file['host'],'path':file['path'],'server_name':entry['server_name'],'status':entry['status'],'issues':entry['issues'],'suggested_values':entry.get('suggested_values',{}),'regeneration_arguments':entry.get('regeneration_arguments',[])} for file in report['files'] for entry in file['entries'] if entry['status'] in {'INVALID','DIFFERENT','VALID_OLDER_GENERATION'}]
+        report['effective_configuration']=effective_configurations(tool_roots,lifecycle_root=lifecycle_root,config_files=config_files,workspaces=workspaces)
+        if report['status']!='CHECK_FAILED' and any(r['status']=='NOT_VERIFIED' for r in report['effective_configuration']):report['status']='UNVERIFIED'
+        report['effective_configuration_coverage']={'selected_workspaces':[str(p) for p in workspaces or []],'unsupported_project_hosts':[h for h in tool_roots if HOSTS.get(h)!='codex'],'host_session_connection':'NOT_VERIFIED','scope':'USER_AND_SELECTED_CODEX_PROJECT_LAYERS','complete_global_inventory':False}
     except Exception as exc:
         report.update(status='CHECK_FAILED',reason=str(exc) if isinstance(exc,ConfigError) else 'CONFIGURATION_SCAN_FAILED',reprojection_required=[])
     return report
@@ -354,10 +432,10 @@ def parse_config_files(values):
     return rows
 
 
-def lifecycle_reprojection(result,tool_roots,lifecycle_root):
+def lifecycle_reprojection(result,tool_roots,lifecycle_root,config_files=None,workspaces=None):
     # Diagnostic failure after a committed mutation cannot change its outcome.
     output=dict(result)
-    output['external_configuration']=scan_configurations(tool_roots,lifecycle_root=lifecycle_root)
+    output['external_configuration']=scan_configurations(tool_roots,lifecycle_root=lifecycle_root,config_files=config_files,workspaces=workspaces)
     return output
 
 

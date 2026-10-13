@@ -1,5 +1,65 @@
 # Changelog
 
+
+## v2.0.8 — 2026-10-13
+
+
+### Project-aware MCP diagnostics
+
+MALTS now explains the selected project's MCP entry separately from the installed payload and the global service connection. Codex user and selected project layers are merged within a bounded scope. Reports show the effective source, standard or dedicated endpoint, enabled state, generation and same-name shadowing. A same-version dedicated entry is recognized as a different interface, and partial disabled overrides and differently named servers are handled separately. Inspection does not edit configuration or create project state.
+
+Ordinary read-only projects inherit the installer-owned global `malts` entry and choose their existing workspace per request. Dedicated project bindings, interpreters, environments and restricted write policies remain supported. Project trust, Profile/CLI overrides and the currently loaded Host session remain explicitly unverified when unavailable; a cold connection is not reported as proof that an open chat has switched.
+
+### Stable dedicated endpoints
+
+All four Host configuration fragments can use `mcp-config --stable` with the verified tool root. The fixed launcher selects the active generation on each start while retaining the existing Project, store, resource root, actor, authority, Task/dispatch and permission contract. The chosen project interpreter is preserved. This removes the need to rewrite a generation directory after each upgrade, while fixed state bindings still require review after relocation. The standard endpoint remains read-only and no new execution rights are issued.
+
+### Reviewed configuration changes
+
+New `mcp-project-plan`, `mcp-project-execute` and `mcp-project-recover` commands support an explicitly selected Codex project TOML file. The `stable-project` strategy changes only launch arguments. Explicit `inherit-global` removes only an eligible same-name project entry and child tables, preserving other servers, comments, encoding and settings. Different interpreters, environments, disabled/custom policy and protected or bounded write settings are rejected for inheritance and retained for review.
+
+Plans bind target and inspected-layer fingerprints. Windows exclusive handles protect application; local preimages and the original operation journal support forward recovery and guarded restoration. Divergent user edits are preserved. No whole-file deletion, silent server renaming, automatic project adoption or new global project database is introduced.
+
+### Update and retirement consistency
+
+Ordinary install/update planning, Doctor and generation retirement share repeated explicit workspace/configuration inputs. PowerShell installation and update entry points expose `-Workspace` and `-HostConfig`. Updates reject selected project-file drift and return the selected diagnostic scope after completion. Retirement rejects known selected references to the retiring generation, unreadable selected configurations and changed reference guards. Scope is reported rather than claiming a complete computer-wide reference inventory; active old processes require separate authorized inspection and reconnection.
+
+### Upgrade and verification limits
+
+Update through the normal reviewed lifecycle from the public repository, then reconnect the affected Hosts. Schema69, existing stores, bindings and Task/Phase history are retained; MCP configuration work does not rerun adoption or reactivate a project. A dedicated endpoint can retain its existing versioned form, use the new stable fragment, or be explicitly reviewed for global inheritance.
+
+Verification covers selected-layer diagnostics, configuration preservation and drift, operation recovery, known-reference retirement blocking, isolated lifecycle installation/update, actual stdio connections and existing MCP/lifecycle regressions. Codex's preserving project editor is qualified on Windows. Other Hosts' project-layer precedence and automatic project editors, all already-open Host sessions, arbitrary external writers and business/model performance are not claimed as verified.
+
+## 简体中文
+
+发布日期：2026-10-13（北京时间，UTC+08:00）。
+
+### 面向所选项目的 MCP 诊断
+
+MALTS 将所选项目入口与安装载荷、全局服务连接分别说明，在有界范围内合并 Codex 用户级与项目配置层。报告给出生效来源、标准或专用端点、启用状态、代际及同名覆盖。同版本专用条目仍被识别为不同接口；局部禁用覆盖和不同名称服务器分别处理。检查不编辑配置，不创建项目状态。
+
+普通只读项目继承安装器维护的全局 `malts`，每次请求选择既有工作区。固定项目、解释器、环境和受限写策略继续支持。项目信任、Profile 或命令行覆盖及当前宿主会话无法观测时明确保留未知；冷连接成功不证明已经打开的聊天切换入口。
+
+### 稳定的项目专用入口
+
+四端配置片段均可通过 `mcp-config --stable` 与已核实工具根生成。固定启动器每次启动选择活动代际，同时保留原 Project、状态库、资源根、actor、authority、Task、dispatch 和权限合同，项目解释器保持原选择。后续升级不必手改代际目录；状态库迁址后的固定绑定仍须审阅。标准端点保持只读，不增加执行权限。
+
+### 审阅后调整配置
+
+新增 `mcp-project-plan`、`mcp-project-execute`、`mcp-project-recover`，用于明确选择的 Codex 项目 TOML 文件。`stable-project` 只改启动参数；明确选择 `inherit-global` 后，才移除符合条件的同名项目条目和子表，保留其他服务器、注释、编码和设置。不同解释器、专用环境、禁用或自定义策略、受保护内容捕获和限定写权限不自动合并，留待审阅。
+
+计划绑定目标和所检查配置层的指纹，应用使用 Windows 独占句柄；本机前像和原操作记录用于前向恢复及受校验的还原。用户后续修改保留。不删除整个配置文件、不无声重命名服务器、不自动采用项目，也不建立混合项目的全局数据库。
+
+### 更新与退役检查一致
+
+普通安装更新计划、Doctor 和代际退役接受同一组显式工作区及配置输入；PowerShell 安装更新入口提供 `-Workspace`、`-HostConfig`。更新拒绝所选项目文件漂移，完成后仍报告所选范围。退役拒绝已知所选文件对待退役代际的引用、不可读配置及变化的引用指纹。报告说明范围，不宣称全机无引用；旧运行进程仍须另外获得授权后检查和重连。
+
+### 升级与验证边界
+
+从公开仓库按普通生命周期预览、审阅和更新，再重新连接受影响宿主。Schema69、既有状态库、绑定及 Task、Phase 历史保留；MCP 配置调整不重新采用或自动激活项目。专用端点可以保留原版本路径、采用稳定片段，或明确审阅后继承全局。
+
+验证覆盖所选层诊断、配置保持和漂移、原操作恢复、已知引用退役阻塞、隔离安装更新、实际标准输入输出连接以及既有 MCP 和生命周期回归。Codex 项目保留式编辑按 Windows 配置验证。其他宿主项目层优先级及自动编辑、全部既有宿主会话重载、任意外部写者和业务或模型性能没有作为已验证结论。
+
 ## v2.0.7 — 2026-10-13
 
 ### English

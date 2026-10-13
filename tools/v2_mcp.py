@@ -326,7 +326,7 @@ def build_server(policy):
     import jsonschema
     import mcp.types as types
     from mcp.server.lowlevel import Server
-    server=Server('malts-v2-candidate',version=f'candidate-interface-{MCP_APPLICATION_INTERFACE_VERSION}')
+    server=Server('MALTS Project',version=(Path(__file__).resolve().parent.parent/'VERSION').read_text('utf-8-sig').strip())
     empty={'type':'object','additionalProperties':False}
     schemas={
         'malts_entry_status':{'type':'object','properties':{'verify_package':{'type':'boolean'}},'additionalProperties':False},
@@ -384,7 +384,7 @@ class SafeArgumentParser(argparse.ArgumentParser):
                                 'message':'Invalid command arguments; consult --help.'})+'\n')
 
 
-def main():
+def main(argv=None):
     parser=SafeArgumentParser(description=__doc__)
     parser.add_argument('--state-dir',type=Path,required=True); parser.add_argument('--resource-root',type=Path,required=True)
     parser.add_argument('--project-id',required=True); parser.add_argument('--actor')
@@ -393,7 +393,7 @@ def main():
     parser.add_argument('--tool-root',type=Path)
     parser.add_argument('--task-id');parser.add_argument('--task-revision',type=int);parser.add_argument('--dispatch-id')
     parser.add_argument('--workflow-topic',choices=['phase','artifact','recovery'])
-    args=parser.parse_args()
+    args=parser.parse_args(argv)
     try:
         policy=BoundProject(**vars(args))
         import anyio

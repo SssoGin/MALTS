@@ -4,7 +4,7 @@
 
 The Model Context Protocol (MCP) lets an Agent Host call external tools. MALTS uses local standard input/output (stdio) communication with its Python service; it does not require a network listening port.
 
-MALTS 2.0.7 installs and updates the required `malts` MCP service for the selected Hosts. The comparison and diagnostic commands remain available for managed and project-specific entries.
+MALTS 2.0.8 installs and updates the required `malts` MCP service for the selected Hosts. The comparison and diagnostic commands remain available for managed and project-specific entries.
 
 ## Purpose And Ownership
 
@@ -99,3 +99,55 @@ Review the proposed fragment against the existing Host entry, retaining the chos
 ## Project Markdown Encoding
 
 MALTS project Markdown controls accept UTF-8 with or without BOM. Their validators decode both forms; BOM presence is not an acceptance criterion. Do not repeatedly rewrite a document solely to restore a BOM removed by an editor. A template may retain its existing encoding, and original evidence fingerprints remain byte-specific. Skill front matter, code, scripts, JSON and external project conventions retain their separate encoding requirements.
+
+## Selected Project Configuration
+
+For ordinary read-only use, inherit the installer-owned user-level `malts` entry and pass the workspace in each project request. A fixed Project, a separate interpreter or environment, or a restricted write policy can require a dedicated endpoint. Those requirements remain valid; a same-name entry is not automatically redundant.
+
+Select the current workspace when running Doctor:
+
+```powershell
+python -B "$runtime/tools/malts_lifecycle.py" doctor `
+  --lifecycle-root '<verified-lifecycle-root>' `
+  --tool-root 'codex=<Codex-tool-root>' `
+  --workspace '<absolute-current-workspace>'
+```
+
+Supply the complete registered Host set when inspecting a shared installation. Repeated `--workspace` selects additional directories; repeated `--host-config HOST=ABSOLUTE_PATH` selects custom files. `Install-MALTS.ps1` and `Update-MALTS.ps1` accept the corresponding `-Workspace` and `-HostConfig` arrays. The reviewed update plan binds selected project-file fingerprints, rejects intervening edits, and returns the same selected scope after installation. These inputs request inspection, not automatic project-file editing.
+
+For Codex, MALTS reads the user file and `.codex/config.toml` layers from the detected Git project root through the selected workspace; without a Git root its boundary is the selected workspace. The closest checked layer wins and nested table settings are merged. A partial `enabled=false` table can disable the inherited server. Reports retain individual file validity and separately give `effective_configuration`: source, endpoint kind, generation, enabled state, same-name shadowing, environment key names and write-policy flags. Same-version standard and project-bound endpoints have different parameter contracts. Different server names can coexist.
+
+This is disk-layer analysis **conditional on the project being trusted**. Profile files, CLI overrides, managed requirements and the Host's actual loaded connection are not observed; reports explicitly say `NOT_VERIFIED`. Other Hosts retain bounded explicit-file diagnostics but their project-layer precedence is not inferred from Codex. A failed or unsupported layer cannot prove a healthy effective connection. See [Codex configuration precedence](https://developers.openai.com/codex/config-basic/).
+
+## Retaining A Dedicated Endpoint
+
+Generate a stable, fixed-project fragment by adding `--stable` to `mcp-config` and supplying the verified `--tool-root`. The generated fragment uses `runtime/mcp/mcp_launcher.py --project-bound` and preserves the existing Project/state/resource, actor, authority, Task/dispatch and write-policy arguments. All four Host fragment formats support this launch mode. The launcher verifies the active generation on each new process start; the selected interpreter still needs the MCP dependencies. An interpreter deliberately chosen for a project is not replaced by the global environment.
+
+The dedicated endpoint continues to expose its existing fixed-project interface. It does not become a general-purpose write service or issue Grants. A changed state location still requires explicit review of the fixed binding; the stable launcher solves generation-path maintenance, not database relocation. A running old process must be stopped or reconnected through the Host's authorized workflow before its loaded version changes.
+
+## Reviewed Project Entry Changes And Recovery
+
+The built-in preserving edit profile currently supports an explicitly selected Codex project TOML file. Other Hosts use stable fragment generation and their supported configuration mechanism; MALTS does not claim an untested automatic project-file editor for them.
+
+```powershell
+python -B "$runtime/tools/malts_lifecycle.py" mcp-project-plan `
+  --lifecycle-root '<verified-lifecycle-root>' `
+  --tool-root '<Codex-tool-root>' `
+  --workspace '<selected-workspace>' `
+  --config-path '<selected-workspace>/.codex/config.toml' `
+  --server-name 'malts' --strategy 'stable-project'
+```
+
+`stable-project` changes only the launch argv, preserving interpreter, environment, policy, unrelated settings, comments and encoding. `inherit-global` removes only the selected same-name project entry and its child tables after the user explicitly chooses that strategy. It refuses different interpreters, environment/custom settings, disabled entries, protected capture and bounded write/actor/Task policies. Such entries need retention or a separately reviewed Host change. No whole-file deletion, disabled replacement, server renaming or workspace adoption occurs.
+
+Review the plan before saving it with `--out '<new-private-plan.json>' --apply`. Plans and recovery preimages are local sensitive material and must not be published. Apply the saved plan with `mcp-project-execute --plan '<plan.json>' --expected-plan-hash '<reviewed-hash>' --apply`. An exclusive Windows file handle and checked fingerprints protect against drift; inspected parent/user layers must still agree. Repeating a settled change is a no-op.
+
+If an operation is interrupted, use `mcp-project-recover --lifecycle-root '<root>' --operation-id '<original-id>'`, then apply the reviewed recovery. The same command's `--restore` restores the saved preimage only while the current file still exactly matches the recorded afterimage. Divergent content is preserved and requires review; recovery never overwrites subsequent user edits or replays an uncertain effect under another ID. Recovery files live under `runtime/mcp/project-operations/<operation-id>`.
+
+After the disk change, reconnect the selected Host. Verify the actual standard endpoint with `malts_installation` and `malts_entry_status` for the existing workspace; verify a retained dedicated endpoint through its fixed-project tools. Cold connection, loaded Host, governance readiness and business execution authorization remain separate results.
+
+## Selected References And Generation Retirement
+
+Pass the same `--workspace` and `--host-config` set to update planning, Doctor and `retire-plan`. Retirement binds the selected file surfaces and reports its coverage. A selected reference to a retiring generation blocks the plan; unreadable or unsupported selected configurations also block it. A later selected-file edit invalidates execution. A stable endpoint refers to the launcher rather than a retiring generation directory.
+
+This does not discover every project or process on the computer. Unselected project files and active old processes remain outside the proof; process-reference coverage is `NOT_OBSERVED`. Before retiring a generation, inspect and settle the relevant actual Host processes and known project inputs within authorization. The active generation, workspace stores, evidence and recovery material remain protected.

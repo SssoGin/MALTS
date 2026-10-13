@@ -38,20 +38,26 @@ def active_root(tool_root):
             raise ValueError('ACTIVE_IDENTITY_CONFLICT')
     return generation
 
-def main():
+def main(argv=None):
     class SafeParser(argparse.ArgumentParser):
         def error(self,message):
             self.exit(2,json.dumps({'decision':'ERROR','error_code':'CLI_ARGUMENTS'})+'\n')
     parser=SafeParser(add_help=False)
     parser.add_argument('--tool-root',required=True);parser.add_argument('--probe',action='store_true')
+    parser.add_argument('--project-bound',action='store_true')
     try:
-        args=parser.parse_args()
+        args,remaining=parser.parse_known_args(argv)
+        if remaining and not args.project_bound:raise ValueError('STANDARD_ARGUMENTS_INVALID')
+        if args.project_bound and args.probe:raise ValueError('PROJECT_PROBE_UNSUPPORTED')
         root=active_root(args.tool_root)
         ordinary(root/'tools/mcp_entry.py')
         sys.path.insert(0,str(root/'tools'))
         from malts_lifecycle import resolve_discovery,verify_installed_generation_envelope
         discovery=resolve_discovery(args.tool_root)
         verify_installed_generation_envelope(root)
+        if args.project_bound:
+            from v2_mcp import main as project_main
+            return project_main(['--tool-root',args.tool_root,*remaining])
         from mcp_entry import run
         return run(args.tool_root,discovery,probe=args.probe)
     except Exception:

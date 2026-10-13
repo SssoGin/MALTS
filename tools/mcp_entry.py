@@ -57,6 +57,11 @@ class InstalledPolicy:
             result=inspect_entry(workspace=root,tool_root=self.tool_root,
                                  verify_package=arguments.get('verify_package',False))
             result['mcp_ready']=True
+            from mcp_config_check import scan_configurations
+            import re
+            label=re.findall(r'(?m)^Tool:\s*(.+?)\s*$',(self.tool_root/'MALTS_BOOT.md').read_text('utf-8-sig'))
+            host={'Codex':'codex','Claude Code':'claude-code','OpenCode':'opencode','DeepSeek Harness':'deepseek-harness'}.get(label[0]) if len(label)==1 else None
+            result['mcp_configuration']=scan_configurations({host:self.tool_root} if host else {},lifecycle_root=self.discovery['lifecycle_root'],workspaces=[root])
             return result
         if name=='malts_actions' and 'workspace' not in arguments:
             return {**self.installation(),'actions':{},'grant_creation_exposed':False,

@@ -8,7 +8,7 @@ MALTS 是一套用于 AI Agent 项目工作的运行框架，将目标澄清、�
 
 MALTS 默认由一个 Agent 完成工作。需要独立调查、验证或分开实施时，可以在明确分工和授权后使用多个 Agent；负责项目的主 Agent 仍承担整合、验收和最终交付责任。无论使用一个还是多个 Agent，都沿用同一套目标、阶段、验证和恢复方法。
 
-当前版本为 **2.0.7**。本页介绍完整的 MALTS 系统；本版本的新增、改进和升级影响见[版本说明](CHANGELOG.md)。
+当前版本为 **2.0.8**。本页介绍完整的 MALTS 系统；本版本的新增、改进和升级影响见[版本说明](CHANGELOG.md)。
 
 ## 它解决什么问题
 
@@ -192,7 +192,7 @@ MALTS 提供经审阅的旧工作区采用和长项目就绪查询。普通新�
 
 ## 版本
 
-当前发布版本：**2.0.7**。版本说明与可选离线包见[MALTS 2.0.7 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.0.7)，历史变化见[CHANGELOG](CHANGELOG.md)。
+当前发布版本：**2.0.8**。版本说明与可选离线包见[MALTS 2.0.8 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.0.8)，历史变化见[CHANGELOG](CHANGELOG.md)。
 
 ## 文档语言
 
@@ -209,3 +209,5 @@ MALTS 采用 [MIT License](LICENSE)。
 ### MCP 安装与使用
 
 安装和更新默认配置每个所选宿主的 `malts` MCP 入口。安装器建立独立依赖环境，保留其他设置，并检查实际 stdio 连接。MCP 可查询安装版本、读取工作流说明、核查工作区就绪状态、读取任务上下文及复核当前验收证据。项目查询使用当前已启用工作区；安装不会创建全局项目，也不授予执行权限。宿主尚未重新加载配置时，需要重连或重启。详见 [MCP 配置说明](docs/zh-CN/MCP_CONFIGURATION.md)。
+
+普通只读项目默认继承全局 MCP；专用项目可使用保留绑定和权限的稳定入口。2.0.8 增加所选项目覆盖诊断、受审阅的配置调整及退役引用保护，具体操作见 [MCP 配置](docs/zh-CN/MCP_CONFIGURATION.md#所选项目的配置)。

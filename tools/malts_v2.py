@@ -135,6 +135,7 @@ def main(argv=None):
     mcp_config.add_argument('--task-id');mcp_config.add_argument('--task-revision',type=int);mcp_config.add_argument('--dispatch-id')
     mcp_config.add_argument('--workflow-topic',choices=['phase','artifact','recovery'])
     mcp_config.add_argument('--check',type=Path,help='Read-only comparison with a deployed Host configuration file')
+    mcp_config.add_argument('--stable',action='store_true',help='Use the installed launcher while retaining the fixed project policy')
     adopted=sub.add_parser('workspace')
     adopted.add_argument('--workspace',type=Path,required=True)
     entry=sub.add_parser('entry-status')
@@ -544,6 +545,22 @@ def main(argv=None):
                 actor=args.actor,authority_ref=args.authority_ref,enable_write=args.enable_write,allow_protected_input_capture=args.allow_protected_input_capture,
                 task_id=args.task_id,task_revision=args.task_revision,dispatch_id=args.dispatch_id,tool_root=args.tool_root,
                 workflow_topic=args.workflow_topic)
+            if args.stable:
+                if args.tool_root is None:raise ValueError('Stable project configuration requires --tool-root')
+                from malts_lifecycle import resolve_discovery
+                from mcp_config_check import _entries
+                import tomllib
+                discovery=resolve_discovery(args.tool_root)
+                data=tomllib.loads(result['fragment']) if args.host=='codex' else result['fragment']
+                entry=next(e for n,e in _entries(args.host,data) if n==args.server_name)
+                key='command' if args.host=='opencode' else 'args'
+                index=next(i for i,v in enumerate(entry[key]) if Path(v).name=='v2_mcp.py')
+                entry[key][index]=str(Path(discovery['lifecycle_root'])/'runtime/mcp/mcp_launcher.py')
+                entry[key].insert(index+1,'--project-bound')
+                if args.host=='codex':
+                    # The existing generator uses a single table and JSON-safe arrays.
+                    result['fragment']=result['fragment'].split('args =',1)[0]+'args = '+json.dumps(entry['args'],ensure_ascii=False)+'\n'
+                result['endpoint_kind']='PROJECT_BOUND_STABLE'
             if args.check is not None:
                 from mcp_config_check import compare_fragment
                 from malts_lifecycle import resolve_discovery

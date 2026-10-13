@@ -23,19 +23,188 @@
     "external_configuration": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["format", "mode", "writes_performed", "execution_authorized", "scope", "complete_global_inventory", "status", "files"],
+      "required": [
+        "format",
+        "mode",
+        "writes_performed",
+        "execution_authorized",
+        "scope",
+        "complete_global_inventory",
+        "status",
+        "files"
+      ],
       "properties": {
-        "format": {"const": "malts.mcp-configuration-check"},
-        "mode": {"const": "READ_ONLY"},
-        "writes_performed": {"const": false},
-        "execution_authorized": {"const": false},
-        "atomic_snapshot": {"const": false},
-        "scope": {"const": "KNOWN_HOST_LOCATIONS_AND_EXPLICIT_FILES"},
-        "reason": {"type": "string"},
-        "complete_global_inventory": {"const": false},
-        "files": {"type": "array", "items": {"$ref": "#/$defs/hostConfigurationFile"}},
-        "reprojection_required": {"type": "array", "items": {"$ref": "#/$defs/reprojection"}},
-        "status": {"enum": ["CURRENT", "NOT_CONFIGURED", "DRIFT", "UNVERIFIED", "CHECK_FAILED"]}
+        "format": {
+          "const": "malts.mcp-configuration-check"
+        },
+        "mode": {
+          "const": "READ_ONLY"
+        },
+        "writes_performed": {
+          "const": false
+        },
+        "execution_authorized": {
+          "const": false
+        },
+        "atomic_snapshot": {
+          "const": false
+        },
+        "scope": {
+          "const": "KNOWN_HOST_LOCATIONS_AND_EXPLICIT_FILES"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "complete_global_inventory": {
+          "const": false
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hostConfigurationFile"
+          }
+        },
+        "reprojection_required": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/reprojection"
+          }
+        },
+        "status": {
+          "enum": [
+            "CURRENT",
+            "NOT_CONFIGURED",
+            "DRIFT",
+            "UNVERIFIED",
+            "CHECK_FAILED"
+          ]
+        },
+        "effective_configuration": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "host",
+              "workspace",
+              "status",
+              "host_session_connection"
+            ],
+            "properties": {
+              "host": {
+                "type": "string"
+              },
+              "workspace": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "server_name": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              },
+              "source_path": {
+                "type": "string"
+              },
+              "endpoint_kind": {
+                "type": "string"
+              },
+              "entry_sha256": {
+                "type": "string"
+              },
+              "resolution_scope": {
+                "type": "string"
+              },
+              "recommendation": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "generation_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "global_entry_shadowed": {
+                "type": "boolean"
+              },
+              "issues": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "checked_layers": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "unchecked_layers": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "policy": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "write_enabled": {
+                    "type": "boolean"
+                  },
+                  "protected_capture": {
+                    "type": "boolean"
+                  },
+                  "environment_keys": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "host_session_connection": {
+                "const": "NOT_VERIFIED"
+              }
+            }
+          }
+        },
+        "effective_configuration_coverage": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "selected_workspaces": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "unsupported_project_hosts": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "host_session_connection": {
+              "const": "NOT_VERIFIED"
+            },
+            "scope": {
+              "const": "USER_AND_SELECTED_CODEX_PROJECT_LAYERS"
+            },
+            "complete_global_inventory": {
+              "const": false
+            }
+          }
+        }
       }
     },
     "schema_version": {
@@ -120,43 +289,216 @@
   },
   "$defs": {
     "hostConfigurationFile": {
-      "type": "object", "additionalProperties": false,
-      "required": ["host", "path", "status", "entries", "sha256"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "host",
+        "path",
+        "status",
+        "entries",
+        "sha256"
+      ],
       "properties": {
-        "host": {"type": "string"}, "path": {"type": "string"},
-        "status": {"enum": ["NOT_CONFIGURED", "CURRENT", "VALID_OLDER_GENERATION", "INVALID", "DIFFERENT", "CHECK_FAILED", "UNSUPPORTED"]},
-        "sha256": {"type": ["string", "null"]}, "reason": {"type": "string"},
-        "entries": {"type": "array", "items": {"$ref": "#/$defs/hostConfigurationEntry"}}
+        "host": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "NOT_CONFIGURED",
+            "CURRENT",
+            "VALID_OLDER_GENERATION",
+            "INVALID",
+            "DIFFERENT",
+            "CHECK_FAILED",
+            "UNSUPPORTED",
+            "PARTIAL_PROJECT_LAYER"
+          ]
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hostConfigurationEntry"
+          }
+        }
       }
     },
     "hostConfigurationEntry": {
-      "type": "object", "additionalProperties": false,
-      "required": ["server_name", "status", "issues", "differences"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "server_name",
+        "status",
+        "issues",
+        "differences"
+      ],
       "properties": {
-        "server_name": {"type": "string"}, "status": {"type": "string"},
-        "issues": {"type": "array", "items": {"type": "string"}},
-        "generation_id": {"type": ["string", "null"]},
-        "binding": {"$ref": "#/$defs/hostBinding"},
-        "suggested_values": {"$ref": "#/$defs/hostBinding"},
-        "regeneration_arguments": {"type": "array", "items": {"type": "string"}},
-        "regeneration_note": {"type": "string"},
-        "differences": {"type": "array", "items": {"type": "object", "additionalProperties": false,
-          "required": ["field", "observed", "expected"],
-          "properties": {"field": {"type": "string"}, "observed": {"type": ["string", "boolean", "null"]}, "expected": {"type": ["string", "boolean", "null"]}}}}
+        "server_name": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "generation_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "binding": {
+          "$ref": "#/$defs/hostBinding"
+        },
+        "suggested_values": {
+          "$ref": "#/$defs/hostBinding"
+        },
+        "regeneration_arguments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "regeneration_note": {
+          "type": "string"
+        },
+        "differences": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "field",
+              "observed",
+              "expected"
+            ],
+            "properties": {
+              "field": {
+                "type": "string"
+              },
+              "observed": {
+                "type": [
+                  "string",
+                  "boolean",
+                  "null"
+                ]
+              },
+              "expected": {
+                "type": [
+                  "string",
+                  "boolean",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "endpoint_kind": {
+          "enum": [
+            "STANDARD_STABLE",
+            "PROJECT_BOUND_STABLE",
+            "PROJECT_BOUND_VERSIONED"
+          ]
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "write_enabled": {
+              "type": "boolean"
+            },
+            "protected_capture": {
+              "type": "boolean"
+            },
+            "environment_keys": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
       }
     },
     "hostBinding": {
-      "type": "object", "additionalProperties": false,
-      "properties": {"script": {"type": "string"}, "state-dir": {"type": "string"}, "resource-root": {"type": "string"}, "project-id": {"type": "string"}, "tool-root": {"type": "string"}}
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "script": {
+          "type": "string"
+        },
+        "state-dir": {
+          "type": "string"
+        },
+        "resource-root": {
+          "type": "string"
+        },
+        "project-id": {
+          "type": "string"
+        },
+        "tool-root": {
+          "type": "string"
+        }
+      }
     },
     "reprojection": {
-      "type": "object", "additionalProperties": false,
-      "required": ["host", "path", "server_name", "status", "issues", "suggested_values", "regeneration_arguments"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "host",
+        "path",
+        "server_name",
+        "status",
+        "issues",
+        "suggested_values",
+        "regeneration_arguments"
+      ],
       "properties": {
-        "host": {"type": "string"}, "path": {"type": "string"}, "server_name": {"type": "string"}, "status": {"type": "string"},
-        "issues": {"type": "array", "items": {"type": "string"}},
-        "suggested_values": {"$ref": "#/$defs/hostBinding"},
-        "regeneration_arguments": {"type": "array", "items": {"type": "string"}}
+        "host": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "server_name": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "suggested_values": {
+          "$ref": "#/$defs/hostBinding"
+        },
+        "regeneration_arguments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "absolutePath": {

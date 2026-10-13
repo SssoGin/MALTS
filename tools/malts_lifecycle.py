@@ -3019,6 +3019,8 @@ def _make_plan_resolved(
     operation_id: str | None = None,
     created_at: str | None = None,
     modification_overrides: list[dict[str, Any]] | None = None,
+    config_files=None,
+    workspaces=None,
     allow_preview: bool = False,
     preview_contract: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -3236,6 +3238,14 @@ def _make_plan_resolved(
         target_version or "1.0.0",
     )
     _validate_planned_write_path_bounds(context, artifact, modifications)
+    if config_files or workspaces:
+        from mcp_config_check import scan_configurations,configuration_locations
+        selected=scan_configurations(normalized_tools,lifecycle_root=root,config_files=config_files,workspaces=workspaces)
+        if selected['status'] in {'CHECK_FAILED','UNVERIFIED'}:
+            raise LifecycleError('TX_PROJECT_CONFIGURATION_UNVERIFIED','The selected configuration scope could not be verified.')
+        globals={os.path.normcase(str(p)) for _,p,_ in configuration_locations(normalized_tools)}
+        context['project_configuration']={'config_files':[(h,str(p)) for h,p in config_files or []],'workspaces':[str(_absolute(p)) for p in workspaces or []],
+            'guards':{f['path']:f['sha256'] or 'MISSING' for f in selected['files'] if os.path.normcase(f['path']) not in globals},'before':selected}
     residue_records.extend(_record_digest_reference(record, root) for record in legacy_projection_records)
     for record in residue_records:
         _validate_contract("residue-tombstone", record)
@@ -3479,6 +3489,8 @@ def make_plan(
     operation_id: str | None = None,
     created_at: str | None = None,
     modification_overrides: list[dict[str, Any]] | None = None,
+    config_files=None,
+    workspaces=None,
 ) -> dict[str, Any]:
     if operation == "uninstall":
         if release_root is not None or repository_root is not None:
@@ -3500,6 +3512,7 @@ def make_plan(
             operation_id=operation_id,
             created_at=created_at,
             modification_overrides=modification_overrides,
+            config_files=config_files,workspaces=workspaces,
         )
 
 
@@ -3553,6 +3566,11 @@ def _verify_plan_inputs(
     expected_plan_hash: str,
     artifact: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
+    if 'project_configuration' in context:
+        from mcp_config_check import _read
+        for path,expected in context['project_configuration']['guards'].items():
+            actual=sha256_bytes(_read(path)) if Path(path).exists() else 'MISSING'
+            if actual.upper()!=expected.upper():raise LifecycleError('TX_PROJECT_CONFIGURATION_DRIFT','A selected project configuration changed after planning.',path)
     if plan["plan_hash"] != expected_plan_hash.upper():
         raise LifecycleError("TX_EXPECTED_PLAN_HASH", "Explicit expected plan hash does not match the plan.")
     if 'mcp_installation' in context:
@@ -5925,7 +5943,8 @@ def execute_plan(envelope: dict[str, Any], expected_plan_hash: str, *, apply: bo
         )
     if apply and result.get('status') in {'PASS','NO_OP','RECOVERED_COMMIT'} and context['operation'] != 'uninstall':
         from mcp_config_check import lifecycle_reprojection
-        return lifecycle_reprojection(result,context['tool_roots'],context['lifecycle_root'])
+        selected=context.get('project_configuration',{})
+        return lifecycle_reprojection(result,context['tool_roots'],context['lifecycle_root'],selected.get('config_files'),selected.get('workspaces'))
     return result
 
 
@@ -6212,6 +6231,7 @@ def doctor(
     checked_at: str | None = None,
     include_host_configs: bool = True,
     config_files: list[tuple[str, Path]] | None = None,
+    workspaces=None,
 ) -> dict[str, Any]:
     """Inspect lifecycle trust and discovery drift without performing writes."""
     root = _absolute(root_value)
@@ -6579,7 +6599,7 @@ def doctor(
     external_configuration = None
     if include_host_configs:
         from mcp_config_check import scan_configurations
-        external_configuration = scan_configurations(normalized_tools,lifecycle_root=root,config_files=config_files)
+        external_configuration = scan_configurations(normalized_tools,lifecycle_root=root,config_files=config_files,workspaces=workspaces)
         for item in external_configuration['files']:
             if item['status'] in {'INVALID','DIFFERENT','VALID_OLDER_GENERATION','CHECK_FAILED','UNSUPPORTED'}:
                 add_mismatch('DOC_HOST_CONFIGURATION_DRIFT',severity='ERROR' if item['status'] in {'INVALID','CHECK_FAILED'} else 'WARNING',
@@ -6845,6 +6865,8 @@ def build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--modification-overrides")
     plan.add_argument("--out")
     plan.add_argument("--apply", action="store_true")
+    plan.add_argument('--host-config',action='append',default=[],metavar='HOST=ABSOLUTE_PATH')
+    plan.add_argument('--workspace',action='append',default=[])
 
     preview_plan = subparsers.add_parser("preview-plan")
     preview_plan.add_argument('--operation', choices=('install', 'update'), default='install')
@@ -6893,6 +6915,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_tool_root_argument(doctor_command)
     doctor_command.add_argument("--timestamp")
     doctor_command.add_argument('--host-config',action='append',default=[],metavar='HOST=ABSOLUTE_PATH',help='Additional Host-owned MCP configuration to inspect without modification')
+    doctor_command.add_argument('--workspace',action='append',default=[])
 
     doctor_repair = subparsers.add_parser("doctor-repair-plan")
     doctor_repair.add_argument("--lifecycle-root", required=True)
@@ -6916,6 +6939,8 @@ def build_parser() -> argparse.ArgumentParser:
     retirement_plan.add_argument("--operation-id")
     retirement_plan.add_argument("--out")
     retirement_plan.add_argument("--apply", action="store_true")
+    retirement_plan.add_argument('--host-config',action='append',default=[],metavar='HOST=ABSOLUTE_PATH')
+    retirement_plan.add_argument('--workspace',action='append',default=[])
     retirement_execute = subparsers.add_parser("retire-execute")
     retirement_execute.add_argument("--plan", required=True)
     retirement_execute.add_argument("--expected-plan-hash", required=True)
@@ -6945,13 +6970,33 @@ def build_parser() -> argparse.ArgumentParser:
     consolidation_recover.add_argument("--lifecycle-root", required=True)
     consolidation_recover.add_argument("--operation-id", required=True)
     consolidation_recover.add_argument("--apply", action="store_true")
+    project_plan=subparsers.add_parser('mcp-project-plan')
+    for name in ('lifecycle-root','tool-root','workspace','config-path'):project_plan.add_argument('--'+name,required=True)
+    project_plan.add_argument('--strategy',choices=('inherit-global','stable-project'),required=True)
+    project_plan.add_argument('--server-name',default='malts');project_plan.add_argument('--operation-id')
+    project_plan.add_argument('--out');project_plan.add_argument('--apply',action='store_true')
+    project_execute=subparsers.add_parser('mcp-project-execute')
+    project_execute.add_argument('--plan',required=True);project_execute.add_argument('--expected-plan-hash',required=True);project_execute.add_argument('--apply',action='store_true')
+    project_recover=subparsers.add_parser('mcp-project-recover')
+    project_recover.add_argument('--lifecycle-root',required=True);project_recover.add_argument('--operation-id',required=True)
+    project_recover.add_argument('--restore',action='store_true');project_recover.add_argument('--apply',action='store_true')
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        if args.command.startswith("consolidate-"):
+        if args.command.startswith('mcp-project-'):
+            import mcp_project
+            if args.command=='mcp-project-plan':
+                plan=mcp_project.make_plan(lifecycle_root=args.lifecycle_root,tool_root=args.tool_root,workspace=args.workspace,config_path=args.config_path,strategy=args.strategy,server_name=args.server_name,operation_id=args.operation_id)
+                if args.apply:
+                    if not args.out or _absolute(args.out).exists():raise LifecycleError('PROJECT_PLAN_OUTPUT','Supply a new exact plan destination.')
+                    write_json(_absolute(args.out),plan)
+                result={'status':'PASS','mode':'APPLY' if args.apply else 'DRY_RUN','writes_performed':args.apply,'plan':plan,'plan_hash':plan['plan_hash']}
+            elif args.command=='mcp-project-execute':result=mcp_project.execute(load_json(_absolute(args.plan)),args.expected_plan_hash,apply=args.apply)
+            else:result=mcp_project.recover(args.lifecycle_root,args.operation_id,apply=args.apply,restore=args.restore)
+        elif args.command.startswith("consolidate-"):
             import lifecycle_consolidation as consolidation
             engine = sys.modules[__name__]
             if args.command == 'consolidate-plan':
@@ -6974,9 +7019,10 @@ def main(argv: list[str] | None = None) -> int:
             import lifecycle_retirement as retirement
             engine = sys.modules[__name__]
             if args.command == 'retire-plan':
+                from mcp_config_check import parse_config_files
                 retirement = retirement.make_plan(engine, lifecycle_root=args.lifecycle_root,
                     tool_roots=_parse_tool_roots(args.tool_root), generation_ids=args.generation_id,
-                    operation_id=args.operation_id)
+                    operation_id=args.operation_id,config_files=parse_config_files(args.host_config),workspaces=args.workspace)
                 if args.out and args.apply:
                     destination = _absolute(args.out)
                     if destination.exists():
@@ -6992,6 +7038,7 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 result = retirement.recover(engine, args.lifecycle_root, args.operation_id, apply=args.apply)
         elif args.command == "plan":
+            from mcp_config_check import parse_config_files
             overrides = load_json(_absolute(args.modification_overrides)) if args.modification_overrides else None
             envelope = make_plan(
                 operation=args.operation,
@@ -7004,6 +7051,7 @@ def main(argv: list[str] | None = None) -> int:
                 operation_id=args.operation_id,
                 created_at=args.timestamp,
                 modification_overrides=overrides,
+                config_files=parse_config_files(args.host_config),workspaces=args.workspace,
             )
             if args.apply:
                 if not args.out:
@@ -7078,6 +7126,7 @@ def main(argv: list[str] | None = None) -> int:
                 _parse_tool_roots(args.tool_root),
                 checked_at=args.timestamp,
                 config_files=parse_config_files(args.host_config),
+                workspaces=args.workspace,
             )
         elif args.command == "doctor-repair-plan":
             result = make_doctor_repair_plan(

@@ -8,7 +8,7 @@ MALTS is an operating framework for AI Agent project work. It connects goal clar
 
 One Agent is the default executor. When independent investigation, implementation or verification helps, explicitly authorized Agents can share the work. The main Agent remains responsible for integration, acceptance and delivery. The same goals, stages, verification and recovery methods apply to both modes.
 
-The current version is **2.0.7**. This page describes MALTS as a complete system; version-specific changes and upgrade implications are in the [Changelog](CHANGELOG.md).
+The current version is **2.0.8**. This page describes MALTS as a complete system; version-specific changes and upgrade implications are in the [Changelog](CHANGELOG.md).
 
 ## Problems it addresses
 
@@ -192,7 +192,7 @@ MALTS provides reviewed legacy-workspace adoption and long-project readiness que
 
 ## Version
 
-Current release: **2.0.7**. See the [MALTS 2.0.7 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.0.7) for notes/optional offline ZIP and [Changelog](CHANGELOG.md) for history.
+Current release: **2.0.8**. See the [MALTS 2.0.8 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.0.8) for notes/optional offline ZIP and [Changelog](CHANGELOG.md) for history.
 
 ## Documentation languages
 
@@ -209,3 +209,5 @@ MALTS uses the [MIT License](LICENSE).
 ### MCP Installation And Use
 
 Installation and updates include the `malts` MCP entry for every selected Host. The installer provisions a private dependency environment, preserves unrelated settings, and tests a real stdio connection. MCP provides installed-version checks, packaged workflows, workspace readiness, Task context and current-evidence verification. Supply the current opted-in workspace for project queries; installation creates no global Project or execution rights. Restart or reconnect a Host that has not reloaded its configuration. See [MCP configuration](docs/MCP_CONFIGURATION.md).
+
+Ordinary read-only projects inherit global MCP; dedicated projects can use a stable entry retaining binding and permissions. Version 2.0.8 adds selected-project override diagnostics, reviewed configuration changes and retirement reference guards. See [MCP configuration](docs/MCP_CONFIGURATION.md#selected-project-configuration).

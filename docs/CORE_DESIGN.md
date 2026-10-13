@@ -1,6 +1,6 @@
 # Multi-Agent Long-Task Scheduling and Growth System
 
-MALTS (Multi-Agent Long-Task Scheduling and Growth System) organizes AI-agent project work around goals, checkable results, recoverable execution and assessed experience. The default executor is one Agent; approved collaboration uses the same project and acceptance model. The current implementation is **2.0.7**.
+MALTS (Multi-Agent Long-Task Scheduling and Growth System) organizes AI-agent project work around goals, checkable results, recoverable execution and assessed experience. The default executor is one Agent; approved collaboration uses the same project and acceptance model. The current implementation is **2.0.8**.
 
 ## Workspace authority, entry, and concurrency
 
@@ -593,3 +593,7 @@ Entry, package checking, workspace authority, governance readiness, Task continu
 ## Installed MCP Integration
 
 The installation owns a fixed MCP launcher and isolated dependency environment outside immutable generations. Each start verifies Boot, registry, pointer and generation identity before loading the active implementation. Host edits are limited to a fingerprinted `malts` entry with saved preimages; user drift blocks writes. Dependency preparation occurs before activation; configuration and actual connection checks are required before commit. Post-activation failure uses the original transaction’s forward recovery. Per-request workspace selection verifies the existing locator and prevents a shared global Project or an implicit permission increase. The standard endpoint is read-only; configured execution remains subject to existing Grants and controller checks.
+
+### Project MCP Entries And Upgrade Checks
+
+Ordinary read-only projects inherit the global standard entry. Dedicated bindings, interpreters, environments or permissions can retain a project endpoint. Select `--workspace` / `--host-config` for update, Doctor and retirement checks; configuration precedence and actual Host loading are verified separately. `mcp-config --stable` follows the active generation while retaining fixed state and policy. Codex entry changes provide reviewed plans, fingerprints, preimages and original-operation recovery without recreating project state. See [MCP configuration](MCP_CONFIGURATION.md#selected-project-configuration) for commands and limits.

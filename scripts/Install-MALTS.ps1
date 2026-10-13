@@ -11,6 +11,8 @@ param(
     [Alias('ToolRootDeepSeekDesktop')]
     [string] $ToolRootDeepSeekHarness,
     [string[]] $LegacyRoot = @(),
+    [string[]] $HostConfig = @(),
+    [string[]] $Workspace = @(),
     [string] $OperationId,
     [string] $PlanPath,
     [string] $ExpectedPlanHash,

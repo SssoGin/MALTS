@@ -1,10 +1,10 @@
 # Update MALTS
 
-An update selects verified source content and changes the chosen installation through a reviewed transaction. The updater preserves project work and user-owned configuration according to its plan; it does not select a new goal or migrate projects automatically. Current version: **2.0.7**.
+An update selects verified source content and changes the chosen installation through a reviewed transaction. The updater preserves project work and user-owned configuration according to its plan; it does not select a new goal or migrate projects automatically. Current version: **2.0.8**.
 
 ## Before Updating
 
-Inspect the installed identity, intended source, workspace binding, user edits, relevant writers and pending effects. Preserve recovery materials. The updater does not pull Git and performs no automatic repository selection, automatic ZIP download, provider call or implicit project migration. Current version remains **2.0.7**.
+Inspect the installed identity, intended source, workspace binding, user edits, relevant writers and pending effects. Preserve recovery materials. The updater does not pull Git and performs no automatic repository selection, automatic ZIP download, provider call or implicit project migration. Current version remains **2.0.8**.
 
 Compare the active source kind/hash, intended repository/package identity and actual selected tool roots. Identify whether a normal version update or same-version content consolidation is needed. Preserve required transaction snapshots and project backups for their different recovery purposes.
 
@@ -105,3 +105,7 @@ The update plan includes the required MCP environment and every selected Host’
 Dependency or configuration failure is an installation failure, not an advisory success. Before activation, the previous installation is retained. After v2 activation starts, preserve the original operation and use lifecycle recovery to complete it forward; already written exact configuration after-images are recognized without replaying under a new identity. Local configuration preimages remain under `runtime/mcp/history/<operation-id>` and are excluded from public packages. Recovery refuses divergent user content. A missing managed installation may require an explicit repair plan.
 
 Older manually configured project endpoints remain separate and retain their own scope and permission settings. External-reference diagnostics for those endpoints remain read-only. Restart or reconnect clients that still use an old process and verify `malts_installation` in the actual Host. See [MCP configuration](MCP_CONFIGURATION.md).
+
+### Project MCP Entries And Upgrade Checks
+
+Ordinary read-only projects inherit the global standard entry. Dedicated bindings, interpreters, environments or permissions can retain a project endpoint. Select `--workspace` / `--host-config` for update, Doctor and retirement checks; configuration precedence and actual Host loading are verified separately. `mcp-config --stable` follows the active generation while retaining fixed state and policy. Codex entry changes provide reviewed plans, fingerprints, preimages and original-operation recovery without recreating project state. See [MCP configuration](MCP_CONFIGURATION.md#selected-project-configuration) for commands and limits.

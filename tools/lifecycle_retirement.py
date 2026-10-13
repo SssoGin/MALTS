@@ -48,16 +48,21 @@ def _snapshot(lifecycle, path):
     return {'file_count':files,'directory_count':directories,'bytes':size,'digest':lifecycle.sha256_bytes(lifecycle.canonical_json(sorted(records)))}
 
 
-def _surfaces(lifecycle, root, tool_roots):
+def _surfaces(lifecycle, root, tool_roots, config_files=None, workspaces=None):
     surfaces=[('active-generation-pointer',lifecycle._pointer_path(root))]
     for tool,value in tool_roots.items():
         directory=Path(value)
         for name in ['MALTS_BOOT.md',lifecycle.PROJECTION_MANIFEST,'config.toml','.mcp.json','opencode.json','opencode.jsonc']:
             if (directory/name).is_file():surfaces.append((tool+'-'+name,directory/name))
-    return surfaces
+    from mcp_config_check import scan_configurations
+    scan=scan_configurations(tool_roots,lifecycle_root=root,config_files=config_files,workspaces=workspaces)
+    if scan['status'] in {'CHECK_FAILED','UNVERIFIED'}:
+        raise lifecycle.LifecycleError('RETIRE_REFERENCE_SCOPE_UNVERIFIED','Selected configuration inputs could not be read and verified.')
+    surfaces.extend(('host-project-configuration',Path(row['path'])) for row in scan['files'] if Path(row['path']).is_file())
+    return list(dict.fromkeys(surfaces))
 
 
-def make_plan(lifecycle, *, lifecycle_root, tool_roots, generation_ids, operation_id=None):
+def make_plan(lifecycle, *, lifecycle_root, tool_roots, generation_ids, operation_id=None, config_files=None, workspaces=None):
     root=lifecycle._absolute(lifecycle_root)
     assert_idle(lifecycle,root)
     if not root.is_dir():raise lifecycle.LifecycleError('RETIRE_ROOT','An installed lifecycle root is required.',str(root))
@@ -67,7 +72,7 @@ def make_plan(lifecycle, *, lifecycle_root, tool_roots, generation_ids, operatio
     if set(tools)!=set(registry['selected_tools']):raise lifecycle.LifecycleError('RETIRE_TOOL_COVERAGE','Every registered tool must be supplied exactly once.')
     active=lifecycle._active_generation_record(registry)
     if not active:raise lifecycle.LifecycleError('RETIRE_ACTIVE_IDENTITY','Exactly one active generation is required.')
-    if lifecycle.doctor(root,tools)['status']!='HEALTHY':raise lifecycle.LifecycleError('RETIRE_NOT_HEALTHY','Repair the current installation before retiring history.')
+    if lifecycle.doctor(root,tools,include_host_configs=False)['status']!='HEALTHY':raise lifecycle.LifecycleError('RETIRE_NOT_HEALTHY','Repair the current installation before retiring history.')
     ids=list(generation_ids)
     if not ids or len(ids)!=len(set(ids)):raise lifecycle.LifecycleError('RETIRE_SELECTION','Select unique exact generation IDs.')
     rows=[]
@@ -81,13 +86,15 @@ def make_plan(lifecycle, *, lifecycle_root, tool_roots, generation_ids, operatio
         lifecycle.verify_installed_generation_envelope(path)
         rows.append({'generation_id':identity,'path':str(path),'registered_record':item,**_snapshot(lifecycle,path)})
     bindings=[{'generation_id':item['generation_id'],'root':item['path']} for item in rows]
-    references=lifecycle._obsolete_generation_references(root,{'obsolete_generation_bindings':bindings,'tool_roots':{tool:str(value) for tool,value in tools.items()}},reference_surfaces=_surfaces(lifecycle,root,tools))
+    surfaces=_surfaces(lifecycle,root,tools,config_files,workspaces)
+    references=lifecycle._obsolete_generation_references(root,{'obsolete_generation_bindings':bindings,'tool_roots':{tool:str(value) for tool,value in tools.items()}},reference_surfaces=surfaces)
     if references:raise lifecycle.LifecycleError('RETIRE_REFERENCED','A managed current entry still references a selected generation.',references[0]['path'])
     operation_id=operation_id or 'RETIRE-'+os.urandom(8).hex().upper()
     if not lifecycle.ID_PATTERN.fullmatch(operation_id):raise lifecycle.LifecycleError('RETIRE_OPERATION_ID','Invalid retirement operation ID.')
     guards={str(Path(active['root'])):lifecycle._path_digest(Path(active['root']))}
-    guards.update({str(path):lifecycle._path_digest(path) for _,path in _surfaces(lifecycle,root,tools)})
+    guards.update({str(path):lifecycle._path_digest(path) for _,path in surfaces})
     plan={'schema_version':1,'kind':'malts-generation-retirement','operation_id':operation_id,'lifecycle_root':str(root),'tool_roots':{tool:str(value) for tool,value in tools.items()},'active_generation_id':active['generation_id'],'registry_sha256':lifecycle._registry_digest(root),'targets':rows,'protected_digests':guards,'created_at':lifecycle._now()}
+    plan['reference_selection']={'config_files':[(h,str(p)) for h,p in config_files or []],'workspaces':[str(p) for p in workspaces or []],'scope':'KNOWN_HOST_LOCATIONS_AND_EXPLICIT_PROJECTS','complete_global_inventory':False,'process_references':'NOT_OBSERVED'}
     plan['plan_hash']=lifecycle.sha256_bytes(lifecycle.canonical_json(plan))
     return plan
 
@@ -96,7 +103,7 @@ def _check_plan(lifecycle, plan, expected_hash):
     required={'schema_version','kind','operation_id','lifecycle_root','tool_roots','active_generation_id','registry_sha256','targets','protected_digests','created_at','plan_hash'}
     value=copy.deepcopy(plan)
     digest=value.pop('plan_hash',None)
-    if set(plan)!=required or plan['schema_version']!=1 or plan['kind']!='malts-generation-retirement' or digest!=expected_hash or lifecycle.sha256_bytes(lifecycle.canonical_json(value))!=digest:
+    if set(plan) not in (required,required|{'reference_selection'}) or plan['schema_version']!=1 or plan['kind']!='malts-generation-retirement' or digest!=expected_hash or lifecycle.sha256_bytes(lifecycle.canonical_json(value))!=digest:
         raise lifecycle.LifecycleError('RETIRE_PLAN_HASH','The reviewed retirement plan does not match.')
     root=lifecycle._absolute(plan['lifecycle_root'])
     if not lifecycle.ID_PATTERN.fullmatch(plan['operation_id']) or not plan['targets']:raise lifecycle.LifecycleError('RETIRE_SELECTION','Invalid operation or empty target selection.')
@@ -177,7 +184,8 @@ def execute_plan(lifecycle, plan, expected_hash, *, helper=None, helper_sha256=N
         else:
             if recovery:raise lifecycle.LifecycleError('RETIRE_RECOVERY_NOT_FOUND','No retirement journal exists.',str(directory))
             if lifecycle._registry_digest(root)!=plan['registry_sha256']:raise lifecycle.LifecycleError('RETIRE_REGISTRY_DRIFT','The registry changed after planning.')
-            fresh=make_plan(lifecycle,lifecycle_root=root,tool_roots=plan['tool_roots'],generation_ids=[row['generation_id'] for row in plan['targets']],operation_id=plan['operation_id'])
+            selected=plan.get('reference_selection',{})
+            fresh=make_plan(lifecycle,lifecycle_root=root,tool_roots=plan['tool_roots'],generation_ids=[row['generation_id'] for row in plan['targets']],operation_id=plan['operation_id'],config_files=selected.get('config_files'),workspaces=selected.get('workspaces'))
             if fresh['targets']!=plan['targets'] or fresh['protected_digests']!=plan['protected_digests']:raise lifecycle.LifecycleError('RETIRE_TARGET_DRIFT','A retirement input changed after review.')
             for row in plan['targets']:
                 if _snapshot(lifecycle,Path(row['path']))['digest']!=row['digest']:raise lifecycle.LifecycleError('RETIRE_TARGET_DRIFT','A selected generation changed.',row['path'])

@@ -4,7 +4,7 @@
 
 模型上下文协议（Model Context Protocol，MCP）让 Agent 宿主调用外部工具。MALTS 通过本机进程的标准输入输出（stdio）与 Python 服务通信，不需要开放网络监听端口。
 
-MALTS 2.0.7 为所选宿主安装和更新必需的 `malts` MCP 服务；针对受管理和项目专用条目的配置对比与诊断入口继续有效。
+MALTS 2.0.8 为所选宿主安装和更新必需的 `malts` MCP 服务；针对受管理和项目专用条目的配置对比与诊断入口继续有效。
 
 ## 目的与维护职责
 
@@ -99,3 +99,55 @@ python -B "$runtime/tools/malts_lifecycle.py" doctor `
 ## 项目 Markdown 编码
 
 MALTS 的项目 Markdown 控制文件接受带或不带 BOM 的 UTF-8。校验器读取两种形式，BOM 是否存在不作为验收条件。不要仅为恢复被编辑器去掉的 BOM 而反复改写文档。模板可以保留自身编码，原始证据指纹仍对应具体字节。Skill 前置区、代码、脚本、JSON 和外部项目约定继续遵循各自编码要求。
+
+## 所选项目的配置
+
+普通只读使用默认继承安装器维护的用户级 `malts` 入口，每次项目请求明确传入工作区。固定项目、独立解释器或环境、受限写策略可能需要专用端点；这些要求仍然有效，同名条目不自动等于冗余。
+
+运行 Doctor 时明确选择当前工作区：
+
+```powershell
+python -B "$runtime/tools/malts_lifecycle.py" doctor `
+  --lifecycle-root '<已核实的生命周期根>' `
+  --tool-root 'codex=<Codex工具根>' `
+  --workspace '<当前工作区绝对路径>'
+```
+
+检查共享安装时传入实际登记的完整宿主集合。重复 `--workspace` 可选择多个目录，重复 `--host-config HOST=ABSOLUTE_PATH` 可选择自定义文件。普通安装和更新脚本分别接受对应的 `-Workspace`、`-HostConfig` 数组。升级计划绑定所选项目文件指纹，拒绝预览后的修改，并在安装后报告同一检查范围。这些参数用于检查，不自动编辑项目配置。
+
+对 Codex，MALTS 读取用户文件，以及已识别 Git 项目根到所选工作区的 `.codex/config.toml`；没有 Git 根时以所选工作区为边界。最近的已检查层优先，嵌套表按字段合并。仅含 `enabled=false` 的局部表也可能禁用继承服务。报告保留逐文件合法性，另用 `effective_configuration` 说明来源、端点模式、代际、启用状态、同名覆盖、环境变量键名及写策略标记。同版本标准端点和专用端点仍有不同参数合同；不同服务器名称可以并存。
+
+这一结论是**项目受信任时的磁盘配置层解析**。Profile 文件、命令行覆盖、受管要求和宿主实际加载的连接无法观测，报告明确保留 `NOT_VERIFIED`。其他宿主继续支持有界的显式文件检查，其项目层优先级不从 Codex 类推。不可读或不支持的层不能证明有效连接健康。优先级依据见 [Codex 官方配置说明](https://developers.openai.com/codex/config-basic/)。
+
+## 保留专用端点
+
+为 `mcp-config` 增加 `--stable`，并传入已经核实的 `--tool-root`，可生成稳定的固定项目配置片段。片段使用 `runtime/mcp/mcp_launcher.py --project-bound`，保留原 Project、状态库、资源根、actor、authority、Task、dispatch 及写策略参数。四种宿主配置格式均支持这一启动模式。启动器在每个新进程启动时核实活动代际；所选解释器仍须具备 MCP 依赖。项目明确选择的解释器不会被全局环境替换。
+
+专用端点继续提供既有固定项目接口，不成为通用写服务，也不产生 Grant。状态目录变化仍须明确核对固定绑定；稳定入口解决的是代际路径维护，不是数据库迁址。已经运行的旧进程须通过宿主获得授权的停止或重连流程切换加载版本。
+
+## 审阅项目配置变更与恢复
+
+内置的保留式编辑目前支持明确选择的 Codex 项目 TOML 文件。其他宿主使用稳定配置片段及其正式配置方式；没有宣称已验证这些宿主的自动项目文件编辑。
+
+```powershell
+python -B "$runtime/tools/malts_lifecycle.py" mcp-project-plan `
+  --lifecycle-root '<已核实的生命周期根>' `
+  --tool-root '<Codex工具根>' `
+  --workspace '<所选工作区>' `
+  --config-path '<所选工作区>/.codex/config.toml' `
+  --server-name 'malts' --strategy 'stable-project'
+```
+
+`stable-project` 只改变启动参数，保留解释器、环境、权限、无关设置、注释和编码。用户明确选择 `inherit-global` 后，才移除所选同名项目条目及其子表，以继承全局入口。该方案拒绝不同解释器、专用环境或自定义设置、禁用条目、受保护内容捕获以及写入、actor、Task 等限定策略；这些入口须保留，或另行审阅宿主变更。不删除整个文件，不以禁用条目代替继承，不重命名服务器，也不重新采用工作区。
+
+先审阅计划，再增加 `--out '<新的本机计划.json>' --apply` 保存。计划和恢复前像可能含本机敏感内容，不能公开。通过 `mcp-project-execute --plan '<计划.json>' --expected-plan-hash '<已审阅哈希>' --apply` 应用。Windows 独占文件句柄与指纹保护预览后的内容；已检查的上级和用户配置层也必须一致。重复已完成的变更返回无变化结果。
+
+操作中断后使用 `mcp-project-recover --lifecycle-root '<根>' --operation-id '<原操作ID>'`，审阅后应用同一操作的恢复。该命令的 `--restore` 仅在当前文件仍与记录的变更后像完全相同时恢复前像；后续用户修改保留并交由审阅，不覆盖新内容，不换ID重放不确定效果。恢复资料位于 `runtime/mcp/project-operations/<操作ID>`。
+
+磁盘变更后重新连接所选宿主。标准入口通过 `malts_installation` 和面向既有工作区的 `malts_entry_status` 核实实际加载；保留的专用入口通过其固定项目工具核实。冷连接、宿主加载、治理就绪和业务执行权限分别报告。
+
+## 所选引用与安装代际退役
+
+更新计划、Doctor 和 `retire-plan` 接受同一组 `--workspace`、`--host-config`。退役计划绑定所选文件并说明覆盖范围。所选配置仍引用待退役代际时阻止规划；所选文件不可读或格式不支持时也停止。规划后的相关修改使执行失效。稳定端点引用启动器，不直接绑定待退役的版本目录。
+
+这不证明已经发现全机所有项目或进程。未选择的项目文件和仍运行的旧进程不在证明范围，进程引用覆盖标为 `NOT_OBSERVED`。退役前应在授权范围内检查并处置有关宿主实际进程及已知项目输入。活动代际、工作区状态、证据和恢复资料保持受保护。

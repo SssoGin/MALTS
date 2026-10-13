@@ -17,6 +17,8 @@ param(
     [Alias('ToolRootDeepSeekDesktop')]
     [string] $ToolRootDeepSeekHarness,
     [string[]] $LegacyRoot = @(),
+    [string[]] $HostConfig = @(),
+    [string[]] $Workspace = @(),
     [string] $OperationId,
     [string] $PlanPath,
     [string] $ExpectedPlanHash,
@@ -196,6 +198,8 @@ $planParameters = @{
     Command = 'Plan'
     Operation = $Operation
     LifecycleRoot = $LifecycleRoot
+    HostConfig = $HostConfig
+    Workspace = $Workspace
     LegacyRoot = $LegacyRoot
     OutPath = $PlanPath
     Apply = $true

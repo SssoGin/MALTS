@@ -21,6 +21,8 @@ param(
     [string] $PreviewRoot,
     [string[]] $ProtectedRoot = @(),
     [string[]] $LegacyRoot = @(),
+    [string[]] $HostConfig = @(),
+    [string[]] $Workspace = @(),
     [string] $DefaultLegacyRoot = (Join-Path $env:USERPROFILE '.malts'),
     [string] $OperationId,
     [string] $Timestamp,
@@ -91,6 +93,10 @@ $cliCommand = switch ($Command) {
     default { $Command.ToLowerInvariant() }
 }
 $arguments.Add($cliCommand)
+if ($Command -in @('Plan','Doctor')) {
+    foreach ($selectedConfig in $HostConfig) { Add-RequiredValue $arguments '--host-config' $selectedConfig }
+    foreach ($selectedWorkspace in $Workspace) { Add-RequiredValue $arguments '--workspace' $selectedWorkspace }
+}
 
 switch ($Command) {
     'Plan' {
