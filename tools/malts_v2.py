@@ -134,6 +134,7 @@ def main(argv=None):
     mcp_config.add_argument('--allow-protected-input-capture',action='store_true')
     mcp_config.add_argument('--task-id');mcp_config.add_argument('--task-revision',type=int);mcp_config.add_argument('--dispatch-id')
     mcp_config.add_argument('--workflow-topic',choices=['phase','artifact','recovery'])
+    mcp_config.add_argument('--check',type=Path,help='Read-only comparison with a deployed Host configuration file')
     adopted=sub.add_parser('workspace')
     adopted.add_argument('--workspace',type=Path,required=True)
     entry=sub.add_parser('entry-status')
@@ -209,6 +210,7 @@ def main(argv=None):
         apply_command.add_argument('--expected-plan-sha256',required=True)
         apply_command.add_argument('--tool-root',type=Path,required=True)
         apply_command.add_argument('--apply',action='store_true')
+        apply_command.add_argument('--host-config',action='append',default=[],metavar='HOST=ABSOLUTE_PATH',help='Explicit host configuration to inspect after a successful forward switch')
         if command!='store-relocation-prepare':apply_command.add_argument('--journal-root',type=Path,required=True)
     disaster=sub.add_parser('disaster-forward-plan')
     disaster.add_argument('--state-dir',type=Path,required=True)
@@ -542,6 +544,14 @@ def main(argv=None):
                 actor=args.actor,authority_ref=args.authority_ref,enable_write=args.enable_write,allow_protected_input_capture=args.allow_protected_input_capture,
                 task_id=args.task_id,task_revision=args.task_revision,dispatch_id=args.dispatch_id,tool_root=args.tool_root,
                 workflow_topic=args.workflow_topic)
+            if args.check is not None:
+                from mcp_config_check import compare_fragment
+                from malts_lifecycle import resolve_discovery
+                discovery=resolve_discovery(args.tool_root) if args.tool_root is not None else None
+                result=compare_fragment(result,config_path=args.check,tool_root=args.tool_root,
+                    lifecycle_root=discovery['lifecycle_root'] if discovery else None,
+                    runtime_root=discovery['malts_root'] if discovery else None,
+                    check_interpreter=args.python_executable is not None)
         elif args.command == 'runtime-contract':
             result=inspect_contract(args.root)
         elif args.command == 'retirement-references':
@@ -595,13 +605,18 @@ def main(argv=None):
             from v2_relocation import prepare,apply_forward
             from v2_runtime_admission import runtime_admission
             action=prepare if args.command=='store-relocation-prepare' else apply_forward
+            from mcp_config_check import parse_config_files,relocation_reprojection
+            host_configs=parse_config_files(args.host_config)
+            applied_plan=load_request_json(args.plan_file)
             if args.command=='store-relocation-apply':
                 from v2_native_relocation import apply as native_apply
-                action=native_apply if load_request_json(args.plan_file).get('format')=='malts.v2.native-forward-plan' else apply_forward
+                action=native_apply if applied_plan.get('format')=='malts.v2.native-forward-plan' else apply_forward
             with runtime_admission(args.tool_root):
-                result=action(load_request_json(args.plan_file),expected_plan_sha256=args.expected_plan_sha256,
+                result=action(applied_plan,expected_plan_sha256=args.expected_plan_sha256,
                               tool_root=args.tool_root,apply=args.apply,
                               **({'journal_root':args.journal_root} if args.command!='store-relocation-prepare' else {}))
+            if args.apply and args.command!='store-relocation-prepare':
+                result=relocation_reprojection(result,applied_plan,args.tool_root,host_configs)
         elif args.command == 'management-init':
             from v2_management import initialize_management
             result=initialize_management(args.workspace,apply=args.apply)
@@ -782,6 +797,7 @@ def main(argv=None):
             from v2_diagnostics import require_plan_hash
             require_plan_hash(json.loads(serialized),result['plan_sha256'],'PLAN_SERIALIZATION_SELF_CHECK')
         print(serialized)
+        if args.command=='mcp-config' and args.check is not None and result.get('status')!='CURRENT':return 3
         if args.command=='entry-status' and args.strict and result.get('status') not in {'COMPATIBLE','OPTIONAL_REFRESH'}:return 3
         if args.command=='workspace-final-verify' and args.strict and (result.get('operation_status')!='SUCCESS' or not result.get('phase_ready')):return 3
         return 0

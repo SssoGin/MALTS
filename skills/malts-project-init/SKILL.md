@@ -187,7 +187,7 @@ Include:
 - Growth Review / memory candidate section.
 - Handoff location if relevant.
 
-When Chinese text is present on Windows, prefer UTF-8 with BOM if the surrounding project convention does not conflict.
+MALTS project Markdown control documents accept UTF-8 with or without BOM. BOM presence is not a validation criterion; do not repeatedly rewrite documents only to restore BOM after a Host edit. Existing project-specific encoding requirements still apply. This allowance does not change the byte-zero front matter requirement for Skill files or the encoding contracts of source code, scripts and JSON.
 
 ### 8. Work Task Report Content
 

@@ -20,7 +20,9 @@ def collect_inputs(root):
         for node in ast.walk(ast.parse(read(path).decode('utf-8-sig'))):
             names=([x.name.split('.')[0] for x in node.names] if isinstance(node,ast.Import) else
                    [node.module.split('.')[0]] if isinstance(node,ast.ImportFrom) and node.module else [])
-            unknown=set(names)-set(available)-sys.stdlib_module_names-{'mcp','anyio','jsonschema'}
+            # yaml is an optional safe parser for Host-owned Cordis block YAML.
+            # Its absence is reported by the inspector; Core/JSON/TOML require no YAML dependency.
+            unknown=set(names)-set(available)-sys.stdlib_module_names-{'mcp','anyio','jsonschema','yaml'}
             if unknown:raise ValueError('Unclassified import dependencies: '+', '.join(sorted(unknown)))
             todo.extend(name for name in names if name in available and 'tools/'+name+'.py' not in collected)
     tree=ast.parse(collected['tools/malts_user_contracts.py'].decode('utf-8-sig'))
@@ -49,6 +51,7 @@ def collect_inputs(root):
                 nodes.extend(current.values())
             elif isinstance(current,list):nodes.extend(current)
     for relative in ('docs/V2_PREVIEW_USAGE.md','docs/zh-CN/V2_PREVIEW_USAGE.md','docs/V2_STATE_CONTRACT.md',
+                     'docs/MCP_CONFIGURATION.md','docs/zh-CN/MCP_CONFIGURATION.md',
                      'docs/zh-CN/V2_STATE_CONTRACT.md','skills/v2/malts-v2-task-workflow/SKILL.md',
                      'skills/v2/malts-v2-task-workflow/references/task-execution.md',
                      'skills/malts-long-project-workspace-init/references/v2-phase.md',

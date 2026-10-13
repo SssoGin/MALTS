@@ -1,6 +1,6 @@
 # MALTS 工作区管理与状态库重定位
 
-MALTS 集中保存项目定义、任务状态、证据与恢复资料，并在业务成果的实际位置检查结果。当前版本为 **2.0.5**。本文说明默认管理布局、旧工作区的审阅采用，以及健康原生或已采用状态库的重定位。安装更新和项目状态迁移是不同操作。
+MALTS 集中保存项目定义、任务状态、证据与恢复资料，并在业务成果的实际位置检查结果。当前版本为 **2.0.6**。本文说明默认管理布局、旧工作区的审阅采用，以及健康原生或已采用状态库的重定位。安装更新和项目状态迁移是不同操作。
 
 ## 1. 默认布局与所有权
 
@@ -205,3 +205,9 @@ authority_kind=ADOPTED_BINDING使用runtime/v2_binding.json及对应采用/前�
 项目入口应调用实际安装下的tools/malts_v2.py，以准确的MALTS控制工作区进行workspace、workspace-final-verify和当前task查询。它们提供MALTS治理状态，不能替代Unity Editor的实际进程或Unity MCP状态。若项目AGENTS.md引用不存在的unity_workspace_status.py，项目维护者须恢复该项目脚本或改成已存在的上述MALTS入口，同时保留单独的Editor核查；MALTS安装不伪造脚本、不编辑未选工程。
 
 公开CI在自有Windows临时项目中验证长受管文件备份/恢复、真实前向交接、旧权威失效、原ID重放和恢复建议，记录实际LongPathsEnabled，不修改注册表。本机LongPathsEnabled=0的260+路径及原版本1journal/失败尝试保留、原生/已采用中断回归另有对应证据。托管runner环境不等于任意用户工程或Windows版本；各证据保留自身范围。
+
+## 前向切换后的宿主引用更新
+
+MALTS 2.0.6 在 `store-relocation-apply` 和 `legacy-forward-apply` 的成功 CLI 结果中增加 `external_configuration` 提示。检查使用原计划中的新旧状态目录，定位需要重新生成的引用。默认检查所选工具的已知配置位置；其他文件通过重复的 `--host-config HOST=ABSOLUTE_PATH` 明确纳入。自定义位置与未选择的宿主不自动包含在检查范围内。
+
+提示不改变经审阅的计划、迁移记录、epoch、Grant 或事务结果，也不编辑宿主配置。按 [MCP 配置检查与恢复](MCP_CONFIGURATION.md) 操作后，另行验证实际连接和所选 Project。若检查不支持或失败，即使重新生成清单为空，也不能当作配置健康。

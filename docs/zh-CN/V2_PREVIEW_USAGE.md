@@ -1,6 +1,6 @@
-﻿# MALTS 控制端操作参考
+# MALTS 控制端操作参考
 
-控制端使用已验证运行时和所选状态查询任务、执行审阅请求。当前 Core 格式 Schema69，版本 **2.0.5**。普通项目可使用已安装 Skill，下列命令说明控制端接口。演示使用另行选择的新目录，不调用模型或安装宿主。
+控制端使用已验证运行时和所选状态查询任务、执行审阅请求。当前 Core 格式 Schema69，版本 **2.0.6**。普通项目可使用已安装 Skill，下列命令说明控制端接口。演示使用另行选择的新目录，不调用模型或安装宿主。
 
 <a id="v2-start"></a>
 ## 1. 第一个完整本地任务
@@ -38,9 +38,9 @@ request('grant.record', grant_id='G1', task_id='T1', task_revision=1, actor='dem
         source_ref='user:approved-isolated-file-demo', resource='hello.txt', effect='write')
 p = request('operation.prepare', operation_id='OP1', grant_id='G1', actor='demo',
             resource='hello.txt', effect='write', capture_authority_ref='user:approved-synthetic-demo',
-            parameters={'tool': 'create-file', 'path': 'hello.txt', 'content': 'Hello MALTS 2.0.5\n'})
+            parameters={'tool': 'create-file', 'path': 'hello.txt', 'content': 'Hello MALTS 2.0.6\n'})
 request('operation.create-file', operation_id='OP1', actor='demo', expected_request_hash=p['request_hash'])
-assert (demo / 'hello.txt').read_bytes() == b'Hello MALTS 2.0.5\n'
+assert (demo / 'hello.txt').read_bytes() == b'Hello MALTS 2.0.6\n'
 descriptor = {'owner': 'DEMO', 'target': {'task_id': 'T1', 'task_revision': 1, 'criterion': 'Integrity'},
               'content_class': 'synthetic', 'sensitivity': 'project', 'redaction_policy_version': 'demo-v1',
               'verification_scope': 'Isolated synthetic file integrity only',
@@ -236,3 +236,7 @@ ACTIVE 状态的重复调用核实当前 binding 后返回历史回执，带 `re
 ## 恢复后的状态与接续
 
 入口、包检查、工作区权威、治理就绪、Task可继续及业务授权分别核验。迁址状态提供原journal的下一步，workspace-final-verify生成只读当前闭包，recovery-next-task-actions解释暂停Task。经审阅的task.resume-after-recovery只准备匹配Task为READY，继续保留预算、旧Grant及验收失效；新执行仍按当前权限和效果合同处理。职责、严格退出和可执行请求见[恢复核验说明](MANAGEMENT_AND_RELOCATION.md#7-入口报告迁址下一步与最终核验)。
+
+## MCP 配置诊断
+
+MALTS 2.0.6 的 `mcp-config --check`、四端已知配置格式、`doctor` 覆盖范围及升级／迁址提示，参见 [MCP 配置检查与恢复](MCP_CONFIGURATION.md)。新增诊断均为只读；配置一致不代表 Phase 就绪、获得执行权限或宿主客户端正在运行。

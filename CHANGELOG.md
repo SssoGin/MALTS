@@ -1,5 +1,28 @@
 # Changelog
 
+## v2.0.6 — 2026-10-13
+
+### English
+
+Release date: 2026-10-13 in Asia/Shanghai (UTC+08:00).
+
+- Added a shared read-only MCP configuration inspector for Codex, Claude Code, OpenCode and DeepSeek Harness. It checks recognized MALTS entries, generation registration, script existence, state directories and Project/resource bindings, with separate results for missing, unsupported and failed checks.
+- Added `mcp-config --check <file>` to compare a deployed entry with the selected binding. It reports differences without replacing the file or exposing unrelated credentials; authority values are redacted.
+- Added external Host configuration diagnostics to `doctor` and regeneration advice after installation/update, shared-root consolidation and state relocation. Drift does not invalidate a committed transaction or imply that the installed payload is corrupt.
+- Clarified that project Markdown controls accept UTF-8 with or without BOM. No BOM warning or validator change is introduced; Skill front matter and other file formats retain their existing encoding contracts.
+- Scope remains bounded to known locations and explicitly selected files. Block YAML needs an available optional safe parser; unsupported formats and absent parser support remain unverified. Configuration checks do not prove a live MCP connection or grant execution authority.
+
+### 中文说明
+
+发布日期：2026-10-13，采用 Asia/Shanghai（UTC+08:00）。
+
+- 新增 Codex、Claude Code、OpenCode、DeepSeek Harness 共用的只读 MCP 配置检查。检查已识别的 MALTS 条目、安装代际登记、脚本存在性、状态目录及项目／资源绑定，分别报告缺失、不支持和检查失败。
+- 新增 `mcp-config --check <file>`，对比落地条目与所选绑定。报告差异，不覆盖文件、不展示无关凭据；授权字段的值经过遮蔽。
+- `doctor` 增加外部宿主配置诊断；安装、更新、统一安装根和状态迁址后提示需要重新生成的配置。漂移不撤销已提交的事务，也不等同于安装载荷损坏。
+- 明确项目 Markdown 控制文件接受带或不带 BOM 的 UTF-8。不新增 BOM 警告、不修改校验器；Skill 前置区及其他文件格式仍遵循各自编码合同。
+- 范围限定为已知位置与明确选择的文件。块式 YAML 需要可用的可选安全解析器；格式不支持或解析器缺失时保留未验证结论。配置检查不证明 MCP 实际连接，也不授予执行权限。
+
+
 ## 2.0.5 — 2026-10-12
 
 Released 2026-10-12 (Asia/Shanghai, UTC+08:00). MALTS retains the full project planning, task continuity, controlled execution, verification, recovery, collaboration and experience workflow through the shared core for Codex, Claude Code, OpenCode and DeepSeek Harness.

@@ -1,10 +1,10 @@
 # Update MALTS
 
-An update selects verified source content and changes the chosen installation through a reviewed transaction. The updater preserves project work and user-owned configuration according to its plan; it does not select a new goal or migrate projects automatically. Current version: **2.0.5**.
+An update selects verified source content and changes the chosen installation through a reviewed transaction. The updater preserves project work and user-owned configuration according to its plan; it does not select a new goal or migrate projects automatically. Current version: **2.0.6**.
 
 ## Before Updating
 
-Inspect the installed identity, intended source, workspace binding, user edits, relevant writers and pending effects. Preserve recovery materials. The updater does not pull Git and performs no automatic repository selection, automatic ZIP download, provider call or implicit project migration. Current version remains **2.0.5**.
+Inspect the installed identity, intended source, workspace binding, user edits, relevant writers and pending effects. Preserve recovery materials. The updater does not pull Git and performs no automatic repository selection, automatic ZIP download, provider call or implicit project migration. Current version remains **2.0.6**.
 
 Compare the active source kind/hash, intended repository/package identity and actual selected tool roots. Identify whether a normal version update or same-version content consolidation is needed. Preserve required transaction snapshots and project backups for their different recovery purposes.
 
@@ -95,3 +95,9 @@ Deep entry verification separates the exact installed user payload from reproduc
 ## State and Continuation After Recovery
 
 Entry, package checking, workspace authority, governance readiness, Task continuation and execution permission are verified separately. Relocation status supplies original-journal next actions; workspace-final-verify produces a read-only current closure; recovery-next-task-actions explains paused Tasks. Reviewed task.resume-after-recovery prepares only its matching Task as READY, retaining budgets and invalid old Grants/acceptance; new execution still follows current permission/effect contracts. See [recovery verification](MANAGEMENT_AND_RELOCATION.md#7-entry-reports-relocation-next-actions-and-final-verification) for responsibilities, strict exits and executable requests.
+
+## Discovery And External MCP References
+
+Read the exact installed `MALTS_BOOT_PATH` from the selected tool's managed instruction, then require successful discovery before selecting the runtime or update source. Do not substitute a historical root or a machine-global Boot file.
+
+MALTS 2.0.6 reports external MCP references after successful updates and root consolidation. Inspect the advisory, regenerate a fragment for the verified runtime and workspace binding, review its Host-owned deployment, and verify the real connection separately. Configuration drift does not roll back a committed update. See [MCP configuration checks](MCP_CONFIGURATION.md).

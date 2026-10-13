@@ -1,6 +1,6 @@
 # MALTS Workspace Management and Store Relocation
 
-MALTS keeps project definitions, task state, evidence and recovery information together while checking business outputs at their actual locations. Current version: **2.0.5**. This guide covers the default management layout, reviewed adoption of a legacy workspace, and relocation of a healthy native or adopted store. Installation and project-state migration are separate operations.
+MALTS keeps project definitions, task state, evidence and recovery information together while checking business outputs at their actual locations. Current version: **2.0.6**. This guide covers the default management layout, reviewed adoption of a legacy workspace, and relocation of a healthy native or adopted store. Installation and project-state migration are separate operations.
 
 ## 1. Default Layout and Ownership
 
@@ -205,3 +205,9 @@ ADOPTED_BINDING uses runtime/v2_binding.json and its adoption/forward receipt wi
 Project entry instructions should invoke the installed tools/malts_v2.py with the exact MALTS control workspace for workspace, workspace-final-verify and current Task queries. These provide MALTS governance state and cannot replace actual Unity Editor/process or Unity MCP observations. A project referring to a missing unity_workspace_status.py needs its maintainer to restore that project script or update the reference to the available MALTS entry while retaining separate Editor checks. MALTS installation neither invents that script nor edits an unselected project.
 
 Public CI exercises long managed-file backup/restore, actual forward handoff, old-authority fencing, original-ID replay and recovery guidance in owned Windows temporary projects. It records actual LongPathsEnabled without registry changes. Separate local evidence covers 260+ paths with LongPathsEnabled=0, original version1 journals, retained failed attempts and native/adopted interruption recovery. Hosted runners do not qualify every user project or Windows version; each result retains its own scope.
+
+## Refreshing Host References After A Forward Switch
+
+MALTS 2.0.6 adds an `external_configuration` advisory to successful `store-relocation-apply` and `legacy-forward-apply` CLI results. It uses the original plan's old/new state directories to find references requiring regeneration. The selected tool's known locations are inspected; include other files explicitly with repeated `--host-config HOST=ABSOLUTE_PATH`. Custom locations and unselected Hosts are not implicitly covered.
+
+This advisory does not change the reviewed plan, migration journal, epoch, Grants or transaction outcome, and does not edit Host configuration. Follow [MCP configuration and recovery](MCP_CONFIGURATION.md), then verify the actual connection and selected Project separately. An empty regeneration list with an unsupported or failed check is not a clean bill of health.

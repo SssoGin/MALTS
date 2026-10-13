@@ -1,6 +1,6 @@
 # Install MALTS
 
-Install MALTS into the Agent tools you choose. One shared core supplies project work, continuity, verification and experience workflows; each tool receives its own native entry. Current version: **2.0.5**. Installation is review-first and does not call a model, install the Host application or adopt existing projects.
+Install MALTS into the Agent tools you choose. One shared core supplies project work, continuity, verification and experience workflows; each tool receives its own native entry. Current version: **2.0.6**. Installation is review-first and does not call a model, install the Host application or adopt existing projects.
 
 ## Prerequisites
 
@@ -17,7 +17,7 @@ Use short, explicit roots with no ambiguous links/protected overlaps. Lifecycle 
 
 ## Repository Installation (Primary)
 
-Use a reviewed checkout of the [public repository](https://github.com/SssoGin/MALTS). Check the actual remote/ref and confirm `MALTS_RELEASE.json` and `VERSION` both identify 2.0.5. A documentation revision on `main` can retain the same version while having its own exact source-tree identity. The installer checks the actual selected tree; do not add business files or caches inside it.
+Use a reviewed checkout of the [public repository](https://github.com/SssoGin/MALTS). Check the actual remote/ref and confirm `MALTS_RELEASE.json` and `VERSION` both identify 2.0.6. A documentation revision on `main` can retain the same version while having its own exact source-tree identity. The installer checks the actual selected tree; do not add business files or caches inside it.
 
 | Host | Entry | Scope |
 |---|---|---|
@@ -68,11 +68,11 @@ Do not replace a meaningful failure with a manual file copy or a success label. 
 
 ## Optional Offline Archive
 
-The current Release attachment is `MALTS-2.0.5.zip`. A same-version reissue has its own qualified package, source commit and SHA-256 in the Release notes. Verify the exact downloaded revision before offline installation. GitHub-generated source archives follow the current version tag. The current tag, qualified repository and MALTS-uploaded package should identify the same source revision, although archive layouts differ.
+The current Release attachment is `MALTS-2.0.6.zip`. A same-version reissue has its own qualified package, source commit and SHA-256 in the Release notes. Verify the exact downloaded revision before offline installation. GitHub-generated source archives follow the current version tag. The current tag, qualified repository and MALTS-uploaded package should identify the same source revision, although archive layouts differ.
 
 ```powershell
-.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.5.zip
-.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.5.zip -ExtractOutput '<new-extraction-root>' -Apply
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.6.zip
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.0.6.zip -ExtractOutput '<new-extraction-root>' -Apply
 ```
 
 Obtain the verifier from the matching reviewed source. Run the extracted payload's lifecycle entry with `-ReleaseRoot '<extracted-package-root>'`, then the same plan/hash sequence. Harness uses the same lifecycle entry with ReleaseRoot and every Host registered to that installation. Never copy a payload into an active generation. See [Release Archive](RELEASE_ARTIFACT.md).
@@ -129,3 +129,9 @@ Ordinary new workspaces use `workspace-init` to place task state, managed eviden
 Deep entry verification separates the exact installed user payload from reproducible interpreter caches. Source, metadata and hash chains must still match; a current-interpreter cache is accepted only when reproduced from verified source. Other interpreter caches, corrupt caches, extra files and source changes fail closed without deleting caches or editing manifests. CLI deep entry and MCP malts_entry_status share safe cause codes. Recovery results distinguish registered effects from external writer coverage; compatible format, business acceptance, isolated recovery and writer quiescence are separate conclusions. See [management and recovery verification](MANAGEMENT_AND_RELOCATION.md) for staged preservation, UTF-8 plans and isolated recovery commands.
 
 CPython marshal serialization can vary in immutable-object sharing and reference numbering after modules are imported. Cache verification compares a bounded structural digest against freshly compiled verified source, including every code field, constant, bytecode, filename and line/exception table. It checks header/source metadata and the exact observed cache-file hash, rejects unsupported, cyclic, mutable or trailing data, and never loads or executes cache code. The returned derived-cache inventory is separate from the unchanged user-purity identity; it is current local verification, not an added package trust source. The structure profiles cover CPython 3.11–3.13; other interpreter cache profiles fail closed.
+
+## Checking Host MCP Configuration
+
+MALTS 2.0.6 includes read-only configuration diagnostics. A successful MALTS installation does not establish that separately stored MCP client settings still point to an existing script and the selected workspace state. After an update or relocation, inspect [MCP configuration and recovery](MCP_CONFIGURATION.md). Regenerate a fragment with `mcp-config` and review its deployment manually when an entry needs correction.
+
+Configuration checks do not start a client, edit a Host file or grant execution permission. Preserve the selected Python interpreter and explicit permission settings when applying a reviewed fragment; verify the actual MCP connection separately.

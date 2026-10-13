@@ -94,7 +94,7 @@ def make_plan(lc,*,lifecycle_root,donor_lifecycle_root,tool_roots,repository_roo
     for path in tools.values():
         if any(lc._is_inside(root,path) or lc._is_inside(path,root) for root in [primary,donor]):raise lc.LifecycleError('CONSOLIDATE_OVERLAP','Host and installation roots cannot overlap.')
     groups=[{tool:tools[tool] for tool in registry['selected_tools']} for registry in registries]
-    if any(lc.doctor(root,group)['status']!='HEALTHY' for root,group in zip([primary,donor],groups)):raise lc.LifecycleError('CONSOLIDATE_NOT_HEALTHY','Both actual installed images and Host projections must be healthy.')
+    if any(lc.doctor(root,group,include_host_configs=False)['status']!='HEALTHY' for root,group in zip([primary,donor],groups)):raise lc.LifecycleError('CONSOLIDATE_NOT_HEALTHY','Both actual installed images and Host projections must be healthy.')
     active=[lc._active_generation_record(registry) for registry in registries]
     if any(not item or not item['version'].startswith('2.') for item in active):raise lc.LifecycleError('CONSOLIDATE_VERSION','Only two verified current v2 installations are supported.')
     if any(active[0].get(field)!=active[1].get(field) for field in lc.GENERATION_BINDING_FIELDS):raise lc.LifecycleError('CONSOLIDATE_IDENTITY','The complete installed release and artifact identity must match, not just VERSION.')
@@ -233,14 +233,15 @@ def execute(lc,plan,expected,*,apply=False,recovery=False,fault_at=None):
                 journal['completed_writes']=number;lc.write_json(journal_path,journal)
                 if fault_at=='AFTER_FIRST_WRITE' and number==1:raise lc.InjectedCrash('AFTER_FIRST_WRITE')
                 if fault_at=='AFTER_PRIMARY_REGISTRY' and row['path']==str(lc._registry_path(primary)):raise lc.InjectedCrash('AFTER_PRIMARY_REGISTRY')
-            doctor=lc.doctor(primary,plan['tool_roots'])
+            doctor=lc.doctor(primary,plan['tool_roots'],include_host_configs=False)
             if doctor['status']!='HEALTHY':raise lc.LifecycleError('CONSOLIDATE_POSTVALIDATE','Unified installation is not healthy.')
             donor_registry=lc._load_registry(donor)
             if donor_registry['lifecycle_state']!='uninstalled' or donor_registry['generations'] or lc._pointer_path(donor).exists():raise lc.LifecycleError('CONSOLIDATE_POSTVALIDATE','Donor registration did not retire.')
             _guard(lc,plan)
             journal['status']='COMMITTED';lc.write_json(journal_path,journal)
             if (donor/MARKER).exists():(donor/MARKER).unlink()
-            return {'status':'PASS','mode':'CONSOLIDATED','writes_performed':True,'lifecycle_root':str(primary),'hosts':list(plan['tool_roots']),'donor_retired':str(donor),'donor_backup':str(backup),'donor_backup_sha256':plan['donor_tree_sha256'],'journal':str(journal_path),'physical_donor_cleanup_performed':False,'project_state_migrated':False}
+            from mcp_config_check import lifecycle_reprojection
+            return lifecycle_reprojection({'status':'PASS','mode':'CONSOLIDATED','writes_performed':True,'lifecycle_root':str(primary),'hosts':list(plan['tool_roots']),'donor_retired':str(donor),'donor_backup':str(backup),'donor_backup_sha256':plan['donor_tree_sha256'],'journal':str(journal_path),'physical_donor_cleanup_performed':False,'project_state_migrated':False},plan['tool_roots'],primary)
         except lc.InjectedCrash:
             journal['status']='RECOVERY_REQUIRED';lc.write_json(journal_path,journal);raise
         except Exception:

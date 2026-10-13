@@ -1,6 +1,6 @@
 # Handoff
 
-MALTS handoffs make project work understandable across windows, interruptions and Agent changes. They preserve the goal, current progress, actual evidence and next eligible work. Current version: **2.0.5**. A handoff is an on-demand continuation view; the selected task services own execution state.
+MALTS handoffs make project work understandable across windows, interruptions and Agent changes. They preserve the goal, current progress, actual evidence and next eligible work. Current version: **2.0.6**. A handoff is an on-demand continuation view; the selected task services own execution state.
 
 ## Default File Names
 

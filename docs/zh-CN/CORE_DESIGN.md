@@ -1,6 +1,6 @@
-﻿# 多 Agent 长任务调度与成长系统
+# 多 Agent 长任务调度与成长系统
 
-MALTS（Multi-Agent Long-Task Scheduling and Growth System，多 Agent 长任务调度与成长系统）围绕目标、可检查结果、可恢复执行和经验评估组织 AI Agent 项目工作。默认由单 Agent 执行，已授权协作使用同一项目和验收模型。当前实现为 **2.0.5**。
+MALTS（Multi-Agent Long-Task Scheduling and Growth System，多 Agent 长任务调度与成长系统）围绕目标、可检查结果、可恢复执行和经验评估组织 AI Agent 项目工作。默认由单 Agent 执行，已授权协作使用同一项目和验收模型。当前实现为 **2.0.6**。
 
 ## 工作区权威、进入与并发
 

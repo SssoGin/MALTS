@@ -8,7 +8,7 @@ MALTS is an operating framework for AI Agent project work. It connects goal clar
 
 One Agent is the default executor. When independent investigation, implementation or verification helps, explicitly authorized Agents can share the work. The main Agent remains responsible for integration, acceptance and delivery. The same goals, stages, verification and recovery methods apply to both modes.
 
-The current version is **2.0.5**. This page describes MALTS as a complete system; version-specific changes and upgrade implications are in the [Changelog](CHANGELOG.md).
+The current version is **2.0.6**. This page describes MALTS as a complete system; version-specific changes and upgrade implications are in the [Changelog](CHANGELOG.md).
 
 ## Problems it addresses
 
@@ -191,7 +191,7 @@ MALTS provides reviewed legacy-workspace adoption and long-project readiness que
 
 ## Version
 
-Current release: **2.0.5**. See the [MALTS 2.0.5 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.0.5) for notes/optional offline ZIP and [Changelog](CHANGELOG.md) for history.
+Current release: **2.0.6**. See the [MALTS 2.0.6 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.0.6) for notes/optional offline ZIP and [Changelog](CHANGELOG.md) for history.
 
 ## Documentation languages
 
@@ -204,3 +204,7 @@ Some Agent methods draw on [andrej-karpathy-skills](https://github.com/multica-a
 ## License
 
 MALTS uses the [MIT License](LICENSE).
+
+### Host MCP Configuration Diagnostics
+
+Installation discovery and a Host's saved MCP settings are separate checks. For read-only diagnosis and recovery steps, see [MCP configuration](docs/MCP_CONFIGURATION.md). Version 2.0.6 provides fragment generation, comparison and external-configuration diagnostics.

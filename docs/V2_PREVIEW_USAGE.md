@@ -1,6 +1,6 @@
 # MALTS Controller Operations
 
-Controllers use the verified runtime and selected state to query tasks and perform reviewed requests. The current Core format is Schema69 and version **2.0.5**. Ordinary project work can use installed Skills; the commands below describe the controller interface. Demonstrations require a separately selected new directory and do not call a model or install a Host.
+Controllers use the verified runtime and selected state to query tasks and perform reviewed requests. The current Core format is Schema69 and version **2.0.6**. Ordinary project work can use installed Skills; the commands below describe the controller interface. Demonstrations require a separately selected new directory and do not call a model or install a Host.
 
 <a id="v2-start"></a>
 ## 1. First complete local task
@@ -38,9 +38,9 @@ request('grant.record', grant_id='G1', task_id='T1', task_revision=1, actor='dem
         source_ref='user:approved-isolated-file-demo', resource='hello.txt', effect='write')
 p = request('operation.prepare', operation_id='OP1', grant_id='G1', actor='demo',
             resource='hello.txt', effect='write', capture_authority_ref='user:approved-synthetic-demo',
-            parameters={'tool': 'create-file', 'path': 'hello.txt', 'content': 'Hello MALTS 2.0.5\n'})
+            parameters={'tool': 'create-file', 'path': 'hello.txt', 'content': 'Hello MALTS 2.0.6\n'})
 request('operation.create-file', operation_id='OP1', actor='demo', expected_request_hash=p['request_hash'])
-assert (demo / 'hello.txt').read_bytes() == b'Hello MALTS 2.0.5\n'
+assert (demo / 'hello.txt').read_bytes() == b'Hello MALTS 2.0.6\n'
 descriptor = {'owner': 'DEMO', 'target': {'task_id': 'T1', 'task_revision': 1, 'criterion': 'Integrity'},
               'content_class': 'synthetic', 'sensitivity': 'project', 'redaction_policy_version': 'demo-v1',
               'verification_scope': 'Isolated synthetic file integrity only',
@@ -236,3 +236,7 @@ Long managed-file paths use internal extended-path I/O without registry changes 
 ## State and Continuation After Recovery
 
 Entry, package checking, workspace authority, governance readiness, Task continuation and execution permission are verified separately. Relocation status supplies original-journal next actions; workspace-final-verify produces a read-only current closure; recovery-next-task-actions explains paused Tasks. Reviewed task.resume-after-recovery prepares only its matching Task as READY, retaining budgets and invalid old Grants/acceptance; new execution still follows current permission/effect contracts. See [recovery verification](MANAGEMENT_AND_RELOCATION.md#7-entry-reports-relocation-next-actions-and-final-verification) for responsibilities, strict exits and executable requests.
+
+## MCP Configuration Diagnostics
+
+For MALTS 2.0.6 `mcp-config --check`, known four-Host formats, `doctor` coverage and update/relocation advice, see [MCP configuration and recovery](MCP_CONFIGURATION.md). These new diagnostics are read-only. Configuration agreement does not imply Phase readiness, execution permission or a running Host client.

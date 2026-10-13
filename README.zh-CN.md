@@ -1,4 +1,4 @@
-﻿# MALTS
+# MALTS
 
 **Multi-Agent Long-Task Scheduling and Growth System · 多 Agent 长任务调度与成长系统**
 
@@ -8,7 +8,7 @@ MALTS 是一套用于 AI Agent 项目工作的运行框架，将目标澄清、�
 
 MALTS 默认由一个 Agent 完成工作。需要独立调查、验证或分开实施时，可以在明确分工和授权后使用多个 Agent；负责项目的主 Agent 仍承担整合、验收和最终交付责任。无论使用一个还是多个 Agent，都沿用同一套目标、阶段、验证和恢复方法。
 
-当前版本为 **2.0.5**。本页介绍完整的 MALTS 系统；本版本的新增、改进和升级影响见[版本说明](CHANGELOG.md)。
+当前版本为 **2.0.6**。本页介绍完整的 MALTS 系统；本版本的新增、改进和升级影响见[版本说明](CHANGELOG.md)。
 
 ## 它解决什么问题
 
@@ -191,7 +191,7 @@ MALTS 提供经审阅的旧工作区采用和长项目就绪查询。普通新�
 
 ## 版本
 
-当前发布版本：**2.0.5**。版本说明与可选离线包见[MALTS 2.0.5 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.0.5)，历史变化见[CHANGELOG](CHANGELOG.md)。
+当前发布版本：**2.0.6**。版本说明与可选离线包见[MALTS 2.0.6 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.0.6)，历史变化见[CHANGELOG](CHANGELOG.md)。
 
 ## 文档语言
 
@@ -204,3 +204,7 @@ MALTS 提供经审阅的旧工作区采用和长项目就绪查询。普通新�
 ## License
 
 MALTS 采用 [MIT License](LICENSE)。
+
+### 宿主 MCP 配置诊断
+
+安装发现与宿主保存的 MCP 设置需要分别核查。只读诊断与恢复步骤见 [MCP 配置说明](docs/zh-CN/MCP_CONFIGURATION.md)。2.0.6 提供配置片段生成、对比和外部配置诊断。

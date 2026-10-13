@@ -5855,13 +5855,17 @@ def execute_plan(envelope: dict[str, Any], expected_plan_hash: str, *, apply: bo
     repository_root = context.get("repository_root") if source_kind == "repository" else None
     with _source_artifact_scope(release_root=release_root, repository_root=repository_root) as release:
         artifact = release["artifact"] if release is not None else None
-        return _execute_plan_with_artifact(
+        result = _execute_plan_with_artifact(
             envelope,
             expected_plan_hash,
             apply=apply,
             artifact=artifact,
             fault_at=fault_at,
         )
+    if apply and result.get('status') in {'PASS','NO_OP','RECOVERED_COMMIT'} and context['operation'] != 'uninstall':
+        from mcp_config_check import lifecycle_reprojection
+        return lifecycle_reprojection(result,context['tool_roots'],context['lifecycle_root'])
+    return result
 
 
 def _load_transaction(root: Path, operation_id: str | None = None) -> tuple[Path, dict[str, Any], dict[str, Any], dict[str, Any]]:
@@ -6142,6 +6146,8 @@ def doctor(
     tool_roots: dict[str, str | Path],
     *,
     checked_at: str | None = None,
+    include_host_configs: bool = True,
+    config_files: list[tuple[str, Path]] | None = None,
 ) -> dict[str, Any]:
     """Inspect lifecycle trust and discovery drift without performing writes."""
     root = _absolute(root_value)
@@ -6506,6 +6512,20 @@ def doctor(
                 trust_impact="INFORMATIONAL",
             )
 
+    external_configuration = None
+    if include_host_configs:
+        from mcp_config_check import scan_configurations
+        external_configuration = scan_configurations(normalized_tools,lifecycle_root=root,config_files=config_files)
+        for item in external_configuration['files']:
+            if item['status'] in {'INVALID','DIFFERENT','VALID_OLDER_GENERATION','CHECK_FAILED','UNSUPPORTED'}:
+                add_mismatch('DOC_HOST_CONFIGURATION_DRIFT',severity='ERROR' if item['status'] in {'INVALID','CHECK_FAILED'} else 'WARNING',
+                    surface='host-mcp-config:'+item['host'],expected_locator=Path(item['path']),observed_locator=Path(item['path']),
+                    expected='Valid MALTS MCP references; generate and review a replacement fragment',observed=item['status'],trust_impact='INFORMATIONAL')
+                mismatches[-1]['suggested_command']='Use malts_v2.py mcp-config --check on this file; review external_configuration for regeneration arguments.'
+        if external_configuration['status']=='CHECK_FAILED' and not external_configuration['files']:
+            add_mismatch('DOC_HOST_CONFIGURATION_SCAN_FAILED',severity='WARNING',surface='host-mcp-config',expected_locator=root,observed_locator=root,
+                expected='Known Host configuration locations readable within budget',observed=external_configuration.get('reason','CHECK_FAILED'),trust_impact='INFORMATIONAL')
+
     core_invalid = any(item["trust_impact"] == "CORE_INVALID" for item in mismatches)
     derived_drift = any(item["trust_impact"] == "DERIVED_ONLY" for item in mismatches)
     if registry is None and not registry_invalid:
@@ -6540,6 +6560,7 @@ def doctor(
         "suggested_commands": commands,
         "checked_at": _now(checked_at),
     }
+    if external_configuration is not None:report['external_configuration']=external_configuration
     _validate_contract("lifecycle-doctor-report", report)
     return report
 
@@ -6560,7 +6581,7 @@ def make_doctor_repair_plan(
     tool_arguments = " ".join(
         f'--tool-root "{tool}={tool_root}"' for tool, tool_root in normalized_tools.items()
     )
-    report = doctor(root, normalized_tools, checked_at=created_at)
+    report = doctor(root, normalized_tools, checked_at=created_at,include_host_configs=False)
     registry = _load_registry(root)
     active = _active_generation_record(registry)
     if active is None:
@@ -6807,6 +6828,7 @@ def build_parser() -> argparse.ArgumentParser:
     doctor_command.add_argument("--lifecycle-root", required=True)
     _add_tool_root_argument(doctor_command)
     doctor_command.add_argument("--timestamp")
+    doctor_command.add_argument('--host-config',action='append',default=[],metavar='HOST=ABSOLUTE_PATH',help='Additional Host-owned MCP configuration to inspect without modification')
 
     doctor_repair = subparsers.add_parser("doctor-repair-plan")
     doctor_repair.add_argument("--lifecycle-root", required=True)
@@ -6986,10 +7008,12 @@ def main(argv: list[str] | None = None) -> int:
             result = scan_residue(args.lifecycle_root, _parse_tool_roots(args.tool_root))
             result.update({"mode": "READ_ONLY", "writes_performed": False})
         elif args.command == "doctor":
+            from mcp_config_check import parse_config_files
             result = doctor(
                 args.lifecycle_root,
                 _parse_tool_roots(args.tool_root),
                 checked_at=args.timestamp,
+                config_files=parse_config_files(args.host_config),
             )
         elif args.command == "doctor-repair-plan":
             result = make_doctor_repair_plan(

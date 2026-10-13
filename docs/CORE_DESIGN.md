@@ -1,6 +1,6 @@
 # Multi-Agent Long-Task Scheduling and Growth System
 
-MALTS (Multi-Agent Long-Task Scheduling and Growth System) organizes AI-agent project work around goals, checkable results, recoverable execution and assessed experience. The default executor is one Agent; approved collaboration uses the same project and acceptance model. The current implementation is **2.0.5**.
+MALTS (Multi-Agent Long-Task Scheduling and Growth System) organizes AI-agent project work around goals, checkable results, recoverable execution and assessed experience. The default executor is one Agent; approved collaboration uses the same project and acceptance model. The current implementation is **2.0.6**.
 
 ## Workspace authority, entry, and concurrency
 
