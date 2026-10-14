@@ -136,6 +136,27 @@
               "global_entry_shadowed": {
                 "type": "boolean"
               },
+              "baseline_source": {
+                "type": ["object", "null"],
+                "additionalProperties": false,
+                "required": ["scope", "path"],
+                "properties": {
+                  "scope": {"type": "string"},
+                  "path": {"type": "string"}
+                }
+              },
+              "installation_managed": {"type": ["boolean", "null"]},
+              "management_status": {"enum": ["VERIFIED", "NOT_MANAGED", "DRIFT", "UNVERIFIED"]},
+              "inherit_global": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["available", "reason", "requires_explicit_plan"],
+                "properties": {
+                  "available": {"type": "boolean"},
+                  "reason": {"type": "string"},
+                  "requires_explicit_plan": {"const": true}
+                }
+              },
               "issues": {
                 "type": "array",
                 "items": {

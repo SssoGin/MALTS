@@ -1,6 +1,6 @@
 # Multi-Agent Long-Task Scheduling and Growth System
 
-MALTS (Multi-Agent Long-Task Scheduling and Growth System) organizes AI-agent project work around goals, checkable results, recoverable execution and assessed experience. The default executor is one Agent; approved collaboration uses the same project and acceptance model. The current implementation is **2.0.9**.
+MALTS (Multi-Agent Long-Task Scheduling and Growth System) organizes AI-agent project work around goals, checkable results, recoverable execution and assessed experience. The default executor is one Agent; approved collaboration uses the same project and acceptance model. The current implementation is **2.1.0**.
 
 ## Workspace authority, entry, and concurrency
 
@@ -596,4 +596,4 @@ The installation owns a fixed MCP launcher and isolated dependency environment o
 
 ### Project MCP Entries And Upgrade Checks
 
-Ordinary read-only projects inherit the global standard entry. Dedicated bindings, interpreters, environments or permissions can retain a project endpoint. Select `--workspace` / `--host-config` for update, Doctor and retirement checks; configuration precedence and actual Host loading are verified separately. `mcp-config --stable` follows the active generation while retaining fixed state and policy. MALTS 2.0.9 provides four-Host reviewed entry changes, layer fingerprints, protected preimages and original-operation recovery without recreating project state; native scope and actual Host loading remain separate. See [MCP configuration](MCP_CONFIGURATION.md#selected-project-configuration) for commands and limits.
+Ordinary read-only projects inherit the global standard entry. Dedicated bindings, interpreters, environments or permissions can retain a project endpoint. Select `--workspace` / `--host-config` for update, Doctor and retirement checks; configuration precedence and actual Host loading are verified separately. `mcp-config --stable` follows the active generation while retaining fixed state and policy. MALTS 2.1.0 provides four-Host reviewed entry changes, layer fingerprints, protected preimages and original-operation recovery without recreating project state; native scope and actual Host loading remain separate. See [MCP configuration](MCP_CONFIGURATION.md#selected-project-configuration) for commands and limits.

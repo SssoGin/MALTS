@@ -349,47 +349,15 @@ def _codex_project_configuration_locations(workspaces,tool_roots):
 
 
 def _codex_effective_configurations(tool_roots,*,lifecycle_root=None,config_files=None,workspaces=None,document_overrides=None):
-    import copy
+    from mcp_layers import effective_rows
     roots=[_path(p) for p in workspaces or []]
-    roots += [Path(p).parent.parent for h,p in config_files or [] if HOSTS.get(h)=='codex' and Path(p).parent.name=='.codex' and not _same(Path(p),Path(tool_roots.get('codex',''))/'config.toml')]
+    roots += [Path(p).parent.parent for h,p in config_files or [] if HOSTS.get(h)=="codex" and Path(p).parent.name==".codex" and not _same(Path(p),Path(tool_roots.get("codex",""))/"config.toml")]
     rows=[];seen=set()
     for workspace in roots:
         if str(workspace) in seen:continue
         seen.add(str(workspace))
-        if 'codex' not in tool_roots:continue
-        layers=[Path(tool_roots['codex'])/'config.toml']+[p for _,p,_ in _codex_project_configuration_locations([workspace],tool_roots)]
-        layers=list(dict.fromkeys(layers));merged={};sources={};global_names=set();read=[]
-        def merge(left,right):
-            result=copy.deepcopy(left)
-            for k,v in right.items():result[k]=merge(result[k],v) if k in result and isinstance(result[k],dict) and isinstance(v,dict) else copy.deepcopy(v)
-            return result
-        try:
-            for index,path in enumerate(layers):
-                if not path.exists():continue
-                raw=_read(path);read.append((path,raw))
-                proposed=(document_overrides or {}).get(str(path),raw)
-                data=_document('codex',proposed)
-                entries=data.get('mcp_servers',{})
-                if not isinstance(entries,dict):raise ConfigError('INVALID_MCP_SECTION')
-                if index==0:global_names=set(entries)
-                for name,entry in entries.items():
-                    if _malts(name,entry) or name in merged:
-                        if not isinstance(entry,dict):raise ConfigError('INVALID_MCP_ENTRY')
-                        merged[name]=merge(merged.get(name,{}),entry);sources[name]=path
-            if any(_read(path)!=raw for path,raw in read):raise ConfigError('CONFIGURATION_CHANGED_DURING_CHECK')
-            if not merged:rows.append({'host':'codex','workspace':str(workspace),'status':'NOT_CONFIGURED','host_session_connection':'NOT_VERIFIED'})
-            for name,entry in merged.items():
-                values=_launch('codex',entry);status,identity,_=_generation(values['script'],lifecycle_root)
-                issues,_=_binding(values);enabled=entry.get('enabled',True)
-                source='USER' if _same(sources[name],layers[0]) else 'PROJECT'
-                rows.append({'host':'codex','workspace':str(workspace),'server_name':name,'source':source,'source_path':str(sources[name]),'checked_layers':[str(p) for p,_ in read],
-                    'status':'DISABLED' if enabled is False else 'INVALID' if issues else status,'generation_id':identity,'endpoint_kind':endpoint_kind(values),'enabled':enabled,
-                    'global_entry_shadowed':source=='PROJECT' and name in global_names,'issues':issues,'entry_sha256':hashlib.sha256(json.dumps(entry,sort_keys=True).encode()).hexdigest(),
-                    'policy':{'write_enabled':values.get('enable-write',False),'protected_capture':values.get('allow-protected-input-capture',False),'environment_keys':sorted(entry.get('env',{})) if isinstance(entry.get('env',{}),dict) else []},
-                    'host_session_connection':'NOT_VERIFIED','resolution_scope':'CHECKED_DISK_LAYERS_IF_PROJECT_TRUSTED','unchecked_layers':['Profile','CLI overrides','managed requirements','project trust/session loading'],
-                    'recommendation':'REVIEW_INHERIT_GLOBAL_OR_KEEP_PROJECT_POLICY' if source=='PROJECT' else 'USE_STANDARD_WORKSPACE_REQUESTS' if endpoint_kind(values)=='STANDARD_STABLE' else 'KEEP_PROJECT_POLICY'})
-        except Exception as exc:
-            rows.append({'host':'codex','workspace':str(workspace),'status':'NOT_VERIFIED','reason':str(exc) if isinstance(exc,ConfigError) else 'PROJECT_CONFIGURATION_CHECK_FAILED','host_session_connection':'NOT_VERIFIED'})
+        if "codex" in tool_roots:
+            rows.extend(effective_rows("codex",tool_roots["codex"],workspace,lifecycle_root=lifecycle_root,overrides=document_overrides))
     return rows
 
 

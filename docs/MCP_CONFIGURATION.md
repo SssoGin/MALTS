@@ -4,7 +4,7 @@
 
 The Model Context Protocol (MCP) lets an Agent Host call external tools. MALTS uses local standard input/output (stdio) communication with its Python service; it does not require a network listening port.
 
-MALTS 2.0.9 installs and updates the required `malts` MCP service for the selected Hosts. The comparison and diagnostic commands remain available for managed and project-specific entries.
+MALTS 2.1.0 installs and updates the required `malts` MCP service for the selected Hosts. The comparison and diagnostic commands remain available for managed and project-specific entries.
 
 ## Purpose And Ownership
 
@@ -61,9 +61,9 @@ Exit code 0 means the selected entry agrees and its checked references are curre
 | OpenCode | `opencode.json`; `opencode.jsonc` | JSON/JSONC `mcp`, including comments and trailing commas |
 | DeepSeek Harness | `profiles/<profile>/cordis.patch.yml` | Cordis insert patches with `@deepseek-ai/dsh-mcp-client` |
 
-Generated Cordis JSON with standalone YAML comments works without an additional parser. The installed MCP environment includes PyYAML for block YAML; a separately selected diagnostic interpreter also needs that parser. MALTS 2.0.9 preserves native `!!js` as inert data outside MALTS, rejects dynamic MALTS fields, other tags, anchors, aliases, duplicate keys and excessive nesting. Missing parser support is `UNSUPPORTED`, not a successful check; inspection never installs a dependency. JSON/TOML core operations remain available without PyYAML.
+Generated Cordis JSON with standalone YAML comments works without an additional parser. The installed MCP environment includes PyYAML for block YAML; a separately selected diagnostic interpreter also needs that parser. MALTS 2.1.0 preserves native `!!js` as inert data outside MALTS, rejects dynamic MALTS fields, other tags, anchors, aliases, duplicate keys and excessive nesting. Missing parser support is `UNSUPPORTED`, not a successful check; inspection never installs a dependency. JSON/TOML core operations remain available without PyYAML.
 
-MALTS 2.0.9 pins MCP 1.28.1, jsonschema 4.25.1, PyYAML 6.0.2, pip 26.2 and setuptools 83.0.0 in the lifecycle-owned environment. It updates that environment's pip before installing compatible binary wheels; unavailable wheels stop preparation. This addresses recorded dependency advisories while preserving stdio and the existing permissions. It does not update global Python or a dedicated project's independently chosen interpreter.
+MALTS 2.1.0 pins MCP 1.28.1, jsonschema 4.25.1, PyYAML 6.0.2, pip 26.2 and setuptools 83.0.0 in the lifecycle-owned environment. It updates that environment's pip before installing compatible binary wheels; unavailable wheels stop preparation. This addresses recorded dependency advisories while preserving stdio and the existing permissions. It does not update global Python or a dedicated project's independently chosen interpreter.
 
 For project-local or custom files, supply an exact location:
 
@@ -117,7 +117,7 @@ python -B "$runtime/tools/malts_lifecycle.py" doctor `
 
 Supply the complete registered Host set when inspecting a shared installation. Repeated `--workspace` selects additional directories; repeated `--host-config HOST=ABSOLUTE_PATH` selects custom files. `Install-MALTS.ps1` and `Update-MALTS.ps1` accept the corresponding `-Workspace` and `-HostConfig` arrays. The reviewed update plan binds selected project-file fingerprints, rejects intervening edits, and returns the same selected scope after installation. These inputs request inspection, not automatic project-file editing.
 
-MALTS 2.0.9 resolves each Host's own selected disk layers:
+MALTS 2.1.0 resolves each Host's own selected disk layers:
 
 | Host | Selected layers and precedence | Scope of preserving edits |
 |---|---|---|
@@ -149,7 +149,7 @@ python -B "$runtime/tools/malts_lifecycle.py" mcp-project-plan `
   --server-name 'malts' --strategy 'stable-project'
 ```
 
-Use the same command with the native selection below. `$workspace`, `$tool` and `$lifecycle` are verified absolute paths; `$runtime` is MALTS 2.0.9 being tested. These are review commands, without `--apply`:
+Use the same command with the native selection below. `$workspace`, `$tool` and `$lifecycle` are verified absolute paths; `$runtime` is MALTS 2.1.0 being tested. These are review commands, without `--apply`:
 
 ```powershell
 python -B "$runtime/tools/malts_lifecycle.py" mcp-project-plan --host claude-code --lifecycle-root $lifecycle --tool-root $tool --workspace $workspace --config-path "$workspace/.mcp.json" --server-name malts --strategy stable-project
@@ -172,3 +172,13 @@ After the disk change, reconnect the selected Host. Verify the actual standard e
 Pass the same `--workspace` and `--host-config` set to update planning, Doctor and `retire-plan`. Retirement binds the selected file surfaces and reports its coverage. A selected reference to a retiring generation blocks the plan; unreadable or unsupported selected configurations also block it. A later selected-file edit invalidates execution. A stable endpoint refers to the launcher rather than a retiring generation directory.
 
 This does not discover every project or process on the computer. Unselected project files and active old processes remain outside the proof; process-reference coverage is `NOT_OBSERVED`. Before retiring a generation, inspect and settle the relevant actual Host processes and known project inputs within authorization. The active generation, workspace stores, evidence and recovery material remain protected.
+
+## Native source, managed locations and actionable advice
+
+`effective_configuration.source` reports the native checked scope: `USER`, `PROJECT`, `LOCAL`, `PROFILE`, `HOME`, `HOME_DIRECTORY` or `OVERLAY`. `baseline_source` identifies a checked same-name user entry, or a Harness profile entry; it is null when none was observed. `global_entry_shadowed` is true only when a higher checked scope contributes to that same name over an observed baseline. A profile by itself is not a shadowed project entry. Different names do not establish shadowing.
+
+`installation_managed=true` requires the eligible host scope, the installer-owned `malts` entry, and a matching READY installation record, semantic entry fingerprint and managed-byte fingerprint. `management_status` distinguishes `VERIFIED`, `NOT_MANAGED`, `DRIFT` and `UNVERIFIED`; unknown ownership is null rather than an assertion. A same-file Claude local project entry is not owned merely because its user file contains the installer's entry. These observations describe recorded local ownership, not authentication or a full Host configuration inventory.
+
+A healthy verified managed entry recommends `KEEP_INSTALLER_MANAGED_ENTRY`. It needs no manual relocation or extra home-level copy. Suspected ownership drift recommends review rather than silently certifying the entry. `inherit_global.available` is true only after the real inheritance strategy succeeds as a read-only preserving-edit preview and actually removes an eligible override. Missing, disabled or dedicated baselines, different names/interpreters, special policy and unsupported editable scopes do not produce that recommendation. `reason` gives a value-free explanation; a reviewed saved plan is still required before application, and discovery issues no execution rights.
+
+For Harness, `inherit-global` retains the verified profile standard entry while removing eligible home/explicit overrides. For the other Hosts it retains the verified user entry. The command name does not require creating a new USER/home layer. Installer-owned entries should be maintained through the ordinary lifecycle, which rejects managed-entry drift; moving them by hand does not make an update safer. The analysis does not evaluate dynamic expressions, load bundles/includes or verify an already running Host session.

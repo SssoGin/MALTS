@@ -94,7 +94,7 @@ def cordis_targets(data):
 
 def resolve_layers(host, tool_root, workspace, *, profile='desktop', overlays=None, overrides=None):
     host=HOSTS.get(host,host); layers=locations(host,tool_root,workspace,profile=profile,overlays=overlays)
-    entries={};ids={};guards={};read={};unknown_ids=[];disabled=[]
+    entries={};ids={};guards={};read={};unknown_ids=[];disabled=[];baselines={}
     for layer in layers:
         path=Path(layer['path']);raw=_read(path) if path.exists() else None
         guards[str(path)]=hashlib.sha256(raw).hexdigest().upper() if raw is not None else 'MISSING'
@@ -118,6 +118,7 @@ def resolve_layers(host, tool_root, workspace, *, profile='desktop', overlays=No
                 if name is not None and name!='@deepseek-ai/dsh-mcp-client': continue
                 if entry is None and identity in ids:
                     previous=copy.deepcopy(ids[identity]);previous['disabled']=is_disabled
+                    previous.update(path=layer['path'],scope=layer['scope'],pointer=None,row_pointer=list(row_pointer))
                     ids[identity]=previous;server=previous['entry'].get('serverName',identity)
                     if _malts(server,previous['entry']):entries[server]=previous
                     continue
@@ -136,16 +137,70 @@ def resolve_layers(host, tool_root, workspace, *, profile='desktop', overlays=No
                 if not isinstance(entry,dict): raise ConfigError('INVALID_MCP_ENTRY')
                 previous=entries.get(name,{}).get('entry',{})
                 entries[name]={**layer,'pointer':[*layer['pointer'],name],'entry':copy.deepcopy(entry) if host=='claude' else merge(previous,entry)}
+        if layer['scope'] in ('USER','PROFILE'):
+            baselines={name:copy.deepcopy(row) for name,row in entries.items() if row['scope'] in ('USER','PROFILE')}
     for name,row in entries.items():
         if name in disabled: row['disabled']=True
     if any(_read(Path(path))!=raw for path,raw in read.items()): raise ConfigError('CONFIGURATION_CHANGED_DURING_CHECK')
-    return {'host':host,'layers':layers,'guards':guards,'entries':entries,'unknown_patch_ids':unknown_ids,'profile':profile if host=='deepseek-harness' else None}
+    return {'host':host,'layers':layers,'guards':guards,'entries':entries,'baselines':baselines,'unknown_patch_ids':unknown_ids,'profile':profile if host=='deepseek-harness' else None}
 
 
 def dynamic(value):
     if isinstance(value,dict):return '__malts_opaque_native_js__' in value or any(dynamic(v) for v in value.values())
     if isinstance(value,list):return any(dynamic(v) for v in value)
     return False
+
+
+def configuration_advisory(host,tool_root,workspace,name,row,*,lifecycle_root,resolved,enabled,status,overlays=None,overrides=None):
+    """Facts and a read-only edit preview; never execution authority or a plan."""
+    baseline=resolved['baselines'].get(name)
+    baseline_scopes={'USER','PROFILE'}
+    shadowed=baseline is not None and row['scope'] not in baseline_scopes
+    management='NOT_MANAGED';managed=False
+    if name=='malts' and row['scope'] in baseline_scopes:
+        management='UNVERIFIED';managed=None
+        try:
+            from mcp_host_config import fingerprint,owned_entry,owned_bytes
+            if lifecycle_root is None:raise ConfigError('INSTALLATION_IDENTITY_UNAVAILABLE')
+            ledger=_document('claude',_read(_path(lifecycle_root)/'runtime/mcp/installation.json'))
+            if ledger.get('profile')!='malts.required-mcp.v1' or ledger.get('state')!='READY':raise ConfigError('INSTALLATION_RECORD_UNVERIFIED')
+            records=ledger.get('configurations',[])
+            if not isinstance(records,list) or len(records)>64:raise ConfigError('INSTALLATION_RECORD_BUDGET')
+            selected=[r for r in records if isinstance(r,dict) and HOSTS.get(r.get('host'),r.get('host'))==host and _same(r.get('path',''),row['path'])]
+            if len(selected)>1:raise ConfigError('INSTALLATION_RECORD_AMBIGUOUS')
+            managed=False;management='NOT_MANAGED'
+            if selected:
+                raw=_read(row['path'])
+                proposed=(overrides or {}).get(row['path'],raw)
+                owned=owned_entry(host,_document(host,proposed));record=selected[0]
+                managed=(hashlib.sha256(raw).hexdigest().upper()==resolved['guards'][row['path']] and owned==row['entry'] and
+                         fingerprint(owned)==record.get('entry_sha256') and hashlib.sha256(owned_bytes(host,proposed)).hexdigest().upper()==record.get('managed_bytes_sha256'))
+                management='VERIFIED' if managed else 'DRIFT'
+        except Exception:management='UNVERIFIED';managed=None
+    availability={'available':False,'reason':'NO_STANDARD_BASELINE','requires_explicit_plan':True}
+    if row['scope'] in baseline_scopes:availability['reason']='ALREADY_IN_BASELINE_SCOPE'
+    elif not enabled or status!='CURRENT':availability['reason']='ENTRY_NOT_CURRENT_AND_ENABLED'
+    elif name!='malts':availability['reason']='PROJECT_SPECIAL_POLICY_REQUIRES_RETENTION'
+    elif shadowed:
+        try:
+            from mcp_project_ops import materials
+            # This reuses the real edit strategy's binding, enabled baseline,
+            # policy, preserving editor and prospective-resolution guards.
+            # No cipher/plan/journal is generated and no file is written.
+            plan={'host':host,'lifecycle_root':lifecycle_root,'tool_root':tool_root,'workspace':workspace,'config_path':row['path'],
+                  'strategy':'inherit-global','server_name':name,'profile_name':resolved['profile'] or 'desktop','overlays':overlays or []}
+            observed,after=materials(plan,document_overrides=overrides)
+            if observed['guards']!=resolved['guards']:raise ConfigError('PROJECT_CONFIGURATION_CHANGED_DURING_CHECK')
+            availability.update(available=bool(after),reason='PREVIEW_ELIGIBLE' if after else 'NO_CHANGE_REQUIRED')
+        except ConfigError as exc:availability['reason']=str(exc)
+        except Exception:availability['reason']='INHERITANCE_NOT_VERIFIED'
+    if managed and enabled and status=='CURRENT':recommendation='KEEP_INSTALLER_MANAGED_ENTRY'
+    elif management=='DRIFT':recommendation='REVIEW_INSTALLER_MANAGED_ENTRY'
+    elif availability['available']:recommendation='REVIEW_INHERIT_GLOBAL_OR_KEEP_PROJECT_POLICY'
+    elif endpoint_kind(_launch(host,row['entry']))=='STANDARD_STABLE' and row['scope'] in baseline_scopes and enabled and status=='CURRENT':recommendation='USE_STANDARD_WORKSPACE_REQUESTS'
+    else:recommendation='KEEP_PROJECT_POLICY'
+    return {'global_entry_shadowed':shadowed,'baseline_source':{'scope':baseline['scope'],'path':baseline['path']} if baseline else None,
+            'installation_managed':managed,'management_status':management,'inherit_global':availability,'recommendation':recommendation}
 
 
 def effective_rows(host,tool_root,workspace,*,lifecycle_root=None,profile='desktop',overlays=None,overrides=None):
@@ -164,11 +219,13 @@ def effective_rows(host,tool_root,workspace,*,lifecycle_root=None,profile='deskt
             if host=='deepseek-harness': unknown+=['bundle patches','native groups/includes','unmatched patch IDs']; scope='CHECKED_NATIVE_PATCH_LAYERS'
             else: scope='CHECKED_DISK_LAYERS_IF_PROJECT_TRUSTED'
             policy_env=entry.get('env',entry.get('environment',{}))
-            rows.append({'host':host,'workspace':str(workspace),'server_name':name,'source':'USER' if row['scope']=='USER' else 'PROJECT','source_path':row['path'],'checked_layers':list(resolved['guards']),
-                'status':'DISABLED' if not enabled else 'INVALID' if issues else status,'generation_id':identity,'endpoint_kind':endpoint_kind(values),'enabled':enabled,'global_entry_shadowed':row['scope']!='USER',
+            observed_status='DISABLED' if not enabled else 'INVALID' if issues else status
+            advisory=configuration_advisory(host,tool_root,workspace,name,row,lifecycle_root=lifecycle_root,resolved=resolved,enabled=enabled,status=observed_status,overlays=overlays,overrides=overrides)
+            rows.append({'host':host,'workspace':str(workspace),'server_name':name,'source':row['scope'],'source_path':row['path'],'checked_layers':list(resolved['guards']),
+                'status':observed_status,'generation_id':identity,'endpoint_kind':endpoint_kind(values),'enabled':enabled,
                 'issues':issues,'entry_sha256':hashlib.sha256(json.dumps(entry,sort_keys=True).encode()).hexdigest(),
                 'policy':{'write_enabled':values.get('enable-write',False),'protected_capture':values.get('allow-protected-input-capture',False),'environment_keys':sorted(policy_env) if isinstance(policy_env,dict) else []},
-                'host_session_connection':'NOT_VERIFIED','resolution_scope':scope,'unchecked_layers':unknown,'recommendation':'REVIEW_INHERIT_GLOBAL_OR_KEEP_PROJECT_POLICY' if row['scope']!='USER' else 'USE_STANDARD_WORKSPACE_REQUESTS'})
+                'host_session_connection':'NOT_VERIFIED','resolution_scope':scope,'unchecked_layers':unknown,**advisory})
         return rows or [{'host':host,'workspace':str(workspace),'status':'NOT_CONFIGURED','host_session_connection':'NOT_VERIFIED'}]
     except Exception as exc:
         return [{'host':host,'workspace':str(workspace),'status':'NOT_VERIFIED','reason':str(exc) if isinstance(exc,ConfigError) else 'PROJECT_CONFIGURATION_CHECK_FAILED','host_session_connection':'NOT_VERIFIED'}]

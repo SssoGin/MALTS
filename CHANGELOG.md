@@ -1,5 +1,48 @@
 # Changelog
 
+## v2.1.0 — 2026-10-14
+
+### Accurate native MCP diagnostics
+
+Healthy Harness profile entries no longer report global shadowing when no same-name baseline is being overridden. Diagnostics preserve the Host's actual scope instead of classifying every non-user location as a project. Codex, Claude Code, OpenCode and Harness use the same advisory guards while retaining their own precedence rules. Installer-managed standard entries are verified against the recorded location and both entry and managed-byte fingerprints; healthy entries recommend retention, not moving them or creating an extra home copy.
+
+### Inheritance advice follows the real plan
+
+Inheritance is offered only after the actual preserving-edit strategy passes a read-only preview and has a real change to perform. Missing or disabled standard baselines, dedicated bindings, aliases, special policy, different interpreters and unsupported layouts remain explicit reasons to retain or review the entry. For Harness the baseline may be the managed profile; other Hosts use their user entry. Recommendations create no plans, journals, Projects, Grants or configuration changes.
+
+### Interface and upgrade
+
+The effective report's `source` can now express `LOCAL`, `PROFILE`, `HOME`, `HOME_DIRECTORY` and `OVERLAY` as well as `USER` and `PROJECT`. Consumers should not assume only two source labels. New `baseline_source`, `installation_managed`, `management_status` and `inherit_global` fields explain the evidence and action preconditions. Unknown ownership remains null. These additions do not change Schema69, existing state/binding/permissions or the readonly default MCP service.
+
+Upgrade through the ordinary reviewed four-Host lifecycle and reconnect clients that have not reloaded. No manual profile relocation, new home entry or workspace adoption is needed. Original configuration and recovery policy remain in force; legacy operation records and published evidence are not rewritten.
+
+### Verification limits
+
+Checks cover the reported profile-only case, genuine cross-layer overrides, all four native formats, managed identity/drift, eligible and rejected inheritance, read-only preservation, compatibility and actual service connections. Disk analysis remains bounded to selected layers. Existing Host sessions, trust/managed requirements, unselected overrides and Harness dynamic/group/include/bundle composition remain separate observations; this release does not claim support for those advanced compositions or model/business performance.
+
+## 简体中文
+
+发布日期：2026-10-14（北京时间，UTC+08:00）。
+
+### 准确的原生 MCP 诊断
+
+Harness 的健康 Profile 条目在没有覆盖同名基线时，不再误报全局遮蔽。诊断保留宿主实际作用域，不把全部非用户位置都归为项目。Codex、Claude Code、OpenCode 与 Harness 共用建议守卫，同时保持各自优先级。标准受管条目按登记位置、条目指纹及受管字节指纹核验；健康条目建议保留，不要求搬移或额外创建 Home 副本。
+
+### 继承建议与实际计划一致
+
+仅当真正的保留式编辑策略通过只读预览、且确有可移除的合格覆盖时，才提供继承建议。缺少或禁用的标准基线、专用绑定、别名、专用策略、不同解释器及不支持的布局，均给出明确保留或审阅原因。Harness 可继承已核实的受管 Profile；其他宿主使用用户级条目。建议不创建计划、日志、Project、Grant，也不修改配置。
+
+### 接口与升级
+
+有效配置报告的 `source` 除 `USER`、`PROJECT` 外，还可表达 `LOCAL`、`PROFILE`、`HOME`、`HOME_DIRECTORY`、`OVERLAY`，调用方不应假定只有两种来源。新增的 `baseline_source`、`installation_managed`、`management_status`、`inherit_global` 说明证据及操作前提，未知归属保持 null。不改变 Schema69、既有状态／绑定／权限或默认只读 MCP。
+
+通过普通四端生命周期审阅升级，再重连尚未加载的客户端。不需要手工搬 Profile、新建 Home 条目或重复采用工作区。原配置及恢复策略保持，旧操作记录和发布证据不改写。
+
+### 验证边界
+
+检查覆盖反馈中的单独 Profile、真实跨层覆盖、四种原生格式、受管身份与漂移、可行及被拒绝的继承、只读保全、兼容性及实际服务连接。磁盘解析仍限于所选层；既有宿主会话、信任／受管要求、未选择覆盖，以及 Harness 的动态／分组／include／bundle 组合需分别核实。本版不宣称补齐这些高级组合，也不宣称模型或业务性能收益。
+
+
 ## v2.0.9 — 2026-10-14
 
 ### Four-Host configuration management

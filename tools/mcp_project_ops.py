@@ -44,7 +44,7 @@ def payload(value,plan,path,field):
     return raw
 
 
-def _standard(resolved,root):
+def _standard(resolved,root,document_overrides=None):
     layers=[layer for layer in resolved['layers'] if layer['scope'] in ('USER','PROFILE')]
     overrides={};entry=None
     # Resolve only the selected native global/profile layers, using the same
@@ -52,7 +52,7 @@ def _standard(resolved,root):
     for layer in layers:
         path=Path(layer['path'])
         if not path.exists():continue
-        data=_document(resolved['host'],_read(path))
+        raw=_read(path);data=_document(resolved['host'],(document_overrides or {}).get(str(path),raw))
         if resolved['host']=='deepseek-harness':
             for _,name,value,_,disabled,_ in cordis_targets(data):
                 if name=='@deepseek-ai/dsh-mcp-client' and isinstance(value,dict) and value.get('serverName')=='malts' and disabled is not True:entry=copy.deepcopy(value)
@@ -62,26 +62,28 @@ def _standard(resolved,root):
                 from mcp_layers import merge
                 entry=copy.deepcopy(value) if resolved['host']=='claude' else merge(entry or {},value)
     if entry is None:raise ConfigError('GLOBAL_STANDARD_ENTRY_REQUIRED')
+    if entry.get('enabled',entry.get('disabled') is not True) is not True:raise ConfigError('GLOBAL_STANDARD_ENTRY_UNVERIFIED')
     values=_launch(resolved['host'],entry)
     if values.get('project-bound') or Path(values['script']).name!='mcp_launcher.py' or _generation(values['script'],root)[0]!='CURRENT':raise ConfigError('GLOBAL_STANDARD_ENTRY_UNVERIFIED')
     if _binding(values)[0]:raise ConfigError('GLOBAL_STANDARD_ENTRY_UNVERIFIED')
     return entry,values
 
 
-def materials(plan):
+def materials(plan,*,document_overrides=None):
     host=plan['host'];root=_path(plan['lifecycle_root']);tool=_path(plan['tool_root']);workspace=_path(plan['workspace']);path=_path(plan['config_path'])
-    resolved=resolve_layers(host,tool,workspace,profile=plan['profile_name'],overlays=plan['overlays'])
+    resolved=resolve_layers(host,tool,workspace,profile=plan['profile_name'],overlays=plan['overlays'],overrides=document_overrides)
     allowed=[layer for layer in resolved['layers'] if _same(layer['path'],path) and layer['scope'] not in ('USER','APPROVAL','HOME_DIRECTORY')]
     if not allowed:raise ConfigError('PROJECT_CONFIGURATION_BOUNDARY')
-    standard,standard_values=_standard(resolved,root)
-    name=plan['server_name'];raw=_read(path);after={};selected=resolved['entries'].get(name)
+    standard,standard_values=_standard(resolved,root,document_overrides)
+    def current_bytes(file):return (document_overrides or {}).get(str(file),_read(file))
+    name=plan['server_name'];raw=current_bytes(path);after={};selected=resolved['entries'].get(name)
     if selected is None:return resolved,after
     targets=[]
     for layer in allowed if plan['strategy']=='stable-project' else resolved['layers']:
         if layer['scope'] in ('USER','APPROVAL','PROFILE') and plan['strategy']=='inherit-global':continue
         file=Path(layer['path'])
         if not file.exists():continue
-        data=_document(host,_read(file))
+        data=_document(host,current_bytes(file))
         if host=='deepseek-harness':
             for identity,plugin,entry,pointer,disabled,row_pointer in cordis_targets(data):
                 if (plugin=='@deepseek-ai/dsh-mcp-client' or identity==selected.get('plugin_id')) and isinstance(entry,dict) and entry.get('serverName')==name:
@@ -105,7 +107,7 @@ def materials(plan):
         targets.sort(key=lambda row:(str(row[0]),tuple((0,v) if isinstance(v,int) else (1,v) for v in row[1])),reverse=True)
     elif 'state-dir' not in values:raise ConfigError('PROJECT_BOUND_ENTRY_REQUIRED')
     for file,pointer,remove_pointer,entry,_ in targets:
-        current=after.get(str(file),_read(file))
+        current=after.get(str(file),current_bytes(file))
         if plan['strategy']=='inherit-global':desired=None
         else:
             desired=copy.deepcopy(entry)
@@ -118,8 +120,8 @@ def materials(plan):
             elif not _same(values['tool-root'],tool):raise ConfigError('PROJECT_TOOL_ROOT_CONFLICT')
             desired[key]=args
         after[str(file)]=edit(host,current,pointer,desired,remove_pointer=remove_pointer)
-    after={file:raw_after for file,raw_after in after.items() if raw_after!=_read(file)}
-    prospective=resolve_layers(host,tool,workspace,profile=plan['profile_name'],overlays=plan['overlays'],overrides=after)
+    after={file:raw_after for file,raw_after in after.items() if raw_after!=current_bytes(file)}
+    prospective=resolve_layers(host,tool,workspace,profile=plan['profile_name'],overlays=plan['overlays'],overrides={**(document_overrides or {}),**after})
     if plan['strategy']=='inherit-global':
         inherited=prospective['entries'].get(name)
         if inherited is None or inherited['scope'] not in ('USER','PROFILE') or inherited.get('disabled') or inherited['entry'].get('enabled',True) is not True:raise ConfigError('PROJECT_INHERITANCE_STILL_SHADOWED_OR_DISABLED')

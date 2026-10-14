@@ -4,7 +4,7 @@
 
 模型上下文协议（Model Context Protocol，MCP）让 Agent 宿主调用外部工具。MALTS 通过本机进程的标准输入输出（stdio）与 Python 服务通信，不需要开放网络监听端口。
 
-MALTS 2.0.9 为所选宿主安装和更新必需的 `malts` MCP 服务；针对受管理和项目专用条目的配置对比与诊断入口继续有效。
+MALTS 2.1.0 为所选宿主安装和更新必需的 `malts` MCP 服务；针对受管理和项目专用条目的配置对比与诊断入口继续有效。
 
 ## 目的与维护职责
 
@@ -61,9 +61,9 @@ python -B "$runtime/tools/malts_v2.py" mcp-config `
 | OpenCode | `opencode.json`；`opencode.jsonc` | JSON／JSONC `mcp`，支持注释和末尾逗号 |
 | DeepSeek Harness | `profiles/<profile>/cordis.patch.yml` | 包含 `@deepseek-ai/dsh-mcp-client` 的 Cordis 插入补丁 |
 
-生成的 Cordis JSON 即使带有独立 YAML 注释行，也无需额外解析器。安装的 MCP 环境包含解析块式 YAML 的 PyYAML；另行选用的诊断解释器也需要该解析器。MALTS 2.0.9将 MALTS 之外的原生 `!!js` 保留为不可执行数据，拒绝 MALTS 中的动态字段、其他标签、锚点、别名、重复键及过深嵌套。解析器缺失时为 `UNSUPPORTED`，不能算检查通过；诊断不会自行安装依赖。不使用 PyYAML 时，核心 JSON／TOML 操作仍然可用。
+生成的 Cordis JSON 即使带有独立 YAML 注释行，也无需额外解析器。安装的 MCP 环境包含解析块式 YAML 的 PyYAML；另行选用的诊断解释器也需要该解析器。MALTS 2.1.0将 MALTS 之外的原生 `!!js` 保留为不可执行数据，拒绝 MALTS 中的动态字段、其他标签、锚点、别名、重复键及过深嵌套。解析器缺失时为 `UNSUPPORTED`，不能算检查通过；诊断不会自行安装依赖。不使用 PyYAML 时，核心 JSON／TOML 操作仍然可用。
 
-MALTS 2.0.9在生命周期所属环境中固定 MCP 1.28.1、jsonschema 4.25.1、PyYAML 6.0.2、pip 26.2、setuptools 83.0.0；先更新该环境的 pip，再安装兼容的二进制 wheel，没有兼容 wheel 时停止准备。这处理已知依赖公告对应版本，同时保持 stdio 及原有权限，不更新全局 Python 或专用项目独立选择的解释器。
+MALTS 2.1.0在生命周期所属环境中固定 MCP 1.28.1、jsonschema 4.25.1、PyYAML 6.0.2、pip 26.2、setuptools 83.0.0；先更新该环境的 pip，再安装兼容的二进制 wheel，没有兼容 wheel 时停止准备。这处理已知依赖公告对应版本，同时保持 stdio 及原有权限，不更新全局 Python 或专用项目独立选择的解释器。
 
 项目级配置或自定义文件可通过精确位置纳入：
 
@@ -117,7 +117,7 @@ python -B "$runtime/tools/malts_lifecycle.py" doctor `
 
 检查共享安装时传入实际登记的完整宿主集合。重复 `--workspace` 可选择多个目录，重复 `--host-config HOST=ABSOLUTE_PATH` 可选择自定义文件。普通安装和更新脚本分别接受对应的 `-Workspace`、`-HostConfig` 数组。升级计划绑定所选项目文件指纹，拒绝预览后的修改，并在安装后报告同一检查范围。这些参数用于检查，不自动编辑项目配置。
 
-MALTS 2.0.9按每个宿主自己的规则解析所选磁盘配置层：
+MALTS 2.1.0按每个宿主自己的规则解析所选磁盘配置层：
 
 | 宿主 | 所选配置层及优先级 | 保留原配置的编辑范围 |
 |---|---|---|
@@ -172,3 +172,13 @@ Claude 本地作用域改为选择已有的用户 `.claude.json`，只编辑所�
 更新计划、Doctor 和 `retire-plan` 接受同一组 `--workspace`、`--host-config`。退役计划绑定所选文件并说明覆盖范围。所选配置仍引用待退役代际时阻止规划；所选文件不可读或格式不支持时也停止。规划后的相关修改使执行失效。稳定端点引用启动器，不直接绑定待退役的版本目录。
 
 这不证明已经发现全机所有项目或进程。未选择的项目文件和仍运行的旧进程不在证明范围，进程引用覆盖标为 `NOT_OBSERVED`。退役前应在授权范围内检查并处置有关宿主实际进程及已知项目输入。活动代际、工作区状态、证据和恢复资料保持受保护。
+
+## 原生来源、受管位置与可执行建议
+
+`effective_configuration.source` 报告已检查的原生作用域：`USER`、`PROJECT`、`LOCAL`、`PROFILE`、`HOME`、`HOME_DIRECTORY` 或 `OVERLAY`。`baseline_source` 指向已观察到的同名用户条目，或 Harness 的 Profile 条目；不存在时为 null。只有更高的已检查层对该同名基线产生覆盖时，`global_entry_shadowed` 才为 true。单独存在的 Profile 条目不等于项目层遮蔽；不同名称也不构成遮蔽。
+
+`installation_managed=true` 须同时满足适用的宿主作用域、安装器拥有的 `malts` 条目，以及 READY 安装记录、条目语义指纹和受管字节指纹一致。`management_status` 分为 `VERIFIED`、`NOT_MANAGED`、`DRIFT`、`UNVERIFIED`；归属未知时为 null。Claude 的本地项目段不会仅因与用户条目处于同一文件就被认作安装器所有。这些事实说明本机登记的归属，不证明身份认证或完整宿主配置清单。
+
+健康且核实受管的条目建议 `KEEP_INSTALLER_MANAGED_ENTRY`，无需手工搬移或增加 Home 副本。归属漂移须审阅，不会被静默认作受管。`inherit_global.available` 只有在实际继承策略通过只读保留式编辑预览、确实移除合格覆盖条目后才为 true。缺少基线、基线禁用或专用绑定、不同名称／解释器、专用策略及不支持的编辑作用域，均不会产生该建议。`reason` 给出不含配置值的原因；执行仍须保存并审阅准确计划，诊断不授予权限。
+
+Harness 的 `inherit-global` 保留已核实的 Profile 标准条目，只移除合格的 Home／显式覆盖；其他宿主保留用户级标准条目。命令名称不要求新建 USER 或 Home 层。安装器条目应经普通生命周期维护，受管内容漂移时更新会拒绝，不能靠手工移动来绕过。此解析不求值动态表达式，不加载 bundle／include，也不证明运行中的宿主已经重载。
