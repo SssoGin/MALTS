@@ -1,4 +1,4 @@
-# MALTS 2.0.0 for Claude Code
+# MALTS for Claude Code
 
 ## Entry and responsibilities
 

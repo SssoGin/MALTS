@@ -111,7 +111,7 @@ class CodexWorkerProfile(CodexReadOnlyProfile):
         root=Path(__file__).resolve().parent.parent
         runtime_guards=[{'path':str(root/name),'sha256':hashlib.sha256(data).hexdigest()} for name,data in sorted(collect_inputs(root).items())]
         self.guards=[*self.guards,{'path':str(self.python_executable),'sha256':file_digest(self.python_executable)},*runtime_guards]
-        if len(self.guards)>128:raise ValueError('Reviewed runtime/config inventory exceeds process profile limit')
+        if len(self.guards)>256:raise ValueError('Reviewed runtime/config inventory exceeds process profile limit')
         self.server_name='malts_worker'
         if self.server_name in self.servers:raise ValueError('Worker server name collides with reviewed configuration')
         binding=[self.profile_revision,str(self.state_dir),str(self.resource_root),project_id,task_id,task_revision,

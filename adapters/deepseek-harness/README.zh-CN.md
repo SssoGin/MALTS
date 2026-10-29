@@ -1,4 +1,4 @@
-﻿# MALTS 2.0.0 与 DeepSeek Harness
+# MALTS 与 DeepSeek Harness
 
 ## 入口与职责
 

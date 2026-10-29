@@ -1,10 +1,10 @@
 # Update MALTS
 
-An update selects verified source content and changes the chosen installation through a reviewed transaction. The updater preserves project work and user-owned configuration according to its plan; it does not select a new goal or migrate projects automatically. Current version: **2.1.0**.
+An update selects verified source content and changes the chosen installation through a reviewed transaction. The updater preserves project work and user-owned configuration according to its plan; it does not select a new goal or migrate projects automatically. Current version: **2.1.1**.
 
 ## Before Updating
 
-Inspect the installed identity, intended source, workspace binding, user edits, relevant writers and pending effects. Preserve recovery materials. The updater does not pull Git and performs no automatic repository selection, automatic ZIP download, provider call or implicit project migration. Current version remains **2.1.0**.
+Inspect the installed identity, intended source, workspace binding, user edits, relevant writers and pending effects. Preserve recovery materials. The updater does not pull Git and performs no automatic repository selection, automatic ZIP download, provider call or implicit project migration. Current version remains **2.1.1**.
 
 Compare the active source kind/hash, intended repository/package identity and actual selected tool roots. Identify whether a normal version update or same-version content consolidation is needed. Preserve required transaction snapshots and project backups for their different recovery purposes.
 
@@ -60,6 +60,8 @@ Retained generations, snapshots and evidence can remain after update because the
 
 Use read-only Doctor with all four Host roots registered to the shared lifecycle. Inspect core trust before choosing a repair source. DoctorRepairPlan prepares a review; Execute uses the reviewed hash. Do not edit journals/locks or change permissions to bypass a failed precondition.
 
+If a Host has reformatted its registered MCP entry without changing any values, use the explicitly reviewed [formatting repair](MCP_CONFIGURATION.md#repair-formatting-or-management-markers). A normal update does not silently accept that drift. Repair against the exact installed release first, then prepare the new update plan.
+
 ## Update Workspace Controls
 
 Installation does not adopt projects. Before v2 adoption, review current facts, mappings, writers, unknown effects and backups. Adopted workspaces use current task services; preserve binding/source-seals and do not run old Markdown initialization/reorganization writes. Current Core reads/writes Schema69 only; changing a version field is not a development-store migration.
@@ -108,4 +110,8 @@ Older manually configured project endpoints remain separate and retain their own
 
 ### Project MCP Entries And Upgrade Checks
 
-Ordinary read-only projects inherit the global standard entry. Dedicated bindings, interpreters, environments or permissions can retain a project endpoint. Select `--workspace` / `--host-config` for update, Doctor and retirement checks; configuration precedence and actual Host loading are verified separately. `mcp-config --stable` follows the active generation while retaining fixed state and policy. MALTS 2.1.0 provides four-Host reviewed entry changes, layer fingerprints, protected preimages and original-operation recovery without recreating project state; native scope and actual Host loading remain separate. See [MCP configuration](MCP_CONFIGURATION.md#selected-project-configuration) for commands and limits.
+Ordinary read-only projects inherit the global standard entry. Dedicated bindings, interpreters, environments or permissions can retain a project endpoint. Select `--workspace` / `--host-config` for update, Doctor and retirement checks; configuration precedence and actual Host loading are verified separately. `mcp-config --stable` follows the active generation while retaining fixed state and policy. MALTS provides four-Host reviewed entry changes, layer fingerprints, protected preimages and original-operation recovery without recreating project state; native scope and actual Host loading remain separate. See [MCP configuration](MCP_CONFIGURATION.md#selected-project-configuration) for commands and limits.
+
+### Real Agent route evidence after update
+
+After updating the controller or Host, inspect the selected execution route and its exact input binding. Relevant executable/configuration changes invalidate old qualification; a published version number does not refresh proof. Preserve original journals and results when updating during recovery. See [Real Agent scheduling](AGENT_SCHEDULING.md) for route selection, qualification and original-dispatch recovery.

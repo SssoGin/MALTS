@@ -4,7 +4,7 @@
 
 The Model Context Protocol (MCP) lets an Agent Host call external tools. MALTS uses local standard input/output (stdio) communication with its Python service; it does not require a network listening port.
 
-MALTS 2.1.0 installs and updates the required `malts` MCP service for the selected Hosts. The comparison and diagnostic commands remain available for managed and project-specific entries.
+MALTS installs and updates the required `malts` MCP service for the selected Hosts. The comparison and diagnostic commands remain available for managed and project-specific entries.
 
 ## Purpose And Ownership
 
@@ -30,6 +30,25 @@ The fixed `runtime/mcp/mcp_launcher.py` resolves and verifies the selected Hostâ
 For example, invoke `malts_context` with `{"workspace":"<absolute-current-project-workspace>","task_id":"<actual-task-id>"}`. If startup cwd already equals that verified workspace, it can supply the default; otherwise pass the path. A project that has not opted in receives a binding error rather than a new database. Use the existing approved project initialization or adoption workflow first.
 
 The standard endpoint is read-only. Installation does not mint Grants, launch Agents, activate a Phase or bypass controller checks. Explicitly bounded write endpoints continue to use existing Project/Task/actor policy and runtime Grants; the fragment comparison section below applies to those endpoints. Cold connection checks verify a newly started server, while actual Host loading still needs reconnect/restart where necessary. Uninstall removes the owned `malts` entry while preserving unrelated settings and local recovery material.
+
+### Repair Formatting Or Management Markers
+
+Normal installation rejects a changed managed-byte fingerprint, even if the parsed entry still agrees. For a registered entry whose values exactly match its installation record, an explicitly reviewed repair can accept formatting changes and rebuild the Codex management markers around the selected table. It preserves other settings and comments. It does not accept different commands, arguments, permissions, Harness plugin-wrapper policy, unowned entries or duplicate markers.
+
+Run this command from a verified checkout containing the repair implementation. The external repair source must match the **installed** release exactly; a newer release cannot stand in for that source. Use all Host roots recorded in the shared installation:
+
+```powershell
+.\scripts\Invoke-MALTSLifecycle.ps1 -Command DoctorRepairPlan `
+  -LifecycleRoot '<verified-lifecycle-root>' `
+  -ToolRootCodex '<Codex-tool-root>' `
+  -ToolRootClaudeCode '<Claude-Code-tool-root>' `
+  -ToolRootOpenCode '<OpenCode-tool-root>' `
+  -ToolRootDeepSeekHarness '<DeepSeek-Harness-tool-root>' `
+  -ReleaseRoot '<verified-extracted-installed-release-root>' `
+  -ReconcileMcpFormatting
+```
+
+This is a read-only preview. After reviewing the targets and hashes, repeat with `-OutPath '<new-plan-path>' -Apply` to save the plan. Saving it does not execute the repair. Execute that saved plan through the ordinary [hash-bound lifecycle procedure](LIFECYCLE.md#review-first-plans), then recheck Doctor, discovery and the actual MCP connection. Exact private configuration preimages remain in the lifecycle recovery history. Changes after planning reject execution; do not edit the registry or disable ownership checks to get past a conflict.
 
 ## Compare A Selected Entry
 
@@ -61,9 +80,9 @@ Exit code 0 means the selected entry agrees and its checked references are curre
 | OpenCode | `opencode.json`; `opencode.jsonc` | JSON/JSONC `mcp`, including comments and trailing commas |
 | DeepSeek Harness | `profiles/<profile>/cordis.patch.yml` | Cordis insert patches with `@deepseek-ai/dsh-mcp-client` |
 
-Generated Cordis JSON with standalone YAML comments works without an additional parser. The installed MCP environment includes PyYAML for block YAML; a separately selected diagnostic interpreter also needs that parser. MALTS 2.1.0 preserves native `!!js` as inert data outside MALTS, rejects dynamic MALTS fields, other tags, anchors, aliases, duplicate keys and excessive nesting. Missing parser support is `UNSUPPORTED`, not a successful check; inspection never installs a dependency. JSON/TOML core operations remain available without PyYAML.
+Generated Cordis JSON with standalone YAML comments works without an additional parser. The installed MCP environment includes PyYAML for block YAML; a separately selected diagnostic interpreter also needs that parser. MALTS preserves native `!!js` as inert data outside MALTS, rejects dynamic MALTS fields, other tags, anchors, aliases, duplicate keys and excessive nesting. Missing parser support is `UNSUPPORTED`, not a successful check; inspection never installs a dependency. JSON/TOML core operations remain available without PyYAML.
 
-MALTS 2.1.0 pins MCP 1.28.1, jsonschema 4.25.1, PyYAML 6.0.2, pip 26.2 and setuptools 83.0.0 in the lifecycle-owned environment. It updates that environment's pip before installing compatible binary wheels; unavailable wheels stop preparation. This addresses recorded dependency advisories while preserving stdio and the existing permissions. It does not update global Python or a dedicated project's independently chosen interpreter.
+The MCP dependency profile pins MCP 1.30.0, jsonschema 4.25.1, PyYAML 6.0.2, pip 26.2.2, setuptools 84.1.0 and certifi 2026.10.23 in the lifecycle-owned environment. It updates that environment's pip before installing compatible binary wheels; unavailable wheels stop preparation. This addresses recorded dependency advisories while preserving stdio and the existing permissions. It does not update global Python or a dedicated project's independently chosen interpreter.
 
 For project-local or custom files, supply an exact location:
 
@@ -117,7 +136,7 @@ python -B "$runtime/tools/malts_lifecycle.py" doctor `
 
 Supply the complete registered Host set when inspecting a shared installation. Repeated `--workspace` selects additional directories; repeated `--host-config HOST=ABSOLUTE_PATH` selects custom files. `Install-MALTS.ps1` and `Update-MALTS.ps1` accept the corresponding `-Workspace` and `-HostConfig` arrays. The reviewed update plan binds selected project-file fingerprints, rejects intervening edits, and returns the same selected scope after installation. These inputs request inspection, not automatic project-file editing.
 
-MALTS 2.1.0 resolves each Host's own selected disk layers:
+MALTS resolves each Host's own selected disk layers:
 
 | Host | Selected layers and precedence | Scope of preserving edits |
 |---|---|---|
@@ -149,7 +168,7 @@ python -B "$runtime/tools/malts_lifecycle.py" mcp-project-plan `
   --server-name 'malts' --strategy 'stable-project'
 ```
 
-Use the same command with the native selection below. `$workspace`, `$tool` and `$lifecycle` are verified absolute paths; `$runtime` is MALTS 2.1.0 being tested. These are review commands, without `--apply`:
+Use the same command with the native selection below. `$workspace`, `$tool` and `$lifecycle` are verified absolute paths; `$runtime` is MALTS being tested. These are review commands, without `--apply`:
 
 ```powershell
 python -B "$runtime/tools/malts_lifecycle.py" mcp-project-plan --host claude-code --lifecycle-root $lifecycle --tool-root $tool --workspace $workspace --config-path "$workspace/.mcp.json" --server-name malts --strategy stable-project

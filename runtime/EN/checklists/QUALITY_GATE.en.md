@@ -16,7 +16,7 @@
 - [ ] No prohibited files were modified.
 - [ ] Resource locks were respected.
 - [ ] Unknown user changes were not overwritten.
-- [ ] For protocol, template, checklist, adapter, or documentation gap-filling tasks, Codex, Claude Code, and OpenCode were checked and synchronized unless the user explicitly scoped one out.
+- [ ] For protocol, template, checklist, adapter, or documentation gap-filling tasks, Codex, Claude Code, OpenCode, and DeepSeek Harness were checked and synchronized unless the user explicitly scoped one out.
 - [ ] Standalone task/tool artifacts were kept local unless the user explicitly requested promotion into system entries, shared tools, or global indexes.
 - [ ] Folder additions, deletions, moves, renames, or purpose changes updated the related indexes/manuals/recovery docs, or the N/A reason is recorded.
 - [ ] Project workspace roots do not retain accidental global-skill/tool install copies. If such copies are found, they are either promoted to the correct global Agent path, documented as intentional project artifacts, or removed after verification.

@@ -90,6 +90,46 @@ def _insert_member(text,span,key,value):
     fragment=separator+'\n'+json.dumps(key)+': '+json.dumps(value,ensure_ascii=False)+'\n'
     return text[:end-1]+fragment+text[end-1:]
 
+
+def restore_markers(host,raw):
+    """Restore one flat Codex table only after ledger ownership is verified."""
+    if owned_entry(host,document(host,raw)) is None:return raw
+    text=raw.decode('utf-8-sig')
+    if host!='codex':
+        if host=='deepseek-harness':
+            expected={'id':'malts-default','name':'@deepseek-ai/dsh-mcp-client','config':owned_entry(host,document(host,raw))}
+            selected=[row for node in document(host,raw)if isinstance(node,dict)for row in node.get('insert',[])
+                      if isinstance(row,dict)and row.get('name')=='@deepseek-ai/dsh-mcp-client'and row.get('config',{}).get('serverName')=='malts']
+            if selected!=[expected]:raise ConfigError('MANAGED_MCP_USER_EDIT_CONFLICT')
+            if not _json_form(text):
+                block=owned_bytes(host,raw).decode('utf-8')
+                if document(host,block[len(BEGIN):-len(END)].encode('utf-8'))!=[{'insert':[expected]}]:
+                    raise ConfigError('MANAGED_MCP_USER_EDIT_CONFLICT')
+        owned_bytes(host,raw)
+        return raw
+    if text.count(BEGIN)>1 or text.count(END)>1:raise ConfigError('MANAGED_MCP_MARKER_INVALID')
+    from mcp_project import table_spans
+    text,spans=table_spans(raw,'malts')
+    if len(spans)!=1:raise ConfigError('MANAGED_MCP_RECONCILIATION_LAYOUT_UNSUPPORTED')
+    start,end=spans[0];newline='\r\n' if '\r\n' in text else '\n'
+    removals=[]
+    for marker in (BEGIN,END):
+        if marker not in text:continue
+        matches=list(re.finditer(r'(?m)^[ \t]*'+re.escape(marker)+r'[ \t]*(?:\r?\n|$)',text))
+        if len(matches)!=1:raise ConfigError('MANAGED_MCP_MARKER_INVALID')
+        match=matches[0]
+        removals.append(match.span())
+    if removals:
+        for left,right in reversed(sorted(removals)):text=text[:left]+text[right:]
+        text,spans=table_spans(text.encode('utf-8'),'malts');start,end=spans[0]
+    segment=text[start:end]
+    updated=text[:start]+BEGIN+newline+segment+(''if segment.endswith(('\r','\n'))else newline)+END+newline+text[end:]
+    bom=b'\xef\xbb\xbf' if raw.startswith(b'\xef\xbb\xbf') else b''
+    result=bom+updated.encode('utf-8')
+    if document(host,result)!=document(host,raw):raise ConfigError('UNRELATED_CONFIGURATION_CHANGED')
+    owned_bytes(host,result)
+    return result
+
 def _patch_json(host,text,data,entry):
     spans=_json_spans(text)
     if host=='deepseek-harness':

@@ -1,5 +1,42 @@
 # Changelog
 
+## v2.1.1 — 2026-10-29
+
+### Real Agent execution and qualification
+
+Immediately before exposing the first native spawn, MALTS compares the queued profile binding and rechecks the captured input files. All four CLI profiles carry the selected installation binding into the process supervisor, which checks lifecycle admission at actual process launch. Configuration drift blocks new execution while original-dispatch queries, cancellation and already admitted receipt capture remain available for reconciliation. Execution receipts use `malts.agent-case-receipt.v2` and bind the route, capability, reviewed-input digest and profile binding at capture. Reusing an older receipt with new inputs, another route or another mode is rejected. Earlier unbound v1 execution receipts remain historical evidence and cannot qualify current execution; capture a new bounded real case instead of relabeling the old bytes.
+
+MALTS adds reviewed CLI profiles for Codex, Claude Code, OpenCode and DeepSeek Harness, plus a separate Codex native-tool relay. The existing dispatch service retains Task identity, grants, cumulative budgets and uncertain-start recovery. Qualification is per route/mode/input binding and requires retained execution/output checks; synthetic cases, missing receipts, drift or contradictory outcomes cannot establish real qualification. Raw reasoning and transport output remain excluded from public logs. Native session closure and owned CLI process-tree exit retain different assurance boundaries.
+
+The controller rejects mismatched workspace/state/Project profiles and dispatches belonging to another Task or revision. Codex native qualification also binds the selected responsibility. Upgrade through the existing four-Host lifecycle; qualification is local evidence and is not supplied by a version number or installation. Commands and limitations are in [Real Agent scheduling](docs/AGENT_SCHEDULING.md).
+
+The installer also corrects dependency preparation on some longer Windows paths containing spaces or Chinese characters. It bootstraps the pinned pip directly into an empty owned environment, avoiding the base interpreter's older setuptools fixture paths, while preserving preparation rollback and global Python settings.
+
+Transaction snapshots, restoration and owned-tree cleanup now handle extended internal Windows paths without changing persisted path identities or bypassing staged/projection path preflight. Explicitly reviewed MCP formatting repair accepts only registered entries whose semantic values still match the installation record. It restores Codex markers around the exact selected table, preserves unrelated settings and retains private preimages; ordinary updates continue to reject drift, and semantic changes remain conflicts. TOML table editing also preserves unrelated arrays of tables and quoted names containing `#`.
+
+The owned MCP dependency profile updates to MCP 1.30.0, pip 26.2.2, setuptools 84.1.0 and certifi 2026.10.23; jsonschema 4.25.1 and PyYAML 6.0.2 remain pinned. Installation prepares these dependencies in its own environment. This addresses the audited dependency advisories without replacing global Python, changing stdio transport or broadening execution permissions.
+
+Dependency subprocesses discard inherited `PIP_*` settings and disable external pip configuration files. External target, prefix and user-install settings therefore cannot redirect the managed installation. Standard proxy and TLS environment settings remain available.
+
+### 简体中文
+
+首次输出原生创建调用前，MALTS 比较排队时的配置绑定并重新核对输入文件。四端 CLI 执行配置均向监督器传递所选安装绑定，在实际进程启动时检查生命周期准入。配置漂移阻止新执行，原派发的查询、取消和已准入回执保存仍可用于对账。 执行回执使用 `malts.agent-case-receipt.v2`，在采集时绑定路线、能力、已审阅输入摘要及配置绑定。不能将旧回执重新登记为新输入、其他路线或其他模式的证据。旧的无输入绑定 v1 执行回执仍是历史资料，不能认证当前执行；应补充新的有界真实案例，不改写旧回执字节。
+
+MALTS 新增 Codex、Claude Code、OpenCode、DeepSeek Harness 的已审阅 CLI 执行配置，并提供独立的 Codex 原生工具桥接。现有派发服务继续维护 Task 身份、授权、累计预算和启动不明时的恢复。资格按路线、模式和输入绑定记录，要求保留执行及产物检查；合成案例、缺失回执、输入漂移或矛盾结果不能认证真实资格。公共日志继续排除原始推理和传输输出。原生会话关闭与所属 CLI 进程树退出保留各自保证范围。
+
+控制端拒绝工作区、状态库、Project 不匹配的配置，以及属于其他 Task 或修订的派发；Codex 原生资格还绑定所选职责。升级使用现有四端生命周期流程；资格属于本机执行证据，版本号或安装本身不提供资格。命令与限制见[真实 Agent 调度](docs/zh-CN/AGENT_SCHEDULING.md)。
+
+
+安装器同时修正部分较长中文或空格路径下的依赖准备：向空的自有环境直接安装固定版本 pip，避免基础解释器旧 setuptools 测试数据的嵌套路径，保留准备失败回滚及全局 Python 设置。
+
+事务快照、恢复及受管理目录清理支持内部 Windows 扩展路径，计划中的路径身份及暂存／投影路径预检保持。明确审阅的 MCP 格式修复仅接受解析值仍与安装记录一致的已登记条目，将 Codex 标记恢复到准确的所选配置表周围，保留无关设置及私有前像；普通更新仍拒绝漂移，值的变化仍视为冲突。TOML 配置表编辑同时保留无关的表数组和名称中包含 `#` 的引号键。
+
+自有 MCP 依赖配置更新为 MCP 1.30.0、pip 26.2.2、setuptools 84.1.0、certifi 2026.10.23，继续固定 jsonschema 4.25.1 和 PyYAML 6.0.2。安装在自己的环境中准备这些依赖，处理已审计的依赖公告，不替换全局 Python、不改变 stdio 通信，也不扩大执行权限。
+
+依赖子进程忽略继承的 `PIP_*` 设置并禁用外部 pip 配置文件，防止外部目标目录、安装前缀及用户级安装设置重定向受管理安装；普通代理及 TLS 环境设置继续保留。
+
+
+
 ## v2.1.0 — 2026-10-14
 
 ### Accurate native MCP diagnostics

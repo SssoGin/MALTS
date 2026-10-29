@@ -1,6 +1,6 @@
 # MALTS Lifecycle
 
-The installation lifecycle verifies a source, stages a generation, preserves preimages, activates selected native integrations and checks the resulting binding. The project lifecycle maintains goals, tasks, evidence and recovery independently of installation. Current version: **2.1.0**.
+The installation lifecycle verifies a source, stages a generation, preserves preimages, activates selected native integrations and checks the resulting binding. The project lifecycle maintains goals, tasks, evidence and recovery independently of installation. Current version: **2.1.1**.
 
 ## Core Invariants
 
@@ -13,7 +13,7 @@ Installation and project work have separate lifecycles. Installation owns immuta
 - Active generations are runtime inputs, not editable workspaces.
 - Snapshots and incomplete transactions retain their recovery purpose.
 
-Current version is **2.1.0**; same-version documentation amendments keep a distinct content identity.
+Current version is **2.1.1**; same-version documentation amendments keep a distinct content identity.
 
 A registry identity is meaningful only when it agrees with the active pointer, generation manifest and payload, and the selected tool's Boot. The installer checks the complete verified source before writing; post-validation checks the actual destination rather than inferring success from an exit message.
 
@@ -32,7 +32,7 @@ ZIP is the delivery form of the second source, not an automatic download or an a
 
 Repository verification checks the declared user paths plus the repository-only identity/Git/CI files. It rejects missing, changed or unexpected public content. Installation extracts only user payload paths; repository metadata is not installed into the generation.
 
-A fixed archive adds an outer closed inventory and inner lifecycle artifact. The verifier checks names, traversal/collision risks and hashes before final extraction. A GitHub-generated source archive is a snapshot of a Git ref and must not be assumed to have the same package layout as MALTS-2.1.0.zip.
+A fixed archive adds an outer closed inventory and inner lifecycle artifact. The verifier checks names, traversal/collision risks and hashes before final extraction. A GitHub-generated source archive is a snapshot of a Git ref and must not be assumed to have the same package layout as MALTS-2.1.1.zip.
 
 Select the source before planning and keep it unchanged until execution. Pulling a new commit, editing a guide or adding a cache after planning can invalidate the source identity. Generate another reviewed plan rather than editing the old hash or relaxing verification.
 
@@ -155,6 +155,8 @@ Read the report's severity, expected/observed locators and core trust together. 
 
 If repair cannot establish source trust, preserve the installation and its evidence for diagnosis. Manual copying, changing ACLs or reconstructing a registry from a folder name would bypass the very identity checks that recovery relies on.
 
+For a registered MCP entry whose parsed values still match the installation record, `DoctorRepairPlan -ReconcileMcpFormatting` explicitly reviews formatting or Codex marker repair. It uses the exact external source for the installed release, the normal plan hash, private preimages and connection checks. Semantic changes and unowned entries remain conflicts. See [MCP formatting repair](MCP_CONFIGURATION.md#repair-formatting-or-management-markers) before preparing the plan.
+
 ## Versions And Boot Pointers
 
 Each tool reads its exact adjacent or instruction-declared `MALTS_BOOT.md`. Its MALTS_ROOT points at an immutable generation. Resolve that pointer and discovery's returned authority paths; do not guess an active pointer or rely on a historical absolute runtime path.
@@ -232,7 +234,7 @@ Ordinary new workspaces use `workspace-init` to place task state, managed eviden
 
 ## External MCP References After Lifecycle Changes
 
-In MALTS 2.1.0, `doctor` also inspects known Host configuration locations and optional `--host-config HOST=ABSOLUTE_PATH` inputs. Installation trust and external configuration drift remain separate: a broken MCP reference can make the report `DEGRADED` while `core_trust` remains `LOCALLY_CONSISTENT`. `doctor-repair-plan` repairs the owned installation/projection scope; it does not repair Host-owned MCP settings.
+In MALTS, `doctor` also inspects known Host configuration locations and optional `--host-config HOST=ABSOLUTE_PATH` inputs. Installation trust and external configuration drift remain separate: a broken MCP reference can make the report `DEGRADED` while `core_trust` remains `LOCALLY_CONSISTENT`. `doctor-repair-plan` repairs the owned installation/projection scope; it does not repair Host-owned MCP settings.
 
 Successful installation/update and shared-root consolidation return `external_configuration`, including the inspected scope and references needing regeneration. The diagnostic cannot reverse an already committed lifecycle result. No complete inventory of arbitrary external references is claimed. See [configuration checks](MCP_CONFIGURATION.md).
 
@@ -242,4 +244,4 @@ MCP is installed and enabled for every selected Host as part of ordinary install
 
 ### Project MCP Entries And Upgrade Checks
 
-Ordinary read-only projects inherit the global standard entry. Dedicated bindings, interpreters, environments or permissions can retain a project endpoint. Select `--workspace` / `--host-config` for update, Doctor and retirement checks; configuration precedence and actual Host loading are verified separately. `mcp-config --stable` follows the active generation while retaining fixed state and policy. MALTS 2.1.0 provides four-Host reviewed entry changes, layer fingerprints, protected preimages and original-operation recovery without recreating project state; native scope and actual Host loading remain separate. See [MCP configuration](MCP_CONFIGURATION.md#selected-project-configuration) for commands and limits.
+Ordinary read-only projects inherit the global standard entry. Dedicated bindings, interpreters, environments or permissions can retain a project endpoint. Select `--workspace` / `--host-config` for update, Doctor and retirement checks; configuration precedence and actual Host loading are verified separately. `mcp-config --stable` follows the active generation while retaining fixed state and policy. MALTS provides four-Host reviewed entry changes, layer fingerprints, protected preimages and original-operation recovery without recreating project state; native scope and actual Host loading remain separate. See [MCP configuration](MCP_CONFIGURATION.md#selected-project-configuration) for commands and limits.

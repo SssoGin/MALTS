@@ -96,9 +96,16 @@ class WindowsJob:
         self.name='Local\\malts-v2-'+uuid.uuid4().hex;self.stop_reason=None
 
     @classmethod
-    def launch(cls,argv,*,cwd,capture_stdio=False):
+    def launch(cls,argv,*,cwd,capture_stdio=False,environment=None):
         """Explicit trusted command only. Optional private pipes; no Agent routing."""
         if type(capture_stdio) is not bool:raise ValueError('Explicit stdio mode required')
+        environment_block=None
+        if environment is not None:
+            if not isinstance(environment,dict) or len(environment)>32 or any(
+                not isinstance(k,str) or not k or '=' in k or '\0' in k or not isinstance(v,str) or '\0' in v
+                for k,v in environment.items()):raise ValueError('Bounded process-local environment required')
+            merged={**os.environ,**environment}
+            environment_block=C.create_unicode_buffer('\0'.join(k+'='+v for k,v in sorted(merged.items(),key=lambda item:item[0].upper()))+'\0\0')
         if not isinstance(argv,(list,tuple)) or not argv or any(not isinstance(v,str) or '\0' in v for v in argv):
             raise ValueError('Explicit argument vector required')
         executable=Path(argv[0])
@@ -142,7 +149,8 @@ class WindowsJob:
             startup.base.show=0;startup.base.stdin,startup.base.stdout,startup.base.stderr=std_handles
             startup.attributes=C.cast(attributes,C.c_void_p)
             command=C.create_unicode_buffer(subprocess.list2cmdline(list(argv)))
-            _check(k.CreateProcessW(str(executable),command,None,None,True,0x00080000|0x08000000,None,str(directory),C.byref(startup),C.byref(process)),'CreateProcess')
+            flags=0x00080000|0x08000000|(0x400 if environment_block is not None else 0)
+            _check(k.CreateProcessW(str(executable),command,None,None,True,flags,environment_block,str(directory),C.byref(startup),C.byref(process)),'CreateProcess')
             result.process=process.process;result.pid=process.pid
             created,exited,kernel,user=(W.FILETIME() for _ in range(4))
             _check(k.GetProcessTimes(result.process,C.byref(created),C.byref(exited),C.byref(kernel),C.byref(user)),'GetProcessTimes')

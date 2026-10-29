@@ -1,4 +1,4 @@
-# MALTS 2.0.0 for Codex
+# MALTS for Codex
 
 ## Entry and responsibilities
 

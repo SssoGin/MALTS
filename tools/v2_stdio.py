@@ -16,13 +16,17 @@ class StdioPump:
         for value,maximum in ((max_output_bytes,16777216),(max_line_bytes,MAX_JSONL_LINE_BYTES),(max_events,1000)):
             if type(value) is not int or not 1<=value<=maximum:raise ValueError('Invalid stream budget')
         self.job=job;self.max_output=max_output_bytes;self.max_line=max_line_bytes;self.max_events=max_events
-        if protocol not in {'bounded-jsonl-v1','codex-jsonl-v1'}:raise ValueError('Unsupported event protocol')
+        if protocol not in {'bounded-jsonl-v1','codex-jsonl-v1','claude-jsonl-v1','opencode-jsonl-v1','harness-jsonl-v1'}:raise ValueError('Unsupported event protocol')
         from v2_codex_events import CodexEvents
         self.codex=CodexEvents(capture_candidate_message=capture_candidate_message) if protocol=='codex-jsonl-v1' else None
+        from v2_agent_events import HostEvents
+        hosts={'claude-jsonl-v1':'claude-code','opencode-jsonl-v1':'opencode','harness-jsonl-v1':'deepseek-harness'}
+        self.agent=self.codex if protocol not in hosts else HostEvents(hosts[protocol],capture_candidate_message=capture_candidate_message)
         self.lock=threading.Lock();self.stop=threading.Event();self.error=None
         self.counts={'stdout_bytes':0,'stderr_bytes':0,'stdin_written_bytes':0,'discarded_lines':0,'accepted_events':0,
                      'oversized_codex_items_discarded':0}
         self.events=[]
+        self.invalid_event_shapes=[]
         self.threads=[threading.Thread(target=self._read,args=(job.stdout,'stdout'),daemon=True),
             threading.Thread(target=self._read,args=(job.stderr,'stderr'),daemon=True),
             threading.Thread(target=self._write,args=(input_bytes,),daemon=True)]
@@ -47,6 +51,12 @@ class StdioPump:
             except OSError:pass
 
     def _line(self,line):
+        if self.agent is not None and self.codex is None and not line.lstrip().startswith(b'{'):
+            # Native launchers may print non-JSON diagnostic banners. Discard
+            # them without retaining their contents; only a complete recognised
+            # session/result protocol can establish successful completion.
+            with self.lock:self.counts['discarded_lines']+=1
+            return
         def pairs(items):
             value={}
             for key,item in items:
@@ -56,8 +66,8 @@ class StdioPump:
         try:
             event=json.loads(line.decode('utf-8'),object_pairs_hook=pairs)
             if not isinstance(event,dict):raise ValueError()
-            if self.codex is not None:
-                safe=self.codex.accept(event)
+            if self.agent is not None:
+                safe=self.agent.accept(event)
                 if safe is None:
                     with self.lock:self.counts['discarded_lines']+=1
                     return
@@ -67,9 +77,15 @@ class StdioPump:
                     type(event[key]) is int and 0<=event[key]<=10**12 for key in ('input_tokens','output_tokens','cached_input_tokens')):
                 safe=event
             else:raise ValueError()
-        except (ValueError,TypeError,UnicodeError,RecursionError):
+        except (ValueError,TypeError,UnicodeError,RecursionError) as error:
             with self.lock:self.counts['discarded_lines']+=1
-            if self.codex is not None:self._fail('CODEX_EVENT_INVALID')
+            if self.agent is not None and len(self.invalid_event_shapes)<4:
+                event_type=event.get('type') if 'event' in locals() and isinstance(event,dict) else None
+                known={'session','status','final','result','system','error','step_start','step_finish','text'}
+                self.invalid_event_shapes.append({'type':event_type if event_type in known else 'UNRECOGNIZED',
+                    'error_type':type(error).__name__,'line_bytes':len(line),
+                    'usage_types':{k:type(v).__name__ for k,v in (event.get('usage') or {}).items()} if 'event' in locals() and isinstance(event,dict) and isinstance(event.get('usage'),dict) else {}})
+            if self.agent is not None:self._fail('CODEX_EVENT_INVALID' if self.codex is not None else 'AGENT_EVENT_INVALID')
             return
         with self.lock:
             if len(self.events)>=self.max_events:
@@ -113,11 +129,12 @@ class StdioPump:
         deadline=time.monotonic()+timeout
         for thread in self.threads:thread.join(max(0,deadline-time.monotonic()))
         if any(thread.is_alive() for thread in self.threads):self._fail('DRAIN_INCOMPLETE')
-        protocol_summary={} if self.codex is None else self.codex.summary()
-        if self.codex is not None and not protocol_summary['protocol_complete']:self._fail('CODEX_PROTOCOL_INCOMPLETE')
+        protocol_summary={} if self.agent is None else self.agent.summary()
+        if self.agent is not None and not protocol_summary['protocol_complete']:self._fail('CODEX_PROTOCOL_INCOMPLETE' if self.codex is not None else 'AGENT_PROTOCOL_INCOMPLETE')
         with self.lock:
             return {**self.counts,'error_code':self.error,'events':list(self.events),'raw_output_retained':False,
                     'event_assurance':'REPORTED_DATA_NOT_TASK_ACCEPTANCE','input_consumption_verified':False,'protocol':protocol_summary}
 
     def private_values(self):
-        return None if self.codex is None else self.codex.private_values()
+        if self.agent is None:return None
+        return {**self.agent.private_values(),'invalid_event_shapes':self.invalid_event_shapes}

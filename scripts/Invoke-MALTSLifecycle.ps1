@@ -34,10 +34,14 @@ param(
     [ValidateSet('DISCOVER', 'LOCK', 'PLAN', 'STAGE', 'SNAPSHOT', 'PREVALIDATE', 'ACTIVATE', 'POSTVALIDATE', 'CLEAN', 'COMMIT', 'ROLLBACK', 'AUDIT_WRITE', 'AUDIT_PRUNE')]
     [string] $FaultAt,
 
-    [switch] $Apply
+    [switch] $Apply,
+    [switch] $ReconcileMcpFormatting
 )
 
 $ErrorActionPreference = 'Stop'
+if ($ReconcileMcpFormatting -and $Command -ne 'DoctorRepairPlan') {
+    throw '-ReconcileMcpFormatting requires -Command DoctorRepairPlan.'
+}
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $engine = Join-Path $repoRoot 'tools\malts_lifecycle.py'
 
@@ -154,6 +158,7 @@ switch ($Command) {
         Add-OptionalValue $arguments '--operation-id' $OperationId
         Add-OptionalValue $arguments '--timestamp' $Timestamp
         Add-OptionalValue $arguments '--out' $OutPath
+        if ($ReconcileMcpFormatting) { $arguments.Add('--reconcile-mcp-formatting') }
     }
 }
 

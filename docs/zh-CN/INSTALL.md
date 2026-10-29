@@ -1,6 +1,6 @@
 # 安装 MALTS
 
-用户可以选择将 MALTS 安装到所需 Agent 工具。共享核心提供项目工作、接续、验证和经验工作流，各工具使用自己的原生入口。当前版本：**2.1.0**。安装遵循先审阅计划再执行，不调用模型、不安装宿主程序，也不自动采用已有项目。
+用户可以选择将 MALTS 安装到所需 Agent 工具。共享核心提供项目工作、接续、验证和经验工作流，各工具使用自己的原生入口。当前版本：**2.1.1**。安装遵循先审阅计划再执行，不调用模型、不安装宿主程序，也不自动采用已有项目。
 
 ## 前置条件
 
@@ -17,7 +17,7 @@
 
 ## 仓库安装（主要路径）
 
-使用已审阅的[公开仓库](https://github.com/SssoGin/MALTS) checkout，核实际 remote/ref，并确认 `MALTS_RELEASE.json` 与 `VERSION` 都为 2.1.0。`main` 上文档修订可保持相同版本，但具有独立、准确的源树身份。安装器核所选真实树；业务文件或缓存不能混入。
+使用已审阅的[公开仓库](https://github.com/SssoGin/MALTS) checkout，核实际 remote/ref，并确认 `MALTS_RELEASE.json` 与 `VERSION` 都为 2.1.1。`main` 上文档修订可保持相同版本，但具有独立、准确的源树身份。安装器核所选真实树；业务文件或缓存不能混入。
 
 | 宿主 | 入口 | 范围 |
 |---|---|---|
@@ -68,11 +68,11 @@ Install 命令创建共享安装计划并输出准确路径和哈希。审阅四
 
 ## 可选离线归档
 
-现行 Release 附件为 `MALTS-2.1.0.zip`。同版本重新发布对应独立核验包，来源提交和 SHA-256 见 Release 说明；离线安装前核准确下载修订。GitHub 自动源码归档对应现行版本标签。现行标签、核验仓库和 MALTS 上传包应标识同一来源修订，但归档布局不同。
+现行 Release 附件为 `MALTS-2.1.1.zip`。同版本重新发布对应独立核验包，来源提交和 SHA-256 见 Release 说明；离线安装前核准确下载修订。GitHub 自动源码归档对应现行版本标签。现行标签、核验仓库和 MALTS 上传包应标识同一来源修订，但归档布局不同。
 
 ```powershell
-.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.1.0.zip
-.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.1.0.zip -ExtractOutput '<new-extraction-root>' -Apply
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.1.1.zip
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.1.1.zip -ExtractOutput '<new-extraction-root>' -Apply
 ```
 
 校验器取自相应审阅来源。使用解压载荷的生命周期入口和 `-ReleaseRoot '<extracted-package-root>'`，再执行同样的计划/哈希流程。Harness 使用相同生命周期入口和 ReleaseRoot，并提供该安装注册的全部工具根。不能将载荷直接复制进活动代际。见[发布归档](RELEASE_ARTIFACT.md)。
@@ -138,10 +138,23 @@ MCP 是每个所选宿主的必需安装项。同一份审阅计划包含独立�
 
 生命周期目录中的 `runtime/mcp/env-<requirements-digest>` 保存独立环境，位于不可变安装代际之外。固定入口通过该宿主的 Boot、注册表和活动指针核实当前代际，再启动服务。Codex 使用 `config.toml`，Claude Code 使用工具根旁的 `.claude.json`，OpenCode 使用已有的 `opencode.json` 和／或 `opencode.jsonc`；两者同时存在时，在两个合并层中维护相同的受管理条目；Harness 配置各已有 profile 的 `cordis.patch.yml`，没有 profile 时创建 `default`。其他设置和 MCP 服务保留。未经 MALTS 管理的同名 `malts` 条目，或用户对受管理条目的修改，会阻止相关操作，不能直接覆盖。
 
-首次安装需要取得已固定版本的 Python 依赖；MALTS ZIP 不包含这些依赖的 wheel。因此，离线安装须已有核验过的受管理环境，或提供可用的本地包源；离线依赖失败时，安装仍未完成。安装器记录实际依赖版本，不修改 PATH，也不向其他应用的 Python 环境安装包。
+首次安装需要取得已固定版本的 Python 依赖；MALTS ZIP 不包含这些依赖的 wheel。因此，离线安装须已有核验过的受管理环境，不使用外部 pip 配置指定包源；离线依赖失败时，安装仍未完成。安装器记录实际依赖版本，不修改 PATH，也不向其他应用的 Python 环境安装包。
 
-宿主未自动重新加载配置时，重连或重启后调用 `malts_installation`，应返回 `MCP_READY` 和版本 `2.1.0`。冷连接检查证明新启动服务可用，不能替换宿主已经运行的旧进程。既有项目专用端点和详细诊断见 [MCP 配置说明](MCP_CONFIGURATION.md)。
+宿主未自动重新加载配置时，重连或重启后调用 `malts_installation`，应返回 `MCP_READY` 和版本 `2.1.1`。冷连接检查证明新启动服务可用，不能替换宿主已经运行的旧进程。既有项目专用端点和详细诊断见 [MCP 配置说明](MCP_CONFIGURATION.md)。
 
 ### 项目 MCP 入口与升级检查
 
-普通只读项目继承全局标准入口；需要固定绑定、解释器、环境或权限的项目保留专用入口。使用 `--workspace`／`--host-config` 将所选项目纳入更新、Doctor 和退役检查，配置覆盖与当前聊天加载分别验证。专用入口可通过 `mcp-config --stable` 跟随活动代际，固定状态和权限仍受原合同约束。MALTS 2.1.0 的四端配置整理提供预览、层指纹、加密前像与原操作恢复，不重建项目状态；按各宿主原生作用域处理，实际加载另行核实。具体命令、策略差异及边界见 [MCP 配置说明](MCP_CONFIGURATION.md#所选项目的配置)。
+普通只读项目继承全局标准入口；需要固定绑定、解释器、环境或权限的项目保留专用入口。使用 `--workspace`／`--host-config` 将所选项目纳入更新、Doctor 和退役检查，配置覆盖与当前聊天加载分别验证。专用入口可通过 `mcp-config --stable` 跟随活动代际，固定状态和权限仍受原合同约束。MALTS 的四端配置整理提供预览、层指纹、加密前像与原操作恢复，不重建项目状态；按各宿主原生作用域处理，实际加载另行核实。具体命令、策略差异及边界见 [MCP 配置说明](MCP_CONFIGURATION.md#所选项目的配置)。
+
+### Agent 执行前提
+
+真实 Agent 控制端使用已安装且认证可用的宿主可执行文件及现有 MALTS MCP Python，不安装账号、模型或 Agent 应用。用户宿主配置保持原状；Harness 启动配置归任务所有，需要时引用既有凭据。安装不生成执行资格，也不启用委派。详见[真实 Agent 调度](AGENT_SCHEDULING.md)。
+
+
+### Windows 路径下的依赖准备
+
+依赖子进程忽略继承的 `PIP_*` 设置并禁用外部 pip 配置文件，防止外部目标目录、安装前缀及用户级安装设置重定向受管理安装；普通代理及 TLS 环境设置继续保留。
+
+安装器先在生命周期所属位置创建空 Python 环境，再把固定版本的 pip 安装到该准确环境中，随后准备其余固定依赖。这避免先安装基础解释器附带的旧 setuptools 测试文件，后者的嵌套路径可能触发 Windows 路径长度限制。此过程不修改全局 Python 或注册表。准备失败仍按失败及回滚报告，不作为已激活安装。依赖安装由目标解释器的独立子进程运行，调用约定见 [pip 官方说明](https://pip.pypa.io/en/stable/user_guide/#using-pip-from-your-program)。
+
+内部事务快照、恢复和受管理目录清理使用 Windows 扩展文件 I/O，计划与记录仍保留普通路径，覆盖事务期间变长的代际和宿主文件快照。计划中的暂存及宿主投影路径继续在执行前检查既有长度边界，应选择能通过该预检的根目录。这不认证任意路径长度、不支持的文件系统布局或外部应用的长路径行为。

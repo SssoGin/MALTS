@@ -78,7 +78,7 @@
 - [ ] If unattended auto-continue was used, the explicit authorization package, round cap, stop conditions, and report records are present in `PROJECT_CONTROL`.
 - [ ] Unattended batches remained within the approved authorization package or obtained new scoped approval before dispatch.
 - [ ] Before final validation claims, task status, acceptance criteria, termination status, and report wording were reconciled against the latest evidence.
-- [ ] Gap-filling changes were checked across Codex, Claude Code, and OpenCode unless the user explicitly scoped the task to fewer tools.
+- [ ] Gap-filling changes were checked across Codex, Claude Code, OpenCode, and DeepSeek Harness unless the user explicitly scoped the task to fewer tools.
 - [ ] Any unnecessary pending tasks were cancelled, merged, or downgraded.
 
 ## Work Task Report

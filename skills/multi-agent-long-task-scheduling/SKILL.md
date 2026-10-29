@@ -7,6 +7,9 @@ description: Assess, run, or recover an explicitly requested MALTS long-task sch
 
 ## Select the current authority
 
+For the real-Agent controller, read only the needed section of [Real Agent scheduling](../../docs/AGENT_SCHEDULING.md). Inspect `real_agent_routes` and the selected route/mode's `qualification-status`; do not interpret the global `native_adapter_qualification=UNQUALIFIED` assurance as a workspace configuration fault or proof that every actual route is unavailable. Ordinary dispatch requires the relevant input-bound capabilities. Missing/stale proof calls for a bounded authorized qualification or a truthful single-Agent continuation. A qualification run is never authorized merely by selecting this Skill. CLI and native routes are separate; preserve unknown effective model identity and native stop limitations.
+
+
 First use the selected workspace's verified entry. An adopted v2 workspace or explicitly selected isolated v2 store uses the [v2 task workflow](../v2/malts-v2-task-workflow/SKILL.md) and [controller Host protocol](../../docs/V2_PREVIEW_USAGE.md#v2-collaboration). Do not initialize or migrate because parallelism looks possible. Review-only work changes no state; an authorized single-Agent continuation creates no dispatch. Multi-Agent execution needs corresponding existing or newly granted scope, a qualified actual Host adapter and available cumulative budget.
 
 For v2 dispatch, the trusted controller prepares the exact Task revision/strategy and budget-bound contract, supplies matching effect Grants, launches once and polls the original dispatch. Worker tools remain Task/Run-bound; they cannot launch successors, mint Grants or accept their own active dispatch. Dependencies require current applicable evidence; accepted local outputs do not prove integration. A cancellation acknowledgement, root-process exit, expired lease or transport failure does not prove all writers stopped or unresolved effects vanished. Reconcile original Host/effect identities before authorized takeover, preserving consumed budget and late-result provenance. If the selected Host cannot establish the required isolation or quiescence, use the approved serialized/isolated alternative or report the specific unresolved requirement.
@@ -162,7 +165,7 @@ When goals and acceptance criteria are clear, proceed without a preflight offer 
 22. If a Growth review ran, report its useful result and whether it stayed local, became a candidate, or passed the applicable memory-write checks.
 23. Route actual, filtered Growth results through the MALTS Memory Pipeline only within its authorization.
 24. If a long-term memory target or optional external memory tool is unavailable, preserve the candidate locally in project state or the work task report and do not claim a completed long-term write.
-25. For protocol, template, checklist, adapter, or documentation gap-filling tasks, verify whether the same fix must be applied to Codex, Claude Code, and OpenCode.
+25. For protocol, template, checklist, adapter, or documentation gap-filling tasks, verify whether the same fix must be applied to Codex, Claude Code, OpenCode, and DeepSeek Harness.
 26. Provide or refresh `WORK_TASK_REPORT.md` only when the user requests a durable report or a material delivery/recovery need justifies it. In CURRENT contract it is a derived non-authoritative view; use the user's or project's primary language for narrative content, keep English status/evidence fields stable, and create a full translated mirror only when explicitly requested.
 27. If unattended auto-continue is authorized, check round caps and stop conditions before starting another round.
 28. Continue the next round or deliver with verified risks.

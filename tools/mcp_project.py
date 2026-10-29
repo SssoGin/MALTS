@@ -29,11 +29,17 @@ def table_spans(raw,name):
         if line_start and char in ' \t\r':i+=1;continue
         if line_start and char=='[':
             end=text.find('\n',i);end=len(text) if end<0 else end
-            header=text[i:end].split('#',1)[0].strip()
+            header=text[i:end].strip()
             try:
                 doc=tomllib.loads(header+'\n__malts_probe=1\n');keys=[]
-                while isinstance(doc,dict) and '__malts_probe' not in doc and len(doc)==1:
-                    key,doc=next(iter(doc.items()));keys.append(key)
+                while isinstance(doc,(dict,list)):
+                    if isinstance(doc,list):
+                        if len(doc)!=1:raise ValueError()
+                        doc=doc[0]
+                    elif '__malts_probe'in doc:break
+                    elif len(doc)==1:
+                        key,doc=next(iter(doc.items()));keys.append(key)
+                    else:raise ValueError()
                 if isinstance(doc,dict) and doc.get('__malts_probe')==1:headers.append((i,tuple(keys)))
                 else:raise ValueError()
             except Exception:raise ConfigError('PROJECT_TABLE_LAYOUT_UNSUPPORTED') from None

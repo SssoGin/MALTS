@@ -1,4 +1,4 @@
-﻿# MALTS 2.0.0 与 Claude Code
+# MALTS 与 Claude Code
 
 ## 入口与职责
 

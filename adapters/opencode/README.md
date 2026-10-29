@@ -1,4 +1,4 @@
-# MALTS 2.0.0 for OpenCode
+# MALTS for OpenCode
 
 ## Entry and responsibilities
 

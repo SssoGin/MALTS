@@ -1,4 +1,4 @@
-﻿# MALTS 2.0.0 与 OpenCode
+# MALTS 与 OpenCode
 
 ## 入口与职责
 

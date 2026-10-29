@@ -8,7 +8,7 @@ ROOT=Path(__file__).resolve().parent.parent
 
 def collect_inputs(root):
     root=Path(root);tools=root/'tools';available={p.stem:p for p in tools.glob('*.py')}
-    collected={};todo=['malts_v2','v2_mcp','mcp_entry','mcp_launcher','mcp_connection_check','v2_host_execution','v2_windows_job','v2_process_host','v2_codex_profile']
+    collected={};todo=['malts_v2','v2_mcp','mcp_entry','mcp_launcher','mcp_connection_check','v2_host_execution','v2_windows_job','v2_process_host','v2_codex_profile','malts_agents']
     def read(path):
         _regular_path(path)
         key=path.relative_to(root).as_posix()
@@ -61,6 +61,11 @@ def collect_inputs(root):
         read(root/relative)
     if 'tools/v2_compatibility.py' in collected:
         read(root/'runtime/v2_runtime_contract.json')
+    # Focused workflows and the real controller link these current user guides.
+    # Ship the complete current guide set; no historical/internal tree is read.
+    for path in sorted((root/'docs').rglob('*.md')):
+        read(path)
+    read(root/'tools/agent_harness_guard.mjs')
     return dict(sorted(collected.items()))
 
 

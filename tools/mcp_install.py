@@ -11,7 +11,7 @@ import copy
 import importlib.util
 from contextlib import contextmanager
 from mcp_config_check import HOSTS,ConfigError,_read,_path
-from mcp_host_config import document,owned_entry,owned_bytes,patch,remove,fingerprint
+from mcp_host_config import document,owned_entry,owned_bytes,patch,remove,fingerprint,restore_markers
 
 PROFILE='malts.required-mcp.v1'
 
@@ -60,7 +60,29 @@ def entry_for(host,python,launcher,root):
                'failOnStartupError':True,'reconnect':{'enabled':True}}
     return value
 
-def make_plan(lifecycle_root,tool_roots,payload_root,operation_id,*,removal=False):
+def _owned_input(host,raw,old,*,reconcile_formatting=False):
+    current=owned_entry(host,document(host,raw))
+    if old is None:
+        if current is not None:raise ConfigError('UNOWNED_MCP_ENTRY_CONFLICT')
+        return raw
+    if current is None or fingerprint(current)!=old['entry_sha256']:
+        raise ConfigError('MANAGED_MCP_USER_EDIT_CONFLICT')
+    if reconcile_formatting:return restore_markers(host,raw)
+    if digest(owned_bytes(host,raw))!=old.get('managed_bytes_sha256'):
+        raise ConfigError('MANAGED_MCP_USER_EDIT_CONFLICT')
+    return raw
+
+
+def _after_image(plan,row,raw):
+    if plan.get('reconcile_formatting',False):
+        raw=restore_markers(row['host'],raw)
+        if not plan['removal'] and owned_entry(row['host'],document(row['host'],raw))==row['entry']:return raw
+    return remove(row['host'],raw) if plan['removal'] else patch(row['host'],raw,row['entry'])
+
+
+def make_plan(lifecycle_root,tool_roots,payload_root,operation_id,*,removal=False,reconcile_formatting=False):
+    if type(reconcile_formatting)is not bool or (reconcile_formatting and removal):
+        raise ConfigError('MCP_RECONCILIATION_SCOPE_INVALID')
     root=_path(lifecycle_root);payload=_path(payload_root)
     requirement=_read(payload/'tools/v2_mcp_requirements.txt')
     launcher=_read(payload/'tools/mcp_launcher.py')
@@ -79,20 +101,16 @@ def make_plan(lifecycle_root,tool_roots,payload_root,operation_id,*,removal=Fals
         except ConfigError as error:
             if host!='deepseek-harness' or str(error)!='YAML_PARSER_UNAVAILABLE':raise
             current=None;deferred=True
-        if old is not None and not deferred:
-            if (current is None or fingerprint(current)!=old['entry_sha256'] or
-                    digest(owned_bytes(host,raw))!=old.get('managed_bytes_sha256')):
-                raise ConfigError('MANAGED_MCP_USER_EDIT_CONFLICT')
-        elif current is not None:raise ConfigError('UNOWNED_MCP_ENTRY_CONFLICT')
+        managed=raw if deferred else _owned_input(host,raw,old,reconcile_formatting=reconcile_formatting)
         desired=entry_for(host,python,installed_launcher,tool_root)
-        proposed=None if deferred else remove(host,raw) if removal else patch(host,raw,desired)
+        proposed=None if deferred else _after_image({'removal':removal,'reconcile_formatting':reconcile_formatting},{'host':host,'entry':desired},managed)
         rows.append({'host':host,'path':str(path),'tool_root':str(tool_root),'before_sha256':digest(raw) if path.exists() else 'MISSING',
                      'after_sha256':'DEFERRED_YAML' if deferred else digest(proposed),'entry':desired,'entry_sha256':fingerprint(desired),
                      'managed_bytes_sha256':'DEFERRED_YAML' if deferred else digest(owned_bytes(host,proposed)),
                      'yaml_preparation_deferred':deferred})
     if installed_launcher.exists() and (ledger is None or digest(_read(installed_launcher))!=ledger['launcher_sha256']):
         raise ConfigError('MANAGED_MCP_LAUNCHER_DRIFT')
-    return {'profile':PROFILE,'operation_id':operation_id,'lifecycle_root':str(root),
+    return {**({'reconcile_formatting':True}if reconcile_formatting else{}),'profile':PROFILE,'operation_id':operation_id,'lifecycle_root':str(root),
             'tool_roots':{k:str(v) for k,v in tool_roots.items()},'runtime_root':str(runtime),
             'environment':str(environment),'python':str(python),'base_python':str(_path(Path(sys.executable).resolve(strict=True))),
             'requirements_sha256':digest(requirement),'launcher_sha256':digest(launcher),
@@ -103,7 +121,9 @@ def make_plan(lifecycle_root,tool_roots,payload_root,operation_id,*,removal=Fals
 def validate(plan,lifecycle_root,tool_roots,*,operation_id=None,removal=None):
     required={'profile','operation_id','lifecycle_root','tool_roots','runtime_root','environment','python','base_python',
               'requirements_sha256','launcher_sha256','previous_launcher_sha256','ledger_sha256','configurations','required','write_enabled','removal'}
-    if set(plan)!=required or plan['profile']!=PROFILE or plan['required'] is not True or plan['write_enabled'] is not False or type(plan['removal']) is not bool:
+    if (set(plan)-{'reconcile_formatting'}!=required or
+        ('reconcile_formatting'in plan and (plan['reconcile_formatting']is not True or plan['removal'])) or
+        plan['profile']!=PROFILE or plan['required'] is not True or plan['write_enabled'] is not False or type(plan['removal']) is not bool):
         raise ConfigError('MCP_PLAN_CONTRACT_INVALID')
     if not isinstance(plan['operation_id'],str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}',plan['operation_id']):
         raise ConfigError('MCP_OPERATION_ID_INVALID')
@@ -134,7 +154,7 @@ def verify_inputs(plan):
         actual=digest(raw) if path.exists() else 'MISSING'
         if actual!=row['before_sha256']:raise ConfigError('MCP_CONFIGURATION_CHANGED_AFTER_PLAN')
         if row['yaml_preparation_deferred']:continue
-        try:proposed=remove(row['host'],raw) if plan['removal'] else patch(row['host'],raw,row['entry'])
+        try:proposed=_after_image(plan,row,raw)
         except ConfigError as error:
             if row['host']=='deepseek-harness' and str(error)=='YAML_PARSER_UNAVAILABLE':continue
             raise
@@ -145,8 +165,13 @@ def verify_inputs(plan):
         if (digest(read_optional(path)) if path.exists() else 'MISSING')!=expected:raise ConfigError('MCP_RUNTIME_CHANGED_AFTER_PLAN')
 
 def _run(command,*,timeout=180):
+    # pip's own environment and config can redirect installation outside the
+    # owned venv even when Python runs in isolated mode. Keep proxy/TLS settings,
+    # but never inherit external pip targets, prefixes, user mode or config.
+    environment={k:v for k,v in os.environ.items() if not k.upper().startswith('PIP_')}
+    environment.update(PIP_CONFIG_FILE=os.devnull,PYTHONDONTWRITEBYTECODE='1',PYTHONUTF8='1')
     result=subprocess.run([str(x) for x in command],capture_output=True,timeout=timeout,
-                          env={**os.environ,'PYTHONDONTWRITEBYTECODE':'1','PYTHONUTF8':'1'})
+                          env=environment)
     if result.returncode:raise ConfigError('MCP_DEPENDENCY_OR_CONNECTION_FAILURE')
     return result.stdout
 
@@ -176,12 +201,8 @@ def _resolve_configurations(plan,folder):
         if not row['yaml_preparation_deferred']:continue
         path=Path(row['path']);raw=read_optional(path)
         if (digest(raw) if path.exists() else 'MISSING')!=row['before_sha256']:raise ConfigError('MCP_CONFIGURATION_CHANGED_AFTER_PLAN')
-        current=owned_entry(row['host'],document(row['host'],raw));old=records.get(row['path'])
-        if old is not None:
-            if (current is None or fingerprint(current)!=old['entry_sha256'] or digest(owned_bytes(row['host'],raw))!=old['managed_bytes_sha256']):
-                raise ConfigError('MANAGED_MCP_USER_EDIT_CONFLICT')
-        elif current is not None:raise ConfigError('UNOWNED_MCP_ENTRY_CONFLICT')
-        proposed=remove(row['host'],raw) if plan['removal'] else patch(row['host'],raw,row['entry'])
+        managed=_owned_input(row['host'],raw,records.get(row['path']),reconcile_formatting=plan.get('reconcile_formatting',False))
+        proposed=_after_image(plan,row,managed)
         row['after_sha256']=digest(proposed);row['managed_bytes_sha256']=digest(owned_bytes(row['host'],proposed))
     value={'profile':PROFILE,'operation_id':plan['operation_id'],'plan_sha256':fingerprint(plan),'configurations':resolved['configurations']}
     target=folder/'resolved-configurations.json'
@@ -243,7 +264,7 @@ def prepare(plan,payload_root,transaction_root):
         write_json(marker,{'profile':PROFILE,'operation_id':plan['operation_id'],'requirements_sha256':plan['requirements_sha256'],'state':'PREPARING'})
     owner=read_json(marker)
     if owner['state']!='READY':
-        _run([plan['base_python'],'-B','-m','venv',str(environment)])
+        create_environment(plan,packages_required)
         requirements=folder/'requirements.txt'
         if requirements.exists() and _read(requirements)!=requirement:raise ConfigError('MCP_RECOVERY_REQUIREMENTS_DRIFT')
         requirements.write_bytes(requirement)
@@ -270,6 +291,34 @@ def prepare(plan,payload_root,transaction_root):
             with backup.open('xb') as stream:stream.write(raw)
     return {'status':'DEPENDENCIES_READY','required':True}
 
+
+def create_environment(plan,packages_required):
+    # ensurepip installs the base Python's bundled setuptools first. Its old
+    # nested test fixtures can exceed Windows MAX_PATH before our pinned
+    # installer is available. Create an empty venv and run the Python-bundled
+    # pip module under that target to seed only its pinned pip instead.
+    bootstrap=[version for name,version in packages_required if name.lower()=='pip']
+    if len(bootstrap)!=1:raise ConfigError('MCP_REQUIREMENTS_PROFILE_INVALID')
+    _run([plan['base_python'],'-B','-m','venv','--without-pip',plan['environment']])
+    locate="""import ensurepip,pathlib
+wheels=list((pathlib.Path(ensurepip.__file__).parent/'_bundled').glob('pip-*.whl'))
+if len(wheels)!=1:raise RuntimeError('Python bundled pip is unavailable')
+print(wheels[0])
+"""
+    # Interpreter distributions may be reached through a package-manager link.
+    # Bind and validate the actual bundled file, rather than relaxing link
+    # checks on any environment/configuration destination.
+    wheel=Path(_run([plan['base_python'],'-I','-B','-c',locate]).decode('utf-8').strip()).resolve(strict=True)
+    _path(wheel)
+    if not wheel.is_file() or not wheel.name.startswith('pip-') or wheel.suffix!='.whl':
+        raise ConfigError('MCP_BOOTSTRAP_WHEEL_UNAVAILABLE')
+    script="""import runpy,sys
+wheel,version=sys.argv[1:]
+sys.path.insert(0,wheel)
+sys.argv=['pip','install','--only-binary=:all:','--no-deps','--upgrade','--no-input','--no-cache-dir','--disable-pip-version-check','pip=='+version]
+runpy.run_module('pip',run_name='__main__',alter_sys=True)
+"""
+    _run([plan['python'],'-I','-B','-c',script,str(wheel),bootstrap[0]])
 
 def prepare_packages(python,packages_required,requirements):
     # Upgrade the environment's own installer before it processes SDK wheels.
@@ -322,7 +371,7 @@ def apply(plan,payload_root,transaction_root,version):
     for index,row in enumerate(plan['configurations']):
         path=Path(row['path']);raw=read_optional(path)
         if path.exists() and digest(raw)==row['after_sha256']:continue
-        new=remove(row['host'],raw) if plan['removal'] else patch(row['host'],raw,row['entry'])
+        new=_after_image(plan,row,raw)
         if digest(new)!=row['after_sha256']:raise ConfigError('MCP_PLAN_CONTENT_MISMATCH')
         backup=folder/('config-'+str(index)+'.preimage')
         if not backup.is_file() or _read(backup)!=raw:raise ConfigError('MCP_PREIMAGE_MISSING')

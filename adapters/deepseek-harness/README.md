@@ -1,4 +1,4 @@
-# MALTS 2.0.0 for DeepSeek Harness
+# MALTS for DeepSeek Harness
 
 ## Entry and responsibilities
 

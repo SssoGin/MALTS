@@ -4,7 +4,7 @@
 
 模型上下文协议（Model Context Protocol，MCP）让 Agent 宿主调用外部工具。MALTS 通过本机进程的标准输入输出（stdio）与 Python 服务通信，不需要开放网络监听端口。
 
-MALTS 2.1.0 为所选宿主安装和更新必需的 `malts` MCP 服务；针对受管理和项目专用条目的配置对比与诊断入口继续有效。
+MALTS 为所选宿主安装和更新必需的 `malts` MCP 服务；针对受管理和项目专用条目的配置对比与诊断入口继续有效。
 
 ## 目的与维护职责
 
@@ -30,6 +30,25 @@ MALTS 2.1.0 为所选宿主安装和更新必需的 `malts` MCP 服务；针对�
 例如，调用 `malts_context` 时传入 `{"workspace":"<当前项目的绝对工作区路径>","task_id":"<实际任务ID>"}`。服务启动目录已经等于核实后的工作区时可使用默认值，否则应传入路径。项目尚未启用 MALTS 时返回绑定错误，不创建数据库；先使用已经授权的项目初始化或采用流程。
 
 标准端点只读。安装不创建 Grant、不启动 Agent、不激活阶段，也不绕过控制端检查。明确限定的写端点继续使用既有项目、任务、执行者策略和运行授权；下方配置片段对比章节适用于这些端点。冷连接检查证明新启动服务可用，实际宿主尚未重新加载时仍须重连或重启。卸载只移除受管理 `malts` 条目，保留其他设置及本机恢复资料。
+
+### 修复格式或管理标记
+
+普通安装会拒绝受管理字节指纹变化，即使解析后的条目值仍然一致。对于已登记且全部条目值与安装记录准确一致的配置，经明确选择和审阅的修复可以接受格式变化，并在所选 Codex 配置表周围重建管理标记，保留其他设置与注释。不同的命令、参数、权限、Harness 插件外围策略、未受管理条目及重复标记仍被拒绝。
+
+在包含此修复实现的已核实仓库副本中运行以下命令。外部修复来源必须与**已安装版本**准确匹配，不能用新版本代替；提供共享安装登记的全部宿主根：
+
+```powershell
+.\scripts\Invoke-MALTSLifecycle.ps1 -Command DoctorRepairPlan `
+  -LifecycleRoot '<verified-lifecycle-root>' `
+  -ToolRootCodex '<Codex-tool-root>' `
+  -ToolRootClaudeCode '<Claude-Code-tool-root>' `
+  -ToolRootOpenCode '<OpenCode-tool-root>' `
+  -ToolRootDeepSeekHarness '<DeepSeek-Harness-tool-root>' `
+  -ReleaseRoot '<verified-extracted-installed-release-root>' `
+  -ReconcileMcpFormatting
+```
+
+此命令只读预览。审阅目标和哈希后，追加 `-OutPath '<new-plan-path>' -Apply` 重新运行以保存计划；保存计划不会执行修复。之后按普通[哈希绑定生命周期流程](LIFECYCLE.md#先审阅计划)执行保存的计划，再检查 Doctor、发现结果和实际 MCP 连接。准确的私有配置前像保留在生命周期恢复历史中；计划生成后内容变化会阻止执行，不能通过修改注册表或关闭归属检查绕过冲突。
 
 ## 对比指定条目
 
@@ -61,9 +80,9 @@ python -B "$runtime/tools/malts_v2.py" mcp-config `
 | OpenCode | `opencode.json`；`opencode.jsonc` | JSON／JSONC `mcp`，支持注释和末尾逗号 |
 | DeepSeek Harness | `profiles/<profile>/cordis.patch.yml` | 包含 `@deepseek-ai/dsh-mcp-client` 的 Cordis 插入补丁 |
 
-生成的 Cordis JSON 即使带有独立 YAML 注释行，也无需额外解析器。安装的 MCP 环境包含解析块式 YAML 的 PyYAML；另行选用的诊断解释器也需要该解析器。MALTS 2.1.0将 MALTS 之外的原生 `!!js` 保留为不可执行数据，拒绝 MALTS 中的动态字段、其他标签、锚点、别名、重复键及过深嵌套。解析器缺失时为 `UNSUPPORTED`，不能算检查通过；诊断不会自行安装依赖。不使用 PyYAML 时，核心 JSON／TOML 操作仍然可用。
+生成的 Cordis JSON 即使带有独立 YAML 注释行，也无需额外解析器。安装的 MCP 环境包含解析块式 YAML 的 PyYAML；另行选用的诊断解释器也需要该解析器。MALTS将 MALTS 之外的原生 `!!js` 保留为不可执行数据，拒绝 MALTS 中的动态字段、其他标签、锚点、别名、重复键及过深嵌套。解析器缺失时为 `UNSUPPORTED`，不能算检查通过；诊断不会自行安装依赖。不使用 PyYAML 时，核心 JSON／TOML 操作仍然可用。
 
-MALTS 2.1.0在生命周期所属环境中固定 MCP 1.28.1、jsonschema 4.25.1、PyYAML 6.0.2、pip 26.2、setuptools 83.0.0；先更新该环境的 pip，再安装兼容的二进制 wheel，没有兼容 wheel 时停止准备。这处理已知依赖公告对应版本，同时保持 stdio 及原有权限，不更新全局 Python 或专用项目独立选择的解释器。
+MCP 依赖配置在生命周期所属环境中固定 MCP 1.30.0、jsonschema 4.25.1、PyYAML 6.0.2、pip 26.2.2、setuptools 84.1.0 和 certifi 2026.10.23；先更新该环境的 pip，再安装兼容的二进制 wheel，没有兼容 wheel 时停止准备。这处理已知依赖公告对应版本，同时保持 stdio 及原有权限，不更新全局 Python 或专用项目独立选择的解释器。
 
 项目级配置或自定义文件可通过精确位置纳入：
 
@@ -117,7 +136,7 @@ python -B "$runtime/tools/malts_lifecycle.py" doctor `
 
 检查共享安装时传入实际登记的完整宿主集合。重复 `--workspace` 可选择多个目录，重复 `--host-config HOST=ABSOLUTE_PATH` 可选择自定义文件。普通安装和更新脚本分别接受对应的 `-Workspace`、`-HostConfig` 数组。升级计划绑定所选项目文件指纹，拒绝预览后的修改，并在安装后报告同一检查范围。这些参数用于检查，不自动编辑项目配置。
 
-MALTS 2.1.0按每个宿主自己的规则解析所选磁盘配置层：
+MALTS按每个宿主自己的规则解析所选磁盘配置层：
 
 | 宿主 | 所选配置层及优先级 | 保留原配置的编辑范围 |
 |---|---|---|

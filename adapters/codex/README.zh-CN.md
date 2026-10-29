@@ -1,4 +1,4 @@
-﻿# MALTS 2.0.0 与 Codex
+# MALTS 与 Codex
 
 ## 入口与职责
 

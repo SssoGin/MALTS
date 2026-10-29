@@ -266,6 +266,15 @@ def _absolute(path: str | Path) -> Path:
     return Path(os.path.abspath(os.path.expanduser(str(path))))
 
 
+def _io_path(path: Path) -> Path:
+    """Use extended Windows I/O without changing persisted path identities."""
+    path = _absolute(path)
+    if os.name != "nt" or str(path).startswith("\\\\?\\"):
+        return path
+    value = str(path)
+    return Path("\\\\?\\UNC\\" + value[2:] if value.startswith("\\\\") else "\\\\?\\" + value)
+
+
 def _read_discovery_file(path_value: str | Path, surface: str) -> tuple[Path, str]:
     raw = Path(path_value)
     if not raw.is_absolute():
@@ -532,7 +541,7 @@ def _is_inside(root: Path, path: Path) -> bool:
 
 def _file_attributes(path: Path) -> int:
     try:
-        return int(getattr(path.lstat(), "st_file_attributes", 0))
+        return int(getattr(_io_path(path).lstat(), "st_file_attributes", 0))
     except OSError:
         return 0
 
@@ -553,11 +562,12 @@ def _assert_no_reparse(root: Path, path: Path) -> None:
         raise LifecycleError("TX_PATH_ESCAPE", "Path escapes its managed root.", str(path)) from exc
     for part in parts:
         current /= part
-        if current.exists() and (current.is_symlink() or (_file_attributes(current) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))):
+        if _io_path(current).exists() and (_io_path(current).is_symlink() or (_file_attributes(current) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))):
             raise LifecycleError("TX_REPARSE_POINT", "Reparse points are forbidden on managed lifecycle paths.", str(current))
 
 
 def _assert_no_hardlink(path: Path) -> None:
+    path = _io_path(path)
     if not path.exists() or not path.is_file():
         return
     try:
@@ -589,6 +599,7 @@ def _safe_target(root: Path, relative: str) -> Path:
 
 
 def _path_digest(path: Path) -> str:
+    path = _io_path(path)
     if not path.exists():
         return "MISSING"
     if path.is_file():
@@ -884,25 +895,28 @@ def _verify_preview_surfaces(context: dict[str, Any], active_generation_root: Pa
 def _remove_managed(root: Path, path: Path) -> None:
     path = _absolute(path)
     _assert_no_reparse(root, path)
-    if not path.exists():
+    io_path = _io_path(path)
+    if not io_path.exists():
         return
-    if path.is_file():
+    if io_path.is_file():
         _assert_no_hardlink(path)
-        path.unlink()
+        io_path.unlink()
         return
-    for item in sorted(path.rglob("*"), key=lambda entry: len(entry.parts), reverse=True):
+    for io_item in sorted(io_path.rglob("*"), key=lambda entry: len(entry.parts), reverse=True):
+        item = path / io_item.relative_to(io_path)
         _assert_no_reparse(root, item)
-        if item.is_file():
+        if io_item.is_file():
             _assert_no_hardlink(item)
-            item.unlink()
-        elif item.is_dir():
-            item.rmdir()
+            io_item.unlink()
+        elif io_item.is_dir():
+            io_item.rmdir()
         else:
             raise LifecycleError("TX_PATH_TYPE", "Unsupported managed path type during cleanup.", str(item))
-    path.rmdir()
+    io_path.rmdir()
 
 
 def _copy_tree(source: Path, target: Path) -> None:
+    source, target = _io_path(source), _io_path(target)
     if target.exists():
         raise LifecycleError("TX_TARGET_EXISTS", "Copy target already exists.", str(target))
     target.mkdir(parents=True)
@@ -3023,9 +3037,12 @@ def _make_plan_resolved(
     workspaces=None,
     allow_preview: bool = False,
     preview_contract: dict[str, Any] | None = None,
+    reconcile_mcp_formatting: bool = False,
 ) -> dict[str, Any]:
     if operation not in {"install", "update", "repair", "finalize", "uninstall"}:
         raise LifecycleError("TX_OPERATION", "Unsupported lifecycle operation.")
+    if type(reconcile_mcp_formatting) is not bool or (reconcile_mcp_formatting and operation != 'repair'):
+        raise LifecycleError('TX_MCP_RECONCILIATION_SCOPE', 'MCP formatting reconciliation requires an explicit repair plan.')
     now = _now(created_at)
     operation_id = operation_id or f"OP-{uuid.uuid4().hex[:12].upper()}"
     if not ID_PATTERN.fullmatch(operation_id):
@@ -3272,11 +3289,14 @@ def _make_plan_resolved(
     context["modification_observations"] = modifications
     if artifact is not None and (artifact['root'] / 'payload/tools/mcp_install.py').is_file():
         from mcp_install import make_plan as make_mcp_plan
-        context['mcp_installation'] = make_mcp_plan(root, normalized_tools, artifact['root'] / 'payload', operation_id)
+        context['mcp_installation'] = make_mcp_plan(root, normalized_tools, artifact['root'] / 'payload', operation_id,
+                                                  reconcile_formatting=reconcile_mcp_formatting)
     elif operation == 'uninstall' and active_record is not None and (Path(active_record['root']) / 'tools/mcp_install.py').is_file():
         verify_installed_generation_envelope(Path(active_record['root']))
         from mcp_install import make_plan as make_mcp_plan
         context['mcp_installation'] = make_mcp_plan(root, normalized_tools, Path(active_record['root']), operation_id, removal=True)
+    if reconcile_mcp_formatting and 'mcp_installation' not in context:
+        raise LifecycleError('TX_MCP_RECONCILIATION_SCOPE', 'The exact repair source has no managed MCP installation.')
     _validate_planned_write_path_bounds(context, artifact, modifications)
     context_hash = sha256_bytes(canonical_json(context))
     actions = _operation_actions(context_hash, context, operation)
@@ -3491,6 +3511,7 @@ def make_plan(
     modification_overrides: list[dict[str, Any]] | None = None,
     config_files=None,
     workspaces=None,
+    reconcile_mcp_formatting: bool = False,
 ) -> dict[str, Any]:
     if operation == "uninstall":
         if release_root is not None or repository_root is not None:
@@ -3512,7 +3533,7 @@ def make_plan(
             operation_id=operation_id,
             created_at=created_at,
             modification_overrides=modification_overrides,
-            config_files=config_files,workspaces=workspaces,
+            config_files=config_files,workspaces=workspaces,reconcile_mcp_formatting=reconcile_mcp_formatting,
         )
 
 
@@ -3548,6 +3569,8 @@ def validate_plan_envelope(envelope: dict[str, Any]) -> tuple[dict[str, Any], di
     _validate_preview_context(context)
     if 'mcp_installation' in context:
         from mcp_install import validate as validate_mcp_plan
+        if context['mcp_installation'].get('reconcile_formatting',False) and context['operation']!='repair':
+            raise LifecycleError('TX_MCP_RECONCILIATION_SCOPE', 'MCP formatting reconciliation requires an explicit repair plan.')
         validate_mcp_plan(context['mcp_installation'], context['lifecycle_root'], context['tool_roots'],
                           operation_id=context['operation_id'], removal=context['operation']=='uninstall')
     return plan, context
@@ -3754,7 +3777,7 @@ def _snapshot(
     global_boot: dict[str, Any],
     preview_contract: dict[str, Any] | None,
 ) -> None:
-    snapshot = transaction_root / "snapshot"
+    snapshot = _io_path(transaction_root / "snapshot")
     snapshot.mkdir(parents=True, exist_ok=False)
     meta: dict[str, Any] = {
         "registry_exists": _registry_path(root).is_file(),
@@ -5426,7 +5449,7 @@ def _commit(
 
 
 def _restore_snapshot(root: Path, tool_roots: dict[str, Path], transaction_root: Path) -> None:
-    snapshot = transaction_root / "snapshot"
+    snapshot = _io_path(transaction_root / "snapshot")
     if not snapshot.is_dir():
         return
     _require_snapshot_runtime_direction(root, transaction_root)
@@ -5548,7 +5571,7 @@ def _archive_failure(root: Path, context: dict[str, Any], journal: dict[str, Any
 
 
 def _require_snapshot_runtime_direction(root: Path, transaction_root: Path) -> None:
-    registry_path = transaction_root / 'snapshot' / 'registry.json'
+    registry_path = _io_path(transaction_root / 'snapshot' / 'registry.json')
     if registry_path.is_file():
         previous = load_json(registry_path)
         active = next((item for item in previous['generations'] if item['state'] == 'active'), None)
@@ -6657,6 +6680,7 @@ def make_doctor_repair_plan(
     repository_root: str | Path | None = None,
     operation_id: str | None = None,
     created_at: str | None = None,
+    reconcile_mcp_formatting: bool = False,
 ) -> dict[str, Any]:
     if release_root is not None and repository_root is not None:
         raise LifecycleError("TX_SOURCE_INPUT", "Choose exactly one verified external repair source.")
@@ -6671,6 +6695,8 @@ def make_doctor_repair_plan(
     if active is None:
         raise LifecycleError("TX_REPAIR_EXTERNAL_SOURCE_REQUIRED", "Repair planning requires a readable active binding and exact verified external source.", str(root))
     external_supplied = release_root is not None or repository_root is not None
+    if reconcile_mcp_formatting and not external_supplied:
+        raise LifecycleError('TX_REPAIR_EXTERNAL_SOURCE_REQUIRED', 'MCP formatting reconciliation requires the exact verified external source.')
     if not external_supplied:
         if report["core_trust"] != "LOCALLY_CONSISTENT":
             raise LifecycleError(
@@ -6725,6 +6751,7 @@ def make_doctor_repair_plan(
         repository_root=repository_root,
         operation_id=operation_id,
         created_at=created_at,
+        reconcile_mcp_formatting=reconcile_mcp_formatting,
     )
     return {
         "schema_version": 1,
@@ -6924,6 +6951,7 @@ def build_parser() -> argparse.ArgumentParser:
     doctor_repair.add_argument("--repository-root")
     doctor_repair.add_argument("--operation-id")
     doctor_repair.add_argument("--timestamp")
+    doctor_repair.add_argument("--reconcile-mcp-formatting", action="store_true")
     doctor_repair.add_argument("--out")
     doctor_repair.add_argument("--apply", action="store_true")
 
@@ -7140,6 +7168,7 @@ def main(argv: list[str] | None = None) -> int:
                 repository_root=args.repository_root,
                 operation_id=args.operation_id,
                 created_at=args.timestamp,
+                reconcile_mcp_formatting=args.reconcile_mcp_formatting,
             )
             if args.apply:
                 if not result["executable"]:

@@ -125,7 +125,7 @@ class SupervisedProcessHost:
         # The factory is trusted application code, never imported from a request.
         bound_factory=getattr(self.command_factory,'for_actor',None)
         spec=bound_factory(request,actor=actor) if actor is not None and bound_factory is not None else self.command_factory(request)
-        required={'argv','cwd','wall_seconds'};optional={'stdin_text','event_protocol','max_output_bytes','max_line_bytes','max_events','capture_candidate_message','file_guards','runtime_tool_root'}
+        required={'argv','cwd','wall_seconds'};optional={'stdin_text','event_protocol','max_output_bytes','max_line_bytes','max_events','capture_candidate_message','file_guards','runtime_tool_root','environment'}
         if not isinstance(spec,dict) or not required<=set(spec) or set(spec)-(required|optional):raise ValueError('Closed process profile required')
         if (not isinstance(spec['argv'],list) or not spec['argv'] or any(not isinstance(v,str) or '\0' in v for v in spec['argv']) or
                 not Path(spec['argv'][0]).is_absolute() or not Path(spec['argv'][0]).is_file() or
@@ -137,13 +137,19 @@ class SupervisedProcessHost:
             value=spec['runtime_tool_root']
             if not isinstance(value,str) or not Path(value).is_absolute():raise ValueError('Explicit absolute runtime tool root required')
             _regular_path(Path(value))
+        if 'environment' in spec:
+            value=spec['environment']
+            allowed={'ELECTRON_RUN_AS_NODE','OPENCODE_CONFIG_CONTENT','OPENCODE_CONFIG','OPENCODE_DISABLE_AUTOUPDATE',
+                'DSH_TOOLS_MODE','DSH_HOME','DSH_TELEMETRY_DISABLED','PYTHONDONTWRITEBYTECODE','PYTHONUTF8','TEMP','TMP'}
+            if not isinstance(value,dict) or not set(value)<=allowed or any(not isinstance(v,str) or '\0' in v or len(v)>131072 for v in value.values()):
+                raise ValueError('Unsupported private process-local environment override')
         if set(spec)&(optional-{'runtime_tool_root'}):
             spec={**spec,'stdin_text':spec.get('stdin_text',''),'event_protocol':spec.get('event_protocol','bounded-jsonl-v1'),
                   'max_output_bytes':spec.get('max_output_bytes',262144),'max_line_bytes':spec.get('max_line_bytes',16384),'max_events':spec.get('max_events',100)}
-            if spec['event_protocol'] not in {'bounded-jsonl-v1','codex-jsonl-v1'} or not isinstance(spec['stdin_text'],str) or len(spec['stdin_text'].encode('utf-8'))>1048576:
+            if spec['event_protocol'] not in {'bounded-jsonl-v1','codex-jsonl-v1','claude-jsonl-v1','opencode-jsonl-v1','harness-jsonl-v1'} or not isinstance(spec['stdin_text'],str) or len(spec['stdin_text'].encode('utf-8'))>1048576:
                 raise ValueError('Unsupported event profile or oversized stdin')
             capture=spec.get('capture_candidate_message',False)
-            if type(capture) is not bool or (capture and spec['event_protocol']!='codex-jsonl-v1'):
+            if type(capture) is not bool or (capture and spec['event_protocol']=='bounded-jsonl-v1'):
                 raise ValueError('Invalid candidate capture profile')
             _check_guards(spec.get('file_guards',[]))
             for key,maximum in (('max_output_bytes',16777216),('max_line_bytes',MAX_JSONL_LINE_BYTES),('max_events',1000)):
@@ -219,7 +225,7 @@ class SupervisedProcessHost:
 
 
 def _check_guards(guards):
-    if not isinstance(guards,list) or len(guards)>128:raise ValueError('Invalid reviewed file inventory')
+    if not isinstance(guards,list) or len(guards)>256:raise ValueError('Invalid reviewed file inventory')
     for guard in guards:
         if (not isinstance(guard,dict) or set(guard)!={'path','sha256'} or not isinstance(guard['path'],str) or
                 not Path(guard['path']).is_absolute() or (guard['sha256'] is not None and
@@ -243,7 +249,7 @@ def supervise(root,key):
             if row[2]:
                 c.execute("UPDATE run SET state='EXITED',cancel_acknowledged=1,quiesced=1,return_status='NOT_STARTED',stop_reason='CANCEL_BEFORE_START' WHERE backend_key=?",(key,));return 0
             started=time.monotonic()
-            streams=spec.get('event_protocol') in {'bounded-jsonl-v1','codex-jsonl-v1'}
+            streams=spec.get('event_protocol') in {'bounded-jsonl-v1','codex-jsonl-v1','claude-jsonl-v1','opencode-jsonl-v1','harness-jsonl-v1'}
             from contextlib import nullcontext
             from v2_runtime_admission import runtime_admission
             # Release before serving child MCP requests, which acquire this
@@ -252,7 +258,7 @@ def supervise(root,key):
                 if _hash(spec['argv'][0])!=spec['executable_sha256']:raise ValueError('Reviewed executable changed')
                 _check_guards(spec.get('file_guards',[]))
                 launch_attempted=True
-                job=WindowsJob.launch(spec['argv'],cwd=spec['cwd'],capture_stdio=streams)
+                job=WindowsJob.launch(spec['argv'],cwd=spec['cwd'],capture_stdio=streams,**({'environment':spec['environment']} if 'environment' in spec else {}))
             if streams:
                 pump=StdioPump(job,spec['stdin_text'].encode('utf-8'),max_output_bytes=spec['max_output_bytes'],
                     max_line_bytes=spec['max_line_bytes'],max_events=spec['max_events'],protocol=spec['event_protocol'],
@@ -273,8 +279,14 @@ def supervise(root,key):
                 if remaining<=0:observed=job.wait(0);break
                 time.sleep(min(.02,remaining))
             reason=observed['stop_reason']
+            # Job accounting can reach zero before the root process handle is
+            # signalled. Obtain the actual exit code before classifying return.
+            settle_until=time.monotonic()+2
+            while observed['quiesced'] and not observed['root_exited'] and time.monotonic()<settle_until:
+                time.sleep(.01);observed=job.status()
             if pump is not None:
                 summary=pump.finish()
+                summary.update(root_exit_code=observed['root_exit_code'],root_exited=observed['root_exited'])
                 private=pump.private_values()
                 protected=None if private is None else encode(private,instance,'process-host',key,1,'events')
                 c.execute('UPDATE run SET io_summary=?,private_events_value=? WHERE backend_key=?',(json.dumps(summary),protected,key))

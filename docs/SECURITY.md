@@ -1,6 +1,6 @@
 # Security
 
-Security and privacy apply to the whole MALTS workflow, installation and distribution. Current version: **2.1.0**.
+Security and privacy apply to the whole MALTS workflow, installation and distribution. Current version: **2.1.1**.
 
 ## Verify Before Use
 
@@ -57,3 +57,7 @@ Ordinary new workspaces use `workspace-init` to place task state, managed eviden
 Host configurations can contain credentials and private paths. The installer preserves their unrelated bytes, does not publish them or include their values in configuration plans, and retains exact local preimages only for recovery. Standard MCP startup and tool errors do not echo arbitrary input values. Default MCP access is read-only; selecting a workspace is not execution permission. Dependency packages are installed into the lifecycle-owned environment, never into a provider or another application’s environment.
 
 New project configuration plans use current-user DPAPI for afterimages and recovery preimages, bound to Host, operation and exact target. Metadata remains private. Closed shapes and byte limits precede decryption; approved edits use exclusive single-link file handles and reject changed layers. Interrupted operations retain their original journal and block lifecycle mutation until recovery.
+
+### Real Agent permission and evidence boundaries
+
+Real Agent qualification is not authentication of arbitrary same-user callers. Controller-owned receipts require matching bytes, identity and supported checks; no Worker MCP endpoint records qualification or launches successors. Process-local allow lists and Task-bound MCP Grants restrict mediated effects without certifying every native tool or external writer. Transport logs omit raw output, reasoning and arguments; candidate bodies remain private and protected. Host-owned session logs follow their own retention rules. See [Real Agent scheduling](AGENT_SCHEDULING.md).

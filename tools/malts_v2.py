@@ -458,9 +458,11 @@ def main(argv=None):
                 result=Artifacts(store).relation_index_status(project_id=args.project_id,max_artifacts=args.max_artifacts)
         elif args.command == 'capabilities':
             actions=action_contracts()
+            from v2_agent_qualification import capabilities as agent_route_capabilities
             from v2_legacy_reader import source_profiles
             from v2_runtime_mutex import capabilities as runtime_mutex_capabilities
             result={'interface':'malts.candidate.cli','interface_version':CLI_INTERFACE_VERSION,'database_schema':SCHEMA_VERSION,
+                    'real_agent_routes':agent_route_capabilities(),
                     'runtime_format_contract':current_contract(),
                     'runtime_exclusion_primitive':runtime_mutex_capabilities(),
                     'legacy_reader_profiles':source_profiles(),
@@ -510,7 +512,7 @@ def main(argv=None):
                                          'preview_characters':2048,'max_protected_preview_characters':32768,
                                          'preview_verifies_full_body':False,'controller_refresh':'definition.refresh-preview'},
                     'qualification':'SCOPED_RUNTIME_QUALIFICATION','qualification_scope':'Capabilities are per interface/profile; no whole-Host or business acceptance is implied','actions':actions,
-                    'optional_mcp_bridge':{'entry':'v2_mcp.py','default_mode':'READ_ONLY','tested_sdk':'1.28.1',
+                    'optional_mcp_bridge':{'entry':'v2_mcp.py','default_mode':'READ_ONLY','tested_sdk':'1.30.0',
                         'tested_protocol':'2025-11-25','runtime_dependency_checked':False,
                         'modern_protocol_qualified':False,'native_host_integration_qualified':False},
                     'host_authentication_enforced':False,'unmediated_host_actions_controlled':False,

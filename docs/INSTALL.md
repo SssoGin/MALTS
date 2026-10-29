@@ -1,6 +1,6 @@
 # Install MALTS
 
-Install MALTS into the Agent tools you choose. One shared core supplies project work, continuity, verification and experience workflows; each tool receives its own native entry. Current version: **2.1.0**. Installation is review-first and does not call a model, install the Host application or adopt existing projects.
+Install MALTS into the Agent tools you choose. One shared core supplies project work, continuity, verification and experience workflows; each tool receives its own native entry. Current version: **2.1.1**. Installation is review-first and does not call a model, install the Host application or adopt existing projects.
 
 ## Prerequisites
 
@@ -17,7 +17,7 @@ Use short, explicit roots with no ambiguous links/protected overlaps. Lifecycle 
 
 ## Repository Installation (Primary)
 
-Use a reviewed checkout of the [public repository](https://github.com/SssoGin/MALTS). Check the actual remote/ref and confirm `MALTS_RELEASE.json` and `VERSION` both identify 2.1.0. A documentation revision on `main` can retain the same version while having its own exact source-tree identity. The installer checks the actual selected tree; do not add business files or caches inside it.
+Use a reviewed checkout of the [public repository](https://github.com/SssoGin/MALTS). Check the actual remote/ref and confirm `MALTS_RELEASE.json` and `VERSION` both identify 2.1.1. A documentation revision on `main` can retain the same version while having its own exact source-tree identity. The installer checks the actual selected tree; do not add business files or caches inside it.
 
 | Host | Entry | Scope |
 |---|---|---|
@@ -68,11 +68,11 @@ Do not replace a meaningful failure with a manual file copy or a success label. 
 
 ## Optional Offline Archive
 
-The current Release attachment is `MALTS-2.1.0.zip`. A same-version reissue has its own qualified package, source commit and SHA-256 in the Release notes. Verify the exact downloaded revision before offline installation. GitHub-generated source archives follow the current version tag. The current tag, qualified repository and MALTS-uploaded package should identify the same source revision, although archive layouts differ.
+The current Release attachment is `MALTS-2.1.1.zip`. A same-version reissue has its own qualified package, source commit and SHA-256 in the Release notes. Verify the exact downloaded revision before offline installation. GitHub-generated source archives follow the current version tag. The current tag, qualified repository and MALTS-uploaded package should identify the same source revision, although archive layouts differ.
 
 ```powershell
-.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.1.0.zip
-.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.1.0.zip -ExtractOutput '<new-extraction-root>' -Apply
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.1.1.zip
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.1.1.zip -ExtractOutput '<new-extraction-root>' -Apply
 ```
 
 Obtain the verifier from the matching reviewed source. Run the extracted payload's lifecycle entry with `-ReleaseRoot '<extracted-package-root>'`, then the same plan/hash sequence. Harness uses the same lifecycle entry with ReleaseRoot and every Host registered to that installation. Never copy a payload into an active generation. See [Release Archive](RELEASE_ARTIFACT.md).
@@ -138,10 +138,23 @@ MCP is a required part of the installation for every selected Host. The same rev
 
 The lifecycle-owned environment is under `runtime/mcp/env-<requirements-digest>`, outside immutable generations. The launcher loads the generation verified through that Host’s Boot, registry and pointer. Codex uses `config.toml`; Claude Code uses the sibling `.claude.json`; OpenCode uses its existing `opencode.json` and/or `opencode.jsonc`; when both are present, both receive the same owned entry for their merged configuration; Harness uses each existing profile’s `cordis.patch.yml`, or a new `default` profile if none exists. Other settings and MCP servers remain intact. A conflicting unowned `malts` entry or edits to a managed entry stop the affected operation instead of being overwritten.
 
-First installation needs access to the pinned Python packages. The MALTS ZIP does not bundle their wheels. An offline installation therefore needs an already verified managed environment or an available local package source; offline dependency failure leaves installation incomplete. The installer records installed dependency versions. It does not change PATH or install packages into another application’s environment.
+First installation needs access to the pinned Python packages. The MALTS ZIP does not bundle their wheels. An offline installation therefore needs an already verified managed environment; ambient pip configuration is not used as a package source; offline dependency failure leaves installation incomplete. The installer records installed dependency versions. It does not change PATH or install packages into another application’s environment.
 
-Reload the Host if it does not reload configuration automatically, then call `malts_installation`. It should report `MCP_READY` and version `2.1.0`. A cold connection check establishes a newly started server; it cannot switch an already running Host process. For existing project-specific endpoints and detailed diagnostics, see [MCP configuration](MCP_CONFIGURATION.md).
+Reload the Host if it does not reload configuration automatically, then call `malts_installation`. It should report `MCP_READY` and version `2.1.1`. A cold connection check establishes a newly started server; it cannot switch an already running Host process. For existing project-specific endpoints and detailed diagnostics, see [MCP configuration](MCP_CONFIGURATION.md).
 
 ### Project MCP Entries And Upgrade Checks
 
-Ordinary read-only projects inherit the global standard entry. Dedicated bindings, interpreters, environments or permissions can retain a project endpoint. Select `--workspace` / `--host-config` for update, Doctor and retirement checks; configuration precedence and actual Host loading are verified separately. `mcp-config --stable` follows the active generation while retaining fixed state and policy. MALTS 2.1.0 provides four-Host reviewed entry changes, layer fingerprints, protected preimages and original-operation recovery without recreating project state; native scope and actual Host loading remain separate. See [MCP configuration](MCP_CONFIGURATION.md#selected-project-configuration) for commands and limits.
+Ordinary read-only projects inherit the global standard entry. Dedicated bindings, interpreters, environments or permissions can retain a project endpoint. Select `--workspace` / `--host-config` for update, Doctor and retirement checks; configuration precedence and actual Host loading are verified separately. `mcp-config --stable` follows the active generation while retaining fixed state and policy. MALTS provides four-Host reviewed entry changes, layer fingerprints, protected preimages and original-operation recovery without recreating project state; native scope and actual Host loading remain separate. See [MCP configuration](MCP_CONFIGURATION.md#selected-project-configuration) for commands and limits.
+
+### Agent execution prerequisites
+
+The real-Agent controller uses an already installed, authenticated Host executable and the existing MALTS MCP Python. It installs no account, model or Agent application. User Host configuration stays unchanged; Harness launch configuration is task-owned and refers to existing credentials when required. Installation does not create route qualification or enable delegation. See [Real Agent scheduling](AGENT_SCHEDULING.md).
+
+
+### Dependency preparation on Windows paths
+
+Dependency subprocesses discard inherited `PIP_*` settings and disable external pip configuration files. External target, prefix and user-install settings therefore cannot redirect the managed installation. Standard proxy and TLS environment settings remain available.
+
+The installer creates an empty lifecycle-owned Python environment, then installs the pinned pip into that exact environment before preparing the remaining fixed dependencies. This avoids first installing the base interpreter's older bundled setuptools test files, whose nested paths can exceed Windows path limits. It changes no global Python installation or registry setting. Failure remains a preparation/rollback result, not an activated installation. Dependency installation runs in a separate subprocess under the target interpreter; see [pip's subprocess invocation guidance](https://pip.pypa.io/en/stable/user_guide/#using-pip-from-your-program).
+
+Internal transaction snapshots, restoration and owned-tree cleanup use extended Windows file I/O while retaining ordinary paths in plans and records. This covers generation and Host-file snapshots that become longer during a transaction. Planned staging and Host-projection paths still undergo the existing bounds checks before execution; choose roots that pass that preflight. This does not certify arbitrary path lengths, unsupported filesystem layouts or external applications' long-path behavior.

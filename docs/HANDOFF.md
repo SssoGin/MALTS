@@ -1,6 +1,6 @@
 # Handoff
 
-MALTS handoffs make project work understandable across windows, interruptions and Agent changes. They preserve the goal, current progress, actual evidence and next eligible work. Current version: **2.1.0**. A handoff is an on-demand continuation view; the selected task services own execution state.
+MALTS handoffs make project work understandable across windows, interruptions and Agent changes. They preserve the goal, current progress, actual evidence and next eligible work. Current version: **2.1.1**. A handoff is an on-demand continuation view; the selected task services own execution state.
 
 ## Default File Names
 
@@ -104,4 +104,8 @@ Entry, package checking, workspace authority, governance readiness, Task continu
 
 ### Project MCP Entries And Upgrade Checks
 
-Ordinary read-only projects inherit the global standard entry. Dedicated bindings, interpreters, environments or permissions can retain a project endpoint. Select `--workspace` / `--host-config` for update, Doctor and retirement checks; configuration precedence and actual Host loading are verified separately. `mcp-config --stable` follows the active generation while retaining fixed state and policy. MALTS 2.1.0 provides four-Host reviewed entry changes, layer fingerprints, protected preimages and original-operation recovery without recreating project state; native scope and actual Host loading remain separate. See [MCP configuration](MCP_CONFIGURATION.md#selected-project-configuration) for commands and limits.
+Ordinary read-only projects inherit the global standard entry. Dedicated bindings, interpreters, environments or permissions can retain a project endpoint. Select `--workspace` / `--host-config` for update, Doctor and retirement checks; configuration precedence and actual Host loading are verified separately. `mcp-config --stable` follows the active generation while retaining fixed state and policy. MALTS provides four-Host reviewed entry changes, layer fingerprints, protected preimages and original-operation recovery without recreating project state; native scope and actual Host loading remain separate. See [MCP configuration](MCP_CONFIGURATION.md#selected-project-configuration) for commands and limits.
+
+### Recovering delegated Agent work
+
+Preserve the original dispatch, invocation, native identity, process/native journal and protected result references. Reopen and query the original Host after controller interruption; never launch a replacement because a receipt is missing. A native close acknowledgement remains nonterminal until a subsequent shutdown/not-found observation. Unknown effects and consumed budget remain unresolved until reconciled. Qualified route evidence and its referenced files must be retained separately from the database backup when they are outside that backup closure. See [Real Agent scheduling](AGENT_SCHEDULING.md).

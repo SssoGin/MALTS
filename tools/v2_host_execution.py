@@ -409,6 +409,108 @@ class HostExecutions:
             self._audit(c,'HOST_CANCEL_REQUESTED',dispatch_id,{'invocation_id':invocation_id,'goal_cancelled':False})
         return self._call(row,invocation_id,lambda:self.adapter.cancel(backend_key=row['backend_key']))
 
+    def native_cancel_request(self,*,dispatch_id):
+        """Revoke immediately; actual native close obtains its own admission."""
+        if not hasattr(self.adapter,'pending_call'):raise ValueError('Native relay required')
+        with self.store.transaction() as c:
+            row=self._row(dispatch_id)
+            if row['quiesced']==1:return {'decision':'ALREADY_QUIESCED','host_called':False}
+            policy,_=self._policy(row['project_id'])
+            epoch=c.execute('SELECT epoch FROM recovery_state').fetchone()[0]
+            if row['epoch']!=epoch or not policy[9]:
+                # A restored control snapshot may predate a real native tool
+                # call retained in the independent Host journal. Absence of
+                # its admission in this snapshot cannot prove non-execution.
+                c.execute("UPDATE host_dispatch SET cancel_requested=1,state='UNKNOWN' WHERE dispatch_id=?",(dispatch_id,))
+                c.execute('UPDATE execution_grant SET revoked=1 WHERE task_id=? AND actor=?',(row['task_id'],row['actor']))
+                self._audit(c,'NATIVE_CANCEL_REQUIRES_RECONCILIATION',dispatch_id,{'epoch_matches':row['epoch']==epoch,'consumption_known':bool(policy[9]),'quiescence_verified':False})
+                return {'decision':'RECOVERY_RECONCILIATION_REQUIRED','host_called':False,'quiescence_verified':False}
+            if not row['launch_committed']:
+                c.execute('UPDATE execution_grant SET revoked=1 WHERE task_id=? AND actor=?',(row['task_id'],row['actor']))
+                c.execute("UPDATE host_dispatch SET state='CANCELLED',cancel_requested=1,quiesced=1 WHERE dispatch_id=?",(dispatch_id,))
+                return {'decision':'CANCELLED_BEFORE_LAUNCH','host_called':False}
+            c.execute("UPDATE host_dispatch SET cancel_requested=1,state='CANCEL_REQUESTED' WHERE dispatch_id=?",(dispatch_id,))
+            c.execute('UPDATE execution_grant SET revoked=1 WHERE task_id=? AND actor=?',(row['task_id'],row['actor']))
+            self._audit(c,'NATIVE_CANCEL_REQUESTED',dispatch_id,{'host_called':False,'close_admission_required':True})
+        pending=self.adapter.pending_call(backend_key=row['backend_key'])
+        if pending is not None:
+            admitted=self.store.connection.execute("SELECT 1 FROM execution_audit WHERE kind='NATIVE_CALL_RESERVED' AND subject_id=?",(pending['call_id'],)).fetchone()
+            if admitted is None and pending['tool']=='multi_agent_v1.spawn_agent':
+                self.adapter.cancel_unadmitted_spawn(backend_key=row['backend_key'],call_id=pending['call_id'])
+                launch=self.store.connection.execute("SELECT invocation_id FROM host_invocation WHERE dispatch_id=? AND method='LAUNCH'",(dispatch_id,)).fetchone()
+                value=self.adapter.query(backend_key=row['backend_key']);self._validate_observation(row,value)
+                return self._observe(dispatch_id,launch[0],value)
+            if admitted is None and pending['tool']=='multi_agent_v1.wait_agent':self.adapter.discard_unadmitted_wait(backend_key=row['backend_key'],call_id=pending['call_id'])
+        self.adapter.cancel(backend_key=row['backend_key'])
+        return {'decision':'CANCEL_REQUESTED','host_called':False,'close_admission_required':True}
+
+    def reserve_native_call(self,*,dispatch_id):
+        """Commit query/cancel budget before exposing an executable Host call.
+
+        Replays are reconciliation-only. A caller may not resubmit an uncertain
+        tool merely because this method can describe its immutable packet.
+        """
+        if not hasattr(self.adapter,'pending_call'):raise ValueError('Native relay required')
+        row=self._row(dispatch_id)
+        if row['quiesced']==1:return {'decision':'NO_PENDING_NATIVE_CALL','host_called':False}
+        packet=self.adapter.pending_call(backend_key=row['backend_key'])
+        if packet is None:return {'decision':'NO_PENDING_NATIVE_CALL','host_called':False}
+        methods={'multi_agent_v1.spawn_agent':'LAUNCH','multi_agent_v1.wait_agent':'QUERY','multi_agent_v1.close_agent':'CANCEL'}
+        method=methods.get(packet['tool'])
+        if method is None:raise ValueError('Unsupported native tool admission')
+        with self._new_work_transaction() if method=='LAUNCH' else self.store.transaction() as c:
+            row=self._row(dispatch_id)
+            fingerprint=request_fingerprint(c,row['project_id'],[dispatch_id,packet])
+            prior=c.execute("SELECT details_json FROM execution_audit WHERE kind='NATIVE_CALL_RESERVED' AND subject_id=?",(packet['call_id'],)).fetchone()
+            if prior:
+                reserved=json.loads(prior[0])
+                if reserved['packet_hash']!=fingerprint or reserved['dispatch_id']!=dispatch_id:raise StateConflict('Native call reservation differs')
+                return {'decision':'RECONCILE_ONLY','call_id':packet['call_id'],'tool':packet['tool'],'host_called':False}
+            if not row['launch_committed'] or row['quiesced']==1:raise StateConflict('Native dispatch is not admitted')
+            if method=='LAUNCH':
+                if row['profile_revision']!=self.adapter.profile_revision:raise StateConflict('Native spawn profile changed')
+                self.adapter.validate_spawn_inputs()
+                policy,_=self._policy(row['project_id'])
+                current=self.store.task_identity(row['task_id'])
+                epoch=c.execute('SELECT epoch FROM recovery_state').fetchone()[0]
+                if (row['cancel_requested'] or policy[6] or not policy[9] or row['epoch']!=epoch or current['revision']!=row['task_revision'] or
+                    (policy[5] is not None and Operations._instant(policy[5])<=self.clock())):
+                    raise PermissionError('Native spawn authority is no longer current')
+                run=c.execute('SELECT state,actor,task_id,task_revision FROM execution_run WHERE run_id=?',(row['run_id'],)).fetchone()
+                if current['status'] not in {'RUNNING','RECOVERY_REQUIRED'} or run!=('OPEN',row['actor'],row['task_id'],row['task_revision']):
+                    raise PermissionError('Native spawn Task or Run is no longer executable')
+                if request_fingerprint(c,row['project_id'],task_authority_context(self.store,row['task_id']))!=row['context_hash']:
+                    raise StateConflict('Native spawn authority context changed')
+                if self.store.unresolved_dependencies(row['task_id'],row['task_revision']):raise StateConflict('Native spawn dependencies are no longer accepted')
+                if c.execute("SELECT 1 FROM operation WHERE task_id=? AND state IN ('INTENT_RECORDED','UNKNOWN') LIMIT 1",(row['task_id'],)).fetchone():
+                    raise StateConflict('Native spawn has unresolved Task effects')
+                require_task_phase(self.store,row['task_id'])
+                launch=c.execute("SELECT invocation_id FROM host_invocation WHERE dispatch_id=? AND method='LAUNCH'",(dispatch_id,)).fetchone()
+                if launch is None:raise StateConflict('Native launch intent is missing')
+                invocation_id=launch[0]
+            else:
+                invocation_id=packet['call_id']
+                if not self._begin_call(c,row,invocation_id,method):raise StateConflict('Native call identity was consumed elsewhere')
+            self._audit(c,'NATIVE_CALL_RESERVED',packet['call_id'],{'dispatch_id':dispatch_id,'invocation_id':invocation_id,'method':method,'packet_hash':fingerprint})
+        return {'decision':'NATIVE_CALL_ADMITTED','call':packet,'host_called':False,'execution_rule':'INVOKE_ONCE_THEN_RECONCILE_ORIGINAL'}
+
+    def observe_native_receipt(self,*,dispatch_id,call_id,tool,receipt):
+        """Record a previously admitted result without spending a second query.
+
+        Exhausted or revoked future budgets must not block receipt preservation
+        for a call whose budget was already committed.
+        """
+        if not hasattr(self.adapter,'record_receipt'):raise ValueError('Native relay required')
+        row=self._row(dispatch_id)
+        prior=self.store.connection.execute("SELECT details_json FROM execution_audit WHERE kind='NATIVE_CALL_RESERVED' AND subject_id=?",(call_id,)).fetchone()
+        if prior is None:raise PermissionError('Native receipt has no prior call admission')
+        reserved=json.loads(prior[0])
+        methods={'multi_agent_v1.spawn_agent':'LAUNCH','multi_agent_v1.wait_agent':'QUERY','multi_agent_v1.close_agent':'CANCEL'}
+        if reserved['dispatch_id']!=dispatch_id or reserved['method']!=methods.get(tool):raise PermissionError('Native receipt reservation differs')
+        self.adapter.record_receipt(backend_key=row['backend_key'],call_id=call_id,tool=tool,receipt=receipt)
+        value=self.adapter.query(backend_key=row['backend_key']);self._validate_observation(row,value)
+        return self._observe(dispatch_id,reserved['invocation_id'],value)
+
     def _validate_observation(self,row,value):
         # physical_requests is this one Host-call's observed delta, never a
         # cumulative session total. None remains unknown in aggregate metrics.
