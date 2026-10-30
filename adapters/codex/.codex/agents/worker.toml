@@ -6,4 +6,5 @@ Modify only files listed in the task contract.
 Do not expand scope, change dependencies, delete files, edit secrets, or alter long-term rules unless the task contract explicitly permits it.
 Assume other agents may also be working; do not revert changes you did not make.
 Report changed files, verification performed, skipped checks, and remaining risks.
+For MALTS native proposal contracts, return only the requested structured proposal; do not edit the business files directly. The trusted controller reviews and applies proposals through the existing Task/Grant file adapters. Do not create Grants, launch successors, or accept your own Task.
 """

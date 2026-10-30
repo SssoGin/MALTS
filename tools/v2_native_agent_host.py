@@ -12,7 +12,7 @@ from v2_definition_content import encode,decode
 from v2_evidence import _regular_path
 
 APPLICATION_ID=0x4D4E4154
-ROLES={'malts_explorer','malts_worker','malts_verifier','malts_planner'}
+ROLES={'malts_explorer','malts_worker','malts_verifier','malts_planner','malts_memory_curator'}
 
 def _connect(root,readonly=False):
     path=Path(root)/'native.db';_regular_path(path)
@@ -121,13 +121,17 @@ class NativeAgentHost:
             'session_closed':bool(row['session_closed']),'automatic_background_enforcement':False,
             'next_action':'QUERY_OR_CANCEL_ORIGINAL' if not row['session_closed'] else 'VERIFY_RESULT'}
 
+    def _failed_close(self,c,backend_key):
+        row=c.execute("SELECT call_id,receipt_value FROM native_call WHERE backend_key=? AND tool='multi_agent_v1.close_agent' AND receipt_value IS NOT NULL ORDER BY sequence DESC LIMIT 1",(backend_key,)).fetchone()
+        return row is not None and set(self._decode(row[0],'receipt',row[1]))=={'error'}
+
     def request_query(self,*,backend_key):
         with closing(_connect(self.root)) as c:
             c.execute('BEGIN IMMEDIATE');row=self._row(c,backend_key)
             if not row['session_closed']:
                 native=self._decode(backend_key,'native-id',row['native_value'])
                 if native is None:raise ValueError('Reconcile the original spawn receipt before polling')
-                if row['cancel_requested'] and not row['close_ack']:
+                if row['cancel_requested'] and not row['close_ack'] and not self._failed_close(c,backend_key):
                     self._queue(c,backend_key,'multi_agent_v1.close_agent',{'target':native})
                 else:self._queue(c,backend_key,'multi_agent_v1.wait_agent',{'targets':[native],'timeout_ms':10000})
             c.execute('COMMIT')
@@ -187,12 +191,19 @@ class NativeAgentHost:
                         c.execute('UPDATE native_run SET result_value=?,returned=\'COMPLETED\' WHERE backend_key=?',(self._protect(backend_key,'result',value['completed']),backend_key))
                     elif set(value)=={'errored'}:c.execute('UPDATE native_run SET returned=\'FAILED\' WHERE backend_key=?',(backend_key,))
                     else:raise ValueError('Unknown native result state')
-                elif value in {'shutdown','not_found'} and run['close_ack']:
+                elif value in {'shutdown','not_found'} and (run['close_ack'] or (run['cancel_requested'] and self._failed_close(c,backend_key))):
                     c.execute('UPDATE native_run SET session_closed=1,state=\'EXITED\' WHERE backend_key=?',(backend_key,))
                 elif value not in {None,'pending_init','running','interrupted','shutdown','not_found'}:raise ValueError('Unknown native wait state')
             elif tool=='multi_agent_v1.close_agent':
-                if set(receipt)!={'previous_status'}:raise ValueError('Invalid actual close acknowledgement')
-                c.execute('UPDATE native_run SET close_ack=1 WHERE backend_key=?',(backend_key,))
+                if set(receipt)=={'previous_status'}:
+                    c.execute('UPDATE native_run SET close_ack=1 WHERE backend_key=?',(backend_key,))
+                elif (set(receipt)=={'error'} and isinstance(receipt['error'],dict) and set(receipt['error'])=={'message'} and
+                      isinstance(receipt['error']['message'],str) and 1<=len(receipt['error']['message'].encode('utf-8'))<=4096 and run['cancel_requested']):
+                    # Preserve an actual tool exception without inventing an
+                    # acknowledgement. Only a subsequent original-session
+                    # wait can establish native API absence/stoppage.
+                    pass
+                else:raise ValueError('Invalid actual close result')
             else:raise ValueError('Unsupported native relay tool')
             c.execute('UPDATE native_call SET receipt_value=? WHERE call_id=?',(self._protect(call_id,'receipt',receipt),call_id))
             # A cancellation requested while spawn/wait was pending survives
@@ -200,7 +211,9 @@ class NativeAgentHost:
             current=self._row(c,backend_key)
             native=self._decode(backend_key,'native-id',current['native_value'])
             if current['cancel_requested'] and not current['close_ack'] and not current['session_closed'] and native is not None:
-                self._queue(c,backend_key,'multi_agent_v1.close_agent',{'target':native})
+                if tool=='multi_agent_v1.close_agent' and set(receipt)=={'error'}:
+                    self._queue(c,backend_key,'multi_agent_v1.wait_agent',{'targets':[native],'timeout_ms':10000})
+                else:self._queue(c,backend_key,'multi_agent_v1.close_agent',{'target':native})
             c.execute('COMMIT')
 
     def private_result(self,*,backend_key,purpose):

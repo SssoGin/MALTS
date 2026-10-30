@@ -1,6 +1,6 @@
 # Security
 
-Security and privacy apply to the whole MALTS workflow, installation and distribution. Current version: **2.1.1**.
+Security and privacy apply to the whole MALTS workflow, installation and distribution. Current version: **2.1.2**.
 
 ## Verify Before Use
 

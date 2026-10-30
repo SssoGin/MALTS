@@ -1,5 +1,27 @@
 # Changelog
 
+## v2.1.2 — 2026-10-30
+
+### Native responsibilities and controlled changes
+
+The Codex native relay accepts Planner, Explorer, Memory Curator, Verifier and Worker. Qualification records use a separate route ID for each responsibility, preventing a later read-only role record from displacing another role. Existing records retain their original meaning and are not upgraded automatically.
+
+Native Workers can return a closed file-change proposal for explicit controller review. The controller previews and applies a selected create/update using the original Task revision, dispatch actor, existing Grant and file adapters. Exact retained output and current inputs are rechecked; updates preserve a reviewed preimage, completed operations are not repeated, and cancelled dispatches cannot introduce effects. Standard MCP remains read-only. The Planner instruction uses current Task/Phase authority for adopted workspaces. See [Real Agent scheduling](docs/AGENT_SCHEDULING.md) for commands and assurance limits. Installation, source verification and real-role qualification remain separate results.
+
+Native close-tool exceptions can be retained against the original admitted call without inventing an acknowledgement. A separate actual wait must establish shutdown/not-found; a still-running observation retains cancellation and consumed budgets.
+
+New dispatches retain a protected runtime binding. Reopening the service without its optional runtime argument restores the original binding for new work; selecting another runtime is rejected. Legacy dispatches remain available for reconciliation but do not acquire proposal-effect rights implicitly. Existing workspaces keep their state format and do not need adoption again. Update through the shared four-Host lifecycle, then reconnect clients that still hold an older loaded process.
+
+### 简体中文
+
+Codex 原生桥接接受 Planner、Explorer、Memory Curator、Verifier 和 Worker 五种职责。资格记录为每种职责使用独立路线 ID，防止后登记的只读角色使另一角色的记录失效。已有记录保留原含义，不自动升级。
+
+原生 Worker 可以返回闭合文件变更提案，由控制端明确审阅，使用原 Task 修订、派发 actor、已有 Grant 及文件适配器预览、应用所选创建或更新。执行前重新检查实际保留的返回和当前输入；更新保留已审阅前像，已完成操作不重复执行，取消后的派发不能引入效果。标准 MCP 保持只读。Planner 在已采用工作区中使用当前 Task/Phase 权威。命令与保证边界见[真实 Agent 调度](docs/zh-CN/AGENT_SCHEDULING.md)。安装、源码验证和真实角色资格仍分别判定。
+
+原生关闭工具异常可保留在原已准入调用下，不伪造关闭确认；须由另一条真实等待确认停止／不存在。若仍运行，则保留取消意图和已消费预算。
+
+新派发保留受保护的运行时绑定；重开服务时即使省略可选运行时参数，新工作仍恢复原绑定，选择其他运行时会被拒绝。旧派发保留对账路径，不隐式获得提案效果权限。既有工作区保持状态格式，不需要重新采用；通过四端共享生命周期更新，尚持有旧进程的客户端需重连。
+
 ## v2.1.1 — 2026-10-29
 
 ### Real Agent execution and qualification

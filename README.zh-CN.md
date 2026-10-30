@@ -8,7 +8,7 @@ MALTS 是一套用于 AI Agent 项目工作的运行框架，将目标澄清、�
 
 MALTS 默认由一个 Agent 完成工作。需要独立调查、验证或分开实施时，可以在明确分工和授权后使用多个 Agent；负责项目的主 Agent 仍承担整合、验收和最终交付责任。无论使用一个还是多个 Agent，都沿用同一套目标、阶段、验证和恢复方法。
 
-当前版本为 **2.1.1**。本页介绍完整的 MALTS 系统；本版本的新增、改进和升级影响见[版本说明](CHANGELOG.md)。
+当前版本为 **2.1.2**。本页介绍完整的 MALTS 系统；本版本的新增、改进和升级影响见[版本说明](CHANGELOG.md)。
 
 ## 它解决什么问题
 
@@ -39,7 +39,7 @@ Agent 从当前任务及相关资料开始，不需要每次重新阅读全部�
 
 ### 4. 按需要使用多个 Agent
 
-[真实 Agent 控制端](docs/zh-CN/AGENT_SCHEDULING.md)将四端 CLI 与独立的 Codex 原生子 Agent 路线连接到同一套 Task 和预算服务。普通委派要求所选路线、模式及已审阅输入具有匹配的资格证据。安装本身不派出 Agent，也不认证执行路线。
+[真实 Agent 控制端](docs/zh-CN/AGENT_SCHEDULING.md)将四端 CLI 与独立的 Codex 原生子 Agent 路线连接到同一套 Task 和预算服务。普通委派要求所选路线、模式及已审阅输入具有匹配的资格证据。安装本身不派出 Agent，也不认证执行路线。Codex 原生职责包括 Planner（规划）、Explorer（探索）、Memory Curator（经验整理）、Verifier（验证）和 Worker（执行），各自保留绑定输入的资格。原生 Worker 返回文件变更提案，由控制端审阅后，按已有 Task 和授权执行允许的创建或保留前像的更新。
 
 主 Agent 可以将可分离的调查、实施或验证工作交给其他 Agent。分工应说明每位执行者的目标、输入、修改范围、返回结果和验证责任，并考虑调用预算、共享资源与整合成本。没有合适分工时，继续单 Agent 工作。
 
@@ -194,7 +194,7 @@ MALTS 提供经审阅的旧工作区采用和长项目就绪查询。普通新�
 
 ## 版本
 
-当前发布版本：**2.1.1**。版本说明与可选离线包见[MALTS 2.1.1 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.1.1)，历史变化见[CHANGELOG](CHANGELOG.md)。
+当前发布版本：**2.1.2**。版本说明与可选离线包见[MALTS 2.1.2 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.1.2)，历史变化见[CHANGELOG](CHANGELOG.md)。
 
 ## 文档语言
 

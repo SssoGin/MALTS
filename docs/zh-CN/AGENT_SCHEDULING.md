@@ -73,7 +73,7 @@ python -B tools/malts_agents.py host-init --host-root '<新的任务自有Host�
 
 `launch`、`poll`、`cancel` 使用原派发和唯一调用标识。变更先预览，再提供已审阅配置哈希应用。启动回执丢失时，不建立替代派发；先查询、对账原 Host 日志。控制端重启后可以重新打开同一日志，不自动启动替代 Agent。
 
-Codex 原生路线须使用 Codex 配置，增加 `--native`，并用 `--role` 选择实际职责。资格同时绑定该职责和配置，Verifier 回执不能认证 Planner 或 Worker。使用相同配置和回执目录，通过 `qualification-status --native --role malts_verifier --route-id codex-native-review` 读取对应记录；`inspect --native --role malts_verifier` 返回该角色的 `qualification_binding`。`native-call` 首先只预览待执行调用的标识与工具名；审阅后提供 `--apply`，先保留相应预算，再输出准确可执行调用。可信控制端只执行一次，保存真实返回，再向 `native-receipt` 提交原 call ID、工具名和回执。回执保存沿用原准入，不再消费一次查询。`native-query --apply` 排队并准入有界等待，取消排队关闭。已准入的待处理调用先对账，其回执保留取消意图并继续排入关闭；从未准入的等待可以在未调用宿主的情况下撤回。返回内容仍未经过验收；关闭确认仍非终态，须随后观察到会话停止或不存在。原生路线的截止时间依靠活动控制端查询及取消，不存在隐藏计时守护进程。
+Codex 原生路线须使用 Codex 配置，增加 `--native`，并用 `--role` 选择实际职责。资格同时绑定该职责和配置，Verifier 回执不能认证 Planner 或 Worker。使用相同配置和回执目录，通过 `qualification-status --native --role malts_verifier --route-id codex-native-verifier` 读取对应记录；`inspect --native --role malts_verifier` 返回该角色的 `qualification_binding`。`native-call` 首先只预览待执行调用的标识与工具名；审阅后提供 `--apply`，先保留相应预算，再输出准确可执行调用。可信控制端只执行一次，保存真实返回，再向 `native-receipt` 提交原 call ID、工具名和回执。回执保存沿用原准入，不再消费一次查询。`native-query --apply` 排队并准入有界等待，取消排队关闭。已准入的待处理调用先对账，其回执保留取消意图并继续排入关闭；从未准入的等待可以在未调用宿主的情况下撤回。返回内容仍未经过验收；关闭确认仍非终态，须随后观察到会话停止或不存在。原生路线的截止时间依靠活动控制端查询及取消，不存在隐藏计时守护进程。
 
 ### 4.1 CLI 操作顺序
 
@@ -94,6 +94,58 @@ python -B tools/malts_agents.py result --profile-file $agentProfile --host-root 
 ```
 
 保留返回的 actor／Run 及每个原始标识；不同轮次的 poll 使用不同调用 ID，不通过更换 dispatch 重试不明启动。取消使用同一派发、唯一调用 ID 和已审阅配置哈希运行 `cancel`，随后观察原执行，直至确认适用的停止条件。资格试验可使用前文明确的有限测试入口，但该入口不会自动产生通过证据。
+
+
+### 4.2 原生职责与 Worker 变更审阅
+
+原生选择器支持已安装的五种职责。它们共用派发协议，分别保存资格记录：
+
+| 职责 | 角色参数 | 路线 ID | 预期产物 |
+|---|---|---|---|
+| Planner（规划） | `malts_planner` | `codex-native-planner` | 任务边界、依赖与验收条件 |
+| Explorer（探索） | `malts_explorer` | `codex-native-explorer` | 带具体证据的源码发现 |
+| Memory Curator（经验整理） | `malts_memory_curator` | `codex-native-memory-curator` | 供控制端审阅的、有证据的经验候选 |
+| Verifier（验证） | `malts_verifier` | `codex-native-verifier` | 独立检查结果与未解决问题 |
+| Worker（执行） | `malts_worker` | `codex-native-worker` | 限定范围内的实现提案 |
+
+前四种职责只读。Curator 返回内容不会写入个人记忆、修改全局指令或自动推广候选。角色名及已安装的 TOML 文件均不能证明实际执行或资格。使用 `inspect --native --role <角色>` 返回的 `route_id`；旧的 `codex-native-review` 记录仍是历史证据，不认证另一职责。每个角色可以保留自己的当前记录，不替换其他角色的记录。
+
+原生创建接口不接受每次派发专用的 MCP 配置，因此原生 Worker 返回结构化变更提案，由可信控制端审阅。标准只读 MCP 不开启写权。控制端检查保留的实际返回，选择一项提案、预览后，再使用原派发 actor 和已有 Grant 调用现有文件适配器。该路径支持 UTF-8 文件的排他创建及带前像保护的更新，不执行任意工具，也不签发新权限。
+
+Worker 只返回 JSON，不加 Markdown 代码围栏。闭合格式如下：
+
+```json
+{
+  "format": "malts.native-worker-proposal.v1",
+  "dispatch_id": "<原派发标识>",
+  "task_id": "<原任务标识>",
+  "task_revision": 1,
+  "proposals": [{
+    "operation_id": "<稳定操作标识>",
+    "grant_id": "<已有授权标识>",
+    "tool": "create-file",
+    "path": "outputs/result.txt",
+    "content": "已审阅内容\n"
+  }]
+}
+```
+
+更新使用 `tool=update-file`，增加 `expected_sha256`，值为当前文件准确字节的 SHA-256。每个返回包含一至八项提案，总计不超过 128 KiB，每项 UTF-8 内容不超过 64 KiB。只接受无歧义的相对文件路径。此接口不处理二进制文件或删除。
+
+控制端写入仅包含 `proposal`、从零开始的 `index` 和 `preimage_policy` 的审阅请求。提案须与保留的原生完成内容相等，不能换成控制端另造的文本。创建时 `preimage_policy` 为 null；更新时须由控制端提供现有[文件更新合同](V2_STATE_CONTRACT.md)要求的已审阅采集策略描述，Worker 不能批准自己的恢复采集。使用已检查的原生 Worker 配置和原日志：
+
+```powershell
+python -B tools/malts_agents.py native-worker-apply --native --role malts_worker --profile-file '<profile.json>' --host-root '<owned-host-journal>' --dispatch-id '<原派发标识>' --request-file '<已审阅选择.json>'
+python -B tools/malts_agents.py native-worker-apply --native --role malts_worker --profile-file '<profile.json>' --host-root '<owned-host-journal>' --dispatch-id '<原派发标识>' --request-file '<已审阅选择.json>' --expected-profile-sha256 '<预览配置哈希>' --expected-request-sha256 '<预览请求哈希>' --apply
+```
+
+预览不写文件或操作记录。应用前重新检查实际保留提案、Task 修订、原生配置、输入文件、活动派发及 Grant，再准备效果。应核对真实适配器结果和文件字节。相同标识的已完成操作重复提交时不重复执行。取消或关闭后的派发不能引入新效果；明确授权后继之前，应先对账原操作。在原 Worker 派发仍准入时应用审阅通过的变更，随后关闭并观察停止／不存在；验收仍由控制端另行决定。
+
+原派发保留明确且受保护的运行时绑定；重开服务时即使省略可选运行时参数，新工作仍恢复原绑定，选择其他运行时会被拒绝。没有采集绑定的旧派发可继续对账，但不能获得此新增提案效果路径。所选控制端配置须匹配原 Project、Task 和修订。实际保留的 JSON 与所选提案执行相同的闭合类型检查，布尔修订不能替换为整数。
+
+实际关闭工具抛出异常时，将准确且有界的错误文字保留为明确的失败封装：`{"error":{"message":"<实际工具错误>"}}`。通过 `native-receipt` 将其作为原已准入关闭调用的 `receipt` 保存；它不是 `previous_status` 关闭确认。日志保护失败内容，并为同一原生身份排队等待。异常本身保持执行未结算，不证明停止。后续真实等待返回 shutdown／not_found 后，才能确认原生会话不存在，此时 `cancel_acknowledged` 仍为 false。若仍在运行，则保留取消意图，将下一次关闭排队并按预算明确准入。不得将工具异常改写成成功回执、替换派发或补回消费。
+
+此机制约束经中介执行的文件变更，不认证所有同用户调用者，也不隔离原生宿主可以使用的全部 shell、编辑器和远端动作。需要更强原生隔离时，须提供对应宿主证据，或使用满足要求的隔离 CLI 配置。资格记录应说明实际检查的边界。
 
 ## 5. 权限、结果与验收
 

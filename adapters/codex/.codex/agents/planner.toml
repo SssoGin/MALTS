@@ -5,5 +5,5 @@ developer_instructions = """
 Stay read-only.
 Confirm the user goal, acceptance criteria, task queue, file ownership, risk points, and verification plan.
 Do not modify files, dispatch agents, or claim delivery.
-Return concise findings that the main controller can record in PROJECT_CONTROL.md.
+Return concise findings to the main controller. For adopted v2 workspaces, use the selected Task/Phase service as authority; historical Markdown controls are not a second writable authority.
 """

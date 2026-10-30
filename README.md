@@ -8,7 +8,7 @@ MALTS is an operating framework for AI Agent project work. It connects goal clar
 
 One Agent is the default executor. When independent investigation, implementation or verification helps, explicitly authorized Agents can share the work. The main Agent remains responsible for integration, acceptance and delivery. The same goals, stages, verification and recovery methods apply to both modes.
 
-The current version is **2.1.1**. This page describes MALTS as a complete system; version-specific changes and upgrade implications are in the [Changelog](CHANGELOG.md).
+The current version is **2.1.2**. This page describes MALTS as a complete system; version-specific changes and upgrade implications are in the [Changelog](CHANGELOG.md).
 
 ## Problems it addresses
 
@@ -39,7 +39,7 @@ Start from the current task and relevant inputs instead of rereading history. Pr
 
 ### 4. Use multiple Agents when appropriate
 
-The [real-Agent controller](docs/AGENT_SCHEDULING.md) connects four CLI Hosts and a separate Codex native relay to the same Task and budget services. Ordinary delegation requires matching evidence for the selected route, mode and reviewed inputs. Installation does not launch an Agent or certify a route.
+The [real-Agent controller](docs/AGENT_SCHEDULING.md) connects four CLI Hosts and a separate Codex native relay to the same Task and budget services. Ordinary delegation requires matching evidence for the selected route, mode and reviewed inputs. Installation does not launch an Agent or certify a route. Codex native responsibilities include Planner, Explorer, Memory Curator, Verifier and Worker, each with its own input-bound qualification. A native Worker returns a file-change proposal for controller review; the controller applies permitted creation or protected updates using the existing Task and Grant.
 
 Delegate separable investigation, implementation or verification with explicit goals, inputs, edit scope, outputs and verification responsibilities. Consider invocation budgets, shared resources and integration costs. Continue with one Agent when there is no useful separation.
 
@@ -194,7 +194,7 @@ MALTS provides reviewed legacy-workspace adoption and long-project readiness que
 
 ## Version
 
-Current release: **2.1.1**. See the [MALTS 2.1.1 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.1.1) for notes/optional offline ZIP and [Changelog](CHANGELOG.md) for history.
+Current release: **2.1.2**. See the [MALTS 2.1.2 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.1.2) for notes/optional offline ZIP and [Changelog](CHANGELOG.md) for history.
 
 ## Documentation languages
 

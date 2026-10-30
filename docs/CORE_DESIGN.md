@@ -1,6 +1,6 @@
 # Multi-Agent Long-Task Scheduling and Growth System
 
-MALTS (Multi-Agent Long-Task Scheduling and Growth System) organizes AI-agent project work around goals, checkable results, recoverable execution and assessed experience. The default executor is one Agent; approved collaboration uses the same project and acceptance model. The current implementation is **2.1.1**.
+MALTS (Multi-Agent Long-Task Scheduling and Growth System) organizes AI-agent project work around goals, checkable results, recoverable execution and assessed experience. The default executor is one Agent; approved collaboration uses the same project and acceptance model. The current implementation is **2.1.2**.
 
 ## Workspace authority, entry, and concurrency
 
@@ -439,7 +439,7 @@ MALTS does not automatically install a timer, watch context or grant future work
 
 | Host | Entry/loading relationship | Installation choice |
 |---|---|---|
-| Codex | Managed `AGENTS.md`, native Skill bridges and optional MCP | Install/Update `-Tool Codex` |
+| Codex | Managed `AGENTS.md`, native Skill bridges and managed MCP | Install/Update `-Tool Codex` |
 | Claude Code | Managed `CLAUDE.md`, native commands/agents/Skills | Install/Update `-Tool ClaudeCode` |
 | OpenCode | Managed `AGENTS.md` and native config/Skills | Install/Update `-Tool OpenCode` |
 | DeepSeek Harness | `.dsh/MALTS_BOOT.md`, native Harness workflow/profile entry | Shared default lifecycle, `-Tool DeepSeekHarness` / `-ToolRootDeepSeekHarness` |
@@ -601,3 +601,5 @@ Ordinary read-only projects inherit the global standard entry. Dedicated binding
 ### Real Host execution and scoped qualification
 
 The existing HostExecutions service owns dispatch identity, Task revision, admission, effect Grants and cumulative budgets. Real CLI profiles reuse SupervisedProcessHost and WindowsJob; the native Codex relay persists pending tool calls and actual receipts. Neither creates a second Task authority. A qualification receipt binds Host/mode/model selection and reviewed file identities, and checks retained execution/output evidence. Different modes and changed inputs cannot inherit qualification. The global unqualified assurance fields remain conservative descriptions of whole-Host guarantees; controllers inspect the selected route instead. Mechanisms and limits are specified in [Real Agent scheduling](AGENT_SCHEDULING.md).
+
+Each Codex native responsibility has a separate route identity. Read-only roles produce plans, findings, reviewed experience candidates or verification; the Worker proposes bounded UTF-8 changes. Because native spawn cannot accept a per-dispatch MCP configuration, a trusted controller checks the retained proposal and original dispatch, Task revision, captured runtime binding and existing Grant before using the file adapters. Updates retain a reviewed preimage and repeated completed operations do not execute again. A native close-tool exception is retained as failure evidence; only a subsequent actual shutdown/not-found observation settles that session. These mechanisms preserve the controller-mediated effect boundary and do not establish whole-Host isolation. See the native proposal and recovery sections of [Real Agent scheduling](AGENT_SCHEDULING.md#42-native-responsibilities-and-reviewed-worker-changes).

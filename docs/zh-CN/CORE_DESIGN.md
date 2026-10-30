@@ -1,6 +1,6 @@
 # 多 Agent 长任务调度与成长系统
 
-MALTS（Multi-Agent Long-Task Scheduling and Growth System，多 Agent 长任务调度与成长系统）围绕目标、可检查结果、可恢复执行和经验评估组织 AI Agent 项目工作。默认由单 Agent 执行，已授权协作使用同一项目和验收模型。当前实现为 **2.1.1**。
+MALTS（Multi-Agent Long-Task Scheduling and Growth System，多 Agent 长任务调度与成长系统）围绕目标、可检查结果、可恢复执行和经验评估组织 AI Agent 项目工作。默认由单 Agent 执行，已授权协作使用同一项目和验收模型。当前实现为 **2.1.2**。
 
 ## 工作区权威、进入与并发
 
@@ -384,7 +384,7 @@ MALTS Memory Pipeline 指经验从原事件进入可复用方法的流程，不�
 
 | 宿主 | 入口与加载关系 | 安装选择 |
 |---|---|---|
-| Codex | 受管 `AGENTS.md`、原生 Skill 入口与可选 MCP | Install/Update `-Tool Codex` |
+| Codex | 受管 `AGENTS.md`、原生 Skill 入口与受管 MCP | Install/Update `-Tool Codex` |
 | Claude Code | 受管 `CLAUDE.md`、原生命令/Agent/Skill | Install/Update `-Tool ClaudeCode` |
 | OpenCode | 受管 `AGENTS.md` 与原生配置/Skill | Install/Update `-Tool OpenCode` |
 | DeepSeek Harness | `.dsh/MALTS_BOOT.md`、Harness 原生工作流/配置入口 | 默认共享生命周期，`-ToolRootDeepSeekHarness` |
@@ -546,3 +546,5 @@ Capabilities 可查询当前动作合同。详细操作和示例见[控制端操
 ### 真实宿主执行与限定资格
 
 现有 HostExecutions 服务拥有派发身份、Task 修订、准入、操作授权及累计预算。真实 CLI 配置复用 SupervisedProcessHost 和 WindowsJob；Codex 原生桥接持久保存待执行工具调用及实际回执，不建立第二个 Task 权威。资格回执绑定宿主、模式、模型选择和已审阅文件身份，并核对保留的执行与产物证据；不同模式或变化的输入不能继承资格。全局未认证字段继续保守描述整宿主保证，控制端另查所选路线。机制与限制见[真实 Agent 调度](AGENT_SCHEDULING.md)。
+
+Codex 每种原生职责使用独立路线身份。只读角色返回计划、发现、待审阅经验候选或验证结果，Worker 提出有界 UTF-8 文件变更。原生创建接口不能接收逐派发 MCP 配置，因此可信控制端核对实际保留的提案、原派发、Task 修订、已采集运行时绑定及已有授权后，再调用文件适配器。更新保留已审阅前像，已完成操作重复提交不再次执行。原生关闭工具异常作为失败证据保留，只有后续真实停止／不存在的观察才能结清该会话。这些机制覆盖控制端中介效果，不建立整机宿主隔离。命令与恢复规则见[真实 Agent 调度](AGENT_SCHEDULING.md#42-原生职责与-worker-变更审阅)。

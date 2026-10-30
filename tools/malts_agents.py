@@ -15,7 +15,7 @@ from v2_entry import inspect_workspace_entry
 from v2_state_store import StateStore
 from v2_host_execution import HostExecutions,configure_budget
 from v2_process_host import SupervisedProcessHost,initialize as initialize_process
-from v2_native_agent_host import NativeAgentHost,initialize as initialize_native
+from v2_native_agent_host import NativeAgentHost,ROLES,initialize as initialize_native
 
 def required_capabilities(mode,additional=()):
     default={'dispatch','result','readonly'} if mode=='review' else {'dispatch','result','bounded_write'}
@@ -41,11 +41,17 @@ def resolve_profile(path):
 def route_binding(profile,*,native=False,role='malts_verifier'):
     if not native:return profile.qualification_binding
     if profile.host!='codex':raise ValueError('Codex native route requires a Codex profile')
-    if role not in {'malts_explorer','malts_planner','malts_verifier','malts_worker'}:
+    if role not in ROLES:
         raise ValueError('Unsupported native responsibility')
     if (profile.mode=='worker')!=(role=='malts_worker'):
         raise ValueError('Native responsibility and reviewed write mode differ')
     return hashlib.sha256(json.dumps(['codex-native',role,profile.qualification_binding]).encode()).hexdigest()
+
+def route_identity(profile,*,native=False,role='malts_verifier'):
+    if native:
+        route_binding(profile,native=True,role=role)
+        return 'codex-native-'+role.removeprefix('malts_').replace('_','-')
+    return profile.host+'-cli-'+profile.mode
 
 def original_backend(store,dispatch_id,profile):
     row=store.connection.execute('SELECT backend_key,task_id,task_revision,project_id FROM host_dispatch WHERE dispatch_id=?',(dispatch_id,)).fetchone()
@@ -61,7 +67,7 @@ def parser():
     init.add_argument('--native',action='store_true');init.add_argument('--apply',action='store_true')
     budget=sub.add_parser('budget');budget.add_argument('--workspace',type=Path,required=True);budget.add_argument('--policy-file',type=Path,required=True)
     budget.add_argument('--expected-policy-sha256');budget.add_argument('--apply',action='store_true')
-    for name in ('inspect','prepare','launch','poll','cancel','result','native-call','native-query','native-receipt'):
+    for name in ('inspect','prepare','launch','poll','cancel','result','native-call','native-query','native-receipt','native-worker-apply'):
         cmd=sub.add_parser(name);cmd.add_argument('--profile-file',type=Path,required=True);cmd.add_argument('--host-root',type=Path,required=True)
         cmd.add_argument('--native',action='store_true');cmd.add_argument('--role',default='malts_verifier')
         cmd.add_argument('--dispatch-id');cmd.add_argument('--invocation-id');cmd.add_argument('--attempt-id');cmd.add_argument('--strategy-ref')
@@ -87,13 +93,14 @@ def execute(args):
         with closing(StateStore(Path(entry['state_dir'])/'state.db')) as store:return {'decision':configure_budget(store,**policy)}
     profile,definition,digest=resolve_profile(args.profile_file)
     binding=route_binding(profile,native=args.native,role=args.role)
+    selected_route=route_identity(profile,native=args.native,role=args.role)
     if args.command=='qualification-status':return QualificationStore(args.receipt_root).status(args.route_id,profile.inputs,profile_binding=binding)
     if args.command=='inspect':
         return {'decision':'REVIEWED_PROFILE','profile_sha256':digest,'host':profile.host,'mode':profile.mode,
             'profile_revision':profile.profile_revision,'configuration_guard_count':len(profile.guards),'model_configured':profile.model,
-            'qualification_binding':binding,
+            'qualification_binding':binding,'route_id':selected_route,
             'effective_model_verified':False,'writes_performed':False,'launch_performed':False}
-    route_id=('codex-native' if args.native else profile.host+'-cli')+'-'+profile.mode
+    route_id=selected_route
     if args.command in {'prepare','launch'}:
         needed=required_capabilities(profile.mode,args.require_capability)
         if args.native and profile.mode=='worker':needed.add('bounded_write')
@@ -115,6 +122,14 @@ def execute(args):
             'profile_sha256':digest,'execution_authorized':False,'admission_requires_apply':True,'writes_performed':False}
     request=request_digest=None
     if args.request_file is not None:request,request_digest=_load(args.request_file)
+    if args.command=='native-worker-apply' and not args.apply:
+        if not args.native:raise ValueError('Native relay required')
+        from v2_native_proposal import native_worker_proposal
+        with closing(StateStore(state/'state.db',readonly=True)) as store:
+            original_backend(store,args.dispatch_id,profile)
+            result=native_worker_proposal(HostExecutions(store,host,tool_root=profile.tool_root),dispatch_id=args.dispatch_id,
+                request=request,capture_authority_ref=profile.authority_ref,apply=False)
+            return {**result,'profile_sha256':digest,'request_sha256':request_digest}
     if not args.apply:
         if args.command=='prepare':profile._validate(request)
         return {'decision':'PREVIEW','action':args.command,'profile_sha256':digest,'request_sha256':request_digest,'writes_performed':False,'launch_performed':False}
@@ -122,6 +137,11 @@ def execute(args):
     if request_digest is not None and request_digest!=args.expected_request_sha256:raise ValueError('Reviewed launch request changed')
     with closing(StateStore(state/'state.db')) as store:
         service=HostExecutions(store,host,tool_root=profile.tool_root)
+        if args.command=='native-worker-apply':
+            if not args.native:raise ValueError('Native relay required')
+            original_backend(store,args.dispatch_id,profile)
+            from v2_native_proposal import native_worker_proposal
+            return native_worker_proposal(service,dispatch_id=args.dispatch_id,request=request,capture_authority_ref=profile.authority_ref,apply=True)
         if args.command=='prepare':
             if args.authority_ref!=profile.authority_ref:raise ValueError('Dispatch authority differs from reviewed profile')
             return service.prepare(dispatch_id=args.dispatch_id,attempt_id=args.attempt_id,task_id=profile.task_id,task_revision=profile.task_revision,

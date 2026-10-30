@@ -5,6 +5,9 @@ description: Assess, run, or recover an explicitly requested MALTS long-task sch
 
 # Skill: Multi-Agent Long-Task Scheduling
 
+
+Native qualification covers five separately selected responsibilities, including Memory Curator. Native Worker file proposals require trusted-controller review and the original execution Grant; see the native section of [Real Agent scheduling](../../docs/AGENT_SCHEDULING.md). A proposal is not a direct write or Task acceptance.
+
 ## Select the current authority
 
 For the real-Agent controller, read only the needed section of [Real Agent scheduling](../../docs/AGENT_SCHEDULING.md). Inspect `real_agent_routes` and the selected route/mode's `qualification-status`; do not interpret the global `native_adapter_qualification=UNQUALIFIED` assurance as a workspace configuration fault or proof that every actual route is unavailable. Ordinary dispatch requires the relevant input-bound capabilities. Missing/stale proof calls for a bounded authorized qualification or a truthful single-Agent continuation. A qualification run is never authorized merely by selecting this Skill. CLI and native routes are separate; preserve unknown effective model identity and native stop limitations.

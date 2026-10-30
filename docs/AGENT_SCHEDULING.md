@@ -73,7 +73,7 @@ Use one request file containing `prompt` and finite `wall_seconds`. Prompts ente
 
 `launch`, `poll` and `cancel` use that original dispatch and unique invocation identities. Preview each mutation, then apply its reviewed profile hash. Do not replace a dispatch whose start receipt is missing. Poll/reconcile the original Host journal first. Restarting the controller can reopen the same journal; it does not launch a replacement.
 
-For Codex native, use a Codex profile, add `--native` and select the actual responsibility with `--role`. Qualification is bound to that responsibility as well as the profile; a Verifier record cannot qualify a Planner or Worker. Read the native record using `qualification-status --native --role malts_verifier --route-id codex-native-review` with the same profile and receipt root. `inspect --native --role malts_verifier` returns the corresponding `qualification_binding`. `native-call` first previews only the pending call identity and tool name. Its reviewed `--apply` reserves the applicable budget before exposing the exact executable packet. The trusted controller invokes that Host tool once, retains the actual result, then uses `native-receipt` with its original call ID, tool name and receipt. Receipt preservation uses the prior reservation and does not spend another query. `native-query --apply` queues and admits a bounded wait; cancellation queues close. A pending admitted call must be reconciled first; its receipt preserves any cancellation request and then queues close. A never-admitted wait can be withdrawn without a Host call. A returned result is unreviewed. Close acknowledgement remains nonterminal until a post-close wait observes shutdown/not-found. Native deadlines require an active controller to query/cancel; there is no hidden timer daemon.
+For Codex native, use a Codex profile, add `--native` and select the actual responsibility with `--role`. Qualification is bound to that responsibility as well as the profile; a Verifier record cannot qualify a Planner or Worker. Read the native record using `qualification-status --native --role malts_verifier --route-id codex-native-verifier` with the same profile and receipt root. `inspect --native --role malts_verifier` returns the corresponding `qualification_binding`. `native-call` first previews only the pending call identity and tool name. Its reviewed `--apply` reserves the applicable budget before exposing the exact executable packet. The trusted controller invokes that Host tool once, retains the actual result, then uses `native-receipt` with its original call ID, tool name and receipt. Receipt preservation uses the prior reservation and does not spend another query. `native-query --apply` queues and admits a bounded wait; cancellation queues close. A pending admitted call must be reconciled first; its receipt preserves any cancellation request and then queues close. A never-admitted wait can be withdrawn without a Host call. A returned result is unreviewed. Close acknowledgement remains nonterminal until a post-close wait observes shutdown/not-found. Native deadlines require an active controller to query/cancel; there is no hidden timer daemon.
 
 ### 4.1 CLI sequence
 
@@ -94,6 +94,58 @@ python -B tools/malts_agents.py result --profile-file $agentProfile --host-root 
 ```
 
 Keep the returned actor/Run and every original identifier. Each distinct poll uses a new invocation ID; do not change the dispatch to retry a missing start. Cancellation uses `cancel` with that dispatch, a unique invocation ID and the reviewed profile hash; observe its original result until the appropriate stop condition is confirmed. A qualification test may use the explicit bounded testing flag described above; it does not create passing evidence automatically.
+
+
+### 4.2 Native responsibilities and reviewed Worker changes
+
+The native selector supports all five installed responsibilities. They share the dispatch protocol but retain separate qualification records:
+
+| Responsibility | Role argument | Route ID | Expected output |
+|---|---|---|---|
+| Planner | `malts_planner` | `codex-native-planner` | Task boundaries, dependencies and acceptance criteria |
+| Explorer | `malts_explorer` | `codex-native-explorer` | Source findings with specific evidence |
+| Memory Curator | `malts_memory_curator` | `codex-native-memory-curator` | Evidence-based experience candidates for controller review |
+| Verifier | `malts_verifier` | `codex-native-verifier` | Independent checks and unresolved findings |
+| Worker | `malts_worker` | `codex-native-worker` | Scoped implementation proposal |
+
+The first four responsibilities are read-only. Curator output does not write personal memory, change global instructions or promote a candidate automatically. A role name or installed TOML file establishes neither execution nor qualification. Use the `route_id` returned by `inspect --native --role <role>`; an older `codex-native-review` record remains historical evidence and does not qualify another responsibility. Each role can retain its current record without replacing another role's record.
+
+Native spawn does not accept a per-dispatch MCP configuration. Native Workers therefore return a structured change proposal for the trusted controller to review. The standard read-only MCP is not enabled for writing. After inspecting the retained actual result, the controller chooses one proposal, previews it, then applies it through the existing file adapters with the original dispatch actor and an existing Grant. This path supports exclusive UTF-8 file creation and preimage-protected UTF-8 updates; it does not run arbitrary tools or issue new permissions.
+
+The Worker returns JSON only, without a Markdown fence. Its closed envelope is:
+
+```json
+{
+  "format": "malts.native-worker-proposal.v1",
+  "dispatch_id": "<original-dispatch>",
+  "task_id": "<original-task>",
+  "task_revision": 1,
+  "proposals": [{
+    "operation_id": "<stable-operation-id>",
+    "grant_id": "<existing-grant-id>",
+    "tool": "create-file",
+    "path": "outputs/result.txt",
+    "content": "reviewed content\n"
+  }]
+}
+```
+
+An update uses `tool=update-file` and adds `expected_sha256`, the SHA-256 of the exact current file bytes. The envelope allows one to eight proposals, at most 128 KiB in total, with at most 64 KiB of UTF-8 content per proposal. Only unambiguous relative file paths are accepted. Binary files and deletion are outside this interface.
+
+The controller writes a review request containing exactly `proposal`, zero-based `index` and `preimage_policy`. The proposal must equal the retained native completion, not a controller-invented replacement. For creation, `preimage_policy` is null. An update requires the controller's reviewed capture-policy descriptor used by the existing [file-update contract](V2_STATE_CONTRACT.md); the Worker cannot authorize its own recovery capture. With an inspected native Worker profile and its original journal:
+
+```powershell
+python -B tools/malts_agents.py native-worker-apply --native --role malts_worker --profile-file '<profile.json>' --host-root '<owned-host-journal>' --dispatch-id '<original-dispatch>' --request-file '<reviewed-selection.json>'
+python -B tools/malts_agents.py native-worker-apply --native --role malts_worker --profile-file '<profile.json>' --host-root '<owned-host-journal>' --dispatch-id '<original-dispatch>' --request-file '<reviewed-selection.json>' --expected-profile-sha256 '<preview-profile-hash>' --expected-request-sha256 '<preview-request-hash>' --apply
+```
+
+Preview performs no file or operation write. Apply rechecks the actual retained proposal, Task revision, native profile, input files, active dispatch and Grant before preparing the effect. Review the actual adapter result and file bytes. Repeating a completed operation with the same identity does not execute it again. A cancelled or closed dispatch cannot introduce new effects; reconcile its original operations before explicitly authorizing a successor. Apply reviewed changes while the original Worker dispatch is admitted, then close it and observe shutdown/not-found. Acceptance remains a separate controller decision.
+
+The original dispatch captures an explicit protected runtime binding. Reopening its service without the optional runtime argument restores that binding for new work; selecting another runtime is rejected. Old dispatches without a captured binding remain available for reconciliation but cannot acquire this new proposal effect path. The selected controller profile must match the original Project, Task and revision. Retained JSON is checked against the same closed types as the selected proposal, so a boolean revision cannot be substituted for an integer.
+
+If the actual close tool raises an exception, preserve its exact bounded message as an explicit failure envelope: `{"error":{"message":"<actual-tool-error>"}}`. Submit it as the original admitted close call's `receipt` through `native-receipt`; it is not a `previous_status` acknowledgement. The journal keeps the failure protected and queues a wait for that same native identity. The failure itself leaves execution unsettled and creates no stop claim. A subsequent actual wait reporting shutdown/not-found establishes native-session absence even though `cancel_acknowledged` remains false. A still-running result retains cancellation and queues a further close for explicit budgeted admission. Never turn a tool exception into an invented successful receipt, replace the dispatch, or replenish consumption.
+
+This is a mediated file-change boundary. It does not authenticate all same-user callers or fence every shell, editor and remote action available to a native Host. A requirement for stronger native isolation needs separate Host evidence or a suitable isolated CLI profile. Qualification must state which boundary was actually tested.
 
 ## 5. Permissions, results and acceptance
 

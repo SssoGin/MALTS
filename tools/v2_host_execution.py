@@ -224,10 +224,34 @@ class HostExecutions:
         self.clock=clock or (lambda:datetime.now(timezone.utc))
         _text(adapter.host_id,'host_id');_text(adapter.profile_revision,'profile_revision');_text(adapter.quiescence_scope,'quiescence_scope')
 
+    def runtime_for_dispatch(self,dispatch_id,*,require_record=False):
+        """Recover original runtime binding;omission never removes admission.
+
+        Legacy records remain queryable. New mediated effects require an
+        explicit captured binding,including an explicitly uninstalled source.
+        """
+        row=self._row(dispatch_id)
+        records=self.store.connection.execute("SELECT details_json FROM execution_audit WHERE kind='HOST_DISPATCH_RUNTIME_BINDING' AND subject_id=?",(dispatch_id,)).fetchall()
+        if not records:
+            if require_record:raise StateConflict('Original runtime binding was not captured;new effects require a reviewed new dispatch')
+            return self.tool_root
+        if len(records)!=1:raise StateConflict('Original runtime binding is ambiguous')
+        record=json.loads(records[0][0])
+        if set(record)!={'protected_binding'}:raise StateConflict('Invalid original runtime binding')
+        value=decode(record['protected_binding'],row['project_id'],'host-runtime-binding',dispatch_id,row['task_revision'],'binding')
+        if (not isinstance(value,dict) or set(value)!={'version','tool_root'} or type(value['version'])is not int or value['version']!=1 or
+            (value['tool_root']is not None and (not isinstance(value['tool_root'],str) or not Path(value['tool_root']).is_absolute()))):
+            raise StateConflict('Invalid captured runtime binding')
+        original=value['tool_root']
+        if self.tool_root is not None and (original is None or Path(self.tool_root).resolve()!=Path(original).resolve()):
+            raise StateConflict('Selected runtime differs from original dispatch binding')
+        return original
+
     @contextmanager
-    def _new_work_transaction(self):
+    def _new_work_transaction(self,dispatch_id=None):
         from v2_runtime_admission import runtime_admission
-        with runtime_admission(self.tool_root) if self.tool_root is not None else nullcontext():
+        root=self.tool_root if dispatch_id is None else self.runtime_for_dispatch(dispatch_id)
+        with runtime_admission(root) if root is not None else nullcontext():
             with self.store.transaction() as connection:
                 yield connection
 
@@ -290,6 +314,7 @@ class HostExecutions:
             old=c.execute('SELECT request_hash,actor,run_id FROM host_dispatch WHERE dispatch_id=?',(dispatch_id,)).fetchone()
             if old:
                 if old[0]!=fingerprint:raise StateConflict('Dispatch identity is immutable')
+                self.runtime_for_dispatch(dispatch_id)
                 return {'decision':'REPLAY','actor':old[1],'run_id':old[2],'host_called':False}
             task=self._ready(task_id,task_revision,recovery_run_id)
             strategy_hash=request_fingerprint(c,owner,[task_id,task_revision,strategy_ref])
@@ -307,6 +332,8 @@ class HostExecutions:
                 (dispatch_id,key,attempt_id,task_id,task_revision,owner,self.adapter.host_id,self.adapter.profile_revision,
                  self.adapter.quiescence_scope,actor,epoch,encode(authority_ref,owner,'host-dispatch',dispatch_id,task_revision,'authority_ref'),policy[7],context_hash,fingerprint,encode(request,owner,'host-dispatch',dispatch_id,task_revision,'request'),run_id))
             self._audit(c,'HOST_DISPATCH_PREPARED',dispatch_id,{'attempt_id':attempt_id,'task_id':task_id,'task_revision':task_revision})
+            binding={'version':1,'tool_root':None if self.tool_root is None else str(Path(self.tool_root).resolve())}
+            self._audit(c,'HOST_DISPATCH_RUNTIME_BINDING',dispatch_id,{'protected_binding':encode(binding,owner,'host-runtime-binding',dispatch_id,task_revision,'binding')})
             if recovery_run_id is not None:
                 protected=encode(recovery_run_id,owner,'host-recovery-source',dispatch_id,task_revision,'run')
                 from v2_artifacts import Artifacts
@@ -339,7 +366,7 @@ class HostExecutions:
         return True
 
     def launch(self,*,dispatch_id,invocation_id):
-        with self._new_work_transaction() as c:
+        with self._new_work_transaction(dispatch_id) as c:
             row=self._row(dispatch_id)
             if row['state']!='PREPARED':return {'decision':'RECONCILE_ONLY','host_called':False}
             source=c.execute("SELECT details_json FROM execution_audit WHERE kind='HOST_DISPATCH_RECOVERY_SOURCE' AND subject_id=?",(dispatch_id,)).fetchone()
@@ -458,7 +485,7 @@ class HostExecutions:
         methods={'multi_agent_v1.spawn_agent':'LAUNCH','multi_agent_v1.wait_agent':'QUERY','multi_agent_v1.close_agent':'CANCEL'}
         method=methods.get(packet['tool'])
         if method is None:raise ValueError('Unsupported native tool admission')
-        with self._new_work_transaction() if method=='LAUNCH' else self.store.transaction() as c:
+        with self._new_work_transaction(dispatch_id) if method=='LAUNCH' else self.store.transaction() as c:
             row=self._row(dispatch_id)
             fingerprint=request_fingerprint(c,row['project_id'],[dispatch_id,packet])
             prior=c.execute("SELECT details_json FROM execution_audit WHERE kind='NATIVE_CALL_RESERVED' AND subject_id=?",(packet['call_id'],)).fetchone()
