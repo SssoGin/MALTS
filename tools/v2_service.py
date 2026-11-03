@@ -205,6 +205,12 @@ def safe_error(error):
         return {'decision':'ERROR','error_type':'ControlHandoffError','error_code':'ADOPTION_HANDOFF_BLOCKED',
                 'reason_code':error.reason_code,
                 'message':'Control handoff was not established. Inspect the original adoption ID/plan and retained seals; release conflicting input access or use the discovered active runtime. Do not create a replacement migration.'}
+    from v2_diagnostics import OperationConflict
+    from v2_runtime_mutex import RuntimeMutexBusy
+    if isinstance(error,RuntimeMutexBusy):
+        return {'decision':'ERROR','error_type':'StateConflict','error_code':'STATE_CONFLICT','reason_code':'RUNTIME_BUSY',
+                'message':'Runtime admission is busy. Let the current owner finish and inspect the original request before retrying.'}
+    if isinstance(error,OperationConflict): return error.public_error()
     if isinstance(error,(GrantAccessDenied,WorkerAdmissionDenied)):
         reason=error.reason_code if isinstance(error,GrantAccessDenied) else 'DISPATCH_NOT_ADMITTED'
         return {'decision':'ERROR','error_type':'PermissionError','error_code':'ACCESS_DENIED','reason_code':reason,

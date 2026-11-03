@@ -224,7 +224,12 @@ class BoundProject:
             FROM execution_grant WHERE task_id=? AND task_revision=? AND actor=?
             ORDER BY grant_id LIMIT ?''',(self.task_id,self.task_revision,self.actor,limit+1)).fetchall()
         grants=[dict(zip(('grant_id','resource','effect','revoked','expires_at','max_operations'),row)) for row in rows[:limit]]
-        for grant in grants:grant['revoked']=bool(grant['revoked'])
+        from v2_operations import Operations
+        for grant in grants:
+            grant['revoked']=bool(grant['revoked'])
+            used=Operations.grant_consumption(store.connection,grant['grant_id'])
+            grant['intents_consumed']=used
+            grant['remaining_operations']=None if grant['max_operations'] is None else max(0,grant['max_operations']-used)
         templates=[];template_truncated=False
         if self.allow_protected_input_capture:
             criteria=store.task(self.task_id)['acceptance']

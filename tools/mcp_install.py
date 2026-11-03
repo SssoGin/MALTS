@@ -60,16 +60,35 @@ def entry_for(host,python,launcher,root):
                'failOnStartupError':True,'reconnect':{'enabled':True}}
     return value
 
+
+
+class MCPInstallConflict(ConfigError):
+    """Recognized installation refusals expose no raw configuration values."""
+    reasons = {
+        'MANAGED_MCP_USER_EDIT_CONFLICT': ('The managed MCP entry differs from its recorded content. Review the change before updating.', 'REVIEW_CHANGED_ENTRY'),
+        'MANAGED_MCP_FORMATTING_DRIFT': ('The MCP entry is semantically unchanged but its managed bytes differ. Review an explicit formatting repair using the exact installed source.', 'REVIEW_FORMATTING_REPAIR'),
+        'UNOWNED_MCP_ENTRY_CONFLICT': ('An existing MCP entry is not owned by this installation. Review its ownership before updating.', 'REVIEW_EXISTING_ENTRY'),
+    }
+    def __init__(self, reason_code):
+        self.reason_code=reason_code
+        message,self.recovery_action=self.reasons[reason_code]
+        super().__init__(reason_code+': '+message)
+
+    def as_dict(self):
+        return {'status':'FAIL','error_code':'MCP_CONFIGURATION_CONFLICT','reason_code':self.reason_code,
+                'message':self.reasons[self.reason_code][0],'recovery_action':self.recovery_action}
+
+
 def _owned_input(host,raw,old,*,reconcile_formatting=False):
     current=owned_entry(host,document(host,raw))
     if old is None:
-        if current is not None:raise ConfigError('UNOWNED_MCP_ENTRY_CONFLICT')
+        if current is not None:raise MCPInstallConflict('UNOWNED_MCP_ENTRY_CONFLICT')
         return raw
     if current is None or fingerprint(current)!=old['entry_sha256']:
-        raise ConfigError('MANAGED_MCP_USER_EDIT_CONFLICT')
+        raise MCPInstallConflict('MANAGED_MCP_USER_EDIT_CONFLICT')
     if reconcile_formatting:return restore_markers(host,raw)
     if digest(owned_bytes(host,raw))!=old.get('managed_bytes_sha256'):
-        raise ConfigError('MANAGED_MCP_USER_EDIT_CONFLICT')
+        raise MCPInstallConflict('MANAGED_MCP_FORMATTING_DRIFT')
     return raw
 
 

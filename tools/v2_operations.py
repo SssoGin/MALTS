@@ -10,6 +10,7 @@ from datetime import datetime, timezone, timedelta
 from v2_state_store import StateStore, StateConflict, _json, _text
 from resource_locators import legacy_lease_conflict, normalize_locator, locator_conflict
 from v2_definition_content import encode, decode, request_fingerprint
+from v2_diagnostics import OperationConflict, OperationBudgetExhausted
 
 MAX_INLINE_PARAMETERS_BYTES = 16 * 1024 * 1024
 
@@ -66,7 +67,7 @@ class Operations:
         locator=normalize_locator(root,{'schema_version':1,'locator_id':'resource','kind':'PATH','scope':'WORKSPACE',
                                        'access':'READ' if effect=='read' else 'WRITE','value':resource,'aliases':[]})
         if locator['physical_identity_status']=='UNKNOWN':
-            raise StateConflict('Resource physical identity is unknown')
+            raise OperationConflict('RESOURCE_IDENTITY_UNAVAILABLE')
         return locator
 
     @staticmethod
@@ -107,7 +108,7 @@ class Operations:
             if old:
                 recorded_source=decode(old[4],owner,'grant-source',grant_id,task_revision,'source_ref')
                 if (*old[:4],recorded_source,*old[5:]) != (*values, 0, expires_at, max_operations):
-                    raise StateConflict('Grant ID is immutable or revoked')
+                    raise OperationConflict('GRANT_DEFINITION_CONFLICT')
                 return 'REPLAY'
             protected_source=encode(source_ref,owner,'grant-source',grant_id,task_revision,'source_ref')
             stored_values=(*values[:4],protected_source,*values[5:])
@@ -140,18 +141,19 @@ class Operations:
                 JOIN dispatch_budget b ON b.project_id=h.project_id WHERE h.actor=?''',(actor,)).fetchone()
             if host and not allow_recovery_receipt and (host[0]!='RUNNING' or host[1] or host[2] or
                     (host[3] is not None and self._instant(host[3])<=self.clock())):
-                raise StateConflict('Managed Host execution is not admitted for new effects')
+                raise OperationConflict('HOST_NOT_ADMITTED')
             from v2_governance import require_task_phase
             require_task_phase(self.store,row[0])
             task = self.store.task(row[0])
             allowed={'READY','RUNNING','RECOVERY_REQUIRED'} if allow_recovery_receipt else {'READY','RUNNING'}
             if allow_verification:allowed.add('VERIFYING')
-            if row[5] or task['revision'] != row[1] or task['status'] not in allowed:
-                raise StateConflict('Revoked, stale or inactive execution authority')
+            if row[5]: raise OperationConflict('GRANT_REVOKED')
+            if task['revision'] != row[1]: raise OperationConflict('GRANT_REVISION_STALE')
+            if task['status'] not in allowed: raise OperationConflict('TASK_STATE_NOT_ADMITTED')
             if row[6] is not None and self._instant(row[6]) <= self.clock():
-                raise StateConflict('Execution grant has expired')
+                raise OperationConflict('GRANT_EXPIRED')
             if self.store.unresolved_dependencies(row[0], row[1]):
-                raise StateConflict('Task dependencies lack current accepted results')
+                raise OperationConflict('DEPENDENCIES_NOT_ACCEPTED')
         return row
 
     def prepare(self, *, operation_id, grant_id, actor, resource, effect, parameters=None, capture_authority_ref=None):
@@ -168,12 +170,12 @@ class Operations:
             if old:
                 fingerprint=hashlib.sha256(_json([grant_id,actor,resource,effect,json.loads(old[2])]).encode()).hexdigest()
                 if old[0] != fingerprint or _json(operation_parameters(self.store,operation_id,actor=actor))!=request_json:
-                    raise StateConflict('Operation ID reused with different request')
+                    raise OperationConflict('OPERATION_REQUEST_MISMATCH')
                 return {'decision': 'REPLAY', 'state': old[1], 'request_hash': fingerprint}
             if parameter_bytes>MAX_INLINE_PARAMETERS_BYTES:
                 raise OperationParameterLimit(parameter_bytes)
             if c.execute("SELECT 1 FROM operation WHERE task_id=? AND state IN ('INTENT_RECORDED','UNKNOWN') LIMIT 1", (grant[0],)).fetchone():
-                raise StateConflict('Reconcile pending or unknown effects before preparing another operation')
+                raise OperationConflict('PENDING_EFFECT')
             resolved=self._physical_resource(c,grant[0],resource,effect)
             context=binding(self.store,operation_id=operation_id,grant_id=grant_id,task_id=grant[0],task_revision=grant[1],actor=actor)
             control=protect_parameters(self.store,parameters,resource=resource,context=context,capture_authority_ref=capture_authority_ref)
@@ -203,7 +205,13 @@ class Operations:
             self._audit(c,'TASK_BUDGET_CONFIGURED',task_id,{'max_operations':max_operations,'authority_ref':authority_ref})
             return 'CONFIGURED'
 
-    def budget_status(self, *, project_id, task_id=None):
+    @staticmethod
+    def grant_consumption(c, grant_id):
+        return c.execute("SELECT count(*) FROM execution_audit a JOIN operation o ON o.operation_id=a.subject_id WHERE a.kind='INTENT_RECORDED' AND o.grant_id=?", (grant_id,)).fetchone()[0]
+
+    def budget_status(self, *, project_id, task_id=None, grant_id=None):
+        if grant_id is not None and task_id is None:
+            raise ValueError("Selecting a grant requires its Task")
         c=self.store.connection
         owns_transaction=not c.in_transaction
         if owns_transaction:c.execute('BEGIN')
@@ -223,6 +231,13 @@ class Operations:
                 maximum=c.execute('SELECT max_operations,revision FROM task_budget WHERE task_id=?',(task_id,)).fetchone()
                 used=c.execute("SELECT count(*) FROM execution_audit a JOIN operation o ON o.operation_id=a.subject_id WHERE a.kind='INTENT_RECORDED' AND o.task_id=?",(task_id,)).fetchone()[0]
                 result['task']={'task_id':task_id,**summary(maximum,used)}
+            if grant_id is not None:
+                row=c.execute('SELECT max_operations,task_revision FROM execution_grant WHERE grant_id=? AND task_id=?',(grant_id,task_id)).fetchone()
+                if row is None: raise GrantAccessDenied('GRANT_NOT_APPLICABLE')
+                used=self.grant_consumption(c,grant_id)
+                result['grant']={'grant_id':grant_id,'task_revision':row[1],'max_operations':row[0],
+                                 'limit_configured':row[0] is not None,'intents_consumed':used,
+                                 'remaining_operations':None if row[0] is None else max(0,row[0]-used)}
             if owns_transaction:c.execute('COMMIT')
             return result
         except BaseException:
@@ -250,12 +265,12 @@ class Operations:
                 if json.loads(prior[0])['request_hash']!=fingerprint: raise StateConflict('Budget amendment request identity conflict')
                 return {'decision':'REPLAY','usage_reset':False}
             old=c.execute(f'SELECT max_operations,authority_ref,revision FROM {table} WHERE {column}=?',(owner_id,)).fetchone()
-            if old is None or (old[0],decode(old[1],owner,scope+'-budget',owner_id,0,'authority_ref'),old[2])!=(expected_max_operations,expected_authority_ref,expected_revision): raise StateConflict('Budget policy changed; review current limit and revision')
+            if old is None or (old[0],decode(old[1],owner,scope+'-budget',owner_id,0,'authority_ref'),old[2])!=(expected_max_operations,expected_authority_ref,expected_revision): raise OperationConflict('BUDGET_POLICY_STALE')
             if scope=='project':
                 used=c.execute("SELECT count(*) FROM execution_audit a JOIN operation o ON o.operation_id=a.subject_id JOIN task t ON t.task_id=o.task_id WHERE a.kind='INTENT_RECORDED' AND t.project_id=?",(owner_id,)).fetchone()[0]
             else:
                 used=c.execute("SELECT count(*) FROM execution_audit a JOIN operation o ON o.operation_id=a.subject_id WHERE a.kind='INTENT_RECORDED' AND o.task_id=?",(owner_id,)).fetchone()[0]
-            if max_operations<used: raise StateConflict('New budget cannot erase already consumed operations')
+            if max_operations<used: raise OperationConflict('BUDGET_BELOW_CONSUMPTION')
             authority_ref=encode(authority_ref,owner,scope+'-budget',owner_id,0,'authority_ref')
             reason=encode(reason,owner,'budget-amendment',request_id,expected_revision+1,'reason')
             c.execute(f'UPDATE {table} SET max_operations=?,authority_ref=?,revision=revision+1 WHERE {column}=?',(max_operations,authority_ref,owner_id))
@@ -284,18 +299,18 @@ class Operations:
             return 'CONFIGURED'
 
     def require_operation_budget(self, c, grant_id, grant):
-        used = c.execute("SELECT count(*) FROM execution_audit a JOIN operation o ON o.operation_id=a.subject_id WHERE a.kind='INTENT_RECORDED' AND o.grant_id=?", (grant_id,)).fetchone()[0]
+        used = self.grant_consumption(c, grant_id)
         if grant[7] is not None and used >= grant[7]:
-            raise StateConflict('Execution grant operation budget exhausted')
+            raise OperationBudgetExhausted('grant', used, grant[7])
         task_budget=c.execute('SELECT max_operations FROM task_budget WHERE task_id=?',(grant[0],)).fetchone()
         if task_budget:
             consumed=c.execute("SELECT count(*) FROM execution_audit a JOIN operation o ON o.operation_id=a.subject_id WHERE a.kind='INTENT_RECORDED' AND o.task_id=?",(grant[0],)).fetchone()[0]
-            if consumed>=task_budget[0]: raise StateConflict('Cumulative Task operation budget exhausted')
+            if consumed>=task_budget[0]: raise OperationBudgetExhausted('task', consumed, task_budget[0])
         project_id=c.execute('SELECT project_id FROM task WHERE task_id=?',(grant[0],)).fetchone()[0]
         project_budget=c.execute('SELECT max_operations FROM project_budget WHERE project_id=?',(project_id,)).fetchone()
         if project_budget:
             consumed=c.execute("SELECT count(*) FROM execution_audit a JOIN operation o ON o.operation_id=a.subject_id JOIN task t ON t.task_id=o.task_id WHERE a.kind='INTENT_RECORDED' AND t.project_id=?",(project_id,)).fetchone()[0]
-            if consumed>=project_budget[0]: raise StateConflict('Cumulative Project operation budget exhausted')
+            if consumed>=project_budget[0]: raise OperationBudgetExhausted('project', consumed, project_budget[0])
 
     def record_intent(self, operation_id, actor, expected_request_hash=None, lease_seconds=300):
         if type(lease_seconds) is not int or not 1<=lease_seconds<=3600:
@@ -304,9 +319,9 @@ class Operations:
             row = c.execute('SELECT grant_id,task_id,state,request_hash FROM operation WHERE operation_id=?', (operation_id,)).fetchone()
             if row is None:
                 raise StateConflict('Unknown operation')
-            if expected_request_hash is not None and expected_request_hash != row[3]:
-                raise StateConflict('Prepared request hash changed or does not match')
             grant = self._grant(c, row[0], actor, allow_recovery_receipt=row[2]=='UNKNOWN')
+            if expected_request_hash is not None and expected_request_hash != row[3]:
+                raise OperationConflict('OPERATION_REQUEST_MISMATCH')
             if row[2] != 'PREPARED':
                 return {'state': row[2], 'execute_once': False}
             from v2_growth import require_trial_ready
@@ -315,19 +330,19 @@ class Operations:
             require_export_ready(self.store,operation_id,actor)
             self.require_operation_budget(c,row[0],grant)
             if c.execute("SELECT 1 FROM operation WHERE task_id=? AND operation_id<>? AND state IN ('INTENT_RECORDED','UNKNOWN') LIMIT 1", (row[1], operation_id)).fetchone():
-                raise StateConflict('Another effect is pending or unknown')
+                raise OperationConflict('PENDING_EFFECT')
             requested={'locator':grant[3],'access':'read' if grant[4]=='read' else 'write'}
             resolved=self._physical_resource(c,row[1],grant[3],grant[4])
             recorded=c.execute('SELECT resource_json FROM operation WHERE operation_id=?',(operation_id,)).fetchone()[0]
             recorded=None if recorded is None else json.loads(recorded)
             if resolved is not None and (recorded is None or resolved['identity_sha256']!=recorded['identity_sha256']):
-                raise StateConflict('Resource identity changed after preparation')
+                raise OperationConflict('RESOURCE_IDENTITY_CHANGED')
             holders=c.execute("SELECT g.resource,g.effect,o.resource_json FROM operation o JOIN execution_grant g ON g.grant_id=o.grant_id WHERE o.operation_id<>? AND o.state IN ('INTENT_RECORDED','UNKNOWN')",(operation_id,)).fetchall()
             for resource,effect,held_json in holders:
                 held=None if held_json is None else json.loads(held_json)
                 conflict=locator_conflict(resolved,held) if resolved is not None and held is not None else legacy_lease_conflict(requested,{'locator':resource,'access':'read' if effect=='read' else 'write'})
                 if conflict:
-                    raise StateConflict('Resource is held by a pending or unknown operation')
+                    raise OperationConflict('RESOURCE_HELD')
             c.execute("UPDATE operation SET state='INTENT_RECORDED' WHERE operation_id=?", (operation_id,))
             c.execute("UPDATE task SET status='RUNNING' WHERE task_id=?", (row[1],))
             fence=self._audit(c, 'INTENT_RECORDED', operation_id, {'actor': actor})
@@ -346,7 +361,7 @@ class Operations:
             raise StateConflict('Lease token or owner does not match')
         epoch=c.execute('SELECT epoch FROM recovery_state WHERE singleton=1').fetchone()[0]
         if epoch!=row[0] or row[4]!='HELD' or row[6]!='INTENT_RECORDED' or self._instant(row[3])<=self.clock():
-            raise StateConflict('Lease is stale, expired, quarantined or released')
+            raise OperationConflict('LEASE_NOT_CURRENT')
         grant=self._grant(c,row[5],actor)
         from v2_growth import require_trial_ready
         require_trial_ready(self.store,operation_id)
@@ -355,7 +370,7 @@ class Operations:
         current=self._physical_resource(c,row[7],grant[3],grant[4])
         previous=None if row[8] is None else json.loads(row[8])
         if current is not None and (previous is None or current['identity_sha256']!=previous['identity_sha256']):
-            raise StateConflict('Leased resource identity changed')
+            raise OperationConflict('RESOURCE_IDENTITY_CHANGED')
         return row
 
     def verify_lease(self, *, operation_id, actor, token):
@@ -391,7 +406,7 @@ class Operations:
             if row[1]=='CANCELLED':
                 return {'decision':'REPLAY','state':'CANCELLED'}
             if row[1]!='PREPARED':
-                raise StateConflict('An issued intent or observed effect cannot be cancelled as unexecuted')
+                raise OperationConflict('INTENT_ALREADY_ISSUED')
             c.execute("UPDATE operation SET state='CANCELLED' WHERE operation_id=?",(operation_id,))
             self._audit(c,'PREPARED_OPERATION_CANCELLED',operation_id,{'reason':reason,'actor':actor})
             return {'decision':'CANCELLED','state':'CANCELLED'}
@@ -411,10 +426,10 @@ class Operations:
             old = c.execute('SELECT operation_id,outcome FROM operation_observation WHERE observation_id=?', (observation_id,)).fetchone()
             if old:
                 if old!=(operation_id,outcome) or read_reference(self.store,observation_id,actor=actor)!=evidence_ref:
-                    raise StateConflict('Observation ID reused with different facts')
+                    raise OperationConflict('OBSERVATION_CONFLICT')
                 return 'REPLAY'
             if row[1] not in {'INTENT_RECORDED', 'UNKNOWN'}:
-                raise StateConflict('Observation requires a pending or unknown operation')
+                raise OperationConflict('OBSERVATION_CONFLICT')
             control=encode(self.store,observation_id,operation_id,actor,outcome,evidence_ref)
             control_hash=fingerprint(observation_id,operation_id,actor,outcome,control)
             c.execute('INSERT INTO operation_observation VALUES (?,?,?,?,?)', (observation_id, operation_id, outcome, control, control_hash))

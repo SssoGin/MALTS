@@ -1,6 +1,6 @@
 # Use MALTS in a Project
 
-Project work begins with a checkable goal and continues through planning, execution, verification and delivery. MALTS workflows preserve the facts needed for interruption, collaboration and future review. Current version: **2.1.2**; controller protocols are in [Operations](V2_PREVIEW_USAGE.md).
+Project work begins with a checkable goal and continues through planning, execution, verification and delivery. MALTS workflows preserve the facts needed for interruption, collaboration and future review. Current version: **2.1.3**; controller protocols are in [Operations](V2_PREVIEW_USAGE.md).
 
 ## Enter an existing workspace
 
@@ -95,6 +95,16 @@ Workflows provide current methods. Controllers can query workspace, governance-c
 | Permission/resource mismatch | Inspect existing scope, exact targets and writers through the controller |
 
 See [Operations](V2_PREVIEW_USAGE.md) and [System Overview](SYSTEM_OVERVIEW.md).
+
+When an operation refuses to start, inspect the top-level `reason_code`. `GRANT_BUDGET_EXHAUSTED` applies to one grant; `TASK_BUDGET_EXHAUSTED` and `PROJECT_BUDGET_EXHAUSTED` apply across grants. The reported count is the number of committed operation intents. A failed effect still counts after its intent was committed; a refused intent does not. For example, **8/8** on a directory grant can block another write even if the Task has no configured limit.
+
+Read the counters without starting an operation:
+
+```powershell
+python <runtime>/tools/malts_v2.py budget-status --state-dir <state> --project-id <project> --task-id <task> --grant-id <grant>
+```
+
+The optional grant must belong to the selected Task. A bound Worker can also read the counters for its existing grants in `malts_context.execution_inputs`. Remaining operations describe the allowance only: execution still checks authority, dependencies and resource availability. If more work is authorized, the controller can issue a bounded successor grant for the intended resource; changes to a Task or Project limit use a reviewed budget amendment. Prior use remains recorded.
 
 ## Govern Phase And Artifact Lifecycle
 

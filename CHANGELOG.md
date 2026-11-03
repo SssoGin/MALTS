@@ -1,5 +1,31 @@
 # Changelog
 
+## v2.1.3 — 2026-11-04
+
+### English
+
+Operation refusals now identify whether a grant, Task or Project has reached its operation limit and show the number of committed intents against that limit. The controller can inspect a selected grant with the read-only budget command; a pinned Worker sees its own grants' consumption and remaining allowance in its existing context.
+
+The CLI and write-enabled MCP distinguish expired or revoked grants, stale Task revisions, Phase and dependency blockers, request mismatches, pending effects, resource and lease conflicts, and a stale runtime or unfinished installation. Existing state-conflict handlers can still use `STATE_CONFLICT`. Contention for the runtime admission mutex now reports `STATE_CONFLICT / RUNTIME_BUSY` instead of a generic input error. Reports use fixed descriptions without exposing private paths, identifiers or raw exception text.
+
+Update the shared installation and reconnect clients still running an older MCP process. No workspace migration is required. Existing grants, operation history, budget consumption and recovery obligations retain their previous meaning.
+
+The installer also distinguishes an unowned MCP entry, a modified managed entry and formatting-only drift. Formatting reconciliation remains an explicit plan against the exact installed source; semantic user changes are still protected.
+
+The offline bootstrap verifier now checks v2.1.3 archives with matching internal version and tag. The release lint validates both values to catch future drift.
+
+### 简体中文
+
+操作被额度限制拒绝时，现可区分单份授权、任务和项目三个层级，并显示已登记的执行次数与上限。控制端可通过只读预算命令查询指定授权；绑定到任务的 Worker 可在原有上下文中查看自己名下授权的已用和剩余次数。
+
+CLI 与启用写入的 MCP 也能区分授权到期或撤销、任务修订过期、阶段或依赖未就绪、请求不匹配、未结清的效果、资源或租约冲突，以及旧运行时和未完成的安装事务。既有客户端仍可处理顶层 `STATE_CONFLICT`；运行时准入锁被占用时，现在返回 `STATE_CONFLICT / RUNTIME_BUSY`，不再报通用输入错误。错误说明使用固定文本，不包含私人路径、标识符或原始异常内容。
+
+更新四端共享安装后，重连仍在运行旧 MCP 进程的客户端即可。无需迁移工作区。既有授权、操作历史、累计消耗及未解决事项的恢复规则保持原义。
+
+安装器也区分未受管理的 MCP 条目、受管条目的内容变化与仅格式变化。格式修复仍需以准确匹配的已安装来源生成明确计划；用户对配置内容的改动继续受到保护。
+
+离线引导校验脚本的内部版本与标签现统一为 v2.1.3，能够正确校验当前分发包。发布静态检查同时核对两项值，避免后续只更新标签而遗漏内部版本。
+
 ## v2.1.2 — 2026-10-30
 
 ### Native responsibilities and controlled changes

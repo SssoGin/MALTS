@@ -7215,6 +7215,10 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(exc.as_dict(), ensure_ascii=False, indent=2), file=sys.stderr)
         return 2
     except Exception as exc:
+        from mcp_install import MCPInstallConflict
+        if isinstance(exc,MCPInstallConflict):
+            print(json.dumps(exc.as_dict(),ensure_ascii=False,indent=2),file=sys.stderr)
+            return 2
         failure = LifecycleError("TX_INTERNAL_ERROR", f"{type(exc).__name__}: {exc}")
         print(json.dumps(failure.as_dict(), ensure_ascii=False, indent=2), file=sys.stderr)
         return 3

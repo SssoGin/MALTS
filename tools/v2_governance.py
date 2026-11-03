@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from v2_state_store import StateConflict, _json, _text
 from v2_contracts import criteria,phase_boundary
+from v2_diagnostics import OperationConflict
 from v2_evidence import _regular_path
 from v2_definition_content import encode,decode,request_fingerprint,write_goal,read_preview
 
@@ -45,9 +46,9 @@ def require_task_phase(store,task_id):
         JOIN phase p ON p.phase_id=b.phase_id WHERE b.task_id=? AND b.task_revision=?''',(task_id,task['revision'])).fetchone()
     if row is None:
         if c.execute('SELECT 1 FROM phase_task WHERE task_id=?',(task_id,)).fetchone():
-            raise StateConflict('Revised governed Task requires an explicit Phase binding')
+            raise OperationConflict('PHASE_BINDING_REQUIRED')
         return
-    if row[1]!=row[2] or row[3]!='ACTIVE': raise StateConflict('Task requires its current active Phase')
+    if row[1]!=row[2] or row[3]!='ACTIVE': raise OperationConflict('PHASE_NOT_CURRENT_ACTIVE')
     require_carry_lineage(store,task_id,task['revision'])
     checked_phase_plan(store,row[0],row[1])
 

@@ -1,6 +1,6 @@
 # MALTS State and Service Contract
 
-The state contract binds goals, task revisions, permissions, operations, evidence and recovery to the selected workspace. CLI and MCP call the same domain services through different Host permission surfaces. Current implementation: **2.1.2**.
+The state contract binds goals, task revisions, permissions, operations, evidence and recovery to the selected workspace. CLI and MCP call the same domain services through different Host permission surfaces. Current implementation: **2.1.3**.
 
 ## 1. Format, entry and authority
 
@@ -58,6 +58,8 @@ The admission checks connect identity and effect: the current Task revision, act
 Budgets count committed intents and retain cumulative use. A new Run, revised presentation or backup restore cannot reset that count. An amended budget is an explicit reviewed policy change, with current preconditions; it cannot erase already consumed operations.
 
 Leases bind owner, epoch, fence and expiry. Renewal is explicit. Expiry prevents old managed execution, but does not prove an external process stopped or undo its effect. Shared editors/services/devices require their own observed writer boundary in addition to managed path/resource admission.
+
+The CLI and write-enabled MCP return a stable reason for recognized admission conflicts while retaining the top-level `STATE_CONFLICT`. Resource conflicts, a pending effect, a stale Task revision and an inactive runtime require different responses. Reconcile a pending effect under its original operation ID; reconnect a stale process before submitting new work. Unknown conflicts remain redacted.
 
 ## 5. File adapters
 

@@ -9,7 +9,8 @@ from malts_lifecycle import resolve_discovery,LOCK_RELATIVE,TRANSACTIONS_RELATIV
 from v2_entry import LOADED_ROOT,_identity,_same
 from v2_evidence import _regular_path
 from v2_runtime_mutex import RuntimeMutex
-from v2_state_store import StateStore,StateConflict
+from v2_state_store import StateStore
+from v2_diagnostics import OperationConflict
 
 
 @contextmanager
@@ -20,15 +21,15 @@ def runtime_admission(tool_root):
     with RuntimeMutex(root):
         current=resolve_discovery(tool_root)
         if _identity(first)!=_identity(current) or not _same(root,current['lifecycle_root']):
-            raise StateConflict('Runtime identity changed before admission; prepare again')
-        if not _same(LOADED_ROOT,current['malts_root']):raise StateConflict('Loaded runtime is not active')
+            raise OperationConflict('RUNTIME_IDENTITY_CHANGED')
+        if not _same(LOADED_ROOT,current['malts_root']):raise OperationConflict('RUNTIME_NOT_ACTIVE')
         lock=root/LOCK_RELATIVE;_regular_path(lock)
-        if lock.exists():raise StateConflict('Lifecycle transaction requires completion or recovery')
+        if lock.exists():raise OperationConflict('LIFECYCLE_TRANSACTION_PENDING')
         transactions=root/TRANSACTIONS_RELATIVE;_regular_path(transactions)
         if transactions.exists():
-            if not transactions.is_dir():raise StateConflict('Lifecycle transaction surface is invalid')
+            if not transactions.is_dir():raise OperationConflict('LIFECYCLE_TRANSACTION_INVALID')
             with __import__('os').scandir(transactions) as entries:
-                if next(entries,None) is not None:raise StateConflict('Retained lifecycle transaction requires review before execution')
+                if next(entries,None) is not None:raise OperationConflict('LIFECYCLE_TRANSACTION_PENDING')
         yield
 
 

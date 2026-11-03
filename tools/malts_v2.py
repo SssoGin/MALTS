@@ -273,6 +273,7 @@ def main(argv=None):
     budget.add_argument('--state-dir',type=Path,required=True)
     budget.add_argument('--project-id',required=True)
     budget.add_argument('--task-id')
+    budget.add_argument('--grant-id',help='Read cumulative usage of one existing grant in the selected Task')
     task_queue=sub.add_parser('task-queue')
     task_queue.add_argument('--state-dir',type=Path,required=True)
     task_queue.add_argument('--project-id',required=True)
@@ -774,7 +775,7 @@ def main(argv=None):
                 elif args.command == 'task-queue':
                     result=Governance(store).task_queue(project_id=args.project_id,after_task_id=args.after_task_id,limit=args.limit)
                 elif args.command == 'budget-status':
-                    result=Operations(store).budget_status(project_id=args.project_id,task_id=args.task_id)
+                    result=Operations(store).budget_status(project_id=args.project_id,task_id=args.task_id,grant_id=args.grant_id)
                 elif args.command == 'governance-context':
                     result=Governance(store).context(project_id=args.project_id,after_phase_id=args.after_phase_id,limit=args.limit)
                 elif args.command == 'project-verify':

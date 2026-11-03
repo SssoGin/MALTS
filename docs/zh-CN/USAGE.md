@@ -1,6 +1,6 @@
 # 在项目中使用 MALTS
 
-项目从可检查目标开始，经计划、执行、验证和交付完成。MALTS 工作流保留中断、协作和后续复盘所需事实。当前版本：**2.1.2**，控制端协议见[操作说明](V2_PREVIEW_USAGE.md)。
+项目从可检查目标开始，经计划、执行、验证和交付完成。MALTS 工作流保留中断、协作和后续复盘所需事实。当前版本：**2.1.3**，控制端协议见[操作说明](V2_PREVIEW_USAGE.md)。
 
 ## 进入已有工作区
 
@@ -97,6 +97,16 @@ Agent在当前范围内完成必要修改和适用检查，保留有价值的决
 | 权限或资源不匹配 | 控制端核现有授权、准确目标与相关写者 |
 
 详细协议见[操作参考](V2_PREVIEW_USAGE.md)，整体功能见[系统说明](SYSTEM_OVERVIEW.md)。
+
+操作在开始前被拒绝时，先看返回结果的 `reason_code`。`GRANT_BUDGET_EXHAUSTED` 表示一份执行授权用尽；`TASK_BUDGET_EXHAUSTED` 和 `PROJECT_BUDGET_EXHAUSTED` 分别表示任务或项目的累计额度用尽。计数以已登记的执行意图为单位：登记后即使执行失败也计入，登记被拒绝则不扣次数。例如，目录写入授权显示 **8/8** 时，即使任务没有设置总上限，这份授权也不能再支持一次写入。
+
+使用以下只读命令查看计数：
+
+```powershell
+python <运行根>/tools/malts_v2.py budget-status --state-dir <状态目录> --project-id <项目ID> --task-id <任务ID> --grant-id <授权ID>
+```
+
+可选的授权 ID 必须属于所选任务。绑定到任务的 Worker 也能在 `malts_context.execution_inputs` 中查看自己的授权用量。剩余次数只说明额度；执行时仍要核对权限、依赖和资源状态。后续工作已有授权时，控制端可为所需资源登记一份有限的新授权；任务或项目的总上限则通过审阅后的预算修订调整。原有消耗继续保留。
 
 ## 治理 Phase 与 Artifact Lifecycle
 
