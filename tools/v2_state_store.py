@@ -387,6 +387,42 @@ class StateStore:
         row=self.connection.execute('SELECT task_id,project_id,revision,status FROM task WHERE task_id=?',(task_id,)).fetchone()
         return None if row is None else dict(zip(('task_id','project_id','revision','status'),row))
 
+
+    def _recovery_guidance(self, task_id, epoch, limit):
+        """Bounded pending-operation view, independent of the ordinary context page."""
+        c=self.connection
+        counts=dict(c.execute("SELECT state,count(*) FROM operation WHERE task_id=? AND state IN ('INTENT_RECORDED','UNKNOWN') GROUP BY state",(task_id,)).fetchall())
+        pending=c.execute("""SELECT o.operation_id,o.state,o.task_revision,o.execution_epoch,
+            g.actor,l.state,l.expires_at,l.epoch
+            FROM operation o JOIN execution_grant g ON g.grant_id=o.grant_id
+            LEFT JOIN operation_lease l ON l.operation_id=o.operation_id
+            WHERE o.task_id=? AND o.state IN ('INTENT_RECORDED','UNKNOWN')
+            ORDER BY o.operation_id LIMIT ?""",(task_id,limit+1)).fetchall()
+        items=[]
+        for ident,state,revision,operation_epoch,actor,lease_state,expiry,lease_epoch in pending[:limit]:
+            events=c.execute("""SELECT kind,max(sequence) FROM execution_audit WHERE subject_id=?
+                AND kind IN ('OPERATION_PREPARED','INTENT_RECORDED','OUTCOME_OBSERVED','LEASE_RENEWED')
+                GROUP BY kind ORDER BY max(sequence) DESC LIMIT 1""",(ident,)).fetchone()
+            observations=c.execute('SELECT count(*) FROM operation_observation WHERE operation_id=?',(ident,)).fetchone()[0]
+            evidence=c.execute('SELECT count(*) FROM evidence WHERE operation_id=?',(ident,)).fetchone()[0]
+            items.append({
+                'operation_id':ident,'state':state,'task_revision':revision,'registered_actor':actor,
+                'operation_epoch_matches_current':operation_epoch==epoch,
+                'lease':{'recorded_state':lease_state,'expires_at':expiry,'expiry_proves_writer_stopped':False,
+                         'epoch_matches_current':None if lease_epoch is None else lease_epoch==epoch},
+                'last_registered_event':None if events is None else {'kind':events[0],'sequence':events[1]},
+                'recorded_observations':observations,'recorded_verification_evidence':evidence,
+                'writer_liveness':'NOT_OBSERVED','business_effects':'NOT_CHECKED',
+                'safe_to_reexecute':False,
+                'next_steps':['VERIFY_ORIGINAL_WRITER_QUIESCENCE','CHECK_ORIGINAL_OUTPUTS_AND_RECOVERY_RECORDS',
+                              'CONTROLLER_RECONCILE_ORIGINAL_OPERATION_WITH_OBSERVED_FACTS'],
+            })
+        return {'review_required':bool(pending),'pending_intent_count':counts.get('INTENT_RECORDED',0),
+                'unknown_operation_count':counts.get('UNKNOWN',0),'pending_operations':items,
+                'truncated':len(pending)>limit,'limit':limit,'facts_source':'REGISTERED_STATE_ONLY',
+                'writes_performed':False,'authority_issued':False,
+                'message':'The recorded intent is not an outcome. An expired lease, missing Run or missing receipt does not prove that the writer stopped or that no effect occurred. Check the original writer and actual outputs, including recovery records for cleanup, before the authorized controller records the outcome. Preserve uncertainty if evidence is incomplete; do not replay under a new operation ID.'}
+
     def current_context(self, task_id, *, limit=20, cursor=None):
         """Bounded current recovery view. This view is never execution authority."""
         if type(limit) is not int or not 1 <= limit <= 100:
@@ -445,6 +481,7 @@ class StateStore:
                     'next_cursor':{'binding':binding,'after':rows[-1][0]} if more else None,
                     'history_included':False,'full_task_details_included':False}
             result['presentation_version']=2
+            result['recovery_guidance']=self._recovery_guidance(task_id,epoch,limit)
             result['task']['goal_preview_status']=preview['status']
             unknown_count=c.execute("SELECT count(*) FROM operation WHERE task_id=? AND state='UNKNOWN'",(task_id,)).fetchone()[0]
             unknown_host_count=c.execute("SELECT count(*) FROM host_dispatch WHERE task_id=? AND state='UNKNOWN'",(task_id,)).fetchone()[0]

@@ -1,10 +1,10 @@
 # Update MALTS
 
-An update selects verified source content and changes the chosen installation through a reviewed transaction. The updater preserves project work and user-owned configuration according to its plan; it does not select a new goal or migrate projects automatically. Current version: **2.1.3**.
+An update selects verified source content and changes the chosen installation through a reviewed transaction. The updater preserves project work and user-owned configuration according to its plan; it does not select a new goal or migrate projects automatically. Current version: **2.1.4**.
 
 ## Before Updating
 
-Inspect the installed identity, intended source, workspace binding, user edits, relevant writers and pending effects. Preserve recovery materials. The updater does not pull Git and performs no automatic repository selection, automatic ZIP download, provider call or implicit project migration. Current version remains **2.1.3**.
+Inspect the installed identity, intended source, workspace binding, user edits, relevant writers and pending effects. Preserve recovery materials. The updater does not pull Git and performs no automatic repository selection, automatic ZIP download, provider call or implicit project migration. Current version remains **2.1.4**.
 
 Compare the active source kind/hash, intended repository/package identity and actual selected tool roots. Identify whether a normal version update or same-version content consolidation is needed. Preserve required transaction snapshots and project backups for their different recovery purposes.
 
@@ -118,4 +118,4 @@ After updating the controller or Host, inspect the selected execution route and 
 
 The installer also distinguishes an unowned MCP entry, a modified managed entry and formatting-only drift. Formatting reconciliation remains an explicit plan against the exact installed source; semantic user changes are still protected.
 
-The offline bootstrap verifier now checks v2.1.3 archives with matching internal version and tag. The release lint validates both values to catch future drift.
+The offline bootstrap verifier now checks v2.1.4 archives with matching internal version and tag. The release lint validates both values to catch future drift.

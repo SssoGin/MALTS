@@ -77,6 +77,32 @@ def configuration_fragment(*,host,state_dir,resource_root,project_id,server_name
             'writes_performed':False,'execution_authorized':False,'sdk_availability_verified':False}
 
 
+
+def project_access(resource_root, *, write_enabled=False, task_id=None, task_revision=None, session_workspace=None):
+    """Endpoint facts and optional caller-reported location; never inventory other connections."""
+    root=os.path.normcase(os.path.abspath(str(resource_root)))
+    relation='NOT_SUPPLIED'
+    if session_workspace is not None:
+        if not isinstance(session_workspace,str) or not session_workspace or not Path(session_workspace).is_absolute() or session_workspace.startswith(('\\\\','//')):
+            raise ValueError('Session workspace must be an absolute local path')
+        relation='SAME' if os.path.normcase(os.path.normpath(session_workspace))==root else 'DIFFERENT'
+    return {
+        'endpoint_mode':'WRITE_UNDER_EXISTING_GRANTS' if write_enabled else 'READ_ONLY',
+        'target_workspace':str(resource_root),
+        'bound_task':None if task_id is None else {'task_id':task_id,'revision':task_revision},
+        'session_workspace_relation':relation,
+        'workspace_comparison':'NORMALIZED_PATH_ONLY',
+        'session_workspace_source':'NOT_SUPPLIED' if session_workspace is None else 'CALLER_REPORTED_NOT_VERIFIED',
+        'write_endpoint_connection':'THIS_ENDPOINT' if write_enabled else 'NOT_OBSERVED',
+        'other_connections_inspected':False,
+        'execution_authorized':False,
+        'next_step':'CHECK_CURRENT_TASK_GRANTS_AND_UNSETTLED_EFFECTS' if write_enabled else (
+            'OPEN_TARGET_WORKSPACE_AND_VERIFY_WRITE_ENDPOINT_OR_USE_AUTHORIZED_CONTROLLER' if relation=='DIFFERENT'
+            else 'VERIFY_PROJECT_WRITE_ENDPOINT_OR_USE_AUTHORIZED_CONTROLLER'),
+        'message':'This endpoint accepts only actions allowed by its existing Task and Grant policy; settle original effects before new work.' if write_enabled else
+            'This endpoint is read-only. Reading a Task does not confirm that its project write endpoint is connected. Before writing, verify the selected workspace and the actual endpoint or use the authorized controller. Opening the target project may load its project configuration; do not move files, add grants or initialize another project to resolve a connection question.'
+    }
+
 class BoundProject:
     def __init__(self,*,state_dir,resource_root,project_id,actor=None,authority_ref=None,enable_write=False,allow_protected_input_capture=False,
                  task_id=None,task_revision=None,dispatch_id=None,tool_root=None,workflow_topic=None):
@@ -197,7 +223,7 @@ class BoundProject:
         return result
 
     def context(self,arguments):
-        if not isinstance(arguments,dict) or set(arguments)-{'task_id','limit','cursor'} or 'task_id' not in arguments:
+        if not isinstance(arguments,dict) or set(arguments)-{'task_id','limit','cursor','session_workspace'} or 'task_id' not in arguments:
             raise ValueError('Invalid context fields')
         with closing(StateStore(self.state_dir/'state.db',readonly=True)) as store:
             store.connection.execute('BEGIN')
@@ -206,6 +232,7 @@ class BoundProject:
                 if self.task_id is not None and arguments['task_id']!=self.task_id:raise PermissionError('Context exceeds pinned Task')
                 result=store.current_context(arguments['task_id'],limit=arguments.get('limit',20),cursor=arguments.get('cursor'))
                 result['authorization']['request_access']='UNDER_EXISTING_GRANTS' if self.enable_write else 'READ_ONLY'
+                result['project_access']=project_access(self.resource_root,write_enabled=self.enable_write,task_id=self.task_id,task_revision=self.task_revision,session_workspace=arguments.get('session_workspace'))
                 if self.enable_write and self.task_id is not None:
                     result['execution_inputs']=self._execution_inputs(store,limit=arguments.get('limit',20))
                 store.connection.execute('COMMIT')
@@ -338,7 +365,7 @@ def build_server(policy):
         'malts_actions':empty,
         'malts_workflow':{'type':'object','properties':{'topic':{'type':'string','enum':[policy.workflow_topic] if policy.workflow_topic is not None else ['task','phase','artifact','recovery']}},'additionalProperties':False},
         'malts_verify_task':{'type':'object','properties':{'task_id':{'type':'string'}},'required':['task_id'],'additionalProperties':False},
-        'malts_context':{'type':'object','properties':{'task_id':{'type':'string'},'limit':{'type':'integer','minimum':1,'maximum':100},'cursor':{'type':['object','null']}},'required':['task_id'],'additionalProperties':False},
+        'malts_context':{'type':'object','properties':{'task_id':{'type':'string'},'limit':{'type':'integer','minimum':1,'maximum':100},'cursor':{'type':['object','null']},'session_workspace':{'type':'string','description':'Agent-reported current chat workspace, when known; does not change the fixed project binding.'}},'required':['task_id'],'additionalProperties':False},
         'malts_request':{'type':'object','properties':{'action':{'type':'string','enum':sorted(policy.client_actions())},'arguments':{'type':'object'}},'required':['action','arguments'],'additionalProperties':False},
     }
     @server.list_tools()

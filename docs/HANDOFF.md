@@ -1,6 +1,6 @@
 # Handoff
 
-MALTS handoffs make project work understandable across windows, interruptions and Agent changes. They preserve the goal, current progress, actual evidence and next eligible work. Current version: **2.1.3**. A handoff is an on-demand continuation view; the selected task services own execution state.
+MALTS handoffs make project work understandable across windows, interruptions and Agent changes. They preserve the goal, current progress, actual evidence and next eligible work. Current version: **2.1.4**. A handoff is an on-demand continuation view; the selected task services own execution state.
 
 ## Default File Names
 
@@ -109,3 +109,7 @@ Ordinary read-only projects inherit the global standard entry. Dedicated binding
 ### Recovering delegated Agent work
 
 Preserve the original dispatch, invocation, native identity, process/native journal and protected result references. Reopen and query the original Host after controller interruption; never launch a replacement because a receipt is missing. A native close acknowledgement remains nonterminal until a subsequent shutdown/not-found observation. Unknown effects and consumed budget remain unresolved until reconciled. Qualified route evidence and its referenced files must be retained separately from the database backup when they are outside that backup closure. See [Real Agent scheduling](AGENT_SCHEDULING.md).
+
+Before writing through MCP, inspect `project_access` in the selected Task context. The standard endpoint reports `READ_ONLY` and `write_endpoint_connection=NOT_OBSERVED`: a successful Task read does not prove that another project-specific endpoint is loaded. Supply `session_workspace` when the Agent knows the chat's current workspace; MALTS compares that caller-reported path with the selected project without treating it as Host-verified evidence. A different directory suggests opening the target project and checking its actual write endpoint, or using the authorized controller. An already connected write endpoint reports `THIS_ENDPOINT` and its configured Task binding; its grants and effect checks still govern execution.
+
+For an interrupted Task, `recovery_guidance` lists bounded pending operations separately from the ordinary operation-history page. Each item identifies the original operation, recorded actor, lease state and deadline, last registered event and counts of observations and verification evidence. These are stored facts, not an inspection of files or live processes. An expired lease can still be recorded as `HELD`. Missing receipts and a missing Run do not prove that nothing happened or that a writer stopped. Confirm the original writer and actual effects, including cleanup recovery records, before the authorized controller reconciles the original operation. Keep uncertain effects unresolved; do not replace their IDs and repeat the work.

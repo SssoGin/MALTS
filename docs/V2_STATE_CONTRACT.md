@@ -1,6 +1,6 @@
 # MALTS State and Service Contract
 
-The state contract binds goals, task revisions, permissions, operations, evidence and recovery to the selected workspace. CLI and MCP call the same domain services through different Host permission surfaces. Current implementation: **2.1.3**.
+The state contract binds goals, task revisions, permissions, operations, evidence and recovery to the selected workspace. CLI and MCP call the same domain services through different Host permission surfaces. Current implementation: **2.1.4**.
 
 ## 1. Format, entry and authority
 
@@ -140,3 +140,5 @@ Deep entry verification separates the exact installed user payload from reproduc
 ## State and Continuation After Recovery
 
 Entry, package checking, workspace authority, governance readiness, Task continuation and execution permission are verified separately. Relocation status supplies original-journal next actions; workspace-final-verify produces a read-only current closure; recovery-next-task-actions explains paused Tasks. Reviewed task.resume-after-recovery prepares only its matching Task as READY, retaining budgets and invalid old Grants/acceptance; new execution still follows current permission/effect contracts. See [recovery verification](MANAGEMENT_AND_RELOCATION.md#7-entry-reports-relocation-next-actions-and-final-verification) for responsibilities, strict exits and executable requests.
+
+The Task context presents endpoint access and recovery as distinct facts. An optional chat directory is caller-reported and compared only as a normalized path; the service does not infer another MCP connection from files on disk. Pending operations have a separately bounded view so an older history page cannot hide them. That view uses registered facts only, avoiding changing query timestamps in the input to stable handoff fingerprints. A lease deadline remains a recorded expiry, not evidence of writer shutdown or completed business effects.

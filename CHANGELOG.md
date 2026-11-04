@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.1.4 — 2026-11-04
+
+### English
+
+Task context distinguishes the connected endpoint's read/write policy from unobserved project-specific connections, with an optional caller-reported chat directory comparison. A separate bounded recovery view surfaces original pending operations even when history pagination shows older results. Lease expiry, absent Runs and missing receipts remain insufficient to claim writer shutdown or completed effects. This change does not migrate workspaces, grant permission or automatically reconcile operations.
+
+### 简体中文
+
+任务上下文区分当前端点的读写策略与尚未观察到的项目专用连接，并可比较调用者自报的聊天工作目录。独立、有界的恢复视图会列出原未结清操作，避免它们被普通历史分页中的旧结果遮住。租约到期、Run 缺失和没有回执仍不能证明写入者已停止或效果已完成。本次变更不迁移工作区、不授予权限、不自动结算操作。
+
 ## v2.1.3 — 2026-11-04
 
 ### English

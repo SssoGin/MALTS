@@ -1,6 +1,6 @@
 # Use MALTS in a Project
 
-Project work begins with a checkable goal and continues through planning, execution, verification and delivery. MALTS workflows preserve the facts needed for interruption, collaboration and future review. Current version: **2.1.3**; controller protocols are in [Operations](V2_PREVIEW_USAGE.md).
+Project work begins with a checkable goal and continues through planning, execution, verification and delivery. MALTS workflows preserve the facts needed for interruption, collaboration and future review. Current version: **2.1.4**; controller protocols are in [Operations](V2_PREVIEW_USAGE.md).
 
 ## Enter an existing workspace
 
@@ -105,6 +105,10 @@ python <runtime>/tools/malts_v2.py budget-status --state-dir <state> --project-i
 ```
 
 The optional grant must belong to the selected Task. A bound Worker can also read the counters for its existing grants in `malts_context.execution_inputs`. Remaining operations describe the allowance only: execution still checks authority, dependencies and resource availability. If more work is authorized, the controller can issue a bounded successor grant for the intended resource; changes to a Task or Project limit use a reviewed budget amendment. Prior use remains recorded.
+
+Before writing through MCP, inspect `project_access` in the selected Task context. The standard endpoint reports `READ_ONLY` and `write_endpoint_connection=NOT_OBSERVED`: a successful Task read does not prove that another project-specific endpoint is loaded. Supply `session_workspace` when the Agent knows the chat's current workspace; MALTS compares that caller-reported path with the selected project without treating it as Host-verified evidence. A different directory suggests opening the target project and checking its actual write endpoint, or using the authorized controller. An already connected write endpoint reports `THIS_ENDPOINT` and its configured Task binding; its grants and effect checks still govern execution.
+
+For an interrupted Task, `recovery_guidance` lists bounded pending operations separately from the ordinary operation-history page. Each item identifies the original operation, recorded actor, lease state and deadline, last registered event and counts of observations and verification evidence. These are stored facts, not an inspection of files or live processes. An expired lease can still be recorded as `HELD`. Missing receipts and a missing Run do not prove that nothing happened or that a writer stopped. Confirm the original writer and actual effects, including cleanup recovery records, before the authorized controller reconciles the original operation. Keep uncertain effects unresolved; do not replace their IDs and repeat the work.
 
 ## Govern Phase And Artifact Lifecycle
 

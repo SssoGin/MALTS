@@ -5,7 +5,7 @@ from contextlib import closing
 import logging
 from v2_entry import inspect_entry,inspect_workspace_entry
 from v2_evidence import _regular_path
-from v2_mcp import BoundProject,safe_error
+from v2_mcp import BoundProject,safe_error,project_access
 
 WORKFLOWS={'task':'skills/v2/malts-v2-task-workflow/SKILL.md',
            'phase':'skills/malts-long-project-workspace-init/references/v2-phase.md',
@@ -57,6 +57,7 @@ class InstalledPolicy:
             result=inspect_entry(workspace=root,tool_root=self.tool_root,
                                  verify_package=arguments.get('verify_package',False))
             result['mcp_ready']=True
+            result['project_access']=project_access(root,session_workspace=arguments.get('session_workspace'))
             from mcp_config_check import scan_configurations
             import re
             label=re.findall(r'(?m)^Tool:\s*(.+?)\s*$',(self.tool_root/'MALTS_BOOT.md').read_text('utf-8-sig'))
@@ -80,19 +81,20 @@ def build_server(policy):
     from mcp.server.lowlevel import Server
     server=Server('MALTS',version=policy.discovery['version'])
     workspace={'type':'string','description':'Absolute current project workspace; existing MALTS binding is verified. No initialization.'}
+    session_workspace={'type':'string','description':'Agent-reported current chat workspace, when known. Compared with the selected project; not an observed Host connection.'}
     schemas={
         'malts_installation':{'type':'object','properties':{},'additionalProperties':False},
         'malts_workflow':{'type':'object','properties':{'topic':{'type':'string','enum':list(WORKFLOWS)}},'additionalProperties':False},
-        'malts_entry_status':{'type':'object','properties':{'workspace':workspace,'verify_package':{'type':'boolean'}},'additionalProperties':False},
+        'malts_entry_status':{'type':'object','properties':{'workspace':workspace,'session_workspace':session_workspace,'verify_package':{'type':'boolean'}},'additionalProperties':False},
         'malts_actions':{'type':'object','properties':{'workspace':workspace},'additionalProperties':False},
-        'malts_context':{'type':'object','properties':{'workspace':workspace,'task_id':{'type':'string'},'limit':{'type':'integer','minimum':1,'maximum':100},'cursor':{'type':['object','null']}},'required':['task_id'],'additionalProperties':False},
+        'malts_context':{'type':'object','properties':{'workspace':workspace,'session_workspace':session_workspace,'task_id':{'type':'string'},'limit':{'type':'integer','minimum':1,'maximum':100},'cursor':{'type':['object','null']}},'required':['task_id'],'additionalProperties':False},
         'malts_verify_task':{'type':'object','properties':{'workspace':workspace,'task_id':{'type':'string'}},'required':['task_id'],'additionalProperties':False}}
     descriptions={
         'malts_installation':'Check the installed MALTS version and MCP readiness. Does not need a project or create state.',
         'malts_workflow':'Read one packaged task, phase, artifact or recovery workflow. No implicit execution authority.',
         'malts_entry_status':'Inspect the current workspace binding and readiness. Supply the Agent current workspace explicitly when startup cwd differs.',
         'malts_actions':'Inspect the existing project read-only contract; no Grants or write permission are issued.',
-        'malts_context':'Read bounded Task context in the current opted-in workspace. Always supply its workspace when available; never guess a global database.',
+        'malts_context':'Read bounded Task context in the current opted-in workspace. Supply the selected project workspace and, when known, session_workspace. A successful read does not prove its write endpoint is connected.',
         'malts_verify_task':'Recheck current acceptance evidence for a Task in the selected workspace; preserve history.'}
     @server.list_tools()
     async def list_tools():
