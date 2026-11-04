@@ -223,15 +223,19 @@ class BoundProject:
         return result
 
     def context(self,arguments):
-        if not isinstance(arguments,dict) or set(arguments)-{'task_id','limit','cursor','session_workspace'} or 'task_id' not in arguments:
+        if not isinstance(arguments,dict) or set(arguments)-{'task_id','limit','cursor','session_workspace','operation_id'} or 'task_id' not in arguments:
             raise ValueError('Invalid context fields')
         with closing(StateStore(self.state_dir/'state.db',readonly=True)) as store:
             store.connection.execute('BEGIN')
             try:
                 self.check_store(store)
                 if self.task_id is not None and arguments['task_id']!=self.task_id:raise PermissionError('Context exceeds pinned Task')
-                result=store.current_context(arguments['task_id'],limit=arguments.get('limit',20),cursor=arguments.get('cursor'))
+                result=store.current_context(arguments['task_id'],limit=arguments.get('limit',20),cursor=arguments.get('cursor'),operation_id=arguments.get('operation_id'))
                 result['authorization']['request_access']='UNDER_EXISTING_GRANTS' if self.enable_write else 'READ_ONLY'
+                result['recovery_guidance']['endpoint_observation_access']={
+                    'action_exposed':self.enable_write and 'operation.observe' in self.client_actions(),
+                    'execution_authorized':False,
+                    'message':'Use the current authorized controller CLI when this endpoint does not expose operation.observe. Do not expand a Worker endpoint or impersonate the original actor.'}
                 result['project_access']=project_access(self.resource_root,write_enabled=self.enable_write,task_id=self.task_id,task_revision=self.task_revision,session_workspace=arguments.get('session_workspace'))
                 if self.enable_write and self.task_id is not None:
                     result['execution_inputs']=self._execution_inputs(store,limit=arguments.get('limit',20))
@@ -365,7 +369,7 @@ def build_server(policy):
         'malts_actions':empty,
         'malts_workflow':{'type':'object','properties':{'topic':{'type':'string','enum':[policy.workflow_topic] if policy.workflow_topic is not None else ['task','phase','artifact','recovery']}},'additionalProperties':False},
         'malts_verify_task':{'type':'object','properties':{'task_id':{'type':'string'}},'required':['task_id'],'additionalProperties':False},
-        'malts_context':{'type':'object','properties':{'task_id':{'type':'string'},'limit':{'type':'integer','minimum':1,'maximum':100},'cursor':{'type':['object','null']},'session_workspace':{'type':'string','description':'Agent-reported current chat workspace, when known; does not change the fixed project binding.'}},'required':['task_id'],'additionalProperties':False},
+        'malts_context':{'type':'object','properties':{'task_id':{'type':'string'},'operation_id':{'type':'string','minLength':1,'maxLength':4096},'limit':{'type':'integer','minimum':1,'maximum':100},'cursor':{'type':['object','null']},'session_workspace':{'type':'string','description':'Agent-reported current chat workspace, when known; does not change the fixed project binding.'}},'required':['task_id'],'additionalProperties':False},
         'malts_request':{'type':'object','properties':{'action':{'type':'string','enum':sorted(policy.client_actions())},'arguments':{'type':'object'}},'required':['action','arguments'],'additionalProperties':False},
     }
     @server.list_tools()
@@ -375,7 +379,7 @@ def build_server(policy):
             'malts_entry_status':'Read the bound project entry and optional installed package integrity. Uses the configured tool root; exposes safe cause codes and grants no execution.',
             'malts_verify_task':'Recheck current Task acceptance evidence within the bound scope. Preserves history and grants no execution permission.',
             'malts_workflow':'Read one packaged workflow: task (default), phase, artifact or recovery. Select the topic for the requested work instead of searching the whole guide. No file paths or operation permission.',
-            'malts_context':'Read bounded current Task state; no implicit initialization or authority.',
+            'malts_context':'Read current Task state; pass operation_id for its exact recovery route and original result-recording contract. This read grants no authority.',
             'malts_request':'Execute one configured action under existing Grants. Keep stable business IDs; inspect unknown effects after interruption.'}
         return [types.Tool(name=name,description=descriptions[name],inputSchema=schemas[name],
                            annotations=types.ToolAnnotations(readOnlyHint=name!='malts_request',destructiveHint=name=='malts_request',openWorldHint=False)) for name in names]

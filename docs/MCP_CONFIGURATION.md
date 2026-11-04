@@ -8,6 +8,8 @@ MALTS installs and updates the required `malts` MCP service for the selected Hos
 
 ## Purpose And Ownership
 
+Both standard and project-bound malts_context accept an optional operation_id for exact original-operation recovery guidance. The standard endpoint remains read-only, and Worker malts_request does not expose operation.observe. recovery_guidance.endpoint_observation_access reports whether this endpoint exposes that action, without issuing authority. A missing action means use the already authorized controller CLI and original actor contract, not install a second controller or add a broader MCP entry. A matching registered Host is reported only for the original actor, Task revision and epoch; no profile-file or host-root is guessed from local configuration.
+
 A Host launches the managed MALTS MCP service through its saved interpreter and fixed launcher. The service resolves the active installation and verifies project bindings per request. Separately configured project-specific endpoints retain their explicit state, Project and permission arguments; those references can become stale after an update or relocation while the installed core remains healthy.
 
 The installer maintains its fingerprinted `malts` entry within the Host's file; the rest of that file remains Host/user-owned. Fragment generation and read-only inspection do not execute configured commands, edit files, change Tasks or grant permission. Configuration agreement is distinct from the installer's cold connection test and from business acceptance.

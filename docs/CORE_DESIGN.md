@@ -1,6 +1,6 @@
 # Multi-Agent Long-Task Scheduling and Growth System
 
-MALTS (Multi-Agent Long-Task Scheduling and Growth System) organizes AI-agent project work around goals, checkable results, recoverable execution and assessed experience. The default executor is one Agent; approved collaboration uses the same project and acceptance model. The current implementation is **2.1.4**.
+MALTS (Multi-Agent Long-Task Scheduling and Growth System) organizes AI-agent project work around goals, checkable results, recoverable execution and assessed experience. The default executor is one Agent; approved collaboration uses the same project and acceptance model. The current implementation is **2.1.5**.
 
 ## Workspace authority, entry, and concurrency
 
@@ -501,6 +501,8 @@ Native peer tasks are Host execution facilities, not a new MALTS project hierarc
 Discovery uses the exact tool Boot and returned registry/active-pointer paths. A machine-global `GLOBAL_BOOT.md` is not a current discovery input. Missing or conflicting identities block the affected runtime operation.
 
 ## Current Task Service Mechanisms
+
+Operation settlement and Host supervision have different owners. A direct controller can issue an operation without a managed Host dispatch. Recovery therefore matches the original grant actor, Task revision and operation epoch to an existing dispatch; an absent match is not evidence of writer termination. The context exposes registered facts and a scoped review route, while operation.observe retains its original authorization and observation contract. It records an operator-reviewed result, not independently measured process isolation. A normal pending operation does not require restoring the database or constructing a synthetic Host. The read-only view does not evaluate live process state or change facts as time elapses; stable inputs remain suitable for handoff fingerprints.
 
 The following mechanisms implement those principles. They are technical reference; normal work begins from workflows.
 

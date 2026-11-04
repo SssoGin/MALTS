@@ -388,16 +388,94 @@ class StateStore:
         return None if row is None else dict(zip(('task_id','project_id','revision','status'),row))
 
 
-    def _recovery_guidance(self, task_id, epoch, limit):
+    def _operation_recovery_route(self, task_id, operation_id, epoch):
+        """Registered facts only; a controller receipt is not Host authentication."""
+        c=self.connection
+        row=c.execute("""SELECT o.task_revision,o.execution_epoch,o.state,g.actor,g.grant_id
+            FROM operation o JOIN execution_grant g ON g.grant_id=o.grant_id
+            WHERE o.task_id=? AND o.operation_id=?""",(task_id,operation_id)).fetchone()
+        if row is None:raise StateConflict('Operation is not in the selected Task')
+        revision,operation_epoch,state,actor,grant_id=row
+        host=c.execute("""SELECT dispatch_id,task_id,task_revision,epoch,host_id,profile_revision,
+            state,launch_committed,quiesced,quiescence_scope FROM host_dispatch WHERE actor=?""",(actor,)).fetchone()
+        relation='NOT_REGISTERED'
+        registered_host=None
+        if host is not None:
+            relation='MATCHED' if (host[1],host[2],host[3])==(task_id,revision,operation_epoch) else 'MISMATCHED'
+            # Do not expose a different Task's dispatch or its protected request.
+            if relation=='MATCHED':
+                registered_host=dict(zip(('dispatch_id','host_id','profile_revision','recorded_state',
+                    'launch_committed','recorded_quiesced','quiescence_scope'),
+                    (host[0],host[4],host[5],host[6],bool(host[7]),None if host[8] is None else bool(host[8]),host[9])))
+        unresolved=state in {'INTENT_RECORDED','UNKNOWN'}
+        quarantined=bool(c.execute('SELECT reconciliation_required FROM recovery_state').fetchone()[0])
+        route='REVIEW_AND_OBSERVE_ORIGINAL_OPERATION' if unresolved else (
+            'CANCEL_OR_EXECUTE_PREPARED_UNDER_EXISTING_AUTHORIZATION' if state=='PREPARED' else 'ALREADY_RECORDED_DO_NOT_REPLAY')
+        steps=[]
+        if unresolved:
+            if relation=='MATCHED':
+                steps.append('CHECK_ORIGINAL_REGISTERED_HOST_AND_RELEVANT_EXTERNAL_WRITERS')
+            elif relation=='MISMATCHED':
+                steps.append('RESOLVE_REGISTERED_HOST_IDENTITY_MISMATCH')
+            else:
+                steps.append('CHECK_ORIGINAL_CONTROLLER_SESSION_COMMANDS_AND_RELEVANT_EXTERNAL_WRITERS')
+            steps+=['VERIFY_FULL_ORIGINAL_OPERATION_SCOPE_AND_ACTUAL_EFFECTS',
+                    'RECORD_EVIDENCE_AND_OUTCOME_UNDER_ORIGINAL_OPERATION_ID']
+        return {
+            'route':route,'operation_id':operation_id,'state':state,
+            'registered_actor':actor,'grant_id':grant_id,
+            'operation_epoch_matches_current':operation_epoch==epoch,
+            'host_relation':relation,'registered_host':registered_host,
+            'writer_observation':'NOT_OBSERVED_BY_THIS_READ',
+            'writer_review_scope':'ORIGINAL_OPERATION_RESOURCES_AND_RELEVANT_WRITERS',
+            'whole_machine_quiescence_required':False,
+            'host_configuration_required':relation=='MATCHED',
+            'host_binding_absence_proves_no_writer':False,
+            'external_writer_isolation':'UNKNOWN',
+            'next_steps':steps,
+            'outcome_recording':{
+                'action':'operation.observe' if unresolved else None,
+                'required_fields':['observation_id','operation_id','actor','outcome','evidence_ref'],
+                'allowed_outcomes':['SUCCEEDED','FAILED','UNKNOWN'],
+                'actor_must_match_original_grant':True,
+                'caller_authorization_required':True,
+                'evidence_review_required':True,
+                'new_execution_lease_required':False,
+                'execution_budget_replenished':False,
+                'lease_result':{'SUCCEEDED':'RELEASED','FAILED':'RELEASED','UNKNOWN':'QUARANTINED'},
+                'task_acceptance_implied':False,
+                'host_quiescence_proof_created':False,
+                'managed_update_recovery_action':'operation.reconcile-update',
+                'managed_update_note':'For a managed update-file operation, inspect its original file/preimage through operation.reconcile-update before generic observation.',
+            },
+            'restore_review':{
+                'required_by_store':quarantined,
+                'replaces_operation_observation':False,
+                'message':'recovery-review is for a quarantined restored store; it does not settle an ordinary pending operation or prove writer termination.',
+            },
+            'message':(
+                'No managed Host is registered for this operation actor. Inspect the original controller/chat and its commands; do not invent a profile, dispatch or administrator. Missing registration is not proof of writer termination.'
+                if relation=='NOT_REGISTERED' else
+                'Use only the matching original Host registration; recorded quiescence covers its declared scope, not every external writer.'
+                if relation=='MATCHED' else
+                'The actor has a different registered Host identity. Resolve that mismatch; do not borrow its stop evidence.'),
+            'facts_source':'REGISTERED_STATE_ONLY','writes_performed':False,'authority_issued':False,
+        }
+
+    def _recovery_guidance(self, task_id, epoch, limit, *, after="", operation_id=None):
         """Bounded pending-operation view, independent of the ordinary context page."""
         c=self.connection
         counts=dict(c.execute("SELECT state,count(*) FROM operation WHERE task_id=? AND state IN ('INTENT_RECORDED','UNKNOWN') GROUP BY state",(task_id,)).fetchall())
+        selected=None
+        if operation_id is not None:
+            selected=self._operation_recovery_route(task_id,operation_id,epoch)
         pending=c.execute("""SELECT o.operation_id,o.state,o.task_revision,o.execution_epoch,
             g.actor,l.state,l.expires_at,l.epoch
             FROM operation o JOIN execution_grant g ON g.grant_id=o.grant_id
             LEFT JOIN operation_lease l ON l.operation_id=o.operation_id
             WHERE o.task_id=? AND o.state IN ('INTENT_RECORDED','UNKNOWN')
-            ORDER BY o.operation_id LIMIT ?""",(task_id,limit+1)).fetchall()
+            AND o.operation_id>? AND (? IS NULL OR o.operation_id=?)
+            ORDER BY o.operation_id LIMIT ?""",(task_id,after,operation_id,operation_id,limit+1)).fetchall()
         items=[]
         for ident,state,revision,operation_epoch,actor,lease_state,expiry,lease_epoch in pending[:limit]:
             events=c.execute("""SELECT kind,max(sequence) FROM execution_audit WHERE subject_id=?
@@ -405,6 +483,7 @@ class StateStore:
                 GROUP BY kind ORDER BY max(sequence) DESC LIMIT 1""",(ident,)).fetchone()
             observations=c.execute('SELECT count(*) FROM operation_observation WHERE operation_id=?',(ident,)).fetchone()[0]
             evidence=c.execute('SELECT count(*) FROM evidence WHERE operation_id=?',(ident,)).fetchone()[0]
+            route=self._operation_recovery_route(task_id,ident,epoch)
             items.append({
                 'operation_id':ident,'state':state,'task_revision':revision,'registered_actor':actor,
                 'operation_epoch_matches_current':operation_epoch==epoch,
@@ -414,19 +493,22 @@ class StateStore:
                 'recorded_observations':observations,'recorded_verification_evidence':evidence,
                 'writer_liveness':'NOT_OBSERVED','business_effects':'NOT_CHECKED',
                 'safe_to_reexecute':False,
-                'next_steps':['VERIFY_ORIGINAL_WRITER_QUIESCENCE','CHECK_ORIGINAL_OUTPUTS_AND_RECOVERY_RECORDS',
-                              'CONTROLLER_RECONCILE_ORIGINAL_OPERATION_WITH_OBSERVED_FACTS'],
+                'next_steps':route['next_steps'],'recovery_route':route,
             })
-        return {'review_required':bool(pending),'pending_intent_count':counts.get('INTENT_RECORDED',0),
+        return {'review_required':bool(counts),'selected_operation':selected,'pending_intent_count':counts.get('INTENT_RECORDED',0),
                 'unknown_operation_count':counts.get('UNKNOWN',0),'pending_operations':items,
-                'truncated':len(pending)>limit,'limit':limit,'facts_source':'REGISTERED_STATE_ONLY',
+                'truncated':len(pending)>limit,'limit':limit,'page_after':after,'facts_source':'REGISTERED_STATE_ONLY',
                 'writes_performed':False,'authority_issued':False,
-                'message':'The recorded intent is not an outcome. An expired lease, missing Run or missing receipt does not prove that the writer stopped or that no effect occurred. Check the original writer and actual outputs, including recovery records for cleanup, before the authorized controller records the outcome. Preserve uncertainty if evidence is incomplete; do not replay under a new operation ID.'}
+                'message':'Inspect recovery_route or select the original operation_id for exact guidance. An unobserved writer is not a detected running writer or a failed safety check. Review the original operation scope and relevant writers, then record its actual outcome through an authorized controller. No re-execution, new grant or whole-machine stop certificate is implied; recovery-review is not the ordinary outcome endpoint.'}
 
-    def current_context(self, task_id, *, limit=20, cursor=None):
+    def current_context(self, task_id, *, limit=20, cursor=None, operation_id=None):
         """Bounded current recovery view. This view is never execution authority."""
         if type(limit) is not int or not 1 <= limit <= 100:
             raise ValueError('Context limit must be between 1 and 100')
+        if operation_id is not None:
+            _text(operation_id,'operation_id')
+            if len(operation_id)>4096:raise ValueError('Operation identity exceeds context limit')
+            if cursor is not None:raise ValueError('Exact operation selection cannot use a history cursor')
         c=self.connection
         owns_transaction=not c.in_transaction
         if owns_transaction: c.execute('BEGIN')
@@ -454,6 +536,9 @@ class StateStore:
                 ORDER BY operation_id LIMIT ?''',(task_id,after,limit+1)).fetchall()
             more=len(rows)>limit
             rows=rows[:limit]
+            if operation_id is not None:
+                rows=c.execute('SELECT operation_id,state,task_revision,request_hash FROM operation WHERE task_id=? AND operation_id=?',(task_id,operation_id)).fetchall()
+                more=False
             run=c.execute('''SELECT r.run_id,r.host,r.native_id,r.state,r.checkpoint_id,
                 p.summary,p.next_action FROM execution_run r LEFT JOIN checkpoint p ON p.checkpoint_id=r.checkpoint_id
                 WHERE r.task_id=? AND r.state IN ('OPEN','PAUSE_REQUESTED','PAUSED')''',(task_id,)).fetchone()
@@ -481,14 +566,18 @@ class StateStore:
                     'next_cursor':{'binding':binding,'after':rows[-1][0]} if more else None,
                     'history_included':False,'full_task_details_included':False}
             result['presentation_version']=2
-            result['recovery_guidance']=self._recovery_guidance(task_id,epoch,limit)
+            result['recovery_guidance']=self._recovery_guidance(task_id,epoch,limit,after=after,operation_id=operation_id)
             result['task']['goal_preview_status']=preview['status']
             unknown_count=c.execute("SELECT count(*) FROM operation WHERE task_id=? AND state='UNKNOWN'",(task_id,)).fetchone()[0]
             unknown_host_count=c.execute("SELECT count(*) FROM host_dispatch WHERE task_id=? AND state='UNKNOWN'",(task_id,)).fetchone()[0]
             result['task']['effect_recovery']={'required':bool(unknown_count),'unknown_operation_count':unknown_count,
-                'scope':'REGISTERED_OPERATION_EFFECTS','host_quiescence_verified':False}
+                'scope':'REGISTERED_OPERATION_EFFECTS','host_quiescence_verified':False,
+                'host_quiescence_status':'NOT_OBSERVED_BY_THIS_READ',
+                'legacy_boolean_semantics':'NOT_A_LIVENESS_RESULT_OR_SETTLEMENT_GATE'}
             result['task']['host_recovery']={'required':bool(unknown_host_count),'unknown_dispatch_count':unknown_host_count,
-                'scope':'REGISTERED_HOST_DISPATCHES','host_quiescence_verified':False}
+                'scope':'REGISTERED_HOST_DISPATCHES','host_quiescence_verified':False,
+                'host_quiescence_status':'NOT_OBSERVED_BY_THIS_READ',
+                'legacy_boolean_semantics':'NOT_A_LIVENESS_RESULT_OR_SETTLEMENT_GATE'}
             result['definition_body_reverified']=False
             if result['run'] is not None:
                 result['run']['state_scope']='REGISTERED_OPERATION_CONTROL'

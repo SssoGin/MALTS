@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.1.5 — 2026-11-04
+
+### English
+
+Correct original-operation recovery routing: exact operation selection separates controller execution, registered Host evidence and restored-store review. Context explains unobserved liveness and the existing result-recording contract without enabling writes, replaying commands or replenishing budgets. Task, recovery and handoff instructions follow the same boundaries.
+
+### 简体中文
+
+修正原操作恢复路径：精确选择操作后区分控制端执行、受管 Host 证据与恢复状态库审查。上下文解释未观测的写者状态及已有结果登记合同，不开启写权限、不重放命令、不补充额度。任务、恢复和交接说明同步采用这些边界。
+
 ## v2.1.4 — 2026-11-04
 
 ### English

@@ -87,14 +87,14 @@ def build_server(policy):
         'malts_workflow':{'type':'object','properties':{'topic':{'type':'string','enum':list(WORKFLOWS)}},'additionalProperties':False},
         'malts_entry_status':{'type':'object','properties':{'workspace':workspace,'session_workspace':session_workspace,'verify_package':{'type':'boolean'}},'additionalProperties':False},
         'malts_actions':{'type':'object','properties':{'workspace':workspace},'additionalProperties':False},
-        'malts_context':{'type':'object','properties':{'workspace':workspace,'session_workspace':session_workspace,'task_id':{'type':'string'},'limit':{'type':'integer','minimum':1,'maximum':100},'cursor':{'type':['object','null']}},'required':['task_id'],'additionalProperties':False},
+        'malts_context':{'type':'object','properties':{'workspace':workspace,'session_workspace':session_workspace,'task_id':{'type':'string'},'operation_id':{'type':'string','minLength':1,'maxLength':4096},'limit':{'type':'integer','minimum':1,'maximum':100},'cursor':{'type':['object','null']}},'required':['task_id'],'additionalProperties':False},
         'malts_verify_task':{'type':'object','properties':{'workspace':workspace,'task_id':{'type':'string'}},'required':['task_id'],'additionalProperties':False}}
     descriptions={
         'malts_installation':'Check the installed MALTS version and MCP readiness. Does not need a project or create state.',
         'malts_workflow':'Read one packaged task, phase, artifact or recovery workflow. No implicit execution authority.',
         'malts_entry_status':'Inspect the current workspace binding and readiness. Supply the Agent current workspace explicitly when startup cwd differs.',
         'malts_actions':'Inspect the existing project read-only contract; no Grants or write permission are issued.',
-        'malts_context':'Read bounded Task context in the current opted-in workspace. Supply the selected project workspace and, when known, session_workspace. A successful read does not prove its write endpoint is connected.',
+        'malts_context':'Read bounded Task context in the current opted-in workspace. Supply the selected project workspace and, when known, session_workspace. Use operation_id for exact original-operation recovery guidance. A successful read does not prove its write endpoint is connected.',
         'malts_verify_task':'Recheck current acceptance evidence for a Task in the selected workspace; preserve history.'}
     @server.list_tools()
     async def list_tools():

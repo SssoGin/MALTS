@@ -1,6 +1,6 @@
 # Handoff
 
-MALTS handoffs make project work understandable across windows, interruptions and Agent changes. They preserve the goal, current progress, actual evidence and next eligible work. Current version: **2.1.4**. A handoff is an on-demand continuation view; the selected task services own execution state.
+MALTS handoffs make project work understandable across windows, interruptions and Agent changes. They preserve the goal, current progress, actual evidence and next eligible work. Current version: **2.1.5**. A handoff is an on-demand continuation view; the selected task services own execution state.
 
 ## Default File Names
 
@@ -75,6 +75,8 @@ handoff.capture-file observes the existing file under the exclusive file guard a
 Publication writes a derived view, not a Task execution Grant. It rejects a partial preview, changed task/source token, missing selected target preimage or changed current bytes. If publication is interrupted, handoff.inspect-publication distinguishes requested output, preimage and divergent bytes without rewriting. An intent without a usable current receipt must be inspected under the same publication ID, not replayed through a new ID.
 
 ## Continuation
+
+For an unfinished operation, include its original ID, registered actor, actual command/session evidence, full-scope effect review and remaining uncertainty. Use context with operation_id to distinguish an unregistered controller from an associated managed Host. Do not require a nonexistent profile or treat the compatibility field host_quiescence_verified=false as a detected live writer. The current authorized controller can register the original operation.observe receipt after the relevant review; this does not complete remaining documentation, resource cleanup or Task acceptance. Keep the original command result separate from those remaining duties. See [operation recovery](USAGE.md).
 
 Read current goals, task state and relevant actual files. Reconcile UNKNOWN under the original operation ID before dependent work. PAUSED, lease expiry, cancellation acknowledgement and transport exit do not prove all writers stopped. Retain the existing budget and later work. See [Usage](USAGE.md), [State Contract](V2_STATE_CONTRACT.md) and [Handoff Operations](V2_PREVIEW_USAGE.md#v2-handoff).
 

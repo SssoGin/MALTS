@@ -1,6 +1,6 @@
 # Use MALTS in a Project
 
-Project work begins with a checkable goal and continues through planning, execution, verification and delivery. MALTS workflows preserve the facts needed for interruption, collaboration and future review. Current version: **2.1.4**; controller protocols are in [Operations](V2_PREVIEW_USAGE.md).
+Project work begins with a checkable goal and continues through planning, execution, verification and delivery. MALTS workflows preserve the facts needed for interruption, collaboration and future review. Current version: **2.1.5**; controller protocols are in [Operations](V2_PREVIEW_USAGE.md).
 
 ## Enter an existing workspace
 
@@ -83,6 +83,18 @@ When a check fails, keep the failing observation, diagnose the affected cause an
 At delivery, distinguish implemented, verified, unavailable, failed and explicitly deferred items. State a narrower verified result if that is what the evidence supports; do not silently reduce the original goal to that subset. New requirements and major tradeoffs are separate scope decisions.
 
 ## Diagnose Without Changing State
+
+For one unfinished operation, select its original identity in the existing read-only context:
+```powershell
+python tools/malts_v2.py context --state-dir <selected-state> --task-id <task> --operation-id <original-operation>
+```
+The corresponding MCP input is `malts_context` with `task_id` and `operation_id`, plus `workspace` on the standard endpoint. `recovery_guidance.selected_operation` reports the exact recovery route, original actor and result-recording contract. An operation outside the selected Task is rejected; this selection cannot be combined with a history cursor.
+
+A `NOT_REGISTERED` Host relation means there is no managed Host record for that operation actor. Review the original chat/controller, completed or running commands, any children or background jobs, and the affected resources. Do not demand a dispatch ID or profile that was never created. For `MATCHED`, follow the original registered dispatch and its stated observation scope; for `MISMATCHED`, resolve the identity conflict before borrowing any Host evidence. Neither a missing record nor an expired lease proves that a writer stopped. Ordinary result recording requires a review of the operation's relevant writers, not a certificate that all processes on the machine have stopped.
+
+Once authorized review establishes the original operation's full outcome, the controller uses `operation.observe` with `observation_id`, `operation_id`, the original grant's `actor`, `outcome` and `evidence_ref`. Inspect its current contract through `capabilities`, preview the request and apply it within the existing authorization. The controller is a role that an authorized Agent may perform through the CLI; it is not a separate administrator whom the user must locate. A Worker endpoint does not expose this action; do not broaden that endpoint or impersonate an actor to bypass authority.
+
+Use `SUCCEEDED` only for the full operation's verified success; `FAILED` can retain a known partial result and its evidence; `UNKNOWN` preserves unresolved effects. SUCCEEDED/FAILED release the recorded operation lease; UNKNOWN quarantines it. Recording does not rerun the command, replenish consumed budget, establish Host quiescence or accept the whole Task. A managed update-file operation has the specialized `operation.reconcile-update` path to inspect its original file/preimage. Store restoration is different: `recovery-review` reviews a quarantined restored database and cannot substitute for an ordinary operation receipt.
 
 Workflows provide current methods. Controllers can query workspace, governance-context, task-queue, context and task-verify. Read-only queries do not initialize/grant execution; request preview does not prove readiness.
 

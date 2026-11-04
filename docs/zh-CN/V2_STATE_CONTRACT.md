@@ -1,6 +1,6 @@
 # MALTS 状态与服务合同
 
-状态合同将目标、任务版本、权限、操作、证据和恢复绑定所选工作区。CLI 与 MCP 经不同宿主权限界面调用同一领域服务。当前实现：**2.1.4**。
+状态合同将目标、任务版本、权限、操作、证据和恢复绑定所选工作区。CLI 与 MCP 经不同宿主权限界面调用同一领域服务。当前实现：**2.1.5**。
 
 ## 1. 格式、入口与权威
 
@@ -96,6 +96,8 @@ DPAPI 保护正文和敏感定义；blob 描述符声明 target、content_class�
 Artifact 关系图、回收前依赖、Shared 当前内容与 owner 独立检查。历史 SUPERSEDED/RETIRED 关系不自动指向新成果。Growth 使用提案与 trial 状态、未来可比证据和退役保护；neutral 保持 neutral，不把迟到正面记录复活为可用方法。
 
 ## 8. 交接与恢复
+
+精确操作恢复通过 context.operation_id（CLI 参数 --operation-id）选择，限定在所选 Task 内。recovery_guidance.selected_operation 返回 host_relation（NOT_REGISTERED、MATCHED 或 MISMATCHED）、仅属于匹配身份的 Host 登记摘要、outcome_recording 和 restore_review。标准 MCP 与绑定 MCP 使用同一查询。精确选择不能附带历史分页游标。未结清计数覆盖整个任务，selected_operation 也能呈现已结算记录而不建议重放。原 host_quiescence_verified 布尔字段为兼容保留；host_quiescence_status=NOT_OBSERVED_BY_THIS_READ 明确表示本次读取未检查存活状态。false 既不意味着检测到活跃写者，也不是 operation.observe 必须改成 true 的前置条件。结果登记按实际结果释放或隔离操作租约，保留累计消耗，与 Task 验收及 Host 记录分别处理。
 
 交接预览返回来源令牌、有界事实、部分页和所选手工原文。受控发布需现有且已审阅的目标、精确前像及来源一致；目标不存在需另行限定创建。交接不授权限、不成为第二事实源。
 

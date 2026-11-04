@@ -1,6 +1,6 @@
 # MALTS State and Service Contract
 
-The state contract binds goals, task revisions, permissions, operations, evidence and recovery to the selected workspace. CLI and MCP call the same domain services through different Host permission surfaces. Current implementation: **2.1.4**.
+The state contract binds goals, task revisions, permissions, operations, evidence and recovery to the selected workspace. CLI and MCP call the same domain services through different Host permission surfaces. Current implementation: **2.1.5**.
 
 ## 1. Format, entry and authority
 
@@ -128,6 +128,8 @@ Failure preserves the original adoption ID, plan, owned seals and private handof
 Ordinary new workspaces use `workspace-init` to place task state, managed evidence and recovery data under an owned `.malts` directory; explicit external layouts remain supported. Installation updates do not move existing projects. Healthy adopted stores can relocate through a read-only plan, backup/restore, current-effect review and formal forward switch. The new epoch does not restore old Grants/acceptance or activate a Phase automatically. Retain old stores, external historical references and source capsules according to their actual dependencies. See [workspace management and store relocation](MANAGEMENT_AND_RELOCATION.md) for steps and limits.
 
 ## Native Store Relocation and Path Recovery
+
+Exact operation recovery is selected by context.operation_id (CLI --operation-id), within the selected Task. recovery_guidance.selected_operation returns host_relation (NOT_REGISTERED, MATCHED or MISMATCHED), the matching registered Host metadata only, outcome_recording and restore_review. Standard and bound MCP use the same query. History cursors cannot accompany exact selection. Pending counts cover the Task; selected_operation also reports an already settled record without proposing replay. The legacy host_quiescence_verified boolean is retained for compatibility; host_quiescence_status=NOT_OBSERVED_BY_THIS_READ explicitly says that this read did not inspect liveness. False is neither a detection of a running writer nor a prerequisite that operation.observe must change to true. Observation releases or quarantines the operation lease according to its recorded outcome, retains cumulative consumption and is separate from Task acceptance and Host records.
 
 Healthy native and adopted stores use the formal relocation workflow. An unlocated native store requires its explicit old state directory while preserving the Project business resource root. Unified commands are `store-relocation-preflight`, `store-relocation-prepare`, `store-relocation-status`, `store-relocation-plan` and `store-relocation-apply`; formal writes use the current installation and reviewed plan hash. Recovery review grants no execution permission, and Phase activation remains explicit after cutover. Ordinary service writes to the superseded native store are rejected as well.
 

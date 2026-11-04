@@ -242,6 +242,7 @@ def main(argv=None):
     context.add_argument('--task-id', required=True)
     context.add_argument('--limit', type=int, default=20)
     context.add_argument('--cursor-file', type=Path)
+    context.add_argument('--operation-id', help='Exact original operation recovery guidance within the selected Task')
     growth = sub.add_parser('growth-query')
     growth.add_argument('--state-dir',type=Path,required=True)
     growth.add_argument('--owner',required=True)
@@ -790,7 +791,7 @@ def main(argv=None):
                         failure_signature=args.failure_signature,after_id=args.after_id,limit=args.limit,max_bytes=args.max_bytes)
                 elif args.command == 'context':
                     cursor = load_request_json(args.cursor_file) if args.cursor_file else None
-                    result = store.current_context(args.task_id, limit=args.limit, cursor=cursor)
+                    result = store.current_context(args.task_id, limit=args.limit, cursor=cursor, operation_id=args.operation_id)
                 elif args.command == 'task':
                     result = {'decision': 'FOUND', 'task': store.task(args.task_id)}
                     if result['task'] is None:

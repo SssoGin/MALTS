@@ -1,6 +1,6 @@
 # MALTS 控制端操作参考
 
-控制端使用已验证运行时和所选状态查询任务、执行审阅请求。当前 Core 格式 Schema69，版本 **2.1.4**。普通项目可使用已安装 Skill，下列命令说明控制端接口。演示使用另行选择的新目录，不调用模型或安装宿主。
+控制端使用已验证运行时和所选状态查询任务、执行审阅请求。当前 Core 格式 Schema69，版本 **2.1.5**。普通项目可使用已安装 Skill，下列命令说明控制端接口。演示使用另行选择的新目录，不调用模型或安装宿主。
 
 <a id="v2-start"></a>
 ## 1. 第一个完整本地任务
@@ -38,9 +38,9 @@ request('grant.record', grant_id='G1', task_id='T1', task_revision=1, actor='dem
         source_ref='user:approved-isolated-file-demo', resource='hello.txt', effect='write')
 p = request('operation.prepare', operation_id='OP1', grant_id='G1', actor='demo',
             resource='hello.txt', effect='write', capture_authority_ref='user:approved-synthetic-demo',
-            parameters={'tool': 'create-file', 'path': 'hello.txt', 'content': 'Hello MALTS 2.1.4\n'})
+            parameters={'tool': 'create-file', 'path': 'hello.txt', 'content': 'Hello MALTS 2.1.5\n'})
 request('operation.create-file', operation_id='OP1', actor='demo', expected_request_hash=p['request_hash'])
-assert (demo / 'hello.txt').read_bytes() == b'Hello MALTS 2.1.4\n'
+assert (demo / 'hello.txt').read_bytes() == b'Hello MALTS 2.1.5\n'
 descriptor = {'owner': 'DEMO', 'target': {'task_id': 'T1', 'task_revision': 1, 'criterion': 'Integrity'},
               'content_class': 'synthetic', 'sensitivity': 'project', 'redaction_policy_version': 'demo-v1',
               'verification_scope': 'Isolated synthetic file integrity only',
@@ -228,6 +228,8 @@ ACTIVE 状态的重复调用核实当前 binding 后返回历史回执，带 `re
 采用将 Project 的 `resource_root` 绑定控制工作区。外部 Unity、Unreal、源码或资产根不会继承写入授权；产生效果前须单独审阅资源归属与适用适配器，不能通过改 binding 或数据库字段获得权限。四端安装、隔离迁移与负向/恢复检查、真实控制器操作，均与某业务工程的迁移或 Editor 行为分别验证。跨用户 DPAPI 明文恢复仍未认证。
 
 ## 原生状态库迁址与路径恢复
+
+普通操作未结清时，先用 context --state-dir <state> --task-id <task> --operation-id <original-id> 查询。selected_operation 给出原 operation.observe 合同，并区分控制端执行与受管 Host 调度。recovery-review 适用于恢复后隔离的状态库，不是通用操作结算命令。保留实际效果并使用原 ID，逐步核查及结果登记规则见[使用说明](USAGE.md)。
 
 健康原生库与已采用库均通过正式重定位流程搬迁；原生无定位文件时明确提供原状态目录，并保留 Project 的业务资源根。统一入口为 `store-relocation-preflight`、`store-relocation-prepare`、`store-relocation-status`、`store-relocation-plan` 和 `store-relocation-apply`；正式写入使用当前安装和审阅计划哈希。恢复审查不等于执行授权，切换后 Phase 仍须明确激活。原生旧库的普通服务写入也会被拒绝。
 

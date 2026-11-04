@@ -1,5 +1,7 @@
 # Adopted v2 migration and forward recovery
 
+For an ordinary pending operation without a restored-store quarantine, use the original operation_id in context and the [Task execution](../../v2/malts-v2-task-workflow/references/task-execution.md) workflow. The original operation.observe receipt is different from recovery-review. A direct controller may have no managed Host profile or dispatch; review its actual session/commands and relevant writers. Missing registration, the legacy host_quiescence_verified=false field and an expired lease do not independently establish liveness or shutdown. Do not ask the user to locate a separate administrator when the current Agent already holds the corresponding controller authorization.
+
 Use this reference for an already adopted or explicitly selected v2 workspace. Verify the actual runtime, binding, selected state root, epoch, current Task/revision and exact Run/Checkpoint. Preserve the adoption receipt, source seals, backups and post-adoption work. Never restore legacy runtime write authority or delete a binding to recreate an old workspace.
 
 Before restoring or resuming, reconcile each original UNKNOWN operation against actual effects. A missing receipt, expired lease, cancelled RPC or pause does not prove non-execution or writer quiescence. Do not use a new operation ID to replay an uncertain effect. Inspect the original registered Host and relevant external writer before migration/takeover; observation of one axis does not settle the other.
