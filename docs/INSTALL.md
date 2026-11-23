@@ -1,6 +1,6 @@
 # Install MALTS
 
-Install MALTS into the Agent tools you choose. One shared core supplies project work, continuity, verification and experience workflows; each tool receives its own native entry. Current version: **2.1.5**. Installation is review-first and does not call a model, install the Host application or adopt existing projects.
+Install MALTS into the Agent tools you choose. One shared core supplies project work, continuity, verification and experience workflows; each tool receives its own native entry. Current version: **2.1.6**. Installation is review-first and does not call a model, install the Host application or adopt existing projects.
 
 ## Prerequisites
 
@@ -17,7 +17,7 @@ Use short, explicit roots with no ambiguous links/protected overlaps. Lifecycle 
 
 ## Repository Installation (Primary)
 
-Use a reviewed checkout of the [public repository](https://github.com/SssoGin/MALTS). Check the actual remote/ref and confirm `MALTS_RELEASE.json` and `VERSION` both identify 2.1.5. A documentation revision on `main` can retain the same version while having its own exact source-tree identity. The installer checks the actual selected tree; do not add business files or caches inside it.
+Use a reviewed checkout of the [public repository](https://github.com/SssoGin/MALTS). Check the actual remote/ref and confirm `MALTS_RELEASE.json` and `VERSION` both identify 2.1.6. A documentation revision on `main` can retain the same version while having its own exact source-tree identity. The installer checks the actual selected tree; do not add business files or caches inside it.
 
 | Host | Entry | Scope |
 |---|---|---|
@@ -25,18 +25,19 @@ Use a reviewed checkout of the [public repository](https://github.com/SssoGin/MA
 | Claude Code | `Install-MALTS.ps1 -Tool ClaudeCode` | Selected Claude Code root |
 | OpenCode | `Install-MALTS.ps1 -Tool OpenCode` | Selected OpenCode root |
 | DeepSeek Harness | `Install-MALTS.ps1 -Tool DeepSeekHarness` | Selected Harness root, shared default lifecycle |
+| Antigravity | `Install-MALTS.ps1 -Tool Antigravity` | `~/.gemini/config` |
 
-Shared four-Host installation plan:
+Shared five-Host installation plan:
 
 ```powershell
 .\scripts\Install-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool AllIncluded
 ```
 
-The shared formal installation uses one plan. **`AllIncluded` selects Codex, Claude Code, OpenCode and DeepSeek Harness.** Explicit paths use `-LifecycleRoot`, matching `-ToolRootCodex`, `-ToolRootClaudeCode` or `-ToolRootOpenCode`/`-ToolRootDeepSeekHarness`, and `-PlanPath`.
+The shared formal installation uses one plan. **`AllIncluded` selects Codex, Claude Code, OpenCode, DeepSeek Harness and Antigravity.** Explicit paths use `-LifecycleRoot`, matching `-ToolRootCodex`, `-ToolRootClaudeCode` or `-ToolRootOpenCode`/`-ToolRootDeepSeekHarness`, and `-PlanPath`.
 
 ### DeepSeek Harness Installation
 
-Harness shares the formal installation with Codex, Claude Code and OpenCode and uses the same entry. Create a complete four-Host plan with:
+Harness shares the formal installation with Codex, Claude Code and OpenCode and uses the same entry. Create a complete five-Host plan with:
 
 ```powershell
 .\scripts\Install-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool AllIncluded
@@ -44,7 +45,7 @@ Harness shares the formal installation with Codex, Claude Code and OpenCode and 
 
 The default shared lifecycle root is `~/.agent-system/lifecycle`; the Harness configuration root is `~/.dsh`. Use `-ToolRootDeepSeekHarness` for an explicit Host path. Accounts, sessions and model settings stay with each Host rather than being copied or merged into the MALTS installation.
 
-The installer saves the plan and reports its path/hash. Review the source, actual four-Host roots, personal-content merges and recovery preimages before the execution step below. Use the update workflow for an existing formal installation; manually editing Boot, registration or an active generation is not installation. This workflow installs MALTS integration; the Harness application and models remain managed by their own installer.
+The installer saves the plan and reports its path/hash. Review the source, actual five-Host roots, personal-content merges and recovery preimages before the execution step below. Use the update workflow for an existing formal installation; manually editing Boot, registration or an active generation is not installation. This workflow installs MALTS integration; the Harness application and models remain managed by their own installer.
 
 ## Review And Execute
 
@@ -68,11 +69,11 @@ Do not replace a meaningful failure with a manual file copy or a success label. 
 
 ## Optional Offline Archive
 
-The current Release attachment is `MALTS-2.1.5.zip`. A same-version reissue has its own qualified package, source commit and SHA-256 in the Release notes. Verify the exact downloaded revision before offline installation. GitHub-generated source archives follow the current version tag. The current tag, qualified repository and MALTS-uploaded package should identify the same source revision, although archive layouts differ.
+The current Release attachment is `MALTS-2.1.6.zip`. A same-version reissue has its own qualified package, source commit and SHA-256 in the Release notes. Verify the exact downloaded revision before offline installation. GitHub-generated source archives follow the current version tag. The current tag, qualified repository and MALTS-uploaded package should identify the same source revision, although archive layouts differ.
 
 ```powershell
-.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.1.5.zip
-.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.1.5.zip -ExtractOutput '<new-extraction-root>' -Apply
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.1.6.zip
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.1.6.zip -ExtractOutput '<new-extraction-root>' -Apply
 ```
 
 Obtain the verifier from the matching reviewed source. Run the extracted payload's lifecycle entry with `-ReleaseRoot '<extracted-package-root>'`, then the same plan/hash sequence. Harness uses the same lifecycle entry with ReleaseRoot and every Host registered to that installation. Never copy a payload into an active generation. See [Release Archive](RELEASE_ARTIFACT.md).
@@ -88,7 +89,7 @@ python -B "$runtime/tools/malts_lifecycle.py" discover --tool-root $toolRoot
 python -B "$runtime/tools/malts_v2.py" capabilities
 ```
 
-Require discovery PASS with matching registration, active pointer, generation identity and VERSION. Doctor checks installation trust and drift without applying repairs. Supply all four actual Host roots for the shared installation:
+Require discovery PASS with matching registration, active pointer, generation identity and VERSION. Doctor checks installation trust and drift without applying repairs. Supply all five actual Host roots for the shared installation:
 
 ```powershell
 $shared = Join-Path $env:USERPROFILE '.agent-system/lifecycle'
@@ -97,7 +98,8 @@ $shared = Join-Path $env:USERPROFILE '.agent-system/lifecycle'
   -ToolRootCodex (Join-Path $env:USERPROFILE '.codex') `
   -ToolRootClaudeCode (Join-Path $env:USERPROFILE '.claude') `
   -ToolRootOpenCode (Join-Path $env:USERPROFILE '.config/opencode') `
-  -ToolRootDeepSeekHarness (Join-Path $env:USERPROFILE '.dsh')
+  -ToolRootDeepSeekHarness (Join-Path $env:USERPROFILE '.dsh') `
+  -ToolRootAntigravity (Join-Path $env:USERPROFILE '.gemini/config')
 ```
 
 For the shared lifecycle, provide all its actual selected tool roots to Doctor. Reload the Host and verify native Skill/MCP discovery; file presence alone is insufficient. Current Harness native evidence is scoped to Windows Desktop 0.2.0-rc.2; CLI/Web and GUI model cancellation have separate limits.
@@ -140,11 +142,11 @@ The lifecycle-owned environment is under `runtime/mcp/env-<requirements-digest>`
 
 First installation needs access to the pinned Python packages. The MALTS ZIP does not bundle their wheels. An offline installation therefore needs an already verified managed environment; ambient pip configuration is not used as a package source; offline dependency failure leaves installation incomplete. The installer records installed dependency versions. It does not change PATH or install packages into another application’s environment.
 
-Reload the Host if it does not reload configuration automatically, then call `malts_installation`. It should report `MCP_READY` and version `2.1.5`. A cold connection check establishes a newly started server; it cannot switch an already running Host process. For existing project-specific endpoints and detailed diagnostics, see [MCP configuration](MCP_CONFIGURATION.md).
+Reload the Host if it does not reload configuration automatically, then call `malts_installation`. It should report `MCP_READY` and version `2.1.6`. A cold connection check establishes a newly started server; it cannot switch an already running Host process. For existing project-specific endpoints and detailed diagnostics, see [MCP configuration](MCP_CONFIGURATION.md).
 
 ### Project MCP Entries And Upgrade Checks
 
-Ordinary read-only projects inherit the global standard entry. Dedicated bindings, interpreters, environments or permissions can retain a project endpoint. Select `--workspace` / `--host-config` for update, Doctor and retirement checks; configuration precedence and actual Host loading are verified separately. `mcp-config --stable` follows the active generation while retaining fixed state and policy. MALTS provides four-Host reviewed entry changes, layer fingerprints, protected preimages and original-operation recovery without recreating project state; native scope and actual Host loading remain separate. See [MCP configuration](MCP_CONFIGURATION.md#selected-project-configuration) for commands and limits.
+Ordinary read-only projects inherit the global standard entry. Dedicated bindings, interpreters, environments or permissions can retain a project endpoint. Select `--workspace` / `--host-config` for update, Doctor and retirement checks; configuration precedence and actual Host loading are verified separately. `mcp-config --stable` follows the active generation while retaining fixed state and policy. MALTS provides five-Host reviewed entry changes, layer fingerprints, protected preimages and original-operation recovery without recreating project state; native scope and actual Host loading remain separate. See [MCP configuration](MCP_CONFIGURATION.md#selected-project-configuration) for commands and limits.
 
 ### Agent execution prerequisites
 
@@ -158,3 +160,7 @@ Dependency subprocesses discard inherited `PIP_*` settings and disable external 
 The installer creates an empty lifecycle-owned Python environment, then installs the pinned pip into that exact environment before preparing the remaining fixed dependencies. This avoids first installing the base interpreter's older bundled setuptools test files, whose nested paths can exceed Windows path limits. It changes no global Python installation or registry setting. Failure remains a preparation/rollback result, not an activated installation. Dependency installation runs in a separate subprocess under the target interpreter; see [pip's subprocess invocation guidance](https://pip.pypa.io/en/stable/user_guide/#using-pip-from-your-program).
 
 Internal transaction snapshots, restoration and owned-tree cleanup use extended Windows file I/O while retaining ordinary paths in plans and records. This covers generation and Host-file snapshots that become longer during a transaction. Planned staging and Host-projection paths still undergo the existing bounds checks before execution; choose roots that pass that preflight. This does not certify arbitrary path lengths, unsupported filesystem layouts or external applications' long-path behavior.
+
+### Antigravity
+
+Antigravity can share the MALTS installation with Codex, Claude Code, OpenCode and DeepSeek Harness. Select `-Tool Antigravity` for a new installation or `AllIncluded` for all five Hosts. On an existing four-Host installation, run the 2.1.6 update with all five roots to register Antigravity in the same transaction. The installer places the global instruction and skills under `~/.gemini/config` and manages the `malts` entry in `mcp_config.json`. Refresh MCP servers in Antigravity and call `malts_installation` to check the loaded version. Global integration provides the standard read-only MCP and task workflows. Managed Agent dispatch retains its existing Host qualifications.

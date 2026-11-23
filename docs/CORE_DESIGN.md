@@ -1,6 +1,6 @@
 # Multi-Agent Long-Task Scheduling and Growth System
 
-MALTS (Multi-Agent Long-Task Scheduling and Growth System) organizes AI-agent project work around goals, checkable results, recoverable execution and assessed experience. The default executor is one Agent; approved collaboration uses the same project and acceptance model. The current implementation is **2.1.5**.
+MALTS (Multi-Agent Long-Task Scheduling and Growth System) organizes AI-agent project work around goals, checkable results, recoverable execution and assessed experience. The default executor is one Agent; approved collaboration uses the same project and acceptance model. The current implementation is **2.1.6**.
 
 ## Workspace authority, entry, and concurrency
 
@@ -444,7 +444,7 @@ MALTS does not automatically install a timer, watch context or grant future work
 | OpenCode | Managed `AGENTS.md` and native config/Skills | Install/Update `-Tool OpenCode` |
 | DeepSeek Harness | `.dsh/MALTS_BOOT.md`, native Harness workflow/profile entry | Shared default lifecycle, `-Tool DeepSeekHarness` / `-ToolRootDeepSeekHarness` |
 
-All four use the same core contracts. `AllIncluded` in Install/Update selects all four Hosts. A shared installation has one active generation and registry; Host configuration roots and project state remain separate. See [Install](INSTALL.md) for an executable selection guide.
+All four use the same core contracts. `AllIncluded` in Install/Update selects all five Hosts. A shared installation has one active generation and registry; Host configuration roots and project state remain separate. See [Install](INSTALL.md) for an executable selection guide.
 
 MALTS owns only marked managed instruction blocks; surrounding text remains user-owned. Merge idempotently, preserve personal content and stop on ambiguous ownership. Reload each Host and check actual native discovery. CLI, Web and Desktop qualification are not interchangeable. Current DeepSeek evidence is scoped to Windows Desktop 0.2.0-rc.2; GUI model cancellation remains uncertified.
 
@@ -598,7 +598,7 @@ The installation owns a fixed MCP launcher and isolated dependency environment o
 
 ### Project MCP Entries And Upgrade Checks
 
-Ordinary read-only projects inherit the global standard entry. Dedicated bindings, interpreters, environments or permissions can retain a project endpoint. Select `--workspace` / `--host-config` for update, Doctor and retirement checks; configuration precedence and actual Host loading are verified separately. `mcp-config --stable` follows the active generation while retaining fixed state and policy. MALTS provides four-Host reviewed entry changes, layer fingerprints, protected preimages and original-operation recovery without recreating project state; native scope and actual Host loading remain separate. See [MCP configuration](MCP_CONFIGURATION.md#selected-project-configuration) for commands and limits.
+Ordinary read-only projects inherit the global standard entry. Dedicated bindings, interpreters, environments or permissions can retain a project endpoint. Select `--workspace` / `--host-config` for update, Doctor and retirement checks; configuration precedence and actual Host loading are verified separately. `mcp-config --stable` follows the active generation while retaining fixed state and policy. MALTS provides five-Host reviewed entry changes, layer fingerprints, protected preimages and original-operation recovery without recreating project state; native scope and actual Host loading remain separate. See [MCP configuration](MCP_CONFIGURATION.md#selected-project-configuration) for commands and limits.
 
 ### Real Host execution and scoped qualification
 

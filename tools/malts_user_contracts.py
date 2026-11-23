@@ -65,7 +65,7 @@ EVIDENCE_STRENGTH = {"D": 1, "C": 2, "B": 3, "A": 4}
 MACHINE_LOCATOR = re.compile(r"^(?:[A-Za-z]:[\/]|[\/]{2}|~[\/]|[A-Za-z][A-Za-z0-9+.-]*://|git@)")
 PRIVATE_PATH_LITERAL = re.compile(r"(?:[A-Za-z]:[\/]|\\)")
 SECRET_ASSIGNMENT = re.compile(r"(?i)(?:api[_-]?key|access[_-]?token|password|secret)\s*[:=]\s*\S+")
-RELEASE_TOOL_NAMES = {"codex": "Codex", "claude-code": "Claude Code", "opencode": "OpenCode", "deepseek-harness": "DeepSeek Harness"}
+RELEASE_TOOL_NAMES = {"codex": "Codex", "claude-code": "Claude Code", "opencode": "OpenCode", "deepseek-harness": "DeepSeek Harness", "antigravity": "Antigravity"}
 # Historical prerequisites retain their original name and digest; not a current execution ID.
 RELEASE_TOOL_NAMES["deepseek-desktop"] = "DeepSeek Desktop"
 RELEASE_HOST_PREREQUISITES = {"windows", "powershell", "python"}

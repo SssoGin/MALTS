@@ -50,7 +50,7 @@ def owned_bytes(host,raw):
                 if isinstance(row,dict) and row.get('name')=='@deepseek-ai/dsh-mcp-client' and row.get('config',{}).get('serverName')=='malts':
                     start,end=spans[(i,'insert',j)];return text[start:end].encode('utf-8')
     else:
-        key={'claude':'mcpServers','opencode':'mcp'}[host]
+        key={'claude':'mcpServers','antigravity':'mcpServers','opencode':'mcp'}[host]
         start,end=spans[(key,'malts')];return text[start:end].encode('utf-8')
     raise ConfigError('MANAGED_MCP_ENTRY_AMBIGUOUS')
 
@@ -146,7 +146,7 @@ def _patch_json(host,text,data,entry):
         start,end=spans[()];body=text[start+1:end-1]
         separator=',' if data and not _mask_comments(body).rstrip().endswith(',') else ''
         return text[:end-1]+separator+'\n'+json.dumps({'insert':[row]},ensure_ascii=False)+'\n'+text[end-1:]
-    key={'claude':'mcpServers','opencode':'mcp'}[host]
+    key={'claude':'mcpServers','antigravity':'mcpServers','opencode':'mcp'}[host]
     if key not in data:return _insert_member(text,spans[()],key,{'malts':entry})
     if 'malts' not in data[key]:return _insert_member(text,spans[(key,)],'malts',entry)
     start,end=spans[(key,'malts')]
@@ -204,7 +204,7 @@ def patch(host,raw,entry):
                 node['insert']=[r for r in node['insert'] if not (isinstance(r,dict) and r.get('name')=='@deepseek-ai/dsh-mcp-client' and r.get('config',{}).get('serverName')=='malts')]
                 if node['insert'] or set(node)!={'insert'}:remaining.append(node)
             return remaining
-        key={'codex':'mcp_servers','claude':'mcpServers','opencode':'mcp'}[host]
+        key={'codex':'mcp_servers','claude':'mcpServers','antigravity':'mcpServers','opencode':'mcp'}[host]
         if key in value:
             value[key].pop('malts',None)
             if not value[key]:value.pop(key)
@@ -234,7 +234,7 @@ def remove(host,raw):
             if len(selected)!=1:raise ConfigError('MANAGED_MCP_ENTRY_AMBIGUOUS')
             start,end=spans[selected[0]]
         else:
-            key={'claude':'mcpServers','opencode':'mcp'}[host];value_start,end=spans[(key,'malts')]
+            key={'claude':'mcpServers','antigravity':'mcpServers','opencode':'mcp'}[host];value_start,end=spans[(key,'malts')]
             # This prefix is inside a parsed map; find its exact field token.
             matches=list(re.finditer(r'"malts"\s*:\s*$',text[:value_start]))
             if len(matches)!=1:raise ConfigError('MANAGED_MCP_REMOVE_FORMAT_UNSUPPORTED')

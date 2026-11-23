@@ -122,7 +122,7 @@ def main(argv=None):
     repair_plan.add_argument('--state-dir',type=Path,required=True)
     repair_plan.add_argument('--request-file',type=Path,required=True)
     mcp_config=sub.add_parser('mcp-config')
-    mcp_config.add_argument('--host',choices=['codex','claude','opencode','deepseek-harness'],required=True)
+    mcp_config.add_argument('--host',choices=['codex','claude','opencode','deepseek-harness','antigravity'],required=True)
     mcp_config.add_argument('--state-dir',type=Path,required=True)
     mcp_config.add_argument('--resource-root',type=Path,required=True)
     mcp_config.add_argument('--project-id',required=True)

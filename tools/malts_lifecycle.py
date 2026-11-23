@@ -33,7 +33,7 @@ from malts_user_contracts import canonical_plan_hash, validate_instance
 
 
 MALTS_ROOT = Path(__file__).resolve().parents[1]
-TOOLS = ("codex", "claude-code", "opencode", "deepseek-harness")
+TOOLS = ("codex", "claude-code", "opencode", "deepseek-harness", "antigravity")
 PROJECTION_MANIFEST = ".malts-v1-projection.json"
 LEGACY_PROJECTION_MANIFEST = ".malts-managed-files.json"
 REGISTRY_RELATIVE = Path("registry") / "installation_registry.json"
@@ -670,6 +670,10 @@ def preview_tool_environment(
         environment["CODEX_HOME"] = str(tool_root)
     elif tool == "claude-code":
         environment["CLAUDE_CONFIG_DIR"] = str(tool_root)
+    elif tool == "antigravity":
+        tool_root = home_root / ".gemini" / "config"
+        environment["MALTS_PREVIEW_DISCOVERY_ROOT"] = str(tool_root)
+        writable_roots.append(tool_root)
     elif tool == "deepseek-harness":
         environment["DSH_HOME"] = str(tool_root)
         environment["DSH_AGENTS_HOME"] = str(home_root / ".agents")
@@ -1000,7 +1004,7 @@ def verify_artifact(root_value: str | Path) -> dict[str, Any]:
 
     projections: dict[str, dict[str, Any]] = {}
     inventory_paths = {record["path"] for record in actual_records}
-    for tool in TOOLS:
+    for tool in manifest["supported_tools"]:
         descriptor_path = root / "projections" / tool / "projection_files.json"
         descriptor = load_json(descriptor_path)
         if not isinstance(descriptor, dict) or descriptor.get("schema_version") != 1 or descriptor.get("tool") != tool:
@@ -1532,6 +1536,7 @@ def verify_repository_root(root_value: str | Path) -> dict[str, Any]:
 
 def _repository_projection_sources(source: Path, tool: str) -> list[tuple[str, str, str]]:
     instruction = {
+        "antigravity": "adapters/antigravity/AGENTS.example.md",
         "codex": "adapters/codex/AGENTS.example.md",
         "claude-code": "adapters/claude-code/CLAUDE.example.md",
         "opencode": "adapters/opencode/AGENTS.example.md",
@@ -1540,6 +1545,7 @@ def _repository_projection_sources(source: Path, tool: str) -> list[tuple[str, s
     instruction_target = "CLAUDE.md" if tool == "claude-code" else "AGENTS.md"
     items: list[tuple[str, str, str]] = [(instruction, instruction_target, "managed-block")]
     support_root = {
+        "antigravity": None,
         "codex": source / "adapters" / "codex" / ".codex",
         "claude-code": source / "adapters" / "claude-code" / ".claude",
         "opencode": source / "adapters" / "opencode" / ".opencode",
@@ -1547,9 +1553,9 @@ def _repository_projection_sources(source: Path, tool: str) -> list[tuple[str, s
     }[tool]
     bridge_root = source / "adapters" / "skill-bridges"
     for root in (support_root, bridge_root):
-        if not root.is_dir():
+        if root is not None and not root.is_dir():
             raise LifecycleError("TX_REPOSITORY_LAYOUT", "Repository install source lacks required adapter files.", str(root))
-    for path in sorted((item for item in support_root.rglob("*") if item.is_file()), key=lambda item: item.relative_to(support_root).as_posix().casefold()):
+    for path in sorted((item for item in (support_root.rglob("*") if support_root else ()) if item.is_file()), key=lambda item: item.relative_to(support_root).as_posix().casefold()):
         relative = path.relative_to(support_root).as_posix()
         if tool == "codex" and relative.casefold() == "config.toml":
             continue
@@ -1594,7 +1600,7 @@ def _build_repository_artifact(repository: dict[str, Any], artifact_root: Path) 
         boot_relative = "files/MALTS_BOOT.template.md"
         boot_path = projection_root / Path(boot_relative)
         boot_path.parent.mkdir(parents=True, exist_ok=True)
-        display = {"codex": "Codex", "claude-code": "Claude Code", "opencode": "OpenCode", "deepseek-harness": "DeepSeek Harness"}[tool]
+        display = {"codex": "Codex", "claude-code": "Claude Code", "opencode": "OpenCode", "deepseek-harness": "DeepSeek Harness", "antigravity": "Antigravity"}[tool]
         boot_path.write_text(
             "# MALTS_BOOT\n\n"
             "SchemaVersion: 2\n"
@@ -1633,7 +1639,8 @@ def _build_repository_artifact(repository: dict[str, Any], artifact_root: Path) 
             {"name": "Codex", "version_constraint": "runtime-probed", "required": True, "applicability": "selected-tool", "tool": "codex"},
             {"name": "Claude Code", "version_constraint": "runtime-probed", "required": True, "applicability": "selected-tool", "tool": "claude-code"},
             {"name": "OpenCode", "version_constraint": "runtime-probed", "required": True, "applicability": "selected-tool", "tool": "opencode"},
-            {"name": "DeepSeek Harness", "version_constraint": "dsh-v0.2.0-rc.2-baseline", "required": True, "applicability": "selected-tool", "tool": "deepseek-harness"},
+            {"name": "Antigravity", "version_constraint": "runtime-probed", "required": True, "applicability": "selected-tool", "tool": "antigravity"},
+        {"name": "DeepSeek Harness", "version_constraint": "dsh-v0.2.0-rc.2-baseline", "required": True, "applicability": "selected-tool", "tool": "deepseek-harness"},
         ],
         "projection_classification": {
             "public_contract_paths": ["payload/*", "projections/*"],
@@ -3092,7 +3099,13 @@ def _make_plan_resolved(
         raise LifecycleError("TX_PREVIEW_CONTRACT", "Stable lifecycle plans cannot carry an isolated preview contract.")
     registry = _load_registry(root)
     selected_tools = list(normalized_tools)
-    if registry and registry["lifecycle_state"] != "uninstalled" and registry["selected_tools"] != selected_tools:
+    adding_antigravity = (
+        operation == "update" and registry and registry["lifecycle_state"] == "stable"
+        and selected_tools == [*registry["selected_tools"], "antigravity"]
+        and not (normalized_tools["antigravity"] / "MALTS_BOOT.md").exists()
+        and artifact["manifest"]["generation_id"] != registry["active_generation_id"]
+    )
+    if registry and registry["lifecycle_state"] != "uninstalled" and registry["selected_tools"] != selected_tools and not adding_antigravity:
         raise LifecycleError(
             "TX_TOOL_SELECTION_CHANGE",
             "Update, repair, and uninstall must use the installed selected-tool set; change selection through a fresh install.",
@@ -6870,7 +6883,7 @@ def _add_tool_root_argument(parser: argparse.ArgumentParser) -> None:
         metavar="TOOL=ABSOLUTE_PATH",
         help=(
             "Repeat --tool-root once per selected tool using a case-sensitive ID: "
-            "codex, claude-code, opencode, or deepseek-harness."
+            "codex, claude-code, opencode, deepseek-harness, or antigravity."
         ),
     )
 
@@ -7002,7 +7015,7 @@ def build_parser() -> argparse.ArgumentParser:
     for name in ('lifecycle-root','tool-root','workspace','config-path'):project_plan.add_argument('--'+name,required=True)
     project_plan.add_argument('--strategy',choices=('inherit-global','stable-project'),required=True)
     project_plan.add_argument('--server-name',default='malts');project_plan.add_argument('--operation-id')
-    project_plan.add_argument('--host',choices=('codex','claude','claude-code','opencode','deepseek-harness'),default='codex')
+    project_plan.add_argument('--host',choices=('codex','claude','claude-code','opencode','deepseek-harness','antigravity'),default='codex')
     project_plan.add_argument('--profile',default='desktop')
     project_plan.add_argument('--overlay',action='append',default=[])
     project_plan.add_argument('--out');project_plan.add_argument('--apply',action='store_true')

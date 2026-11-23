@@ -8,7 +8,7 @@ MALTS is an operating framework for AI Agent project work. It connects goal clar
 
 One Agent is the default executor. When independent investigation, implementation or verification helps, explicitly authorized Agents can share the work. The main Agent remains responsible for integration, acceptance and delivery. The same goals, stages, verification and recovery methods apply to both modes.
 
-The current version is **2.1.5**. This page describes MALTS as a complete system; version-specific changes and upgrade implications are in the [Changelog](CHANGELOG.md).
+The current version is **2.1.6**. This page describes MALTS as a complete system; version-specific changes and upgrade implications are in the [Changelog](CHANGELOG.md).
 
 ## Problems it addresses
 
@@ -90,15 +90,15 @@ Workflows are delivered as Skills: method packages an Agent can discover and use
 
 **Recovery-sensitive engineering.** Keep exact project state/backups and identify what occurred, what remains uncertain and what the next executor can do.
 
-## One formal installation for four Hosts
+## One formal installation for five Hosts
 
-Codex, Claude Code, OpenCode and DeepSeek Harness share one formal MALTS installation under `~/.agent-system/lifecycle` by default. They use one version and exact content identity, with one plan for installation updates, diagnosis and recovery.
+Codex, Claude Code, OpenCode, DeepSeek Harness and Antigravity share one formal MALTS installation under `~/.agent-system/lifecycle` by default. They use one version and exact content identity, with one plan for installation updates, diagnosis and recovery.
 
-Host configuration roots remain `~/.codex`, `~/.claude`, `~/.config/opencode` and `~/.dsh`. Accounts, model settings, sessions and native tools remain owned by each Host; sharing MALTS does not merge them or automatically change project state. `AllIncluded` selects all four; provide actual paths when Host roots differ from the defaults.
+Host configuration roots remain `~/.codex`, `~/.claude`, `~/.config/opencode`, `~/.dsh` and `~/.gemini/config`. Accounts, model settings, sessions and native tools remain owned by each Host; sharing MALTS does not merge them or automatically change project state. `AllIncluded` selects all five; provide actual paths when Host roots differ from the defaults.
 
 ## Start using MALTS
 
-The verified installation path uses Windows and Python3.11+; PowerShell7 is recommended. Supported Agent tools are Codex, Claude Code, OpenCode and DeepSeek Harness, which should already be usable.
+The verified installation path uses Windows and Python3.11+; PowerShell7 is recommended. Supported Agent tools are Codex, Claude Code, OpenCode, DeepSeek Harness and Antigravity, which should already be usable.
 
 Obtain the selected version from the [public repository](https://github.com/SssoGin/MALTS). From its root, create an installation plan:
 
@@ -106,7 +106,7 @@ Obtain the selected version from the [public repository](https://github.com/Ssso
 .\scripts\Install-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool AllIncluded
 ```
 
-Review source, destinations, existing content and recovery, then apply the reported plan hash per [Installation](docs/INSTALL.md). AllIncluded selects Codex, Claude Code, OpenCode and DeepSeek Harness through one installation entry. See [Update](docs/UPDATE.md) for an existing installation.
+Review source, destinations, existing content and recovery, then apply the reported plan hash per [Installation](docs/INSTALL.md). AllIncluded selects Codex, Claude Code, OpenCode, DeepSeek Harness and Antigravity through one installation entry. See [Update](docs/UPDATE.md) for an existing installation.
 
 Once installation and actual Host loading are verified, start naturally:
 
@@ -190,11 +190,11 @@ scripts/      Installation, updates and installation lifecycle
 docs/         System, usage, design and technical references
 ```
 
-MALTS provides reviewed legacy-workspace adoption and long-project readiness queries. Ordinary new workspaces keep management data inside the project; existing external stores can relocate through a reviewed workflow. The four tools continue to share one core and task state. See [workspace management and migration](docs/MANAGEMENT_AND_RELOCATION.md).
+MALTS provides reviewed legacy-workspace adoption and long-project readiness queries. Ordinary new workspaces keep management data inside the project; existing external stores can relocate through a reviewed workflow. The five tools continue to share one core and task state. See [workspace management and migration](docs/MANAGEMENT_AND_RELOCATION.md).
 
 ## Version
 
-Current release: **2.1.5**. See the [MALTS 2.1.5 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.1.5) for notes/optional offline ZIP and [Changelog](CHANGELOG.md) for history.
+Current release: **2.1.6**. See the [MALTS 2.1.6 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.1.6) for notes/optional offline ZIP and [Changelog](CHANGELOG.md) for history.
 
 ## Documentation languages
 
@@ -212,6 +212,6 @@ MALTS uses the [MIT License](LICENSE).
 
 Installation and updates include the `malts` MCP entry for every selected Host. The installer provisions a private dependency environment, preserves unrelated settings, and tests a real stdio connection. MCP provides installed-version checks, packaged workflows, workspace readiness, Task context and current-evidence verification. Supply the current opted-in workspace for project queries; installation creates no global Project or execution rights. Restart or reconnect a Host that has not reloaded its configuration. See [MCP configuration](docs/MCP_CONFIGURATION.md).
 
-Ordinary read-only projects inherit global MCP; dedicated projects can use a stable entry retaining binding and permissions. MALTS supports preserving project configuration management and original-operation recovery for all four Hosts, with protected plans and native layer rules. Selected-reference checks protect updates and generation retirement. See [MCP configuration](docs/MCP_CONFIGURATION.md#selected-project-configuration).
+Ordinary read-only projects inherit global MCP; dedicated projects can use a stable entry retaining binding and permissions. MALTS supports preserving project configuration management and original-operation recovery for all five Hosts, with protected plans and native layer rules. Selected-reference checks protect updates and generation retirement. See [MCP configuration](docs/MCP_CONFIGURATION.md#selected-project-configuration).
 
 MALTS distinguishes native MCP scopes and installer-owned entries, reports actual same-name shadowing, and offers inheritance only when its read-only preview is applicable. See [MCP configuration](docs/MCP_CONFIGURATION.md).

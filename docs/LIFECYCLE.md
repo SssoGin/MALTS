@@ -1,6 +1,6 @@
 # MALTS Lifecycle
 
-The installation lifecycle verifies a source, stages a generation, preserves preimages, activates selected native integrations and checks the resulting binding. The project lifecycle maintains goals, tasks, evidence and recovery independently of installation. Current version: **2.1.5**.
+The installation lifecycle verifies a source, stages a generation, preserves preimages, activates selected native integrations and checks the resulting binding. The project lifecycle maintains goals, tasks, evidence and recovery independently of installation. Current version: **2.1.6**.
 
 ## Core Invariants
 
@@ -13,7 +13,7 @@ Installation and project work have separate lifecycles. Installation owns immuta
 - Active generations are runtime inputs, not editable workspaces.
 - Snapshots and incomplete transactions retain their recovery purpose.
 
-Current version is **2.1.5**; same-version documentation amendments keep a distinct content identity.
+Current version is **2.1.6**; same-version documentation amendments keep a distinct content identity.
 
 A registry identity is meaningful only when it agrees with the active pointer, generation manifest and payload, and the selected tool's Boot. The installer checks the complete verified source before writing; post-validation checks the actual destination rather than inferring success from an exit message.
 
@@ -32,7 +32,7 @@ ZIP is the delivery form of the second source, not an automatic download or an a
 
 Repository verification checks the declared user paths plus the repository-only identity/Git/CI files. It rejects missing, changed or unexpected public content. Installation extracts only user payload paths; repository metadata is not installed into the generation.
 
-A fixed archive adds an outer closed inventory and inner lifecycle artifact. The verifier checks names, traversal/collision risks and hashes before final extraction. A GitHub-generated source archive is a snapshot of a Git ref and must not be assumed to have the same package layout as MALTS-2.1.5.zip.
+A fixed archive adds an outer closed inventory and inner lifecycle artifact. The verifier checks names, traversal/collision risks and hashes before final extraction. A GitHub-generated source archive is a snapshot of a Git ref and must not be assumed to have the same package layout as MALTS-2.1.6.zip.
 
 Select the source before planning and keep it unchanged until execution. Pulling a new commit, editing a guide or adding a cache after planning can invalidate the source identity. Generate another reviewed plan rather than editing the old hash or relaxing verification.
 
@@ -67,7 +67,7 @@ A preview has its own declared identity and roots. Preview success qualifies tho
 
 Ordinary updates retain earlier generations. Once they have no current entry or recovery dependency, an explicitly requested retirement can remove selected `retiring` generations. It rejects the active generation, unregistered identities, incomplete tool coverage, changed images and references from current managed entries. The installation must be healthy before planning.
 
-Use the Python lifecycle CLI for this optional operation. Supply the discovered lifecycle root and **every tool registered to that root**, then select exact generation IDs. The shared Codex, Claude Code, OpenCode and DeepSeek Harness installation uses:
+Use the Python lifecycle CLI for this optional operation. Supply the discovered lifecycle root and **every tool registered to that root**, then select exact generation IDs. The shared Codex, Claude Code, OpenCode, DeepSeek Harness and Antigravity installation uses:
 
 ```powershell
 python .\tools\malts_lifecycle.py retire-plan `
@@ -76,6 +76,7 @@ python .\tools\malts_lifecycle.py retire-plan `
   --tool-root 'claude-code=<Claude Code configuration root>' `
   --tool-root 'opencode=<OpenCode configuration root>' `
   --tool-root 'deepseek-harness=<Harness configuration root>' `
+  --tool-root 'antigravity=<Antigravity configuration root>' `
   --generation-id '<inactive retiring generation ID>' `
   --out .\retirement.json --apply
 ```
@@ -100,7 +101,7 @@ Install/Update save a plan before activation. The plan identifies source, select
 
 For the generic entry, `Plan -Apply` saves a plan only; `Execute -Apply` performs the reviewed transaction. PreviewPlan likewise separates planning from execution. Preserve transaction journals; deleting a lock or editing a plan is not recovery.
 
-See [Install](INSTALL.md) and [Update](UPDATE.md) for all four Host paths. Install/Update's AllIncluded selects all four Hosts under the default shared lifecycle. ToolRootDeepSeekHarness selects Harness;
+See [Install](INSTALL.md) and [Update](UPDATE.md) for all five Host paths. Install/Update's AllIncluded selects all five Hosts under the default shared lifecycle. ToolRootDeepSeekHarness selects Harness;
 
 The transaction progresses through discovery/locking, source staging, snapshot, prevalidation, activation, postvalidation and final audit/commit. The recorded journal identifies which stages occurred. A failure can therefore be inspected at the original operation instead of inferred from which directories happen to exist.
 
@@ -220,13 +221,13 @@ python -B "$runtime/tools/malts_lifecycle.py" discover --tool-root '<selected-to
 
 Require matching registry, active pointer, generation identity and VERSION. Discovery is read-only; a machine-global GLOBAL_BOOT.md is not its current input. Then verify the selected workspace binding and task context. See [Getting Started](GETTING_STARTED.md).
 
-## Shared Four-Host Installation
+## Shared Five-Host Installation
 
-One lifecycle root, active generation and registry manage the formal installation. Codex, Claude Code, OpenCode and DeepSeek Harness resolve their Boots to the same verified runtime. Host configuration roots remain distinct, and bound task services own project state; sharing MALTS does not merge accounts, sessions, model settings or project stores.
+One lifecycle root, active generation and registry manage the formal installation. Codex, Claude Code, OpenCode, DeepSeek Harness and Antigravity resolve their Boots to the same verified runtime. Host configuration roots remain distinct, and bound task services own project state; sharing MALTS does not merge accounts, sessions, model settings or project stores.
 
-`AllIncluded` in Install-MALTS.ps1 and Update-MALTS.ps1 selects all four Hosts. Installation, update and Doctor use the actual registered Host set. Same-version content corrections use reviewed `finalize` transactions with preimages. Never edit an active generation manually; handle failures through the original transaction and recovery records.
+`AllIncluded` in Install-MALTS.ps1 and Update-MALTS.ps1 selects all five Hosts. Installation, update and Doctor use the actual registered Host set. Same-version content corrections use reviewed `finalize` transactions with preimages. Never edit an active generation manually; handle failures through the original transaction and recovery records.
 
-Windows transactions use a runtime mutex and durable records. These coordinate cooperating lifecycle operations rather than providing arbitrary-writer or cross-machine fencing. Verify all four discoveries, actual selected Host service loading, installation trust and workspace binding; report model/business behavior separately from installation checks.
+Windows transactions use a runtime mutex and durable records. These coordinate cooperating lifecycle operations rather than providing arbitrary-writer or cross-machine fencing. Verify all five discoveries, actual selected Host service loading, installation trust and workspace binding; report model/business behavior separately from installation checks.
 
 ## Workspace Management Data and Migration
 
@@ -244,4 +245,4 @@ MCP is installed and enabled for every selected Host as part of ordinary install
 
 ### Project MCP Entries And Upgrade Checks
 
-Ordinary read-only projects inherit the global standard entry. Dedicated bindings, interpreters, environments or permissions can retain a project endpoint. Select `--workspace` / `--host-config` for update, Doctor and retirement checks; configuration precedence and actual Host loading are verified separately. `mcp-config --stable` follows the active generation while retaining fixed state and policy. MALTS provides four-Host reviewed entry changes, layer fingerprints, protected preimages and original-operation recovery without recreating project state; native scope and actual Host loading remain separate. See [MCP configuration](MCP_CONFIGURATION.md#selected-project-configuration) for commands and limits.
+Ordinary read-only projects inherit the global standard entry. Dedicated bindings, interpreters, environments or permissions can retain a project endpoint. Select `--workspace` / `--host-config` for update, Doctor and retirement checks; configuration precedence and actual Host loading are verified separately. `mcp-config --stable` follows the active generation while retaining fixed state and policy. MALTS provides five-Host reviewed entry changes, layer fingerprints, protected preimages and original-operation recovery without recreating project state; native scope and actual Host loading remain separate. See [MCP configuration](MCP_CONFIGURATION.md#selected-project-configuration) for commands and limits.

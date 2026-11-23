@@ -8,9 +8,10 @@ param(
     [string] $ToolRootCodex,
     [string] $ToolRootClaudeCode,
     [string] $ToolRootOpenCode,
+    [string] $ToolRootAntigravity,
     [Alias('ToolRootDeepSeekHarness')]
     [string] $ToolRootDeepSeekDesktop,
-    [ValidateSet('codex', 'claude-code', 'opencode', 'deepseek-harness')]
+    [ValidateSet('codex', 'claude-code', 'opencode', 'deepseek-harness', 'antigravity')]
     [string[]] $Tool = @(),
 
     [ValidateSet('install', 'update', 'repair', 'finalize', 'uninstall')]
@@ -77,6 +78,7 @@ function Add-ToolRoots {
         @{ Tool = 'codex'; Name = 'ToolRootCodex'; Value = $ToolRootCodex },
         @{ Tool = 'claude-code'; Name = 'ToolRootClaudeCode'; Value = $ToolRootClaudeCode },
         @{ Tool = 'opencode'; Name = 'ToolRootOpenCode'; Value = $ToolRootOpenCode },
+        @{ Tool = 'antigravity'; Name = 'ToolRootAntigravity'; Value = $ToolRootAntigravity },
         @{ Tool = 'deepseek-harness'; Name = 'ToolRootDeepSeekDesktop'; Value = $ToolRootDeepSeekDesktop }
     )) {
         if (-not [string]::IsNullOrWhiteSpace($entry.Value)) {

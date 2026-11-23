@@ -30,6 +30,7 @@ def locations(tool_roots):
     for tool,value in tool_roots.items():
         root=_path(value);host=HOSTS[tool]
         if host=='codex':paths=[root/'config.toml']
+        elif host=='antigravity':paths=[root/'mcp_config.json']
         elif host=='claude':paths=[root.parent/'.claude.json']
         elif host=='opencode':
             paths=[p for p in (root/'opencode.json',root/'opencode.jsonc') if p.exists()]

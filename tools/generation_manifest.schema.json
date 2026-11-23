@@ -64,6 +64,7 @@
           "codex",
           "claude-code",
           "opencode",
+          "antigravity",
           "deepseek-harness",
           "deepseek-desktop"
         ]
@@ -187,6 +188,7 @@
             "codex",
             "claude-code",
             "opencode",
+            "antigravity",
             "deepseek-harness",
             "deepseek-desktop"
           ]

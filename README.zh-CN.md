@@ -8,7 +8,7 @@ MALTS 是一套用于 AI Agent 项目工作的运行框架，将目标澄清、�
 
 MALTS 默认由一个 Agent 完成工作。需要独立调查、验证或分开实施时，可以在明确分工和授权后使用多个 Agent；负责项目的主 Agent 仍承担整合、验收和最终交付责任。无论使用一个还是多个 Agent，都沿用同一套目标、阶段、验证和恢复方法。
 
-当前版本为 **2.1.5**。本页介绍完整的 MALTS 系统；本版本的新增、改进和升级影响见[版本说明](CHANGELOG.md)。
+当前版本为 **2.1.6**。本页介绍完整的 MALTS 系统；本版本的新增、改进和升级影响见[版本说明](CHANGELOG.md)。
 
 ## 它解决什么问题
 
@@ -90,15 +90,15 @@ Agent 从当前任务及相关资料开始，不需要每次重新阅读全部�
 
 **需要恢复与交接的工程工作。** 保留准确项目状态和必要备份，说明发生了什么、当前有哪些不确定项、下一个执行者可以继续哪些工作。
 
-## 四端共享正式安装
+## 五端共享正式安装
 
-Codex、Claude Code、OpenCode 和 DeepSeek Harness 共用一套 MALTS 正式安装，默认运行根为 `~/.agent-system/lifecycle`。四端使用同一版本和准确内容身份，由一个安装计划统一更新、诊断和恢复。
+Codex、Claude Code、OpenCode、DeepSeek Harness 和 Antigravity 共用一套 MALTS 正式安装，默认运行根为 `~/.agent-system/lifecycle`。五端使用同一版本和准确内容身份，由一个安装计划统一更新、诊断和恢复。
 
-各宿主仍保留自己的工具配置根：`~/.codex`、`~/.claude`、`~/.config/opencode` 和 `~/.dsh`。账号、模型设置、会话与原生工具由各宿主管理；共享安装不合并这些资料，也不自动改变项目状态。`AllIncluded` 选择四端，工具根另有位置时提供其实际路径。
+各宿主仍保留自己的工具配置根：`~/.codex`、`~/.claude`、`~/.config/opencode`、`~/.dsh` 和 `~/.gemini/config`。账号、模型设置、会话与原生工具由各宿主管理；共享安装不合并这些资料，也不自动改变项目状态。`AllIncluded` 选择五端，工具根另有位置时提供其实际路径。
 
 ## 开始使用
 
-MALTS 的已验证安装路径为 Windows，要求 Python 3.11 或更高版本；推荐 PowerShell 7。支持的 Agent 工具包括 Codex、Claude Code、OpenCode 和 DeepSeek Harness，工具自身应已安装并能够正常使用。
+MALTS 的已验证安装路径为 Windows，要求 Python 3.11 或更高版本；推荐 PowerShell 7。支持的 Agent 工具包括 Codex、Claude Code、OpenCode、DeepSeek Harness 和 Antigravity，工具自身应已安装并能够正常使用。
 
 从[公开仓库](https://github.com/SssoGin/MALTS)取得准备使用的版本，在仓库根目录先生成安装计划：
 
@@ -106,7 +106,7 @@ MALTS 的已验证安装路径为 Windows，要求 Python 3.11 或更高版本�
 .\scripts\Install-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool AllIncluded
 ```
 
-安装计划会说明来源、写入位置、已有内容处理及恢复方式。审阅后，按[安装说明](docs/zh-CN/INSTALL.md)使用输出的准确计划哈希执行；四端使用同一安装入口，`AllIncluded` 选择全部四端。更新已有共享安装见[升级指南](docs/zh-CN/UPDATE.md)。
+安装计划会说明来源、写入位置、已有内容处理及恢复方式。审阅后，按[安装说明](docs/zh-CN/INSTALL.md)使用输出的准确计划哈希执行；五端使用同一安装入口，`AllIncluded` 选择全部五端。更新已有共享安装见[升级指南](docs/zh-CN/UPDATE.md)。
 
 安装并确认工具已加载 MALTS 后，可以用自然语言开始：
 
@@ -190,11 +190,11 @@ scripts/      安装、升级与安装生命周期入口
 docs/         系统说明、使用指南、设计与技术参考
 ```
 
-MALTS 提供经审阅的旧工作区采用和长项目就绪查询。普通新工作区默认在项目内保存管理数据，已有外置库可经审阅流程重定位；四端沿用同一套核心和任务状态。参见[工作区管理与迁移](docs/zh-CN/MANAGEMENT_AND_RELOCATION.md)。
+MALTS 提供经审阅的旧工作区采用和长项目就绪查询。普通新工作区默认在项目内保存管理数据，已有外置库可经审阅流程重定位；五端沿用同一套核心和任务状态。参见[工作区管理与迁移](docs/zh-CN/MANAGEMENT_AND_RELOCATION.md)。
 
 ## 版本
 
-当前发布版本：**2.1.5**。版本说明与可选离线包见[MALTS 2.1.5 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.1.5)，历史变化见[CHANGELOG](CHANGELOG.md)。
+当前发布版本：**2.1.6**。版本说明与可选离线包见[MALTS 2.1.6 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.1.6)，历史变化见[CHANGELOG](CHANGELOG.md)。
 
 ## 文档语言
 
@@ -212,6 +212,6 @@ MALTS 采用 [MIT License](LICENSE)。
 
 安装和更新默认配置每个所选宿主的 `malts` MCP 入口。安装器建立独立依赖环境，保留其他设置，并检查实际 stdio 连接。MCP 可查询安装版本、读取工作流说明、核查工作区就绪状态、读取任务上下文及复核当前验收证据。项目查询使用当前已启用工作区；安装不会创建全局项目，也不授予执行权限。宿主尚未重新加载配置时，需要重连或重启。详见 [MCP 配置说明](docs/zh-CN/MCP_CONFIGURATION.md)。
 
-普通只读项目默认继承全局 MCP；专用项目可使用保留绑定和权限的稳定入口。MALTS 将所选配置编辑和原操作恢复补齐到四端，并提供加密计划及原生配置层解析；所选引用检查保护更新和安装代际退役。范围与示例见 [MCP 配置](docs/zh-CN/MCP_CONFIGURATION.md#所选项目的配置)。
+普通只读项目默认继承全局 MCP；专用项目可使用保留绑定和权限的稳定入口。MALTS 将所选配置编辑和原操作恢复补齐到五端，并提供加密计划及原生配置层解析；所选引用检查保护更新和安装代际退役。范围与示例见 [MCP 配置](docs/zh-CN/MCP_CONFIGURATION.md#所选项目的配置)。
 
 MALTS 区分 MCP 原生作用域与安装器受管条目，核对真实同名遮蔽，并仅在只读预览适用时给出继承建议。详见 [MCP 配置](docs/zh-CN/MCP_CONFIGURATION.md)。

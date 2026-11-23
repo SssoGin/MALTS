@@ -159,7 +159,7 @@ Claude 的禁用与审批设置参与检查，但不授予信任或自动批准�
 
 ## 审阅项目配置变更与恢复
 
-四端共用计划、执行和原操作恢复命令。`--host` 选择 `codex`、`claude-code`、`opencode` 或 `deepseek-harness`，缺省为 Codex。Claude 的 `--config-path` 选择 `.mcp.json` 或用户文件中的准确本地项目段；Harness 以 `--profile` 选择 Profile，显式工作区补丁还须同时传入 `--overlay`，与宿主实际 `--patch` 列表对应。只支持已经存在的所选文件，不初始化配置或业务项目。
+五端共用计划、执行和原操作恢复命令。`--host` 选择 `codex`、`claude-code`、`opencode` 或 `deepseek-harness`，缺省为 Codex。Claude 的 `--config-path` 选择 `.mcp.json` 或用户文件中的准确本地项目段；Harness 以 `--profile` 选择 Profile，显式工作区补丁还须同时传入 `--overlay`，与宿主实际 `--patch` 列表对应。只支持已经存在的所选文件，不初始化配置或业务项目。
 
 ```powershell
 python -B "$runtime/tools/malts_lifecycle.py" mcp-project-plan `
@@ -209,3 +209,7 @@ Harness 的 `inherit-global` 保留已核实的 Profile 标准条目，只移除
 通过 MCP 写入前，先看所选任务上下文中的 `project_access`。通用端点返回 `READ_ONLY` 和 `write_endpoint_connection=NOT_OBSERVED`：查到任务不表示另一个项目专用写入端点已经加载。Agent 确知聊天工作目录时可提供 `session_workspace`；MALTS 将该自报路径与所选项目比较，不把它当作宿主验证过的事实。目录不同时，提示从目标项目打开聊天并核实实际写入端点，或由已有授权的控制端处理。已连接的写入端点返回 `THIS_ENDPOINT` 及自身任务绑定；执行仍受授权和效果检查约束。
 
 任务中断后，`recovery_guidance` 在普通操作历史分页之外单独列出有界的未结清操作，包括原操作 ID、登记主体、租约状态与期限、最后登记的事件、结果记录和验证证据数量。这些是已存储的事实，不是对文件或当前进程的现场检查。租约到期时记录仍可能为 `HELD`；缺少回执或 Run 也不能证明没有发生效果或写入者已经停止。应核实原写入者及实际结果，包括清理的恢复记录，再由有授权的控制端沿原操作核对和登记。效果不明时保留未解决状态，不换 ID 重做。
+
+### Antigravity
+
+Antigravity 可以与 Codex、Claude Code、OpenCode 和 DeepSeek Harness 共用 MALTS。首次安装时用 `-Tool Antigravity` 选择该宿主，或用 `AllIncluded` 选择全部五端。已有四端共享安装的用户可从 2.1.6 运行更新，选中原四端和 Antigravity，在同一事务中完成升级和登记。安装器在 `~/.gemini/config` 下部署全局指令和技能，并维护 `mcp_config.json` 中的 `malts` 条目。在 Antigravity 中刷新 MCP 服务后，调用 `malts_installation` 可查看实际加载的版本。此适配提供标准只读 MCP 和任务工作流。受管 Agent 调度仍按各宿主已有的验证范围使用。

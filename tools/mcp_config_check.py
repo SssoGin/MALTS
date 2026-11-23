@@ -14,7 +14,7 @@ from pathlib import Path
 from contextlib import closing
 from v2_evidence import _regular_path
 
-HOSTS={'codex':'codex','claude':'claude','claude-code':'claude','opencode':'opencode','deepseek-harness':'deepseek-harness'}
+HOSTS={'codex':'codex','claude':'claude','claude-code':'claude','opencode':'opencode','deepseek-harness':'deepseek-harness','antigravity':'antigravity'}
 MAX_BYTES=1048576
 MAX_FILES=64
 
@@ -111,7 +111,7 @@ def _entries(host,data):
                     yield config.get('serverName',row.get('id','')),config
     else:
         if not isinstance(data,dict):raise ConfigError('UNSUPPORTED_CONFIGURATION_FORMAT')
-        key={'codex':'mcp_servers','claude':'mcpServers','opencode':'mcp'}[host]
+        key={'codex':'mcp_servers','claude':'mcpServers','antigravity':'mcpServers','opencode':'mcp'}[host]
         surfaces=[data]
         # Embedded Claude local entries require a selected workspace and native
         # precedence. They are resolved by mcp_layers, never flattened across
@@ -308,6 +308,7 @@ def configuration_locations(tool_roots):
         if host is None:continue
         root=_path(value)
         if host=='codex':paths=[root/'config.toml']
+        elif host=='antigravity':paths=[root/'mcp_config.json']
         elif host=='claude':paths=[root.parent/'.claude.json',root/'mcp.json']
         elif host=='opencode':paths=[root/'opencode.json',root/'opencode.jsonc']
         else:
@@ -458,7 +459,7 @@ def relocation_reprojection(result,plan,tool_root,config_files=None):
         discovery=resolve_discovery(tool_root)
         text=_read(Path(tool_root)/'MALTS_BOOT.md').decode('utf-8-sig')
         labels=re.findall(r'(?m)^Tool:\s*(.*?)\s*$',text)
-        tool={'Codex':'codex','Claude Code':'claude-code','OpenCode':'opencode','DeepSeek Harness':'deepseek-harness'}.get(labels[0]) if len(labels)==1 else None
+        tool={'Codex':'codex','Claude Code':'claude-code','OpenCode':'opencode','DeepSeek Harness':'deepseek-harness','Antigravity':'antigravity'}.get(labels[0]) if len(labels)==1 else None
         roots={tool:str(tool_root)} if tool is not None else {}
         output['external_configuration']=scan_configurations(roots,lifecycle_root=discovery['lifecycle_root'],config_files=config_files,replacements={plan['old_state_dir']:plan['state_dir']})
     except Exception:

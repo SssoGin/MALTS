@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.1.6 — 2026-11-23
+
+### English
+
+Antigravity can share the MALTS installation with Codex, Claude Code, OpenCode and DeepSeek Harness. Select `-Tool Antigravity` for a new installation or `AllIncluded` for all five Hosts. On an existing four-Host installation, run the 2.1.6 update with all five roots to register Antigravity in the same transaction. The installer places the global instruction and skills under `~/.gemini/config` and manages the `malts` entry in `mcp_config.json`. Refresh MCP servers in Antigravity and call `malts_installation` to check the loaded version. Global integration provides the standard read-only MCP and task workflows. Managed Agent dispatch retains its existing Host qualifications.
+
+### 简体中文
+
+Antigravity 可以与 Codex、Claude Code、OpenCode 和 DeepSeek Harness 共用 MALTS。首次安装时用 `-Tool Antigravity` 选择该宿主，或用 `AllIncluded` 选择全部五端。已有四端共享安装的用户可从 2.1.6 运行更新，选中原四端和 Antigravity，在同一事务中完成升级和登记。安装器在 `~/.gemini/config` 下部署全局指令和技能，并维护 `mcp_config.json` 中的 `malts` 条目。在 Antigravity 中刷新 MCP 服务后，调用 `malts_installation` 可查看实际加载的版本。此适配提供标准只读 MCP 和任务工作流。受管 Agent 调度仍按各宿主已有的验证范围使用。
+
 ## v2.1.5 — 2026-11-04
 
 ### English

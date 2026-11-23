@@ -1,6 +1,6 @@
 # MALTS System Overview
 
-MALTS preserves project goals, current progress, observed results and recovery information across AI-agent execution rounds. It combines delivery, optional collaboration and evidence-based experience use through shared project/task contracts. Current version: **2.1.5**.
+MALTS preserves project goals, current progress, observed results and recovery information across AI-agent execution rounds. It combines delivery, optional collaboration and evidence-based experience use through shared project/task contracts. Current version: **2.1.6**.
 
 ## 1. System Purpose
 
@@ -90,10 +90,11 @@ Git, external memory, translated reports and unattended execution are selected b
 | Claude Code | Skills/configuration and shared workflows | Fixed-profile task/independent cold successor at 2.1.207 |
 | OpenCode | Skills/configuration and shared workflows | Representative task/cold recovery at 1.17.18 |
 | DeepSeek Harness | Discovery, configuration, projections and Desktop adapter | Windows0.2.0-rc.2 task/reopen/terminal/associated backend |
+| Antigravity | Global rules, skills and MCP | Shared runtime and workspace-scoped task reads |
 
 Evidence covers observed conditions, not arbitrary models/tools. Requested model names and authenticated effective identity remain distinct. English/Chinese guides describe one system; preserve authored project content without duplicating state.
 
-Choose any of the four installation entries in [Install](INSTALL.md). AllIncluded selects all four Hosts in one shared installation. Each Host retains its own native configuration.
+Choose any of the five installation entries in [Install](INSTALL.md). AllIncluded selects all five Hosts in one shared installation. Each Host retains its own native configuration.
 
 ## 7. Typical Use Cases
 

@@ -33,6 +33,9 @@ def locations(host, tool_root, workspace, *, profile='desktop', overlays=None):
     if host == 'codex':
         add(tool/'config.toml','USER',('mcp_servers',))
         for directory in reversed(directories): add(directory/'.codex/config.toml','PROJECT',('mcp_servers',))
+    elif host == 'antigravity':
+        add(tool/'mcp_config.json','USER',('mcpServers',))
+        add(workspace/'.agents/mcp_config.json','PROJECT',('mcpServers',))
     elif host == 'claude':
         add(tool.parent/'.claude.json','USER',('mcpServers',))
         add(workspace/'.mcp.json','PROJECT',('mcpServers',))
@@ -136,7 +139,7 @@ def resolve_layers(host, tool_root, workspace, *, profile='desktop', overlays=No
                 if not (_malts(name,entry) or name in entries): continue
                 if not isinstance(entry,dict): raise ConfigError('INVALID_MCP_ENTRY')
                 previous=entries.get(name,{}).get('entry',{})
-                entries[name]={**layer,'pointer':[*layer['pointer'],name],'entry':copy.deepcopy(entry) if host=='claude' else merge(previous,entry)}
+                entries[name]={**layer,'pointer':[*layer['pointer'],name],'entry':copy.deepcopy(entry) if host in ('claude','antigravity') else merge(previous,entry)}
         if layer['scope'] in ('USER','PROFILE'):
             baselines={name:copy.deepcopy(row) for name,row in entries.items() if row['scope'] in ('USER','PROFILE')}
     for name,row in entries.items():

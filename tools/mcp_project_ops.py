@@ -60,7 +60,7 @@ def _standard(resolved,root,document_overrides=None):
             value=subtree(data,layer['pointer']).get('malts')
             if value is not None:
                 from mcp_layers import merge
-                entry=copy.deepcopy(value) if resolved['host']=='claude' else merge(entry or {},value)
+                entry=copy.deepcopy(value) if resolved['host'] in ('claude','antigravity') else merge(entry or {},value)
     if entry is None:raise ConfigError('GLOBAL_STANDARD_ENTRY_REQUIRED')
     if entry.get('enabled',entry.get('disabled') is not True) is not True:raise ConfigError('GLOBAL_STANDARD_ENTRY_UNVERIFIED')
     values=_launch(resolved['host'],entry)
@@ -99,7 +99,7 @@ def materials(plan,*,document_overrides=None):
         if name!='malts':raise ConfigError('PROJECT_SPECIAL_POLICY_REQUIRES_RETENTION')
         if selected.get('disabled') or selected['entry'].get('enabled',True) is not True:raise ConfigError('PROJECT_SPECIAL_POLICY_REQUIRES_RETENTION')
         for _,_,_,entry,disabled in targets:
-            allowed_keys={'command','args','startup_timeout_sec','tool_timeout_sec'} if host=='codex' else {'command','args','type','timeout','enabled'} if host in ('claude','opencode') else {'serverName','command','args'}
+            allowed_keys={'command','args','startup_timeout_sec','tool_timeout_sec'} if host=='codex' else {'command','args','type','timeout','enabled'} if host in ('claude','opencode','antigravity') else {'serverName','command','args'}
             if set(entry)-allowed_keys or entry.get('enabled',True) is not True or disabled not in (None,False):raise ConfigError('PROJECT_SPECIAL_POLICY_REQUIRES_RETENTION')
         if any(values.get(k) for k in ('enable-write','allow-protected-input-capture','actor','authority-ref','task-id','task-revision','dispatch-id','workflow-topic')):raise ConfigError('PROJECT_SPECIAL_POLICY_REQUIRES_RETENTION')
         if not _same(values['command'],standard_values['command']):raise ConfigError('PROJECT_INTERPRETER_DIFF_REQUIRES_RETENTION')

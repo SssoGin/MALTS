@@ -47,13 +47,14 @@
     "selected_tools": {
       "type": "array",
       "minItems": 1,
-      "maxItems": 4,
+      "maxItems": 5,
       "uniqueItems": true,
       "items": {
         "enum": [
           "codex",
           "claude-code",
           "opencode",
+          "antigravity",
           "deepseek-harness",
           "deepseek-desktop"
         ]
@@ -167,7 +168,7 @@
         "projection_manifests": {
           "type": "array",
           "minItems": 1,
-          "maxItems": 4,
+          "maxItems": 5,
           "uniqueItems": true,
           "items": {
             "type": "string",

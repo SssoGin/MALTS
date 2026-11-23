@@ -37,7 +37,7 @@ def configuration_fragment(*,host,state_dir,resource_root,project_id,server_name
                            actor=None,authority_ref=None,enable_write=False,allow_protected_input_capture=False,
                            task_id=None,task_revision=None,dispatch_id=None,tool_root=None,workflow_topic=None):
     """Generate a validated fragment only; registration and permission are separate."""
-    if host not in {'codex','claude','opencode','deepseek-harness'}: raise ValueError('Unsupported configuration host')
+    if host not in {'codex','claude','opencode','deepseek-harness','antigravity'}: raise ValueError('Unsupported configuration host')
     if not isinstance(server_name,str) or re.fullmatch('[A-Za-z][A-Za-z0-9_-]{0,63}',server_name) is None:
         raise ValueError('Use an unambiguous server name')
     if host=='deepseek-harness' and len(server_name)>32:
@@ -68,7 +68,7 @@ def configuration_fragment(*,host,state_dir,resource_root,project_id,server_name
                       'failOnStartupError':True,'reconnect':{'enabled':False}}}]}]
         encoding='CORDIS_PATCH_JSON'
     else:
-        fragment=({'mcpServers':{server_name:{'command':executable,'args':arguments}}} if host=='claude'
+        fragment=({'mcpServers':{server_name:{'command':executable,'args':arguments}}} if host in ('claude','antigravity')
                   else {'mcp':{server_name:{'type':'local','command':[executable,*arguments],'enabled':True}}})
         encoding='JSON'
     return {'host':host,'format':encoding,'fragment':fragment,'server_name':server_name,

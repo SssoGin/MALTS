@@ -1,6 +1,6 @@
 # Agent-Assisted Installation
 
-An Agent can inspect and execute the user’s approved MALTS installation/update. Current version is **2.1.5**; inspection does not expand the authorization.
+An Agent can inspect and execute the user’s approved MALTS installation/update. Current version is **2.1.6**; inspection does not expand the authorization.
 
 ## Source Selection
 
@@ -22,7 +22,7 @@ Reuse the approved same-scope batch without repeated confirmation. Installation 
 
 ## Capability Projection Verification
 
-MALTS native bridges and marked instructions resolve the shared implementation. Check actual Skills/MCP after reload, not just configuration/file presence. AllIncluded selects all four; Harness uses ToolRootDeepSeekHarness and the default shared lifecycle. Native behavior proof remains separate.
+MALTS native bridges and marked instructions resolve the shared implementation. Check actual Skills/MCP after reload, not just configuration/file presence. AllIncluded selects all five; Harness uses ToolRootDeepSeekHarness and the default shared lifecycle. Native behavior proof remains separate.
 
 ## Privacy and Purity
 

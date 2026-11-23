@@ -1,10 +1,10 @@
 # Update MALTS
 
-An update selects verified source content and changes the chosen installation through a reviewed transaction. The updater preserves project work and user-owned configuration according to its plan; it does not select a new goal or migrate projects automatically. Current version: **2.1.5**.
+An update selects verified source content and changes the chosen installation through a reviewed transaction. The updater preserves project work and user-owned configuration according to its plan; it does not select a new goal or migrate projects automatically. Current version: **2.1.6**.
 
 ## Before Updating
 
-Inspect the installed identity, intended source, workspace binding, user edits, relevant writers and pending effects. Preserve recovery materials. The updater does not pull Git and performs no automatic repository selection, automatic ZIP download, provider call or implicit project migration. Current version remains **2.1.5**.
+Inspect the installed identity, intended source, workspace binding, user edits, relevant writers and pending effects. Preserve recovery materials. The updater does not pull Git and performs no automatic repository selection, automatic ZIP download, provider call or implicit project migration. Current version remains **2.1.6**.
 
 Compare the active source kind/hash, intended repository/package identity and actual selected tool roots. Identify whether a normal version update or same-version content consolidation is needed. Preserve required transaction snapshots and project backups for their different recovery purposes.
 
@@ -18,7 +18,7 @@ Choose the reviewed repository revision, then create a plan:
 .\scripts\Update-MALTS.ps1 -RepositoryRoot (Get-Location).Path -UseDefaultRoots -Tool AllIncluded
 ```
 
-The example updates the shared formal installation registered to all four Hosts. Review source, destinations, ownership, merges, snapshots and postchecks, then execute actual output values:
+The example updates the shared formal installation registered to all five Hosts. Review source, destinations, ownership, merges, snapshots and postchecks, then execute actual output values:
 
 ```powershell
 .\scripts\Update-MALTS.ps1 -Apply -PlanPath '<reviewed-plan-path>' -ExpectedPlanHash '<reviewed-plan-sha256>'
@@ -26,9 +26,9 @@ The example updates the shared formal installation registered to all four Hosts.
 
 ### DeepSeek Harness Update
 
-Harness updates the same formal installation together with the other three Hosts. Use the `AllIncluded` plan above with all four actual configuration roots; supply `-ToolRootDeepSeekHarness` for a custom Harness path. Before planning, resolve each exact Boot and verify the common runtime/content identity.
+Harness updates the same formal installation together with the other five Hosts. Use the `AllIncluded` plan above with all five actual configuration roots; supply `-ToolRootDeepSeekHarness` for a custom Harness path. Before planning, resolve each exact Boot and verify the common runtime/content identity.
 
-Saving and activation remain separate. Review the source, four-Host mappings, personal-content merges and recovery preimages, then execute the actual path/hash. For changed bytes under the same version, use the reviewed `finalize` transaction described below; do not edit the active generation or change the version to bypass verification. Installation updates do not change project state, accounts, model configuration or sessions.
+Saving and activation remain separate. Review the source, five-Host mappings, personal-content merges and recovery preimages, then execute the actual path/hash. For changed bytes under the same version, use the reviewed `finalize` transaction described below; do not edit the active generation or change the version to bypass verification. Installation updates do not change project state, accounts, model configuration or sessions.
 
 ## Version Migration And Collision Handling
 
@@ -58,7 +58,7 @@ Retained generations, snapshots and evidence can remain after update because the
 
 ## Diagnose Before Repair
 
-Use read-only Doctor with all four Host roots registered to the shared lifecycle. Inspect core trust before choosing a repair source. DoctorRepairPlan prepares a review; Execute uses the reviewed hash. Do not edit journals/locks or change permissions to bypass a failed precondition.
+Use read-only Doctor with all five Host roots registered to the shared lifecycle. Inspect core trust before choosing a repair source. DoctorRepairPlan prepares a review; Execute uses the reviewed hash. Do not edit journals/locks or change permissions to bypass a failed precondition.
 
 If a Host has reformatted its registered MCP entry without changing any values, use the explicitly reviewed [formatting repair](MCP_CONFIGURATION.md#repair-formatting-or-management-markers). A normal update does not silently accept that drift. Repair against the exact installed release first, then prepare the new update plan.
 
@@ -110,7 +110,7 @@ Older manually configured project endpoints remain separate and retain their own
 
 ### Project MCP Entries And Upgrade Checks
 
-Ordinary read-only projects inherit the global standard entry. Dedicated bindings, interpreters, environments or permissions can retain a project endpoint. Select `--workspace` / `--host-config` for update, Doctor and retirement checks; configuration precedence and actual Host loading are verified separately. `mcp-config --stable` follows the active generation while retaining fixed state and policy. MALTS provides four-Host reviewed entry changes, layer fingerprints, protected preimages and original-operation recovery without recreating project state; native scope and actual Host loading remain separate. See [MCP configuration](MCP_CONFIGURATION.md#selected-project-configuration) for commands and limits.
+Ordinary read-only projects inherit the global standard entry. Dedicated bindings, interpreters, environments or permissions can retain a project endpoint. Select `--workspace` / `--host-config` for update, Doctor and retirement checks; configuration precedence and actual Host loading are verified separately. `mcp-config --stable` follows the active generation while retaining fixed state and policy. MALTS provides five-Host reviewed entry changes, layer fingerprints, protected preimages and original-operation recovery without recreating project state; native scope and actual Host loading remain separate. See [MCP configuration](MCP_CONFIGURATION.md#selected-project-configuration) for commands and limits.
 
 ### Real Agent route evidence after update
 
@@ -118,4 +118,8 @@ After updating the controller or Host, inspect the selected execution route and 
 
 The installer also distinguishes an unowned MCP entry, a modified managed entry and formatting-only drift. Formatting reconciliation remains an explicit plan against the exact installed source; semantic user changes are still protected.
 
-The offline bootstrap verifier now checks v2.1.5 archives with matching internal version and tag. The release lint validates both values to catch future drift.
+The offline bootstrap verifier now checks v2.1.6 archives with matching internal version and tag. The release lint validates both values to catch future drift.
+
+### Antigravity
+
+Antigravity can share the MALTS installation with Codex, Claude Code, OpenCode and DeepSeek Harness. Select `-Tool Antigravity` for a new installation or `AllIncluded` for all five Hosts. On an existing four-Host installation, run the 2.1.6 update with all five roots to register Antigravity in the same transaction. The installer places the global instruction and skills under `~/.gemini/config` and manages the `malts` entry in `mcp_config.json`. Refresh MCP servers in Antigravity and call `malts_installation` to check the loaded version. Global integration provides the standard read-only MCP and task workflows. Managed Agent dispatch retains its existing Host qualifications.

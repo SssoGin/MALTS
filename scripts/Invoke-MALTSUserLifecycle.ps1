@@ -8,12 +8,13 @@ param(
     [string] $RepositoryRoot,
     [string] $LifecycleRoot,
 
-    [ValidateSet('Codex', 'ClaudeCode', 'OpenCode', 'DeepSeekHarness', 'AllIncluded')]
+    [ValidateSet('Codex', 'ClaudeCode', 'OpenCode', 'DeepSeekHarness', 'Antigravity', 'AllIncluded')]
     [string[]] $Tool = @(),
 
     [string] $ToolRootCodex,
     [string] $ToolRootClaudeCode,
     [string] $ToolRootOpenCode,
+    [string] $ToolRootAntigravity,
     [Alias('ToolRootDeepSeekDesktop')]
     [string] $ToolRootDeepSeekHarness,
     [string[]] $LegacyRoot = @(),
@@ -69,6 +70,7 @@ function Get-DefaultToolRoot {
         'Codex' { return (Join-Path $env:USERPROFILE '.codex') }
         'ClaudeCode' { return (Join-Path $env:USERPROFILE '.claude') }
         'OpenCode' { return (Join-Path $env:USERPROFILE '.config\opencode') }
+        'Antigravity' { return (Join-Path $env:USERPROFILE '.gemini/config') }
         'DeepSeekHarness' { return (Join-Path $env:USERPROFILE '.dsh') }
     }
 }
@@ -133,7 +135,7 @@ if ([string]::IsNullOrWhiteSpace($LifecycleRoot)) {
 $selected = [System.Collections.Generic.List[string]]::new()
 foreach ($name in $Tool) {
     if ($name -eq 'AllIncluded') {
-        foreach ($included in @('Codex', 'ClaudeCode', 'OpenCode', 'DeepSeekHarness')) {
+        foreach ($included in @('Codex', 'ClaudeCode', 'OpenCode', 'DeepSeekHarness', 'Antigravity')) {
             Add-SelectedTool -Items $selected -Name $included
         }
     } else {
@@ -144,19 +146,20 @@ if (-not [string]::IsNullOrWhiteSpace($ToolRootCodex)) { Add-SelectedTool -Items
 if (-not [string]::IsNullOrWhiteSpace($ToolRootClaudeCode)) { Add-SelectedTool -Items $selected -Name 'ClaudeCode' }
 if (-not [string]::IsNullOrWhiteSpace($ToolRootOpenCode)) { Add-SelectedTool -Items $selected -Name 'OpenCode' }
 if (-not [string]::IsNullOrWhiteSpace($ToolRootDeepSeekHarness)) { Add-SelectedTool -Items $selected -Name 'DeepSeekHarness' }
+if (-not [string]::IsNullOrWhiteSpace($ToolRootAntigravity)) { Add-SelectedTool -Items $selected -Name 'Antigravity' }
 
 if ($selected.Count -eq 0 -and $Interactive) {
-    $selection = Read-Host 'Select tools: Codex, ClaudeCode, OpenCode, DeepSeekHarness, or AllIncluded'
+    $selection = Read-Host 'Select tools: Codex, ClaudeCode, OpenCode, DeepSeekHarness, Antigravity, or AllIncluded'
     if ([string]::IsNullOrWhiteSpace($selection)) {
         throw 'At least one tool must be selected.'
     }
     foreach ($name in $selection.Split(',')) {
         $trimmed = $name.Trim()
         if ($trimmed -eq 'AllIncluded') {
-            foreach ($included in @('Codex', 'ClaudeCode', 'OpenCode', 'DeepSeekHarness')) {
+            foreach ($included in @('Codex', 'ClaudeCode', 'OpenCode', 'DeepSeekHarness', 'Antigravity')) {
                 Add-SelectedTool -Items $selected -Name $included
             }
-        } elseif ($trimmed -in @('Codex', 'ClaudeCode', 'OpenCode', 'DeepSeekHarness')) {
+        } elseif ($trimmed -in @('Codex', 'ClaudeCode', 'OpenCode', 'DeepSeekHarness', 'Antigravity')) {
             Add-SelectedTool -Items $selected -Name $trimmed
         } else {
             throw "Unsupported tool selection: $trimmed"
@@ -172,6 +175,7 @@ $toolRoots = @{
     ClaudeCode = $ToolRootClaudeCode
     OpenCode = $ToolRootOpenCode
     DeepSeekHarness = $ToolRootDeepSeekHarness
+    Antigravity = $ToolRootAntigravity
 }
 foreach ($name in $selected) {
     if ([string]::IsNullOrWhiteSpace($toolRoots[$name])) {
@@ -211,6 +215,7 @@ if ($selected.Contains('Codex')) { $planParameters.ToolRootCodex = $toolRoots.Co
 if ($selected.Contains('ClaudeCode')) { $planParameters.ToolRootClaudeCode = $toolRoots.ClaudeCode }
 if ($selected.Contains('OpenCode')) { $planParameters.ToolRootOpenCode = $toolRoots.OpenCode }
 if ($selected.Contains('DeepSeekHarness')) { $planParameters.ToolRootDeepSeekHarness = $toolRoots.DeepSeekHarness }
+if ($selected.Contains('Antigravity')) { $planParameters.ToolRootAntigravity = $toolRoots.Antigravity }
 
 $planOutput = @(& $lifecycleScript @planParameters)
 if ($LASTEXITCODE -ne 0) {

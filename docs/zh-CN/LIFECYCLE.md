@@ -1,6 +1,6 @@
 # MALTS 生命周期
 
-安装生命周期核来源、准备代际、保存前像、激活所选原生适配并检查绑定。项目生命周期独立维护目标、任务、证据与恢复。当前版本：**2.1.5**。
+安装生命周期核来源、准备代际、保存前像、激活所选原生适配并检查绑定。项目生命周期独立维护目标、任务、证据与恢复。当前版本：**2.1.6**。
 
 ## 核心不变量
 
@@ -13,7 +13,7 @@
 - 活动代际是运行输入，不是编辑工作区。
 - 快照与未结事务保留恢复用途。
 
-当前版本 **2.1.5**；同版本文档修订仍有独立内容身份。
+当前版本 **2.1.6**；同版本文档修订仍有独立内容身份。
 
 Registry 身份只有与 active pointer、generation manifest/载荷和所选工具 Boot 一致才有意义。安装前核完整来源，后置验证核实际目标，不能从退出消息推断成功。
 
@@ -32,7 +32,7 @@ ZIP 是第二种来源的交付形式，不自动下载，也不免除核验。�
 
 仓库验证检查声明用户路径及仓库专用 identity/Git/CI 文件，拒绝缺失、变化或意外公开内容。安装只提取用户载荷路径，不将仓库元数据安装进代际。
 
-固定归档另有外层闭合清单和内层生命周期载荷。校验器在最终解压前核名称、越界/碰撞和哈希。GitHub 自动源码归档是 Git ref 快照，不能假定布局等同 MALTS-2.1.5.zip。
+固定归档另有外层闭合清单和内层生命周期载荷。校验器在最终解压前核名称、越界/碰撞和哈希。GitHub 自动源码归档是 Git ref 快照，不能假定布局等同 MALTS-2.1.6.zip。
 
 计划前选定来源，并保持到执行。计划后拉取新提交、编辑指南或添加缓存都可能使来源身份变化；应生成新的审阅计划，不能修改旧哈希或降低核验。
 
@@ -65,7 +65,7 @@ ZIP 是第二种来源的交付形式，不自动下载，也不免除核验。�
 
 普通更新保留旧代际。有明确清理授权、且旧代际没有当前入口或必要恢复依赖时，可通过 Python 生命周期 CLI 清理指定的 `retiring` 代际。必须提供该生命周期根注册的全部工具；活动代际、未注册对象、重复选择、内容变化和当前入口仍引用的对象会被拒绝。规划前安装应处于健康状态。
 
-以下示例用于四端共享正式根，提供全部四端实际工具位置，按发现结果填写。
+以下示例用于五端共享正式根，提供全部五端实际工具位置，按发现结果填写。
 
 ```powershell
 python .\tools\malts_lifecycle.py retire-plan `
@@ -74,6 +74,7 @@ python .\tools\malts_lifecycle.py retire-plan `
   --tool-root 'claude-code=<Claude Code 配置根>' `
   --tool-root 'opencode=<OpenCode 配置根>' `
   --tool-root 'deepseek-harness=<Harness 配置根>' `
+  --tool-root 'antigravity=<Antigravity 配置根>' `
   --generation-id '<不再使用的 retiring 代际 ID>' `
   --out .\retirement.json --apply
 ```
@@ -102,7 +103,7 @@ Install/Update 在激活前保存计划，说明来源、所选根、代际、�
 
 通用入口 `Plan -Apply` 仅保存计划，`Execute -Apply` 执行审阅事务；PreviewPlan 同样区分计划与执行。保留事务 journal，删锁或改计划不是恢复。
 
-四端流程见[安装](INSTALL.md)和[更新](UPDATE.md)。AllIncluded 选择四端，默认共享一个生命周期；Harness 工具根使用 `ToolRootDeepSeekHarness`，
+五端流程见[安装](INSTALL.md)和[更新](UPDATE.md)。AllIncluded 选择五端，默认共享一个生命周期；Harness 工具根使用 `ToolRootDeepSeekHarness`，
 
 事务依次经历发现/加锁、来源准备、快照、预验证、激活、后置验证及审计/提交。Journal 标识实际到达步骤，因此可以沿原操作检查故障，不能凭目录是否存在猜完成程度。
 
@@ -149,7 +150,7 @@ DoctorRepairPlan 是独立审阅准备；建议不是可执行权限。Repair �
   -LifecycleRoot '<existing-lifecycle-root>' -ToolRootCodex '<codex-config-root>'
 ```
 
-提供共享该生命周期的全部实际根。四端共享安装包含 Harness 的实际 `-ToolRootDeepSeekHarness`，见[安装](INSTALL.md)。
+提供共享该生命周期的全部实际根。五端共享安装包含 Harness 的实际 `-ToolRootDeepSeekHarness`，见[安装](INSTALL.md)。
 
 核心仍可信时，桥或 Boot 缺失可能属于派生投影故障；代际字节、manifest、registry 或 pointer 改变会削弱此基础，修复须使用准确独立核验来源。不能让同一份被改文件自证正确。
 
@@ -222,13 +223,13 @@ python -B "$runtime/tools/malts_lifecycle.py" discover --tool-root '<selected-to
 
 核 registry、active pointer、generation identity 和 VERSION 一致。Discovery 只读，不使用机器级 GLOBAL_BOOT.md。随后核所选工作区绑定和任务上下文。见[快速开始](GETTING_STARTED.md)。
 
-## 四端共享安装
+## 五端共享安装
 
 正式安装由一个生命周期根、一份活动代际和注册表管理，Codex、Claude Code、OpenCode、DeepSeek Harness 的 Boot 指向同一核验运行根。各宿主配置根分别保留，项目状态由已绑定的任务服务维护；共享安装不合并账号、会话、模型设置或项目状态库。
 
-`Install-MALTS.ps1` 与 `Update-MALTS.ps1` 的 `AllIncluded` 对应全部四端。安装、更新和 Doctor 使用实际注册工具集合；同版本内容修正通过保留前像的 `finalize` 事务。活动代际不手工编辑，失败时依据原事务和恢复记录处理。
+`Install-MALTS.ps1` 与 `Update-MALTS.ps1` 的 `AllIncluded` 对应全部五端。安装、更新和 Doctor 使用实际注册工具集合；同版本内容修正通过保留前像的 `finalize` 事务。活动代际不手工编辑，失败时依据原事务和恢复记录处理。
 
-Windows 下的安装事务使用运行互斥和持久记录。互斥约束合作式生命周期操作，不是任意外部写者或跨机器的安全边界。完成检查应核四端发现、所选宿主实际服务加载、安装信任及工作区绑定；模型业务效果与安装核验分别报告。
+Windows 下的安装事务使用运行互斥和持久记录。互斥约束合作式生命周期操作，不是任意外部写者或跨机器的安全边界。完成检查应核五端发现、所选宿主实际服务加载、安装信任及工作区绑定；模型业务效果与安装核验分别报告。
 
 ## 工作区管理数据与迁移
 
@@ -246,4 +247,4 @@ MALTS 的 `doctor` 同时检查已知宿主配置位置，以及可选的 `--hos
 
 ### 项目 MCP 入口与升级检查
 
-普通只读项目继承全局标准入口；需要固定绑定、解释器、环境或权限的项目保留专用入口。使用 `--workspace`／`--host-config` 将所选项目纳入更新、Doctor 和退役检查，配置覆盖与当前聊天加载分别验证。专用入口可通过 `mcp-config --stable` 跟随活动代际，固定状态和权限仍受原合同约束。MALTS 的四端配置整理提供预览、层指纹、加密前像与原操作恢复，不重建项目状态；按各宿主原生作用域处理，实际加载另行核实。具体命令、策略差异及边界见 [MCP 配置说明](MCP_CONFIGURATION.md#所选项目的配置)。
+普通只读项目继承全局标准入口；需要固定绑定、解释器、环境或权限的项目保留专用入口。使用 `--workspace`／`--host-config` 将所选项目纳入更新、Doctor 和退役检查，配置覆盖与当前聊天加载分别验证。专用入口可通过 `mcp-config --stable` 跟随活动代际，固定状态和权限仍受原合同约束。MALTS 的五端配置整理提供预览、层指纹、加密前像与原操作恢复，不重建项目状态；按各宿主原生作用域处理，实际加载另行核实。具体命令、策略差异及边界见 [MCP 配置说明](MCP_CONFIGURATION.md#所选项目的配置)。
