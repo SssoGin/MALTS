@@ -6,9 +6,13 @@
 
 From Antigravity Desktop, MALTS can delegate a read-only review to the signed-in `agy` CLI and bring the result back to the chat. Dispatch is tied to the selected Task, reviewed profile, route qualification and project budget. A CLI failure before conversation creation is reported separately from a failed turn. The controller can inspect the original dispatch after an interruption. This route is for reviewing supplied material and returning text. File edits require a separately qualified Worker route.
 
+On Windows, the local Antigravity profile can use the current manual system proxy for CLI dispatch. Explicit proxy environment variables remain available.
+
 ### 简体中文
 
 现在可以在 Antigravity 桌面聊天中通过 MALTS 向已登录的 `agy` CLI 派发只读审查任务，并在同一聊天收回结果。派发绑定所选任务、已审阅配置、路线资格及项目预算。CLI 在创建会话前失败时，诊断会区分启动失败和会话中的执行失败。中断后可按原派发 ID 查询。本路线适用于审阅已提供的材料并返回文本。文件编辑仍需要具有对应资格的 Worker 路线。
+
+Windows 上可在本机 Antigravity 配置中选用当前手动系统代理，供 CLI 派发使用。也可为控制端显式设置代理环境变量。
 
 ## v2.1.6 — 2026-11-23
 

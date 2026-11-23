@@ -141,6 +141,8 @@ class SupervisedProcessHost:
             value=spec['environment']
             allowed={'ELECTRON_RUN_AS_NODE','OPENCODE_CONFIG_CONTENT','OPENCODE_CONFIG','OPENCODE_DISABLE_AUTOUPDATE',
                 'DSH_TOOLS_MODE','DSH_HOME','DSH_TELEMETRY_DISABLED','PYTHONDONTWRITEBYTECODE','PYTHONUTF8','TEMP','TMP'}
+            if spec.get('event_protocol') == 'antigravity-jsonl-v1':
+                allowed.update(('HTTP_PROXY','HTTPS_PROXY'))
             if not isinstance(value,dict) or not set(value)<=allowed or any(not isinstance(v,str) or '\0' in v or len(v)>131072 for v in value.values()):
                 raise ValueError('Unsupported private process-local environment override')
         if set(spec)&(optional-{'runtime_tool_root'}):

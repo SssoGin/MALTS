@@ -25,6 +25,8 @@ Antigravity 需要已登录的独立 CLI。使用 `host=antigravity`、`mode=rev
 
 在桌面聊天中明确请求使用 MALTS 委派审查，提供材料和需要返回的内容。如果桌面控制端需要读文件，应按所选任务的读权限读取，再将必要片段传给 CLI。首次设置时，用下文的 `host-init` 和预算入口登记受管宿主与预算，核验同一配置的 `antigravity-cli-review` 资格，之后可复用。CLI 使用自身登录会话。相同的配置值不代表桌面与 CLI 一定使用同一模型。 `result --apply` 返回原会话 ID、候选答复与终态诊断。 `ANTIGRAVITY_SESSION_START_FAILED` 表示 CLI 未创建可用会话。若派发仍未结算，先查原 ID。
 
+CLI 继承控制端的代理环境，包括 `HTTP_PROXY`、`HTTPS_PROXY` 和 `NO_PROXY`。Windows 上可将本机 Antigravity 配置文件 `~/.gemini/config/malts-agy.json` 设为 `{"proxy":"windows-system"}`。MALTS 启动 `agy` 时会从已启用的 Windows 手动代理读取值，补充尚未设置的 HTTP 和 HTTPS 代理变量。文件仅保存选择。使用自动代理脚本或自定义绕过规则时，请在控制端提供对应的环境变量。
+
 ## 2. 选择既有工作区与已审阅配置
 
 先从所选宿主的 Boot 和生命周期 discovery 核实安装，再使用 `malts_v2.py workspace --workspace <工作区>` 解析既有工作区，以返回的状态目录和 Project 身份为准。不能通过重复初始化或采用获得委派权限。当前 Phase、Task 修订及依赖须允许执行。审查与 Worker 配置都必须使用所选工作区核实的状态目录和 Project；后续操作须匹配原派发的 Task 及修订，不能通过更换配置文件重新指向其他任务。

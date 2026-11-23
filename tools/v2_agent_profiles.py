@@ -4,7 +4,7 @@ All model prompts use stdin. Work is mediated by one Task/dispatch-bound MCP;
 native shells and other MCP entries are disabled for this invocation only.
 The inherited credential providers are never copied into profile documents.
 """
-import hashlib,json,re,tomllib
+import hashlib,json,os,re,sys,tomllib
 from pathlib import Path
 from contextlib import closing
 from v2_codex_profile import CodexReadOnlyProfile,CodexWorkerProfile,file_digest
@@ -14,6 +14,44 @@ from v2_evidence import _regular_path
 HOSTS=('codex','claude-code','opencode','deepseek-harness','antigravity')
 PROTOCOLS=dict(zip(HOSTS,('codex-jsonl-v1','claude-jsonl-v1','opencode-jsonl-v1','harness-jsonl-v1','antigravity-jsonl-v1')))
 WORKER_TOOLS=('malts_installation','malts_entry_status','malts_actions','malts_context','malts_workflow','malts_request')
+
+def antigravity_proxy_environment(policy_path):
+    """Read the opted-in manual Windows proxy for this CLI process only."""
+    if policy_path is None or not policy_path.exists():
+        return {}
+    _regular_path(policy_path)
+    if policy_path.stat().st_size > 256:
+        raise ValueError('Invalid local Antigravity proxy policy')
+    try:
+        policy = json.loads(policy_path.read_text('utf-8-sig'))
+    except (ValueError, UnicodeError):
+        raise ValueError('Invalid local Antigravity proxy policy') from None
+    if policy == {'proxy': 'inherit'}:
+        return {}
+    if policy != {'proxy': 'windows-system'} or sys.platform != 'win32':
+        raise ValueError('Unsupported local Antigravity proxy policy')
+    from urllib.parse import urlsplit
+    from urllib.request import getproxies_registry
+
+    inherited = getproxies_registry()
+    environment = {}
+    for scheme in ('http', 'https'):
+        variable = scheme.upper() + '_PROXY'
+        if variable in os.environ or scheme not in inherited:
+            continue
+        url = inherited[scheme]
+        try:
+            parsed = urlsplit(url)
+            valid = (parsed.scheme in {'http', 'https'} and parsed.hostname and parsed.port
+                     and parsed.username is None and parsed.password is None
+                     and parsed.path in {'', '/'} and not parsed.query and not parsed.fragment
+                     and not any(c.isspace() for c in url))
+        except ValueError:
+            valid = False
+        if not valid:
+            raise ValueError('Unsupported Windows proxy endpoint for Antigravity CLI')
+        environment[variable] = url
+    return environment
 
 def _write_once(path,body):
     path=Path(path);_regular_path(path);data=(json.dumps(body,ensure_ascii=False,sort_keys=True)+'\n').encode('utf-8')
@@ -92,6 +130,10 @@ class AgentProfile:
         self.project_id,self.task_id,self.task_revision=project_id,task_id,task_revision
         self.authority_ref=authority_ref
         self.tool_root=Path(tool_root).absolute() if tool_root is not None else None
+        self.antigravity_policy = None
+        if host == 'antigravity' and self.tool_root is not None:
+            self.antigravity_policy = self.tool_root / 'malts-agy.json'
+            config_files = [*config_files, self.antigravity_policy]
         self.python=Path(python_executable).absolute() if python_executable is not None else None
         if mode=='worker':
             from v2_mcp import BoundProject
@@ -179,6 +221,7 @@ class AgentProfile:
             return spec
         argv=[str(self.executable),*self.launcher_args];environment={};guards=list(self.guards)
         if self.host == 'antigravity':
+            environment.update(antigravity_proxy_environment(self.antigravity_policy))
             deny = [action + '(*)' for action in ('command', 'read_file', 'write_file', 'read_url', 'mcp')]
             argv += ['--input-format', 'stream-json', '--output-format', 'stream-json',
                      '--settings', json.dumps({'permissions': {'deny': deny}}),
