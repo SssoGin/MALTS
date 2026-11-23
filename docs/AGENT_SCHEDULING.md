@@ -74,7 +74,7 @@ An explicitly authorized, bounded qualification run can use `--qualification-run
 
 ## 4. Prepare, launch and observe the original dispatch
 
-Immediately before exposing the first native spawn, MALTS compares the queued profile binding and rechecks the captured input files. All four CLI profiles carry the selected installation binding into the process supervisor, which checks lifecycle admission at actual process launch. Configuration drift blocks new execution while original-dispatch queries, cancellation and already admitted receipt capture remain available for reconciliation.
+Immediately before exposing the first native spawn, MALTS compares the queued profile binding and rechecks the captured input files. All five CLI profiles carry the selected installation binding into the process supervisor, which checks lifecycle admission at actual process launch. Configuration drift blocks new execution while original-dispatch queries, cancellation and already admitted receipt capture remain available for reconciliation.
 
 Use one request file containing `prompt` and finite `wall_seconds`. Prompts enter the process through stdin. The controller previews `prepare` with the profile, Host journal, exact Task/attempt/dispatch identities, strategy and authority. Apply the exact reviewed profile and request hashes. It then records Grants for the returned Worker actor through the existing authorized controller service.
 

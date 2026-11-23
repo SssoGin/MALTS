@@ -39,7 +39,7 @@ Agent 从当前任务及相关资料开始，不需要每次重新阅读全部�
 
 ### 4. 按需要使用多个 Agent
 
-[真实 Agent 控制端](docs/zh-CN/AGENT_SCHEDULING.md)将四端 CLI 与独立的 Codex 原生子 Agent 路线连接到同一套 Task 和预算服务。普通委派要求所选路线、模式及已审阅输入具有匹配的资格证据。安装本身不派出 Agent，也不认证执行路线。Codex 原生职责包括 Planner（规划）、Explorer（探索）、Memory Curator（经验整理）、Verifier（验证）和 Worker（执行），各自保留绑定输入的资格。原生 Worker 返回文件变更提案，由控制端审阅后，按已有 Task 和授权执行允许的创建或保留前像的更新。
+[真实 Agent 控制端](docs/zh-CN/AGENT_SCHEDULING.md)将五端 CLI 与独立的 Codex 原生子 Agent 路线连接到同一套 Task 和预算服务。普通委派要求所选路线、模式及已审阅输入具有匹配的资格证据。安装本身不派出 Agent，也不认证执行路线。Codex 原生职责包括 Planner（规划）、Explorer（探索）、Memory Curator（经验整理）、Verifier（验证）和 Worker（执行），各自保留绑定输入的资格。原生 Worker 返回文件变更提案，由控制端审阅后，按已有 Task 和授权执行允许的创建或保留前像的更新。
 
 主 Agent 可以将可分离的调查、实施或验证工作交给其他 Agent。分工应说明每位执行者的目标、输入、修改范围、返回结果和验证责任，并考虑调用预算、共享资源与整合成本。没有合适分工时，继续单 Agent 工作。
 

@@ -39,7 +39,7 @@ Start from the current task and relevant inputs instead of rereading history. Pr
 
 ### 4. Use multiple Agents when appropriate
 
-The [real-Agent controller](docs/AGENT_SCHEDULING.md) connects four CLI Hosts and a separate Codex native relay to the same Task and budget services. Ordinary delegation requires matching evidence for the selected route, mode and reviewed inputs. Installation does not launch an Agent or certify a route. Codex native responsibilities include Planner, Explorer, Memory Curator, Verifier and Worker, each with its own input-bound qualification. A native Worker returns a file-change proposal for controller review; the controller applies permitted creation or protected updates using the existing Task and Grant.
+The [real-Agent controller](docs/AGENT_SCHEDULING.md) connects five CLI Hosts and a separate Codex native relay to the same Task and budget services. Ordinary delegation requires matching evidence for the selected route, mode and reviewed inputs. Installation does not launch an Agent or certify a route. Codex native responsibilities include Planner, Explorer, Memory Curator, Verifier and Worker, each with its own input-bound qualification. A native Worker returns a file-change proposal for controller review; the controller applies permitted creation or protected updates using the existing Task and Grant.
 
 Delegate separable investigation, implementation or verification with explicit goals, inputs, edit scope, outputs and verification responsibilities. Consider invocation budgets, shared resources and integration costs. Continue with one Agent when there is no useful separation.
 
