@@ -158,7 +158,18 @@ def execute(args):
             receipt,_=_load(args.receipt_file)
             return service.observe_native_receipt(dispatch_id=args.dispatch_id,**receipt)
         if args.command=='result':
-            return {'decision':'UNREVIEWED_PRIVATE_RESULT','result':host.private_result(backend_key=key,purpose='verification'),'task_accepted':False}
+            result=host.private_result(backend_key=key,purpose='verification')
+            response={'decision':'UNREVIEWED_PRIVATE_RESULT','result':result,'task_accepted':False}
+            if profile.host=='antigravity':
+                observation=host.query(backend_key=key)
+                summary=host.stream_summary(backend_key=key) or {}
+                response['diagnostics']={
+                    'state':observation['state'],
+                    'return_status':observation['return_status'],
+                    'quiesced':observation['quiesced'],
+                    'stream_error':summary.get('error_code'),
+                }
+            return response
         if args.command=='launch':return service.launch(dispatch_id=args.dispatch_id,invocation_id=args.invocation_id)
         if args.command=='poll':return service.poll(dispatch_id=args.dispatch_id,invocation_id=args.invocation_id)
         if args.command=='cancel':

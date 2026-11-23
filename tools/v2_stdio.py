@@ -16,11 +16,11 @@ class StdioPump:
         for value,maximum in ((max_output_bytes,16777216),(max_line_bytes,MAX_JSONL_LINE_BYTES),(max_events,1000)):
             if type(value) is not int or not 1<=value<=maximum:raise ValueError('Invalid stream budget')
         self.job=job;self.max_output=max_output_bytes;self.max_line=max_line_bytes;self.max_events=max_events
-        if protocol not in {'bounded-jsonl-v1','codex-jsonl-v1','claude-jsonl-v1','opencode-jsonl-v1','harness-jsonl-v1'}:raise ValueError('Unsupported event protocol')
+        if protocol not in {'bounded-jsonl-v1','codex-jsonl-v1','claude-jsonl-v1','opencode-jsonl-v1','harness-jsonl-v1','antigravity-jsonl-v1'}:raise ValueError('Unsupported event protocol')
         from v2_codex_events import CodexEvents
         self.codex=CodexEvents(capture_candidate_message=capture_candidate_message) if protocol=='codex-jsonl-v1' else None
         from v2_agent_events import HostEvents
-        hosts={'claude-jsonl-v1':'claude-code','opencode-jsonl-v1':'opencode','harness-jsonl-v1':'deepseek-harness'}
+        hosts={'claude-jsonl-v1':'claude-code','opencode-jsonl-v1':'opencode','harness-jsonl-v1':'deepseek-harness','antigravity-jsonl-v1':'antigravity'}
         self.agent=self.codex if protocol not in hosts else HostEvents(hosts[protocol],capture_candidate_message=capture_candidate_message)
         self.lock=threading.Lock();self.stop=threading.Event();self.error=None
         self.counts={'stdout_bytes':0,'stderr_bytes':0,'stdin_written_bytes':0,'discarded_lines':0,'accepted_events':0,

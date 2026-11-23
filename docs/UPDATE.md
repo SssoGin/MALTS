@@ -1,10 +1,10 @@
 # Update MALTS
 
-An update selects verified source content and changes the chosen installation through a reviewed transaction. The updater preserves project work and user-owned configuration according to its plan; it does not select a new goal or migrate projects automatically. Current version: **2.1.6**.
+An update selects verified source content and changes the chosen installation through a reviewed transaction. The updater preserves project work and user-owned configuration according to its plan; it does not select a new goal or migrate projects automatically. Current version: **2.1.7**.
 
 ## Before Updating
 
-Inspect the installed identity, intended source, workspace binding, user edits, relevant writers and pending effects. Preserve recovery materials. The updater does not pull Git and performs no automatic repository selection, automatic ZIP download, provider call or implicit project migration. Current version remains **2.1.6**.
+Inspect the installed identity, intended source, workspace binding, user edits, relevant writers and pending effects. Preserve recovery materials. The updater does not pull Git and performs no automatic repository selection, automatic ZIP download, provider call or implicit project migration. Current version remains **2.1.7**.
 
 Compare the active source kind/hash, intended repository/package identity and actual selected tool roots. Identify whether a normal version update or same-version content consolidation is needed. Preserve required transaction snapshots and project backups for their different recovery purposes.
 
@@ -118,8 +118,8 @@ After updating the controller or Host, inspect the selected execution route and 
 
 The installer also distinguishes an unowned MCP entry, a modified managed entry and formatting-only drift. Formatting reconciliation remains an explicit plan against the exact installed source; semantic user changes are still protected.
 
-The offline bootstrap verifier now checks v2.1.6 archives with matching internal version and tag. The release lint validates both values to catch future drift.
+The offline bootstrap verifier now checks v2.1.7 archives with matching internal version and tag. The release lint validates both values to catch future drift.
 
 ### Antigravity
 
-Antigravity can share the MALTS installation with Codex, Claude Code, OpenCode and DeepSeek Harness. Select `-Tool Antigravity` for a new installation or `AllIncluded` for all five Hosts. On an existing four-Host installation, run the 2.1.6 update with all five roots to register Antigravity in the same transaction. The installer places the global instruction and skills under `~/.gemini/config` and manages the `malts` entry in `mcp_config.json`. Refresh MCP servers in Antigravity and call `malts_installation` to check the loaded version. Global integration provides the standard read-only MCP and task workflows. Managed Agent dispatch retains its existing Host qualifications.
+Antigravity can share the MALTS installation with Codex, Claude Code, OpenCode and DeepSeek Harness. Select `-Tool Antigravity` for a new installation or `AllIncluded` for all five Hosts. On an existing four-Host installation, use the update command introduced in 2.1.6 with all five roots to register Antigravity in the same transaction. The installer places the global instruction and skills under `~/.gemini/config` and manages the `malts` entry in `mcp_config.json`. Refresh MCP servers in Antigravity and call `malts_installation` to check the loaded version. Global integration provides the standard read-only MCP and task workflows. Managed Agent dispatch retains its existing Host qualifications.

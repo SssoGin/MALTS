@@ -8,7 +8,7 @@ MALTS is an operating framework for AI Agent project work. It connects goal clar
 
 One Agent is the default executor. When independent investigation, implementation or verification helps, explicitly authorized Agents can share the work. The main Agent remains responsible for integration, acceptance and delivery. The same goals, stages, verification and recovery methods apply to both modes.
 
-The current version is **2.1.6**. This page describes MALTS as a complete system; version-specific changes and upgrade implications are in the [Changelog](CHANGELOG.md).
+The current version is **2.1.7**. This page describes MALTS as a complete system; version-specific changes and upgrade implications are in the [Changelog](CHANGELOG.md).
 
 ## Problems it addresses
 
@@ -95,6 +95,8 @@ Workflows are delivered as Skills: method packages an Agent can discover and use
 Codex, Claude Code, OpenCode, DeepSeek Harness and Antigravity share one formal MALTS installation under `~/.agent-system/lifecycle` by default. They use one version and exact content identity, with one plan for installation updates, diagnosis and recovery.
 
 Host configuration roots remain `~/.codex`, `~/.claude`, `~/.config/opencode`, `~/.dsh` and `~/.gemini/config`. Accounts, model settings, sessions and native tools remain owned by each Host; sharing MALTS does not merge them or automatically change project state. `AllIncluded` selects all five; provide actual paths when Host roots differ from the defaults.
+
+Antigravity Desktop can delegate a read-only review through the separate `agy` CLI and collect its result in chat. The CLI requires sign-in and a matching route qualification. [Dispatch and configuration](docs/AGENT_SCHEDULING.md#antigravity-cli)
 
 ## Start using MALTS
 
@@ -194,7 +196,7 @@ MALTS provides reviewed legacy-workspace adoption and long-project readiness que
 
 ## Version
 
-Current release: **2.1.6**. See the [MALTS 2.1.6 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.1.6) for notes/optional offline ZIP and [Changelog](CHANGELOG.md) for history.
+Current release: **2.1.7**. See the [MALTS 2.1.7 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.1.7) for notes/optional offline ZIP and [Changelog](CHANGELOG.md) for history.
 
 ## Documentation languages
 

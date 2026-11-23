@@ -14,9 +14,16 @@ MALTS 保存用户目标、Task 修订、依赖、权限、累计派发预算和
 | Claude Code CLI | `claude --print --output-format stream-json` | 所属 Windows Job 进程树 |
 | OpenCode CLI | `opencode run --format json` | 所属 Windows Job 进程树 |
 | DeepSeek Harness CLI | `dsh --profile headless --json` | 所属 Windows Job 进程树 |
+| Antigravity CLI | 桌面聊天通过 MALTS 控制端启动 `agy`，通过标准输入派发只读任务并接收最终答复 | 所属 Windows Job 进程树 |
 | Codex 原生子 Agent | 控制端转接真实创建、等待及关闭工具 | 关闭后观察到会话停止或不存在 |
 
 CLI 的证据不能认证原生路线。原生会话关闭也不证明任意 Editor、shell 或远端服务工作已经停止。这些执行配置不覆盖嵌套委派、整机排他或跨机器执行。
+
+### Antigravity CLI
+
+Antigravity 需要已登录的独立 CLI。使用 `host=antigravity`、`mode=review`，把 `execution_root` 设为业务工作区以外的独立目录，将包内 `adapters/antigravity/malts-cli-reviewer.md` 原样放在该目录的 `.agents/agents/` 下。由桌面聊天调用本节的控制端，按后文的 CLI 流程准备、启动、查询派发并读取结果。任务材料随提示传入，子进程禁用文件读写、命令和 MCP 操作。首次使用应核对该配置对应的派发、只读和结果资格。
+
+在桌面聊天中明确请求使用 MALTS 委派审查，提供材料和需要返回的内容。如果桌面控制端需要读文件，应按所选任务的读权限读取，再将必要片段传给 CLI。首次设置时，用下文的 `host-init` 和预算入口登记受管宿主与预算，核验同一配置的 `antigravity-cli-review` 资格，之后可复用。CLI 使用自身登录会话。相同的配置值不代表桌面与 CLI 一定使用同一模型。 `result --apply` 返回原会话 ID、候选答复与终态诊断。 `ANTIGRAVITY_SESSION_START_FAILED` 表示 CLI 未创建可用会话。若派发仍未结算，先查原 ID。
 
 ## 2. 选择既有工作区与已审阅配置
 

@@ -14,9 +14,16 @@ MALTS retains the user's goal, Task revision, dependencies, permissions, cumulat
 | Claude Code CLI | `claude --print --output-format stream-json` | Owned Windows Job process tree |
 | OpenCode CLI | `opencode run --format json` | Owned Windows Job process tree |
 | DeepSeek Harness CLI | `dsh --profile headless --json` | Owned Windows Job process tree |
+| Antigravity CLI | Desktop chat invokes the MALTS controller, which sends a review task to `agy` on stdin and collects its final response | Owned Windows Job process tree |
 | Codex native | Controller relays actual spawn/wait/close tools | Post-close native session shutdown or not-found |
 
 CLI evidence does not certify the native route. A native session closure does not prove that arbitrary Editor, shell or remote provider work has stopped. Nested delegation, machine-wide exclusion and cross-machine execution are outside these profiles.
+
+### Antigravity CLI
+
+Antigravity requires the separately authenticated CLI. Set `host=antigravity` and `mode=review`. Select a separate `execution_root` outside the project and copy the packaged `adapters/antigravity/malts-cli-reviewer.md` into its `.agents/agents/` directory. From desktop chat, use the controller and the CLI sequence below to prepare, launch, poll and retrieve a result. Pass review material in the prompt. The child session denies file access, commands and MCP operations. Check qualification for dispatch, read-only execution and result collection for the selected profile.
+
+Ask the Desktop chat to delegate a MALTS review and specify the material and expected answer. If the controller needs to read files, use the Task’s existing read authorization and send only the necessary excerpts. For first use, initialize the managed host and review its budget using the commands below, then verify the `antigravity-cli-review` qualification for that profile. Reuse these inputs for subsequent tasks. The CLI has its own sign-in and model settings. `result --apply` returns the original conversation ID, candidate response and terminal diagnostics. `ANTIGRAVITY_SESSION_START_FAILED` means the CLI failed before it created a usable conversation. Query the original dispatch ID when its state is unresolved.
 
 ## 2. Select an existing workspace and reviewed profile
 

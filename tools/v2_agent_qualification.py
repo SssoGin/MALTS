@@ -152,7 +152,7 @@ class QualificationStore:
 def capabilities():
     from v2_native_agent_host import ROLES
     return {'controller_cli':'tools/malts_agents.py','qualification_scope':'PER_HOST_ROUTE_PROFILE',
-        'cli_hosts':['codex','claude-code','opencode','deepseek-harness'],'native_routes':['codex-native'],
+        'cli_hosts':['codex','claude-code','opencode','deepseek-harness','antigravity'],'native_routes':['codex-native'],
         'native_roles':sorted(ROLES),'native_worker_effects':'CONTROLLER_REVIEWED_PROPOSAL_APPLY',
         'evidence_required':True,'qualification_implied_by_installation':False,'whole_host_isolation':False,
         'default_delegation':False,'worker_can_launch_successors':False,

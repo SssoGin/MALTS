@@ -212,4 +212,4 @@ Harness 的 `inherit-global` 保留已核实的 Profile 标准条目，只移除
 
 ### Antigravity
 
-Antigravity 可以与 Codex、Claude Code、OpenCode 和 DeepSeek Harness 共用 MALTS。首次安装时用 `-Tool Antigravity` 选择该宿主，或用 `AllIncluded` 选择全部五端。已有四端共享安装的用户可从 2.1.6 运行更新，选中原四端和 Antigravity，在同一事务中完成升级和登记。安装器在 `~/.gemini/config` 下部署全局指令和技能，并维护 `mcp_config.json` 中的 `malts` 条目。在 Antigravity 中刷新 MCP 服务后，调用 `malts_installation` 可查看实际加载的版本。此适配提供标准只读 MCP 和任务工作流。受管 Agent 调度仍按各宿主已有的验证范围使用。
+Antigravity 可以与 Codex、Claude Code、OpenCode 和 DeepSeek Harness 共用 MALTS。首次安装时用 `-Tool Antigravity` 选择该宿主，或用 `AllIncluded` 选择全部五端。已有四端共享安装的用户可使用 2.1.6 引入的更新流程，选中原四端和 Antigravity，在同一事务中完成升级和登记。安装器在 `~/.gemini/config` 下部署全局指令和技能，并维护 `mcp_config.json` 中的 `malts` 条目。在 Antigravity 中刷新 MCP 服务后，调用 `malts_installation` 可查看实际加载的版本。此适配提供标准只读 MCP 和任务工作流。受管 Agent 调度仍按各宿主已有的验证范围使用。

@@ -8,7 +8,7 @@ MALTS 是一套用于 AI Agent 项目工作的运行框架，将目标澄清、�
 
 MALTS 默认由一个 Agent 完成工作。需要独立调查、验证或分开实施时，可以在明确分工和授权后使用多个 Agent；负责项目的主 Agent 仍承担整合、验收和最终交付责任。无论使用一个还是多个 Agent，都沿用同一套目标、阶段、验证和恢复方法。
 
-当前版本为 **2.1.6**。本页介绍完整的 MALTS 系统；本版本的新增、改进和升级影响见[版本说明](CHANGELOG.md)。
+当前版本为 **2.1.7**。本页介绍完整的 MALTS 系统；本版本的新增、改进和升级影响见[版本说明](CHANGELOG.md)。
 
 ## 它解决什么问题
 
@@ -95,6 +95,8 @@ Agent 从当前任务及相关资料开始，不需要每次重新阅读全部�
 Codex、Claude Code、OpenCode、DeepSeek Harness 和 Antigravity 共用一套 MALTS 正式安装，默认运行根为 `~/.agent-system/lifecycle`。五端使用同一版本和准确内容身份，由一个安装计划统一更新、诊断和恢复。
 
 各宿主仍保留自己的工具配置根：`~/.codex`、`~/.claude`、`~/.config/opencode`、`~/.dsh` 和 `~/.gemini/config`。账号、模型设置、会话与原生工具由各宿主管理；共享安装不合并这些资料，也不自动改变项目状态。`AllIncluded` 选择五端，工具根另有位置时提供其实际路径。
+
+在 Antigravity 桌面聊天中，也可让 MALTS 通过独立的 `agy` CLI 派发只读审查并收回结果。需要登录 CLI 并使用与当前配置匹配的资格。[调度与配置](docs/zh-CN/AGENT_SCHEDULING.md#antigravity-cli)
 
 ## 开始使用
 
@@ -194,7 +196,7 @@ MALTS 提供经审阅的旧工作区采用和长项目就绪查询。普通新�
 
 ## 版本
 
-当前发布版本：**2.1.6**。版本说明与可选离线包见[MALTS 2.1.6 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.1.6)，历史变化见[CHANGELOG](CHANGELOG.md)。
+当前发布版本：**2.1.7**。版本说明与可选离线包见[MALTS 2.1.7 Release](https://github.com/SssoGin/MALTS/releases/tag/v2.1.7)，历史变化见[CHANGELOG](CHANGELOG.md)。
 
 ## 文档语言
 

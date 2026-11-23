@@ -11,8 +11,8 @@ from v2_codex_profile import CodexReadOnlyProfile,CodexWorkerProfile,file_digest
 from v2_agent_qualification import file_inputs
 from v2_evidence import _regular_path
 
-HOSTS=('codex','claude-code','opencode','deepseek-harness')
-PROTOCOLS=dict(zip(HOSTS,('codex-jsonl-v1','claude-jsonl-v1','opencode-jsonl-v1','harness-jsonl-v1')))
+HOSTS=('codex','claude-code','opencode','deepseek-harness','antigravity')
+PROTOCOLS=dict(zip(HOSTS,('codex-jsonl-v1','claude-jsonl-v1','opencode-jsonl-v1','harness-jsonl-v1','antigravity-jsonl-v1')))
 WORKER_TOOLS=('malts_installation','malts_entry_status','malts_actions','malts_context','malts_workflow','malts_request')
 
 def _write_once(path,body):
@@ -37,13 +37,24 @@ class AgentProfile:
             raise ValueError('Reviewed executable or working root changed')
         _regular_path(self.execution_root)
         if not self.execution_root.is_dir():raise ValueError('Reviewed native execution directory must already exist')
+        if not isinstance(config_files,list):raise ValueError('Explicit configuration inventory required')
+        if host == 'antigravity':
+            if mode != 'review':
+                raise ValueError('Antigravity CLI supports delegated review and result collection')
+            if self.execution_root.resolve().is_relative_to(self.root.resolve()) or self.root.resolve().is_relative_to(self.execution_root.resolve()):
+                raise ValueError('Antigravity review requires a separate execution directory')
+            role = self.execution_root / '.agents/agents/malts-cli-reviewer.md'
+            template = Path(__file__).resolve().parent.parent / 'adapters/antigravity/malts-cli-reviewer.md'
+            _regular_path(role)
+            if role.read_bytes() != template.read_bytes():
+                raise ValueError('Antigravity review agent differs from its packaged definition')
+            config_files = [*config_files, role, template]
         if host=='codex' and mode=='worker':
             actual=self.root.resolve();execution=self.execution_root.resolve()
             if execution.is_relative_to(actual) or actual.is_relative_to(execution):
                 raise ValueError('Codex Worker native execution must use a separate owned staging root')
             if any((parent/'.git').exists() for parent in [execution,*execution.parents]):
                 raise ValueError('Codex staging must not inherit a Git project writable root')
-        if not isinstance(config_files,list):raise ValueError('Explicit configuration inventory required')
         if host=='deepseek-harness' and model is None:
             from mcp_config_check import _document
             selection={}
@@ -167,7 +178,15 @@ class AgentProfile:
             if self.tool_root is not None:spec['runtime_tool_root']=str(self.tool_root)
             return spec
         argv=[str(self.executable),*self.launcher_args];environment={};guards=list(self.guards)
-        if self.host=='claude-code':
+        if self.host == 'antigravity':
+            deny = [action + '(*)' for action in ('command', 'read_file', 'write_file', 'read_url', 'mcp')]
+            argv += ['--input-format', 'stream-json', '--output-format', 'stream-json',
+                     '--settings', json.dumps({'permissions': {'deny': deny}}),
+                     '--agent', 'malts-cli-reviewer', '--disable-slash-commands',
+                     '--print-timeout', str(max(1, int(request['wall_seconds']))) + 's']
+            if self.model is not None: argv += ['--model', self.model]
+            if self.effort is not None: argv += ['--effort', self.effort]
+        elif self.host=='claude-code':
             argv+=['--print','--verbose','--output-format','stream-json','--no-session-persistence','--strict-mcp-config','--tools','',
                 '--settings','{"disableAllHooks":true}']
             config=fragment or {'mcpServers':{}}
@@ -212,7 +231,10 @@ class AgentProfile:
             if self.state_dir is None:raise ValueError('Owned Harness home required')
             argv+=['--json','-'];environment={'ELECTRON_RUN_AS_NODE':'1','DSH_TOOLS_MODE':'native',
                 'DSH_HOME':str(self.state_dir/'agent-home'),'DSH_TELEMETRY_DISABLED':'1'}
-        return {'argv':argv,'cwd':str(self.root),'wall_seconds':request['wall_seconds'],'stdin_text':request['prompt'],
+        stdin_text = request['prompt']
+        if self.host == 'antigravity':
+            stdin_text = json.dumps({'event':'user','message':{'content':stdin_text}}, ensure_ascii=False) + '\n'
+        return {'argv':argv,'cwd':str(self.execution_root if self.host=='antigravity' else self.root),'wall_seconds':request['wall_seconds'],'stdin_text':stdin_text,
             'event_protocol':PROTOCOLS[self.host],'capture_candidate_message':True,'max_output_bytes':16777216,
             'max_line_bytes':262144,'max_events':1000,'file_guards':guards,**({'environment':environment} if environment else {}),
             **({'runtime_tool_root':str(self.tool_root)} if self.tool_root is not None else {})}

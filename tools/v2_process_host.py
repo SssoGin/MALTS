@@ -146,7 +146,7 @@ class SupervisedProcessHost:
         if set(spec)&(optional-{'runtime_tool_root'}):
             spec={**spec,'stdin_text':spec.get('stdin_text',''),'event_protocol':spec.get('event_protocol','bounded-jsonl-v1'),
                   'max_output_bytes':spec.get('max_output_bytes',262144),'max_line_bytes':spec.get('max_line_bytes',16384),'max_events':spec.get('max_events',100)}
-            if spec['event_protocol'] not in {'bounded-jsonl-v1','codex-jsonl-v1','claude-jsonl-v1','opencode-jsonl-v1','harness-jsonl-v1'} or not isinstance(spec['stdin_text'],str) or len(spec['stdin_text'].encode('utf-8'))>1048576:
+            if spec['event_protocol'] not in {'bounded-jsonl-v1','codex-jsonl-v1','claude-jsonl-v1','opencode-jsonl-v1','harness-jsonl-v1','antigravity-jsonl-v1'} or not isinstance(spec['stdin_text'],str) or len(spec['stdin_text'].encode('utf-8'))>1048576:
                 raise ValueError('Unsupported event profile or oversized stdin')
             capture=spec.get('capture_candidate_message',False)
             if type(capture) is not bool or (capture and spec['event_protocol']=='bounded-jsonl-v1'):
@@ -249,7 +249,7 @@ def supervise(root,key):
             if row[2]:
                 c.execute("UPDATE run SET state='EXITED',cancel_acknowledged=1,quiesced=1,return_status='NOT_STARTED',stop_reason='CANCEL_BEFORE_START' WHERE backend_key=?",(key,));return 0
             started=time.monotonic()
-            streams=spec.get('event_protocol') in {'bounded-jsonl-v1','codex-jsonl-v1','claude-jsonl-v1','opencode-jsonl-v1','harness-jsonl-v1'}
+            streams=spec.get('event_protocol') in {'bounded-jsonl-v1','codex-jsonl-v1','claude-jsonl-v1','opencode-jsonl-v1','harness-jsonl-v1','antigravity-jsonl-v1'}
             from contextlib import nullcontext
             from v2_runtime_admission import runtime_admission
             # Release before serving child MCP requests, which acquire this

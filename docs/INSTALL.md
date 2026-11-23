@@ -1,6 +1,6 @@
 # Install MALTS
 
-Install MALTS into the Agent tools you choose. One shared core supplies project work, continuity, verification and experience workflows; each tool receives its own native entry. Current version: **2.1.6**. Installation is review-first and does not call a model, install the Host application or adopt existing projects.
+Install MALTS into the Agent tools you choose. One shared core supplies project work, continuity, verification and experience workflows; each tool receives its own native entry. Current version: **2.1.7**. Installation is review-first and does not call a model, install the Host application or adopt existing projects.
 
 ## Prerequisites
 
@@ -17,7 +17,7 @@ Use short, explicit roots with no ambiguous links/protected overlaps. Lifecycle 
 
 ## Repository Installation (Primary)
 
-Use a reviewed checkout of the [public repository](https://github.com/SssoGin/MALTS). Check the actual remote/ref and confirm `MALTS_RELEASE.json` and `VERSION` both identify 2.1.6. A documentation revision on `main` can retain the same version while having its own exact source-tree identity. The installer checks the actual selected tree; do not add business files or caches inside it.
+Use a reviewed checkout of the [public repository](https://github.com/SssoGin/MALTS). Check the actual remote/ref and confirm `MALTS_RELEASE.json` and `VERSION` both identify 2.1.7. A documentation revision on `main` can retain the same version while having its own exact source-tree identity. The installer checks the actual selected tree; do not add business files or caches inside it.
 
 | Host | Entry | Scope |
 |---|---|---|
@@ -69,11 +69,11 @@ Do not replace a meaningful failure with a manual file copy or a success label. 
 
 ## Optional Offline Archive
 
-The current Release attachment is `MALTS-2.1.6.zip`. A same-version reissue has its own qualified package, source commit and SHA-256 in the Release notes. Verify the exact downloaded revision before offline installation. GitHub-generated source archives follow the current version tag. The current tag, qualified repository and MALTS-uploaded package should identify the same source revision, although archive layouts differ.
+The current Release attachment is `MALTS-2.1.7.zip`. A same-version reissue has its own qualified package, source commit and SHA-256 in the Release notes. Verify the exact downloaded revision before offline installation. GitHub-generated source archives follow the current version tag. The current tag, qualified repository and MALTS-uploaded package should identify the same source revision, although archive layouts differ.
 
 ```powershell
-.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.1.6.zip
-.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.1.6.zip -ExtractOutput '<new-extraction-root>' -Apply
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.1.7.zip
+.\scripts\Verify-MALTSBootstrap.ps1 -ArchivePath .\MALTS-2.1.7.zip -ExtractOutput '<new-extraction-root>' -Apply
 ```
 
 Obtain the verifier from the matching reviewed source. Run the extracted payload's lifecycle entry with `-ReleaseRoot '<extracted-package-root>'`, then the same plan/hash sequence. Harness uses the same lifecycle entry with ReleaseRoot and every Host registered to that installation. Never copy a payload into an active generation. See [Release Archive](RELEASE_ARTIFACT.md).
@@ -142,7 +142,7 @@ The lifecycle-owned environment is under `runtime/mcp/env-<requirements-digest>`
 
 First installation needs access to the pinned Python packages. The MALTS ZIP does not bundle their wheels. An offline installation therefore needs an already verified managed environment; ambient pip configuration is not used as a package source; offline dependency failure leaves installation incomplete. The installer records installed dependency versions. It does not change PATH or install packages into another application’s environment.
 
-Reload the Host if it does not reload configuration automatically, then call `malts_installation`. It should report `MCP_READY` and version `2.1.6`. A cold connection check establishes a newly started server; it cannot switch an already running Host process. For existing project-specific endpoints and detailed diagnostics, see [MCP configuration](MCP_CONFIGURATION.md).
+Reload the Host if it does not reload configuration automatically, then call `malts_installation`. It should report `MCP_READY` and version `2.1.7`. A cold connection check establishes a newly started server; it cannot switch an already running Host process. For existing project-specific endpoints and detailed diagnostics, see [MCP configuration](MCP_CONFIGURATION.md).
 
 ### Project MCP Entries And Upgrade Checks
 
@@ -163,4 +163,4 @@ Internal transaction snapshots, restoration and owned-tree cleanup use extended 
 
 ### Antigravity
 
-Antigravity can share the MALTS installation with Codex, Claude Code, OpenCode and DeepSeek Harness. Select `-Tool Antigravity` for a new installation or `AllIncluded` for all five Hosts. On an existing four-Host installation, run the 2.1.6 update with all five roots to register Antigravity in the same transaction. The installer places the global instruction and skills under `~/.gemini/config` and manages the `malts` entry in `mcp_config.json`. Refresh MCP servers in Antigravity and call `malts_installation` to check the loaded version. Global integration provides the standard read-only MCP and task workflows. Managed Agent dispatch retains its existing Host qualifications.
+Antigravity can share the MALTS installation with Codex, Claude Code, OpenCode and DeepSeek Harness. Select `-Tool Antigravity` for a new installation or `AllIncluded` for all five Hosts. On an existing four-Host installation, use the update command introduced in 2.1.6 with all five roots to register Antigravity in the same transaction. The installer places the global instruction and skills under `~/.gemini/config` and manages the `malts` entry in `mcp_config.json`. Refresh MCP servers in Antigravity and call `malts_installation` to check the loaded version. Global integration provides the standard read-only MCP and task workflows. Managed Agent dispatch retains its existing Host qualifications.

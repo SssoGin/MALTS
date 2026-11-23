@@ -24,7 +24,7 @@ def _usage(value,fields):
 
 class HostEvents:
     def __init__(self,host,*,capture_candidate_message=False):
-        if host not in {'claude-code','opencode','deepseek-harness'}:raise ValueError('Unsupported native event profile')
+        if host not in {'claude-code','opencode','deepseek-harness','antigravity'}:raise ValueError('Unsupported native event profile')
         self.host=host;self.capture=capture_candidate_message;self.native=None;self.candidate=None
         self.completed=False;self.failed=False;self.started=False;self.model=None;self.usage=None
         self.pending=[];self.turn_reason=None;self.tool_observations=[];self.failure_codes=[]
@@ -50,6 +50,8 @@ class HostEvents:
 
     def accept(self,event):
         if not isinstance(event,dict):raise ValueError('Native JSON object required')
+        if self.host == 'antigravity':
+            return self._antigravity(event)
         kind=event.get('type')
         if self.host=='claude-code':
             if kind in {'assistant','user'} and isinstance(event.get('message'),dict):
@@ -115,6 +117,42 @@ class HostEvents:
                 if self.capture and self.completed:self.candidate=event['text']
                 return {'type':'status','state':'completed' if self.completed else 'failed'}
         return None
+
+    def _antigravity(self, event):
+        kind = event.get('event')
+        if self.completed or self.failed:
+            raise ValueError('Unexpected event after Antigravity result')
+        if kind == 'init':
+            if self.started:
+                raise ValueError('Duplicate Antigravity initialization')
+            self._session(event.get('conversation_id'))
+            return {'type':'native_session_observed'}
+        if kind != 'result':
+            return None
+        result = event.get('result')
+        if not isinstance(result, dict):
+            raise ValueError('Malformed Antigravity result')
+        # agy can report a terminal error before it creates a conversation.
+        # Its error text can include local paths or account details.
+        if not self.started:
+            if result.get('status') != 'ERROR' or result.get('conversation_id') not in (None, ''):
+                raise ValueError('Antigravity result without initialization')
+            self.failed = True
+            self.failure_codes.append('ANTIGRAVITY_SESSION_START_FAILED')
+            return {'type':'status','state':'failed'}
+        self._session(result.get('conversation_id'))
+        if result.get('status') != 'SUCCESS':
+            self.failed = True
+            self.failure_codes.append('ANTIGRAVITY_TURN_FAILED')
+            return {'type':'status','state':'failed'}
+        if not isinstance(result.get('response'), str):
+            raise ValueError('Antigravity final response missing')
+        self.usage = _usage(result.get('usage'), {'input_tokens':'input_tokens',
+                           'output_tokens':'output_tokens','cached_input_tokens':'cache_read_tokens'})
+        if self.capture:
+            self.candidate = result['response']
+        self.completed = True
+        return {'type':'status','state':'completed'}
 
     def summary(self):
         return {'native_identity_observed':self.native is not None,'protocol_complete':self.native is not None and self.completed and not self.failed,
