@@ -21,7 +21,7 @@ CLI 的证据不能认证原生路线。原生会话关闭也不证明任意 Edi
 
 ### Antigravity CLI
 
-Antigravity 需要已登录的独立 CLI。使用 `host=antigravity`、`mode=review`，把 `execution_root` 设为业务工作区以外的独立目录，将包内 `adapters/antigravity/malts-cli-reviewer.md` 原样放在该目录的 `.agents/agents/` 下。由桌面聊天调用本节的控制端，按后文的 CLI 流程准备、启动、查询派发并读取结果。任务材料随提示传入，子进程禁用文件读写、命令和 MCP 操作。首次使用应核对该配置对应的派发、只读和结果资格。
+Antigravity 需要已登录的独立 CLI。使用 `host=antigravity`、`mode=review`，把 `execution_root` 设为业务工作区以外的独立目录，将包内 `adapters/antigravity/malts-cli-reviewer.md` 原样放在该目录的 `.agents/agents/` 下。由桌面聊天调用本节的控制端，按后文的 CLI 流程准备派发，用 `launch --wait-seconds` 在同一终端调用中等待结束，再读取结果。为任务期限和终态查询预留时间。任务材料随提示传入，子进程禁用文件读写、命令和 MCP 操作。首次使用应核对该配置对应的派发、只读和结果资格。
 
 在桌面聊天中明确请求使用 MALTS 委派审查，提供材料和需要返回的内容。如果桌面控制端需要读文件，应按所选任务的读权限读取，再将必要片段传给 CLI。首次设置时，用下文的 `host-init` 和预算入口登记受管宿主与预算，核验同一配置的 `antigravity-cli-review` 资格，之后可复用。CLI 使用自身登录会话。相同的配置值不代表桌面与 CLI 一定使用同一模型。 `result --apply` 返回原会话 ID、候选答复与终态诊断。 `ANTIGRAVITY_SESSION_START_FAILED` 表示 CLI 未创建可用会话。若派发仍未结算，先查原 ID。
 

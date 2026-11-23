@@ -191,8 +191,11 @@ Use `TASK_CONTRACT.template.en.md` for dispatch.
 
 For Antigravity Desktop, use the verified installation's `tools/malts_agents.py`
 with a qualified `antigravity-cli-review` profile. Resolve the selected workspace,
-reuse its reviewed profile and budget, then run `prepare`, `launch`, `poll` and
-`result` with one stable dispatch ID. Bring the final candidate back to the same
+reuse its reviewed profile and budget, then run `prepare`,
+`launch --wait-seconds <task deadline plus observation margin>`, and
+`result` with one stable dispatch ID. Keep the terminal call open until the
+launch returns. Use `poll` on the original ID if the state is unresolved.
+Bring the final candidate back to the same
 chat for review. The separate signed-in `agy` CLI performs the review using
 only material passed in the prompt. Report a failed start or pending original
 dispatch by ID so it can be reconciled. See the Antigravity CLI section in

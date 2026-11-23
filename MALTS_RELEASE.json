@@ -3,7 +3,7 @@
   "release_id": "MALTS-2.1.7",
   "version": "2.1.7",
   "release_tag": "v2.1.7",
-  "source_tree_sha256": "495BB84C2A7535A4F595D61BF2BE35A50DB52E4360D9A063C837CCD02915B45C",
+  "source_tree_sha256": "46636AA327455453FA469ACC639BA266672AF6A10D107CCF4F7764EF3024BA4B",
   "user_file_count": 289,
   "repository_only_paths": [
     ".gitattributes",

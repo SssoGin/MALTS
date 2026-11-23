@@ -5,7 +5,9 @@ Use this controller from the verified source/installation, never from a Worker
 endpoint. Existing user authorization, task revision, Grants and dispatch budgets
 remain required. Native relay receipts must come from actual Host tool calls.
 """
-import argparse,hashlib,json,sys
+import argparse,hashlib,json,sys,time
+sys.dont_write_bytecode = True
+
 from contextlib import closing
 from pathlib import Path
 from v2_agent_profiles import AgentProfile,HOSTS
@@ -75,6 +77,8 @@ def parser():
         cmd.add_argument('--expected-profile-sha256');cmd.add_argument('--expected-request-sha256');cmd.add_argument('--apply',action='store_true')
         cmd.add_argument('--qualification-root',type=Path);cmd.add_argument('--require-capability',action='append',default=[])
         cmd.add_argument('--qualification-run',action='store_true',help='Explicit bounded controller qualification, not ordinary qualified execution')
+        if name=='launch':
+            cmd.add_argument('--wait-seconds',type=int,help='Keep the Antigravity terminal call open for an observed exit')
     qual=sub.add_parser('qualification-status');qual.add_argument('--profile-file',type=Path,required=True);qual.add_argument('--receipt-root',type=Path,required=True);qual.add_argument('--route-id',required=True)
     qual.add_argument('--native',action='store_true');qual.add_argument('--role',default='malts_verifier')
     return p
@@ -92,6 +96,9 @@ def execute(args):
         if digest!=args.expected_policy_sha256:raise ValueError('Reviewed budget policy changed')
         with closing(StateStore(Path(entry['state_dir'])/'state.db')) as store:return {'decision':configure_budget(store,**policy)}
     profile,definition,digest=resolve_profile(args.profile_file)
+    wait_seconds=getattr(args,'wait_seconds',None)
+    if wait_seconds is not None and (profile.host!='antigravity' or args.native or not 1<=wait_seconds<=3700):
+        raise ValueError('A bounded launch wait is available for the Antigravity CLI route')
     binding=route_binding(profile,native=args.native,role=args.role)
     selected_route=route_identity(profile,native=args.native,role=args.role)
     if args.command=='qualification-status':return QualificationStore(args.receipt_root).status(args.route_id,profile.inputs,profile_binding=binding)
@@ -170,7 +177,15 @@ def execute(args):
                     'stream_error':summary.get('error_code'),
                 }
             return response
-        if args.command=='launch':return service.launch(dispatch_id=args.dispatch_id,invocation_id=args.invocation_id)
+        if args.command=='launch':
+            launched=service.launch(dispatch_id=args.dispatch_id,invocation_id=args.invocation_id)
+            if wait_seconds is None or not launched.get('host_called'):
+                return launched
+            deadline=time.monotonic()+wait_seconds
+            while host.query(backend_key=key)['state']!='EXITED' and time.monotonic()<deadline:
+                time.sleep(.25)
+            observation_id='wait-'+hashlib.sha256(args.invocation_id.encode()).hexdigest()
+            return service.poll(dispatch_id=args.dispatch_id,invocation_id=observation_id)
         if args.command=='poll':return service.poll(dispatch_id=args.dispatch_id,invocation_id=args.invocation_id)
         if args.command=='cancel':
             if args.native:
