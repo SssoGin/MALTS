@@ -8,7 +8,9 @@ The DeepSeek Harness adapter supplies native instructions/workflow discovery. Th
 
 Follow [Installation](../../docs/INSTALL.md) and [Usage](../../docs/USAGE.md). Reload the Host and verify actual Skills/MCP. Existing personal content outside marked MALTS blocks is retained. New long workspaces must be Phase-ready; existing adopted workspaces continue through current bindings and Task services.
 
-Harness shares the formal installation with the other three Hosts. AllIncluded in Install-MALTS.ps1 and Update-MALTS.ps1 selects all four; each keeps its own configuration root and Boot. ToolRootDeepSeekHarness supplies the actual Harness path. See [Install](../../docs/INSTALL.md#deepseek-harness-installation), [Update](../../docs/UPDATE.md#deepseek-harness-update) and [Shared Lifecycle](../../docs/LIFECYCLE.md#shared-four-host-installation). Desktop uses profiles/desktop; CLI/Web does not substitute for Desktop qualification.
+Harness shares the formal installation with the other four Hosts. AllIncluded in Install-MALTS.ps1 and Update-MALTS.ps1 selects all five; each keeps its own configuration root and Boot. ToolRootDeepSeekHarness supplies the actual Harness path. See [Install](../../docs/INSTALL.md#deepseek-harness-installation), [Update](../../docs/UPDATE.md#deepseek-harness-update) and [Shared Lifecycle](../../docs/LIFECYCLE.md#shared-five-host-installation). Desktop uses profiles/desktop; CLI/Web does not substitute for Desktop qualification.
+
+Windows Desktop 0.2.2-rc.5 uses the Desktop profile. The standard MALTS server and a read-only project server were both checked over MCP with 2.1.6. If an existing project server refers to a removed Python environment, review that server’s command and point it to the managed Python used by the standard entry. Preserve its arguments and project permissions.
 
 ## Verified scope and limitations
 

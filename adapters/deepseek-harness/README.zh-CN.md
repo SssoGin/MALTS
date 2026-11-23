@@ -8,7 +8,9 @@
 
 按[安装](../../docs/zh-CN/INSTALL.md)和[使用](../../docs/zh-CN/USAGE.md)操作。重载宿主验证实际Skill/MCP；标记区外个人内容保留。新长期工作区需Phase-ready，已采用工作区沿当前binding和Task服务继续。
 
-Harness 与其他三端共用正式安装。`Install-MALTS.ps1`、`Update-MALTS.ps1` 的 `AllIncluded` 选择四端，各端保留自己的配置根和 Boot；实际 Harness 路径使用 `ToolRootDeepSeekHarness`。完整步骤见[安装](../../docs/zh-CN/INSTALL.md#deepseek-harness-安装)、[更新](../../docs/zh-CN/UPDATE.md#deepseek-harness-更新)及[共享生命周期](../../docs/zh-CN/LIFECYCLE.md#四端共享安装)。Desktop入口为profiles/desktop，CLI/Web不代证Desktop。
+Harness 与其他四端共用正式安装。`Install-MALTS.ps1`、`Update-MALTS.ps1` 的 `AllIncluded` 选择五端，各端保留自己的配置根和 Boot；实际 Harness 路径使用 `ToolRootDeepSeekHarness`。完整步骤见[安装](../../docs/zh-CN/INSTALL.md#deepseek-harness-安装)、[更新](../../docs/zh-CN/UPDATE.md#deepseek-harness-更新)及[共享生命周期](../../docs/zh-CN/LIFECYCLE.md#五端共享安装)。Desktop入口为profiles/desktop，CLI/Web不代证Desktop。
+
+Windows 桌面版 0.2.2-rc.5 使用 Desktop 配置。本版已用该配置中的标准 MCP 和只读项目 MCP 分别连接 2.1.6 并读取任务。若项目入口还指向已删除的 Python 环境，请核对其启动命令，将解释器改为标准入口使用的受管 Python，保留原有参数和项目权限。
 
 ## 验证范围与限制
 
